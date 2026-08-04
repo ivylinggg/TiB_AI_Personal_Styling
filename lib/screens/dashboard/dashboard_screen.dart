@@ -3,6 +3,14 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_spacing.dart';
 
+import '../analysis/history/analysis_history_screen.dart';
+
+import '/screens/dashboard/feature_card.dart';
+import '/screens/dashboard/style_score_card.dart';
+import '/screens/dashboard/tip_card.dart';
+import '/widgets/todays_colour_card.dart';
+import '/screens/dashboard/hero_card.dart';
+
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
 
@@ -17,172 +25,181 @@ class DashboardScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(height: 10),
-
-              Text(
-                "Good Morning 👋",
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-
-              const SizedBox(height: 6),
-
-              Text(
-                "Welcome to TiB AI",
-                style: Theme.of(context).textTheme.headlineMedium,
-              ),
-
-              const SizedBox(height: 35),
-
-              _buildMainCard(),
-
-              const SizedBox(height: 20),
-
               Row(
                 children: [
-                  Expanded(
-                    child: _buildSmallCard(
-                      icon: Icons.palette_outlined,
-                      title: "Colour\nAnalysis",
-                    ),
+                  const CircleAvatar(
+                    radius: 28,
+                    backgroundColor: Color(0xffF5D8C7),
+                    child: Icon(Icons.person, color: Colors.white),
                   ),
 
                   const SizedBox(width: 15),
 
                   Expanded(
-                    child: _buildSmallCard(
-                      icon: Icons.checkroom_outlined,
-                      title: "Wardrobe",
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Good Morning 👋",
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+
+                        const SizedBox(height: 4),
+
+                        Text(
+                          "Welcome to TiB AI",
+                          style: Theme.of(context).textTheme.headlineMedium,
+                        ),
+                      ],
                     ),
                   ),
-                ],
-              ),
 
-              const SizedBox(height: 20),
-
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildSmallCard(
-                      icon: Icons.auto_awesome,
-                      title: "AI Stylist",
-                    ),
-                  ),
-
-                  const SizedBox(width: 15),
-
-                  Expanded(
-                    child: _buildSmallCard(
-                      icon: Icons.school_outlined,
-                      title: "Learning",
-                    ),
+                  IconButton(
+                    onPressed: () {},
+                    icon: const Icon(Icons.notifications_none),
                   ),
                 ],
               ),
 
               const SizedBox(height: 30),
 
+              const HeroCard(),
+
+              const SizedBox(height: 20),
+
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const AnalysisHistoryScreen(),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.history),
+                  label: const Text("View Analysis History"),
+                ),
+              ),
+
+              const SizedBox(height: 25),
+
+              const StyleScoreCard(score: 98, season: "Warm Spring"),
+
+              const SizedBox(height: 25),
+
+              const TodaysColourCard(),
+
+              const SizedBox(height: 30),
+
               Text(
-                "Today's Recommendation",
+                "Quick Access",
                 style: Theme.of(context).textTheme.titleLarge,
               ),
 
               const SizedBox(height: 15),
 
-              _buildRecommendation(),
+              GridView.count(
+                crossAxisCount: 2,
+                crossAxisSpacing: 15,
+                mainAxisSpacing: 15,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                childAspectRatio: 1.15,
+
+                children: const [
+                  FeatureCard(
+                    icon: Icons.palette_outlined,
+                    title: "Colour\nAnalysis",
+                  ),
+
+                  FeatureCard(
+                    icon: Icons.checkroom_outlined,
+                    title: "Wardrobe",
+                  ),
+
+                  FeatureCard(icon: Icons.auto_awesome, title: "AI Stylist"),
+
+                  FeatureCard(icon: Icons.school_outlined, title: "Learning"),
+                ],
+              ),
+
+              const SizedBox(height: 30),
+
+              Text(
+                "Today's Tip",
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+
+              const SizedBox(height: 15),
+
+              const TipCard(
+                title: "Today's Style Tip",
+                description:
+                    "Warm beige, peach and olive green will enhance your complexion today.",
+              ),
+
+              const SizedBox(height: 30),
+
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(22),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFC58F73), Color(0xFFE7B9A3)],
+                  ),
+                  borderRadius: BorderRadius.circular(22),
+                ),
+
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(
+                          Icons.workspace_premium,
+                          color: Colors.white,
+                          size: 30,
+                        ),
+
+                        SizedBox(width: 10),
+
+                        Text(
+                          "Premium Membership",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 18),
+
+                    const Text(
+                      "Unlock unlimited AI Colour Analysis, Wardrobe Management, Shopping Assistant and Monthly Reports.",
+                      style: TextStyle(color: Colors.white, height: 1.5),
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: () {},
+                        child: const Text("Upgrade to Premium"),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 30),
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildMainCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(25),
-
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(25),
-        gradient: const LinearGradient(
-          colors: [Color(0xffC58F73), Color(0xffEFB8C8)],
-        ),
-      ),
-
-      child: const Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(Icons.auto_awesome, color: Colors.white, size: 42),
-
-          SizedBox(height: 18),
-
-          Text(
-            "Discover Your Best Colours",
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-
-          SizedBox(height: 8),
-
-          Text(
-            "Start your AI personal styling journey today.",
-            style: TextStyle(color: Colors.white70, fontSize: 15),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSmallCard({required IconData icon, required String title}) {
-    return Container(
-      height: 140,
-
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
-        boxShadow: const [BoxShadow(blurRadius: 15, color: Colors.black12)],
-      ),
-
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, color: AppColors.primary, size: 38),
-
-          const SizedBox(height: 15),
-
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontWeight: FontWeight.w600),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRecommendation() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
-      ),
-
-      child: const Row(
-        children: [
-          CircleAvatar(radius: 28, child: Icon(Icons.lightbulb)),
-
-          SizedBox(width: 15),
-
-          Expanded(
-            child: Text(
-              "Try wearing warm beige or soft peach today to enhance your natural complexion.",
-            ),
-          ),
-        ],
       ),
     );
   }

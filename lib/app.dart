@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import 'core/theme/light_theme.dart';
+
+import 'providers/auth_provider.dart';
+
 import 'screens/splash/splash_screen.dart';
 
 class TibApp extends StatelessWidget {
@@ -8,14 +12,17 @@ class TibApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
+    return ChangeNotifierProvider(
+      create: (_) => AuthProvider(),
+      child: MaterialApp(
+        debugShowCheckedModeBanner: false,
 
-      title: 'TiB AI',
+        title: 'TiB AI',
 
-      theme: LightTheme.theme,
+        theme: LightTheme.theme,
 
-      home: const SplashScreen(),
+        home: const SplashScreen(),
+      ),
     );
   }
 }

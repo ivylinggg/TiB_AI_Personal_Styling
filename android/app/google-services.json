@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "494434706372",
+    "project_id": "tib-ai-personal-styling",
+    "storage_bucket": "tib-ai-personal-styling.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:494434706372:android:d7ccc01ba31212a67e3a91",
+        "android_client_info": {
+          "package_name": "com.example.tib_ai_personal_styling"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD_v1EqXYYHptNSB7JeWUYZt2_glwABaBU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:494434706372:android:0baacebe08e0004d7e3a91",
+        "android_client_info": {
+          "package_name": "com.tib.personalstyling"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD_v1EqXYYHptNSB7JeWUYZt2_glwABaBU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
