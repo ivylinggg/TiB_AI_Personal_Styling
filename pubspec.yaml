@@ -1,0 +1,66 @@
+name: tib_ai_personal_styling
+description: TiB AI Personal Styling & Colour App
+publish_to: "none"
+
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.11.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+  firebase_core: ^4.0.0
+  firebase_auth: ^6.0.0
+  cloud_firestore: ^6.0.0
+  firebase_storage: ^13.0.0
+  firebase_messaging: ^16.0.0
+
+  provider: ^6.1.5
+
+  go_router: ^16.0.0
+
+  image_picker: ^1.2.0
+
+  camera: ^0.11.2
+
+  google_mlkit_face_detection: ^0.13.1
+
+  shared_preferences: ^2.5.3
+
+  flutter_secure_storage: ^9.2.4
+
+  dio: ^5.9.0
+
+  http: ^1.5.0
+
+  intl: ^0.20.2
+
+  cached_network_image: ^3.4.1
+
+
+  lottie: ^3.3.2
+
+  table_calendar: ^3.2.0
+
+  uuid: ^4.5.1
+
+  syncfusion_flutter_pdf: ^31.1.20
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
+    - assets/icons/
+    - assets/logo/
+    - assets/lottie/
