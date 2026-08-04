@@ -7,9 +7,9 @@ class ImagePickerService {
 
   static final ImagePicker _picker = ImagePicker();
 
-  static Future<File?> pickCameraImage() async {
-    final XFile? image = await _picker.pickImage(
-      source: ImageSource.camera,
+  static Future<File?> pickGallery() async {
+    final image = await _picker.pickImage(
+      source: ImageSource.gallery,
       imageQuality: 90,
     );
 
@@ -18,9 +18,9 @@ class ImagePickerService {
     return File(image.path);
   }
 
-  static Future<File?> pickGalleryImage() async {
-    final XFile? image = await _picker.pickImage(
-      source: ImageSource.gallery,
+  static Future<File?> pickCamera() async {
+    final image = await _picker.pickImage(
+      source: ImageSource.camera,
       imageQuality: 90,
     );
 

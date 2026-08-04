@@ -2,11 +2,17 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
-import '../../core/constants/app_colors.dart';
-import '../../widgets/primary_button.dart';
 import '../../services/image_picker_service.dart';
-import '../../services/colour_analysis_service.dart';
-import '../analysis/analysis_result_screen.dart';
+import '../../services/mlkit_service.dart';
+import '../../widgets/primary_button.dart';
+
+import '../../models/colour_analysis_result.dart';
+import 'analysis_result_screen.dart';
+
+import '../auth/auth_service.dart';
+import '../../services/firestore_service.dart';
+
+import '../../services/storage_service.dart';
 
 class AnalysisScreen extends StatefulWidget {
   const AnalysisScreen({super.key});
@@ -16,114 +22,189 @@ class AnalysisScreen extends StatefulWidget {
 }
 
 class _AnalysisScreenState extends State<AnalysisScreen> {
-  File? _selectedImage;
+  File? selectedImage;
 
-  Future<void> _takePhoto() async {
-    final image = await ImagePickerService.pickCameraImage();
+  bool isLoading = false;
 
-    if (image == null) return;
+  String status = "No image selected";
 
-    setState(() {
-      _selectedImage = image;
-    });
-  }
-
-  Future<void> _pickGallery() async {
-    final image = await ImagePickerService.pickGalleryImage();
+  Future<void> pickCamera() async {
+    final image = await ImagePickerService.pickCamera();
 
     if (image == null) return;
 
     setState(() {
-      _selectedImage = image;
+      selectedImage = image;
+      status = "Image selected";
     });
   }
 
-  Future<void> analyseImage() async {
-    if (_selectedImage == null) return;
+  Future<void> pickGallery() async {
+    final image = await ImagePickerService.pickGallery();
 
-    final result = await ColourAnalysisService.analyse();
+    if (image == null) return;
 
-    if (!mounted) return;
+    setState(() {
+      selectedImage = image;
+      status = "Image selected";
+    });
+  }
 
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => AnalysisResultScreen(result: result)),
-    );
+  Future<void> analyse() async {
+    if (selectedImage == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please select an image first.")),
+      );
+      return;
+    }
+
+    setState(() {
+      isLoading = true;
+      status = "Detecting face...";
+    });
+
+    try {
+      final faces = await MlKitService.detectFace(selectedImage!);
+
+      if (!mounted) return;
+
+      if (faces.isEmpty) {
+        setState(() {
+          status = "❌ No face detected";
+        });
+        return;
+      }
+
+      if (faces.length > 1) {
+        setState(() {
+          status = "⚠ Please use a photo with only one face";
+        });
+        return;
+      }
+
+      final face = faces.first;
+
+      debugPrint("Face detected");
+      debugPrint("Bounding Box: ${face.boundingBox}");
+
+      setState(() {
+        status = "✅ Face detected successfully";
+      });
+
+      String imageUrl = "";
+
+      if (AuthService.currentUser != null) {
+        imageUrl = await StorageService.uploadAnalysisImage(
+          uid: AuthService.currentUser!.uid,
+          image: selectedImage!,
+        );
+      }
+      final result = ColourAnalysisResult(
+        season: "Warm Spring",
+        undertone: "Warm",
+        brightness: "Light",
+        contrast: "Medium",
+        imageUrl: imageUrl,
+        colours: const ["Peach", "Coral", "Cream", "Camel", "Olive"],
+      );
+
+      // 保存到 Firestore
+      if (AuthService.currentUser != null) {
+        await FirestoreService.saveAnalysisResult(
+          uid: AuthService.currentUser!.uid,
+          result: result,
+        );
+      }
+
+      if (!mounted) return;
+
+      // 跳转到结果页面
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => AnalysisResultScreen(result: result)),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        status = "Analysis failed";
+      });
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.toString())));
+    } finally {
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      appBar: AppBar(title: const Text("AI Colour Analysis")),
 
-      appBar: AppBar(
-        title: const Text("AI Colour Analysis"),
-        centerTitle: true,
-      ),
+      body: Padding(
+        padding: const EdgeInsets.all(20),
 
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            children: [
-              Expanded(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(24),
-                  child: Container(
-                    width: double.infinity,
-                    color: Colors.white,
+        child: Column(
+          children: [
+            Expanded(
+              child: Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade200,
+                  borderRadius: BorderRadius.circular(20),
+                ),
 
-                    child: _selectedImage == null
-                        ? const Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.face_retouching_natural,
-                                size: 90,
-                                color: AppColors.primary,
-                              ),
+                child: selectedImage == null
+                    ? const Center(child: Icon(Icons.image, size: 100))
+                    : ClipRRect(
+                        borderRadius: BorderRadius.circular(20),
+                        child: Image.file(selectedImage!, fit: BoxFit.cover),
+                      ),
+              ),
+            ),
 
-                              SizedBox(height: 20),
+            const SizedBox(height: 25),
 
-                              Text(
-                                "No Image Selected",
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          )
-                        : Image.file(_selectedImage!, fit: BoxFit.cover),
+            Text(status, style: Theme.of(context).textTheme.titleMedium),
+
+            const SizedBox(height: 25),
+
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: pickCamera,
+                    icon: const Icon(Icons.camera_alt),
+                    label: const Text("Camera"),
                   ),
                 ),
-              ),
 
-              const SizedBox(height: 25),
+                const SizedBox(width: 15),
 
-              PrimaryButton(
-                text: "Take Selfie",
-                icon: Icons.camera_alt,
-                onPressed: _takePhoto,
-              ),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: pickGallery,
+                    icon: const Icon(Icons.photo),
+                    label: const Text("Gallery"),
+                  ),
+                ),
+              ],
+            ),
 
-              const SizedBox(height: 16),
+            const SizedBox(height: 20),
 
-              PrimaryButton(
-                text: "Choose From Gallery",
-                icon: Icons.photo_library,
-                onPressed: _pickGallery,
-              ),
-
-              const SizedBox(height: 20),
-
-              PrimaryButton(
-                text: "Analyse My Colours",
-                icon: Icons.auto_awesome,
-                onPressed: analyseImage,
-              ),
-            ],
-          ),
+            PrimaryButton(
+              text: isLoading ? "Analysing..." : "Analyse Face",
+              icon: Icons.auto_awesome,
+              onPressed: isLoading ? null : analyse,
+            ),
+          ],
         ),
       ),
     );

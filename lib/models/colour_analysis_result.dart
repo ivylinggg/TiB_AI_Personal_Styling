@@ -3,6 +3,7 @@ class ColourAnalysisResult {
   final String undertone;
   final String brightness;
   final String contrast;
+  final String imageUrl;
   final List<String> colours;
 
   const ColourAnalysisResult({
@@ -10,6 +11,7 @@ class ColourAnalysisResult {
     required this.undertone,
     required this.brightness,
     required this.contrast,
+    required this.imageUrl,
     required this.colours,
   });
 }

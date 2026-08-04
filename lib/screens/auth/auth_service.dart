@@ -5,6 +5,10 @@ class AuthService {
 
   static final FirebaseAuth _auth = FirebaseAuth.instance;
 
+  static User? get currentUser => _auth.currentUser;
+
+  static bool get isLoggedIn => currentUser != null;
+
   static Future<UserCredential> login({
     required String email,
     required String password,
@@ -29,5 +33,15 @@ class AuthService {
     await _auth.signOut();
   }
 
-  static User? get currentUser => _auth.currentUser;
+  static Future<void> resetPassword({required String email}) async {
+    await _auth.sendPasswordResetEmail(email: email);
+  }
+
+  static Future<void> updateDisplayName(String name) async {
+    if (currentUser == null) return;
+
+    await currentUser!.updateDisplayName(name);
+
+    await currentUser!.reload();
+  }
 }

@@ -10,6 +10,7 @@ import '/screens/dashboard/style_score_card.dart';
 import '/screens/dashboard/tip_card.dart';
 import '/widgets/todays_colour_card.dart';
 import '/screens/dashboard/hero_card.dart';
+import '../analysis/analysis_screen.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
@@ -108,20 +109,55 @@ class DashboardScreen extends StatelessWidget {
                 physics: const NeverScrollableScrollPhysics(),
                 childAspectRatio: 1.15,
 
-                children: const [
+                children: [
                   FeatureCard(
                     icon: Icons.palette_outlined,
                     title: "Colour\nAnalysis",
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const AnalysisScreen(),
+                        ),
+                      );
+                    },
                   ),
 
                   FeatureCard(
                     icon: Icons.checkroom_outlined,
                     title: "Wardrobe",
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text("Wardrobe Module Coming Soon"),
+                        ),
+                      );
+                    },
                   ),
 
-                  FeatureCard(icon: Icons.auto_awesome, title: "AI Stylist"),
+                  FeatureCard(
+                    icon: Icons.auto_awesome,
+                    title: "AI Stylist",
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text("AI Stylist Module Coming Soon"),
+                        ),
+                      );
+                    },
+                  ),
 
-                  FeatureCard(icon: Icons.school_outlined, title: "Learning"),
+                  FeatureCard(
+                    icon: Icons.school_outlined,
+                    title: "Learning",
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text("Learning Module Coming Soon"),
+                        ),
+                      );
+                    },
+                  ),
                 ],
               ),
 
