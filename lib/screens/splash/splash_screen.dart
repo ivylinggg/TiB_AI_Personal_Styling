@@ -2,6 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../widgets/primary_button.dart';
+import '../dashboard/dashboard_screen.dart';
+
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -17,51 +20,59 @@ class _SplashScreenState extends State<SplashScreen> {
     Timer(const Duration(seconds: 2), () {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const HomeScreen()),
+        MaterialPageRoute(builder: (_) => const DashboardScreen()),
       );
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.face_retouching_natural, size: 90),
-
-            SizedBox(height: 20),
-
-            Text(
-              "TiB AI",
-              style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
-            ),
-
-            SizedBox(height: 8),
-
-            Text("Personal Styling & Colour"),
-
-            SizedBox(height: 40),
-
-            CircularProgressIndicator(),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Dashboard")),
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.face_retouching_natural,
+                  size: 90,
+                  color: Color(0xFFC58F73),
+                ),
 
-      body: const Center(
-        child: Text("Welcome to TiB AI", style: TextStyle(fontSize: 28)),
+                const SizedBox(height: 24),
+
+                Text(
+                  "TiB AI",
+                  style: Theme.of(context).textTheme.headlineLarge,
+                ),
+
+                const SizedBox(height: 8),
+
+                Text(
+                  "Personal Styling & Colour",
+                  style: Theme.of(context).textTheme.bodyLarge,
+                ),
+
+                const SizedBox(height: 48),
+
+                PrimaryButton(
+                  text: "Get Started",
+                  icon: Icons.arrow_forward,
+                  onPressed: () {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const DashboardScreen(),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
