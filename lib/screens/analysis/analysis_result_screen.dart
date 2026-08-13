@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../models/colour_analysis_result.dart';
+import '../../models/colour_analysis_result.dart';
 
 class AnalysisResultScreen extends StatelessWidget {
   final ColourAnalysisResult result;
@@ -10,47 +10,347 @@ class AnalysisResultScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Analysis Result")),
+      backgroundColor: const Color(0xFFFDF9F6),
+      appBar: AppBar(
+        title: const Text('Colour Analysis Result'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
       body: ListView(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.fromLTRB(20, 10, 20, 30),
         children: [
-          const Icon(Icons.auto_awesome, size: 80, color: Color(0xFFC58F73)),
-
-          const SizedBox(height: 24),
-
-          _buildTile("Season", result.season),
-
-          _buildTile("Undertone", result.undertone),
-
-          _buildTile("Brightness", result.brightness),
-
-          _buildTile("Contrast", result.contrast),
-
-          const SizedBox(height: 20),
-
-          const Text(
-            "Recommended Colours",
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ),
+          // ========================================================
+          // HEADER
+          // ========================================================
+          const Icon(Icons.auto_awesome, size: 58, color: Color(0xFFC58F73)),
 
           const SizedBox(height: 12),
 
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: result.colours
-                .map((colour) => Chip(label: Text(colour)))
-                .toList(),
+          Text(
+            'Your Colour Result',
+            textAlign: TextAlign.center,
+            style: Theme.of(
+              context,
+            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+          ),
+
+          const SizedBox(height: 6),
+
+          Text(
+            'Discover the colours that best complement you.',
+            textAlign: TextAlign.center,
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: Colors.grey.shade700),
+          ),
+
+          const SizedBox(height: 24),
+
+          // ========================================================
+          // MAIN SEASON CARD
+          // ========================================================
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF5D8C7),
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Column(
+              children: [
+                const Text(
+                  'YOUR COLOUR SEASON',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.2,
+                    color: Color(0xFF8B5E4B),
+                  ),
+                ),
+
+                const SizedBox(height: 10),
+
+                Text(
+                  result.season,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+
+                const SizedBox(height: 14),
+
+                const Divider(color: Color(0xFFC58F73)),
+
+                const SizedBox(height: 14),
+
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildSummaryItem(
+                        icon: Icons.thermostat_outlined,
+                        title: 'Undertone',
+                        value: result.undertone,
+                      ),
+                    ),
+                    Expanded(
+                      child: _buildSummaryItem(
+                        icon: Icons.wb_sunny_outlined,
+                        title: 'Brightness',
+                        value: result.brightness,
+                      ),
+                    ),
+                    Expanded(
+                      child: _buildSummaryItem(
+                        icon: Icons.contrast,
+                        title: 'Contrast',
+                        value: result.contrast,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 28),
+
+          // ========================================================
+          // ANALYSIS DETAILS
+          // ========================================================
+          Text(
+            'Analysis Details',
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+          ),
+
+          const SizedBox(height: 14),
+
+          _buildDetailCard(
+            icon: Icons.thermostat_outlined,
+            title: 'Skin Undertone',
+            value: result.undertone,
+          ),
+
+          _buildDetailCard(
+            icon: Icons.wb_sunny_outlined,
+            title: 'Brightness',
+            value: result.brightness,
+          ),
+
+          _buildDetailCard(
+            icon: Icons.contrast,
+            title: 'Contrast Level',
+            value: result.contrast,
+          ),
+
+          const SizedBox(height: 18),
+
+          // ========================================================
+          // BEST COLOURS
+          // ========================================================
+          Text(
+            'Your Best Colours',
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+          ),
+
+          const SizedBox(height: 8),
+
+          Text(
+            'These colours are recommended based on your analysis.',
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: Colors.grey.shade700),
+          ),
+
+          const SizedBox(height: 16),
+
+          if (result.colours.isEmpty)
+            _buildEmptyColours()
+          else
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: result.colours
+                  .map((colour) => _buildColourChip(colour))
+                  .toList(),
+            ),
+
+          const SizedBox(height: 30),
+
+          // ========================================================
+          // IMAGE REFERENCE
+          // ========================================================
+          if (result.imageUrl.isNotEmpty) ...[
+            Text(
+              'Analysis Photo',
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+            ),
+
+            const SizedBox(height: 14),
+
+            ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: Image.network(
+                result.imageUrl,
+                height: 240,
+                width: double.infinity,
+                fit: BoxFit.cover,
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) {
+                    return child;
+                  }
+
+                  return Container(
+                    height: 240,
+                    color: const Color(0xFFF5D8C7),
+                    child: const Center(child: CircularProgressIndicator()),
+                  );
+                },
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    height: 240,
+                    color: const Color(0xFFF5D8C7),
+                    child: const Center(
+                      child: Icon(Icons.image_not_supported_outlined, size: 50),
+                    ),
+                  );
+                },
+              ),
+            ),
+
+            const SizedBox(height: 30),
+          ],
+
+          // ========================================================
+          // ACTION
+          // ========================================================
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              icon: const Icon(Icons.arrow_back),
+              label: const Text('Back to Analysis'),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(double.infinity, 52),
+              ),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildTile(String title, String value) {
+  // ============================================================
+  // SUMMARY ITEM
+  // ============================================================
+
+  Widget _buildSummaryItem({
+    required IconData icon,
+    required String title,
+    required String value,
+  }) {
+    return Column(
+      children: [
+        Icon(icon, size: 22, color: const Color(0xFF8B5E4B)),
+
+        const SizedBox(height: 6),
+
+        Text(
+          title,
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+        ),
+
+        const SizedBox(height: 3),
+
+        Text(
+          value,
+          textAlign: TextAlign.center,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+        ),
+      ],
+    );
+  }
+
+  // ============================================================
+  // DETAIL CARD
+  // ============================================================
+
+  Widget _buildDetailCard({
+    required IconData icon,
+    required String title,
+    required String value,
+  }) {
     return Card(
-      margin: const EdgeInsets.only(bottom: 14),
-      child: ListTile(title: Text(title), subtitle: Text(value)),
+      elevation: 0,
+      margin: const EdgeInsets.only(bottom: 10),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        leading: CircleAvatar(
+          backgroundColor: const Color(0xFFF5D8C7),
+          child: Icon(icon, color: const Color(0xFFC58F73)),
+        ),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+        trailing: Text(
+          value,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // COLOUR CHIP
+  // ============================================================
+
+  Widget _buildColourChip(String colour) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF5D8C7),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.palette_outlined,
+            size: 17,
+            color: Color(0xFFC58F73),
+          ),
+          const SizedBox(width: 7),
+          Text(colour, style: const TextStyle(fontWeight: FontWeight.w600)),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================
+  // EMPTY COLOURS
+  // ============================================================
+
+  Widget _buildEmptyColours() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: const Text(
+        'No recommended colours available yet.',
+        textAlign: TextAlign.center,
+      ),
     );
   }
 }

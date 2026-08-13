@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../../../models/analysis_model.dart';
+import '../../../models/colour_analysis_result.dart';
 import '../../../services/firestore_service.dart';
 import '../../auth/auth_service.dart';
+import '../analysis_result_screen.dart';
 
 class AnalysisHistoryScreen extends StatefulWidget {
   const AnalysisHistoryScreen({super.key});
@@ -12,7 +13,7 @@ class AnalysisHistoryScreen extends StatefulWidget {
 }
 
 class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
-  late Future<List<AnalysisModel>> historyFuture;
+  late Future<List<ColourAnalysisResult>> historyFuture;
 
   @override
   void initState() {
@@ -21,57 +22,335 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
     final user = AuthService.currentUser;
 
     if (user != null) {
-      historyFuture = FirestoreService.getAnalysisHistory(user.uid);
+      historyFuture = FirestoreService.getColourAnalysisHistory(user.uid);
     } else {
-      historyFuture = Future.value([]);
+      historyFuture = Future.value(<ColourAnalysisResult>[]);
     }
+  }
+
+  Future<void> refreshHistory() async {
+    final user = AuthService.currentUser;
+
+    if (user == null) {
+      setState(() {
+        historyFuture = Future.value(<ColourAnalysisResult>[]);
+      });
+      return;
+    }
+
+    setState(() {
+      historyFuture = FirestoreService.getColourAnalysisHistory(user.uid);
+    });
+
+    await historyFuture;
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Analysis History")),
+      backgroundColor: const Color(0xFFFDF9F6),
 
-      body: FutureBuilder<List<AnalysisModel>>(
+      appBar: AppBar(
+        title: const Text('Analysis History'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
+
+      body: FutureBuilder<List<ColourAnalysisResult>>(
         future: historyFuture,
         builder: (context, snapshot) {
+          // ======================================================
+          // LOADING
+          // ======================================================
+
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
 
+          // ======================================================
+          // ERROR
+          // ======================================================
+
           if (snapshot.hasError) {
-            return Center(child: Text(snapshot.error.toString()));
+            return _buildErrorState(snapshot.error.toString());
           }
 
-          final history = snapshot.data ?? [];
+          final history = snapshot.data ?? <ColourAnalysisResult>[];
+
+          // ======================================================
+          // EMPTY
+          // ======================================================
 
           if (history.isEmpty) {
-            return const Center(child: Text("No analysis history yet."));
+            return _buildEmptyState();
           }
 
-          return ListView.separated(
-            padding: const EdgeInsets.all(20),
-            itemCount: history.length,
-            separatorBuilder: (context, index) => const SizedBox(height: 12),
-            itemBuilder: (context, index) {
-              final item = history[index];
+          // ======================================================
+          // HISTORY LIST
+          // ======================================================
 
-              return Card(
-                child: ListTile(
-                  leading: const CircleAvatar(child: Icon(Icons.auto_awesome)),
+          return RefreshIndicator(
+            onRefresh: refreshHistory,
+            child: ListView.separated(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
+              itemCount: history.length,
+              separatorBuilder: (context, index) => const SizedBox(height: 14),
+              itemBuilder: (context, index) {
+                final item = history[index];
 
-                  title: Text(item.colourSeason),
-
-                  subtitle: Text(item.skinTone),
-
-                  trailing: Text(
-                    "${item.createdAt.day}/${item.createdAt.month}/${item.createdAt.year}",
-                  ),
-                ),
-              );
-            },
+                return _buildHistoryCard(context, item, index);
+              },
+            ),
           );
         },
+      ),
+    );
+  }
+
+  // ============================================================
+  // HISTORY CARD
+  // ============================================================
+
+  Widget _buildHistoryCard(
+    BuildContext context,
+    ColourAnalysisResult item,
+    int index,
+  ) {
+    return Card(
+      elevation: 0,
+      margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => AnalysisResultScreen(result: item),
+            ),
+          );
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              // ==================================================
+              // IMAGE
+              // ==================================================
+              _buildHistoryImage(item),
+
+              const SizedBox(width: 14),
+
+              // ==================================================
+              // CONTENT
+              // ==================================================
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.season,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+
+                    const SizedBox(height: 6),
+
+                    Text(
+                      '${item.undertone} • '
+                      '${item.brightness} • '
+                      '${item.contrast}',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: Colors.grey.shade700),
+                    ),
+
+                    const SizedBox(height: 10),
+
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF5D8C7),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        'Analysis ${index + 1}',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF8B5E4B),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(width: 8),
+
+              const Icon(Icons.arrow_forward_ios, size: 16),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // HISTORY IMAGE
+  // ============================================================
+
+  Widget _buildHistoryImage(ColourAnalysisResult item) {
+    if (item.imageUrl.isEmpty) {
+      return const CircleAvatar(
+        radius: 34,
+        backgroundColor: Color(0xFFF5D8C7),
+        child: Icon(Icons.auto_awesome, color: Color(0xFFC58F73), size: 30),
+      );
+    }
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(14),
+      child: Image.network(
+        item.imageUrl,
+        width: 68,
+        height: 68,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          return Container(
+            width: 68,
+            height: 68,
+            color: const Color(0xFFF5D8C7),
+            child: const Icon(
+              Icons.image_not_supported_outlined,
+              color: Color(0xFFC58F73),
+            ),
+          );
+        },
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) {
+            return child;
+          }
+
+          return Container(
+            width: 68,
+            height: 68,
+            color: const Color(0xFFF5D8C7),
+            child: const Center(
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  // ============================================================
+  // EMPTY STATE
+  // ============================================================
+
+  Widget _buildEmptyState() {
+    return RefreshIndicator(
+      onRefresh: refreshHistory,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          const SizedBox(height: 130),
+
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 35),
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.history_outlined,
+                    size: 80,
+                    color: Colors.grey.shade400,
+                  ),
+
+                  const SizedBox(height: 18),
+
+                  Text(
+                    'No Analysis History',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  Text(
+                    'Your previous colour analysis results will appear here.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.grey.shade600),
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  FilledButton.icon(
+                    onPressed: () {
+                      Navigator.pop(context);
+                    },
+                    icon: const Icon(Icons.auto_awesome),
+                    label: const Text('Start Analysis'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================
+  // ERROR STATE
+  // ============================================================
+
+  Widget _buildErrorState(String error) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, size: 65),
+
+            const SizedBox(height: 16),
+
+            const Text(
+              'Unable to load analysis history.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+            ),
+
+            const SizedBox(height: 8),
+
+            Text(
+              'Please check your connection and try again.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey.shade600),
+            ),
+
+            const SizedBox(height: 20),
+
+            FilledButton(
+              onPressed: refreshHistory,
+              child: const Text('Try Again'),
+            ),
+          ],
+        ),
       ),
     );
   }

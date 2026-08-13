@@ -1,15 +1,17 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-import '../models/user_model.dart';
-
 import '../models/analysis_model.dart';
-
 import '../models/colour_analysis_result.dart';
+import '../models/user_model.dart';
 
 class FirestoreService {
   FirestoreService._();
 
   static final FirebaseFirestore _db = FirebaseFirestore.instance;
+
+  // ============================================================
+  // USERS
+  // ============================================================
 
   static Future<void> createUser(UserModel user) async {
     await _db.collection('users').doc(user.uid).set(user.toMap());
@@ -26,8 +28,15 @@ class FirestoreService {
   }
 
   static Future<void> updateUser(String uid, Map<String, dynamic> data) async {
-    await _db.collection('users').doc(uid).update(data);
+    await _db.collection('users').doc(uid).update({
+      ...data,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
   }
+
+  // ============================================================
+  // ANALYSIS - OLD / EXISTING
+  // ============================================================
 
   static Future<void> saveAnalysis({
     required String uid,
@@ -48,8 +57,14 @@ class FirestoreService {
         .orderBy('createdAt', descending: true)
         .get();
 
-    return snapshot.docs.map((e) => AnalysisModel.fromFirestore(e)).toList();
+    return snapshot.docs
+        .map((doc) => AnalysisModel.fromFirestore(doc))
+        .toList();
   }
+
+  // ============================================================
+  // COLOUR ANALYSIS
+  // ============================================================
 
   static Future<void> saveAnalysisResult({
     required String uid,
@@ -60,8 +75,76 @@ class FirestoreService {
       'undertone': result.undertone,
       'brightness': result.brightness,
       'contrast': result.contrast,
+      'imageUrl': result.imageUrl,
       'colours': result.colours,
       'createdAt': FieldValue.serverTimestamp(),
     });
+  }
+
+  // ============================================================
+  // GET COLOUR ANALYSIS HISTORY
+  // ============================================================
+
+  static Future<List<ColourAnalysisResult>> getColourAnalysisHistory(
+    String uid,
+  ) async {
+    final snapshot = await _db
+        .collection('users')
+        .doc(uid)
+        .collection('analysis')
+        .orderBy('createdAt', descending: true)
+        .get();
+
+    return snapshot.docs.map((doc) {
+      final data = doc.data();
+
+      final colours = data['colours'];
+
+      return ColourAnalysisResult(
+        season: data['season'] as String? ?? 'Unknown',
+        undertone: data['undertone'] as String? ?? 'Unknown',
+        brightness: data['brightness'] as String? ?? 'Unknown',
+        contrast: data['contrast'] as String? ?? 'Unknown',
+        imageUrl: data['imageUrl'] as String? ?? '',
+        colours: colours is List
+            ? colours.map((item) => item.toString()).toList()
+            : const [],
+      );
+    }).toList();
+  }
+
+  // ============================================================
+  // GET LATEST COLOUR ANALYSIS
+  // ============================================================
+
+  static Future<ColourAnalysisResult?> getLatestColourAnalysis(
+    String uid,
+  ) async {
+    final snapshot = await _db
+        .collection('users')
+        .doc(uid)
+        .collection('analysis')
+        .orderBy('createdAt', descending: true)
+        .limit(1)
+        .get();
+
+    if (snapshot.docs.isEmpty) {
+      return null;
+    }
+
+    final data = snapshot.docs.first.data();
+
+    final colours = data['colours'];
+
+    return ColourAnalysisResult(
+      season: data['season'] as String? ?? 'Unknown',
+      undertone: data['undertone'] as String? ?? 'Unknown',
+      brightness: data['brightness'] as String? ?? 'Unknown',
+      contrast: data['contrast'] as String? ?? 'Unknown',
+      imageUrl: data['imageUrl'] as String? ?? '',
+      colours: colours is List
+          ? colours.map((item) => item.toString()).toList()
+          : const [],
+    );
   }
 }

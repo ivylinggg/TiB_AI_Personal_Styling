@@ -10,28 +10,59 @@ class AnalysisProvider extends ChangeNotifier {
   ColourAnalysisResult? _result;
   bool _isLoading = false;
 
+  // ============================================================
+  // GETTERS
+  // ============================================================
+
   File? get selectedImage => _selectedImage;
+
   ColourAnalysisResult? get result => _result;
+
   bool get isLoading => _isLoading;
+
+  // ============================================================
+  // SET IMAGE
+  // ============================================================
 
   void setImage(File image) {
     _selectedImage = image;
+    _result = null;
+
     notifyListeners();
   }
 
-  Future<void> analyse() async {
+  // ============================================================
+  // ANALYSE
+  // ============================================================
+
+  Future<void> analyse({required String imageUrl}) async {
+    if (_selectedImage == null) {
+      return;
+    }
+
     _isLoading = true;
     notifyListeners();
 
-    _result = await ColourAnalysisService.analyse();
-
-    _isLoading = false;
-    notifyListeners();
+    try {
+      _result = await ColourAnalysisService.analyse(
+        image: _selectedImage!,
+        imageUrl: imageUrl,
+      );
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
   }
+
+  // ============================================================
+  // CLEAR
+  // ============================================================
 
   void clear() {
     _selectedImage = null;
     _result = null;
+    _isLoading = false;
+
     notifyListeners();
   }
 }

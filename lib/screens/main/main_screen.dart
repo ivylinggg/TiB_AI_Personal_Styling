@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../dashboard/dashboard_screen.dart';
 import '../analysis/analysis_screen.dart';
+import '../ai/ai_stylist_screen.dart';
+import '../learning/learning_screen.dart';
+import '../profile/profile_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -16,16 +19,15 @@ class _MainScreenState extends State<MainScreen> {
   final List<Widget> _pages = const [
     DashboardScreen(),
     AnalysisScreen(),
-    _PlaceholderScreen(title: "AI Stylist", icon: Icons.auto_awesome),
-    _PlaceholderScreen(title: "Learning", icon: Icons.school_outlined),
-    _PlaceholderScreen(title: "Profile", icon: Icons.person_outline),
+    AIStylistScreen(),
+    LearningScreen(),
+    ProfileScreen(),
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _pages[_selectedIndex],
-
+      body: IndexedStack(index: _selectedIndex, children: _pages),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
         onDestinationSelected: (index) {
@@ -61,21 +63,6 @@ class _MainScreenState extends State<MainScreen> {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _PlaceholderScreen extends StatelessWidget {
-  final String title;
-  final IconData icon;
-
-  const _PlaceholderScreen({required this.title, required this.icon});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(title)),
-      body: Center(child: Icon(icon, size: 80)),
     );
   }
 }
