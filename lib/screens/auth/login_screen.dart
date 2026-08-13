@@ -29,6 +29,10 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  // ============================================================
+  // EMAIL LOGIN
+  // ============================================================
+
   Future<void> login() async {
     final email = emailController.text.trim();
     final password = passwordController.text;
@@ -48,71 +52,18 @@ class _LoginScreenState extends State<LoginScreen> {
         password: password,
       );
 
-      // Check the Firestore account status before routing.
-      final isActive = await AuthService.isCurrentUserActive();
-
-      if (!isActive) {
-        await AuthService.logout();
-
-        if (!mounted) return;
-
-        _showMessage(
-          'Your account is currently inactive. Please contact the administrator.',
-        );
-        return;
-      }
-
-      final role = await AuthService.getCurrentUserRole();
-
-      if (!mounted) return;
-
-      if (role == 'admin') {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(
-            builder: (_) => const AdminMainScreen(),
-          ),
-          (route) => false,
-        );
-        return;
-      }
-
-      if (role == 'customer') {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(
-            builder: (_) => const MainScreen(),
-          ),
-          (route) => false,
-        );
-        return;
-      }
-
-      await AuthService.logout();
-
-      if (!mounted) return;
-
-      _showMessage(
-        'Your account has an unsupported role: $role',
-      );
+      await _routeAuthenticatedUser();
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
-
-      _showMessage(
-        _authErrorMessage(e),
-      );
+      _showMessage(_authErrorMessage(e));
     } on FirebaseException catch (e) {
       if (!mounted) return;
-
       _showMessage(
         e.message ?? 'Unable to load your account profile.',
       );
-    } catch (e) {
+    } catch (_) {
       if (!mounted) return;
-
-      _showMessage(
-        'Login failed. Please try again.',
-      );
+      _showMessage('Login failed. Please try again.');
     } finally {
       if (mounted) {
         setState(() {
@@ -122,26 +73,149 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  String _authErrorMessage(FirebaseAuthException e) {
+  // ============================================================
+  // GOOGLE LOGIN
+  // ============================================================
+
+  Future<void> loginWithGoogle() async {
+    if (isLoading) return;
+
+    try {
+      setState(() {
+        isLoading = true;
+      });
+
+      final credential =
+          await AuthService.loginWithGoogle();
+
+      if (credential == null) {
+        if (mounted) {
+          _showMessage('Google sign-in was cancelled.');
+        }
+        return;
+      }
+
+      await _routeAuthenticatedUser();
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      _showMessage(_authErrorMessage(e));
+    } catch (e) {
+      if (!mounted) return;
+
+      final message = e.toString().contains('ApiException: 10')
+          ? 'Google Sign-In configuration is incomplete. Check Firebase Android SHA-1 / SHA-256 and Google Sign-In setup.'
+          : 'Google Login failed. Please try again.';
+
+      _showMessage(message);
+    } finally {
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
+    }
+  }
+
+  // ============================================================
+  // COMMON AUTH ROUTING
+  // ============================================================
+
+  Future<void> _routeAuthenticatedUser() async {
+    final isActive =
+        await AuthService.isCurrentUserActive();
+
+    if (!isActive) {
+      await AuthService.logout();
+
+      if (!mounted) return;
+
+      _showMessage(
+        'Your account is currently inactive. Please contact the administrator.',
+      );
+      return;
+    }
+
+    final role =
+        await AuthService.getCurrentUserRole();
+
+    if (!mounted) return;
+
+    if (role == 'admin') {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const AdminMainScreen(),
+        ),
+        (route) => false,
+      );
+      return;
+    }
+
+    if (role == 'customer') {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const MainScreen(),
+        ),
+        (route) => false,
+      );
+      return;
+    }
+
+    await AuthService.logout();
+
+    if (!mounted) return;
+
+    _showMessage(
+      'Your account has an unsupported role: $role',
+    );
+  }
+
+  // ============================================================
+  // AUTH ERROR MESSAGE
+  // ============================================================
+
+  String _authErrorMessage(
+    FirebaseAuthException e,
+  ) {
     switch (e.code) {
       case 'invalid-email':
         return 'Please enter a valid email address.';
+
       case 'user-not-found':
       case 'wrong-password':
       case 'invalid-credential':
         return 'Incorrect email or password.';
+
       case 'user-disabled':
         return 'This Firebase account has been disabled.';
+
       case 'too-many-requests':
         return 'Too many login attempts. Please try again later.';
+
       case 'network-request-failed':
         return 'Network error. Please check your internet connection.';
+
       case 'no-current-user':
         return 'No authenticated user was found.';
+
+      case 'google-id-token-missing':
+        return 'Google authentication did not return a valid ID token.';
+
+      case 'google-user-missing':
+        return 'Google authentication did not return a Firebase user.';
+
+      case 'operation-not-allowed':
+        return 'This sign-in method is not enabled in Firebase Authentication.';
+
       default:
-        return e.message ?? 'Login failed.';
+        return e.message ?? 'Authentication failed.';
     }
   }
+
+  // ============================================================
+  // MESSAGE
+  // ============================================================
 
   void _showMessage(String message) {
     if (!mounted) return;
@@ -152,6 +226,10 @@ class _LoginScreenState extends State<LoginScreen> {
         SnackBar(content: Text(message)),
       );
   }
+
+  // ============================================================
+  // FORGOT PASSWORD
+  // ============================================================
 
   Future<void> _showForgotPasswordDialog() async {
     final controller = TextEditingController(
@@ -197,7 +275,9 @@ class _LoginScreenState extends State<LoginScreen> {
     if (email == null || email.isEmpty) return;
 
     try {
-      await AuthService.resetPassword(email: email);
+      await AuthService.resetPassword(
+        email: email,
+      );
 
       if (!mounted) return;
 
@@ -206,16 +286,18 @@ class _LoginScreenState extends State<LoginScreen> {
       );
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
-
       _showMessage(_authErrorMessage(e));
-    } catch (e) {
+    } catch (_) {
       if (!mounted) return;
-
       _showMessage(
         'Unable to send the password reset email.',
       );
     }
   }
+
+  // ============================================================
+  // REGISTER
+  // ============================================================
 
   void _openRegister() {
     if (isLoading) return;
@@ -228,6 +310,10 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  // ============================================================
+  // BUILD
+  // ============================================================
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -236,7 +322,8 @@ class _LoginScreenState extends State<LoginScreen> {
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment:
+                CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 60),
 
@@ -244,7 +331,8 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Container(
                   width: 95,
                   height: 95,
-                  decoration: const BoxDecoration(
+                  decoration:
+                      const BoxDecoration(
                     color: Color(0xFFC58F73),
                     shape: BoxShape.circle,
                   ),
@@ -260,26 +348,35 @@ class _LoginScreenState extends State<LoginScreen> {
 
               Text(
                 'Welcome Back',
-                style: Theme.of(context).textTheme.headlineMedium,
+                style: Theme.of(context)
+                    .textTheme
+                    .headlineMedium,
               ),
 
               const SizedBox(height: 8),
 
               Text(
                 'Sign in to continue your AI styling journey.',
-                style: Theme.of(context).textTheme.bodyMedium,
+                style: Theme.of(context)
+                    .textTheme
+                    .bodyMedium,
               ),
 
               const SizedBox(height: 36),
 
               TextField(
                 controller: emailController,
-                keyboardType: TextInputType.emailAddress,
-                textInputAction: TextInputAction.next,
-                decoration: const InputDecoration(
+                keyboardType:
+                    TextInputType.emailAddress,
+                textInputAction:
+                    TextInputAction.next,
+                decoration:
+                    const InputDecoration(
                   labelText: 'Email',
                   hintText: 'example@email.com',
-                  prefixIcon: Icon(Icons.email_outlined),
+                  prefixIcon: Icon(
+                    Icons.email_outlined,
+                  ),
                 ),
               ),
 
@@ -288,18 +385,24 @@ class _LoginScreenState extends State<LoginScreen> {
               TextField(
                 controller: passwordController,
                 obscureText: obscurePassword,
-                textInputAction: TextInputAction.done,
+                textInputAction:
+                    TextInputAction.done,
                 onSubmitted: (_) {
                   if (!isLoading) login();
                 },
-                decoration: InputDecoration(
+                decoration:
+                    InputDecoration(
                   labelText: 'Password',
-                  hintText: 'Enter your password',
-                  prefixIcon: const Icon(Icons.lock_outline),
+                  hintText:
+                      'Enter your password',
+                  prefixIcon: const Icon(
+                    Icons.lock_outline,
+                  ),
                   suffixIcon: IconButton(
                     onPressed: () {
                       setState(() {
-                        obscurePassword = !obscurePassword;
+                        obscurePassword =
+                            !obscurePassword;
                       });
                     },
                     icon: Icon(
@@ -314,21 +417,27 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 12),
 
               Align(
-                alignment: Alignment.centerRight,
+                alignment:
+                    Alignment.centerRight,
                 child: TextButton(
                   onPressed: isLoading
                       ? null
                       : _showForgotPasswordDialog,
-                  child: const Text('Forgot Password?'),
+                  child: const Text(
+                    'Forgot Password?',
+                  ),
                 ),
               ),
 
               const SizedBox(height: 24),
 
               PrimaryButton(
-                text: isLoading ? 'Signing In...' : 'Login',
+                text: isLoading
+                    ? 'Signing In...'
+                    : 'Login',
                 icon: Icons.login,
-                onPressed: isLoading ? null : login,
+                onPressed:
+                    isLoading ? null : login,
               ),
 
               const SizedBox(height: 24),
@@ -337,7 +446,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 children: [
                   Expanded(child: Divider()),
                   Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 12),
+                    padding:
+                        EdgeInsets.symmetric(
+                      horizontal: 12,
+                    ),
                     child: Text('OR'),
                   ),
                   Expanded(child: Divider()),
@@ -349,27 +461,41 @@ class _LoginScreenState extends State<LoginScreen> {
               OutlinedButton.icon(
                 onPressed: isLoading
                     ? null
-                    : () {
-                        _showMessage(
-                          'Google Login is not connected yet.',
-                        );
-                      },
-                icon: const Icon(Icons.g_mobiledata),
-                label: const Text('Continue with Google'),
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 55),
+                    : loginWithGoogle,
+                icon: const Icon(
+                  Icons.g_mobiledata,
+                  size: 30,
+                ),
+                label: Text(
+                  isLoading
+                      ? 'Signing In...'
+                      : 'Continue with Google',
+                ),
+                style:
+                    OutlinedButton.styleFrom(
+                  minimumSize:
+                      const Size(
+                    double.infinity,
+                    55,
+                  ),
                 ),
               ),
 
               const SizedBox(height: 18),
 
               Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisAlignment:
+                    MainAxisAlignment.center,
                 children: [
-                  const Text("Don't have an account?"),
+                  const Text(
+                    "Don't have an account?",
+                  ),
                   TextButton(
-                    onPressed: isLoading ? null : _openRegister,
-                    child: const Text('Register'),
+                    onPressed: isLoading
+                        ? null
+                        : _openRegister,
+                    child:
+                        const Text('Register'),
                   ),
                 ],
               ),
