@@ -1,68 +1,120 @@
 import 'dart:io';
 
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 
 import '../models/colour_analysis_result.dart';
 import '../services/colour_analysis_service.dart';
+import '../services/firestore_service.dart';
+import '../services/mlkit_service.dart';
+import '../services/storage_service.dart';
 
 class AnalysisProvider extends ChangeNotifier {
   File? _selectedImage;
   ColourAnalysisResult? _result;
   bool _isLoading = false;
-
-  // ============================================================
-  // GETTERS
-  // ============================================================
+  String _status = 'No image selected';
+  String? _errorMessage;
 
   File? get selectedImage => _selectedImage;
-
   ColourAnalysisResult? get result => _result;
-
   bool get isLoading => _isLoading;
-
-  // ============================================================
-  // SET IMAGE
-  // ============================================================
+  String get status => _status;
+  String? get errorMessage => _errorMessage;
 
   void setImage(File image) {
     _selectedImage = image;
     _result = null;
-
+    _errorMessage = null;
+    _status = 'Image selected';
     notifyListeners();
   }
 
-  // ============================================================
-  // ANALYSE
-  // ============================================================
+  Future<bool> analyse({required String uid}) async {
+    final image = _selectedImage;
 
-  Future<void> analyse({required String imageUrl}) async {
-    if (_selectedImage == null) {
-      return;
+    if (image == null) {
+      _setError('Please select an image first.');
+      return false;
+    }
+
+    if (uid.trim().isEmpty) {
+      _setError('Please login before starting an analysis.');
+      return false;
     }
 
     _isLoading = true;
+    _errorMessage = null;
+    _status = 'Detecting face...';
     notifyListeners();
 
     try {
-      _result = await ColourAnalysisService.analyse(
-        image: _selectedImage!,
+      // 1. Validate that the photo contains exactly one face.
+      final faces = await MlKitService.detectFace(image);
+
+      if (faces.isEmpty) {
+        _setError(
+          'No face was detected. Please use a clear front-facing photo.',
+        );
+        return false;
+      }
+
+      if (faces.length > 1) {
+        _setError('Please use a photo with only one face.');
+        return false;
+      }
+
+      _status = 'Face detected. Uploading image...';
+      notifyListeners();
+
+      // 2. Upload the original analysis image.
+      final imageUrl = await StorageService.uploadAnalysisImage(
+        uid: uid,
+        image: image,
+      );
+
+      _status = 'Analysing your colours...';
+      notifyListeners();
+
+      // 3. Run the colour analysis against the selected image.
+      final analysisResult = await ColourAnalysisService.analyse(
+        image: image,
         imageUrl: imageUrl,
       );
+
+      _status = 'Saving your analysis...';
+      notifyListeners();
+
+      // 4. Persist the result in the authenticated user's history.
+      await FirestoreService.saveAnalysisResult(
+        uid: uid,
+        result: analysisResult,
+      );
+
+      _result = analysisResult;
+      _status = 'Analysis completed successfully';
+      return true;
+    } catch (e) {
+      _setError('Analysis failed: $e');
+      return false;
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
 
-  // ============================================================
-  // CLEAR
-  // ============================================================
-
   void clear() {
     _selectedImage = null;
     _result = null;
     _isLoading = false;
+    _status = 'No image selected';
+    _errorMessage = null;
+    notifyListeners();
+  }
 
+  void _setError(String message) {
+    _isLoading = false;
+    _errorMessage = message;
+    _status = 'Analysis failed';
     notifyListeners();
   }
 }
