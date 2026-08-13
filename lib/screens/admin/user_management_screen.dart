@@ -211,8 +211,6 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     // is stored in the document.
     // ------------------------------------------------------------
 
-    final currentUserId = FirebaseFirestore.instance.app.options.projectId;
-
     // The check above only obtains project information.
     // The actual Auth UID is checked through the document field
     // below where available.
