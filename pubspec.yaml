@@ -33,6 +33,9 @@ dependencies:
   # AI
   google_mlkit_face_detection: ^0.13.1
 
+  # Authentication
+  google_sign_in: ^7.2.0
+
   # Local Storage
   shared_preferences: ^2.5.3
   flutter_secure_storage: ^9.2.4
