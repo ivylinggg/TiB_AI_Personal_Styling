@@ -1,0 +1,167 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
+
+class PremiumManagementScreen extends StatefulWidget {
+  const PremiumManagementScreen({super.key});
+
+  @override
+  State<PremiumManagementScreen> createState() => _PremiumManagementScreenState();
+}
+
+class _PremiumManagementScreenState extends State<PremiumManagementScreen> {
+  final _searchController = TextEditingController();
+  String _filter = 'All';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> _users() {
+    return FirebaseFirestore.instance.collection('users').orderBy('createdAt', descending: true).snapshots();
+  }
+
+  bool _matches(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data();
+    final query = _searchController.text.trim().toLowerCase();
+    final name = (data['name'] as String? ?? '').toLowerCase();
+    final email = (data['email'] as String? ?? '').toLowerCase();
+    final premium = data['isPremium'] as bool? ?? false;
+    final searchMatch = query.isEmpty || name.contains(query) || email.contains(query);
+    final filterMatch = _filter == 'All' || (_filter == 'Premium' && premium) || (_filter == 'Free' && !premium);
+    return searchMatch && filterMatch;
+  }
+
+  Future<void> _togglePremium(QueryDocumentSnapshot<Map<String, dynamic>> doc) async {
+    final data = doc.data();
+    final current = data['isPremium'] as bool? ?? false;
+    try {
+      await doc.reference.update({
+        'isPremium': !current,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(!current ? 'Premium access granted.' : 'Premium access removed.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Unable to update premium status: $e')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Premium Management'),
+      ),
+      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        stream: _users(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return Center(child: Text('Unable to load users: ${snapshot.error}'));
+          }
+
+          final all = snapshot.data?.docs ?? const [];
+          final premiumCount = all.where((d) => d.data()['isPremium'] as bool? ?? false).length;
+          final freeCount = all.length - premiumCount;
+          final visible = all.where(_matches).toList();
+
+          return Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                child: Row(
+                  children: [
+                    Expanded(child: _stat('Premium', premiumCount, Icons.workspace_premium_outlined)),
+                    const SizedBox(width: 10),
+                    Expanded(child: _stat('Free', freeCount, Icons.person_outline)),
+                    const SizedBox(width: 10),
+                    Expanded(child: _stat('Total', all.length, Icons.people_outline)),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+                child: TextField(
+                  controller: _searchController,
+                  onChanged: (_) => setState(() {}),
+                  decoration: InputDecoration(
+                    hintText: 'Search name or email',
+                    prefixIcon: const Icon(Icons.search),
+                    suffixIcon: _searchController.text.isEmpty
+                        ? null
+                        : IconButton(onPressed: () { _searchController.clear(); setState(() {}); }, icon: const Icon(Icons.clear)),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                ),
+              ),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                child: Row(
+                  children: ['All', 'Premium', 'Free'].map((value) => Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ChoiceChip(label: Text(value), selected: _filter == value, onSelected: (_) => setState(() => _filter = value)),
+                  )).toList(),
+                ),
+              ),
+              Expanded(
+                child: visible.isEmpty
+                    ? const Center(child: Text('No users match this filter.'))
+                    : ListView.separated(
+                        padding: const EdgeInsets.fromLTRB(20, 10, 20, 30),
+                        itemCount: visible.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 10),
+                        itemBuilder: (context, index) {
+                          final doc = visible[index];
+                          final data = doc.data();
+                          final isPremium = data['isPremium'] as bool? ?? false;
+                          final name = data['name'] as String? ?? 'Unknown User';
+                          final email = data['email'] as String? ?? 'No email';
+                          return Card(
+                            elevation: 0,
+                            child: ListTile(
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              leading: CircleAvatar(
+                                backgroundColor: isPremium ? const Color(0xFFF5D8C7) : const Color(0xFFF2F2F2),
+                                child: Icon(isPremium ? Icons.workspace_premium : Icons.person_outline, color: isPremium ? const Color(0xFFC58F73) : Colors.grey),
+                              ),
+                              title: Text(name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                              subtitle: Text(email, maxLines: 1, overflow: TextOverflow.ellipsis),
+                              trailing: Switch(value: isPremium, onChanged: (_) => _togglePremium(doc)),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _stat(String title, int value, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: const Color(0xFFFDF9F6), borderRadius: BorderRadius.circular(14)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: const Color(0xFFC58F73), size: 20),
+          const SizedBox(height: 8),
+          Text('$value', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          Text(title, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+        ],
+      ),
+    );
+  }
+}
