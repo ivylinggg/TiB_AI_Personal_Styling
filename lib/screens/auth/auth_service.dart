@@ -51,10 +51,6 @@ class AuthService {
     final googleUser =
         await GoogleSignIn.instance.authenticate();
 
-    if (googleUser == null) {
-      return null;
-    }
-
     final googleAuth = googleUser.authentication;
 
     final idToken = googleAuth.idToken;
