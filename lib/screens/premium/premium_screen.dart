@@ -98,6 +98,8 @@ class _PremiumScreenState extends State<PremiumScreen> {
                   const SizedBox(height: 20),
                   _buildBenefits(),
                   const SizedBox(height: 20),
+                  _buildAccessInfo(),
+                  const SizedBox(height: 20),
                   _buildStatusCard(),
                 ],
               ),
@@ -148,7 +150,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
           Text(
             _isPremium
                 ? 'Your Premium access is active. Keep exploring your personalised styling tools.'
-                : 'Premium access unlocks the enhanced styling experience as your account grows.',
+                : 'Premium access is currently managed by your administrator. Contact your administrator if you need access.',
             textAlign: TextAlign.center,
             style: const TextStyle(
               color: _muted,
@@ -241,6 +243,54 @@ class _PremiumScreenState extends State<PremiumScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildAccessInfo() {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFDF1EA),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: const Color(0xFFF0DDD2),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.admin_panel_settings_outlined,
+            color: _brown,
+            size: 24,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'How Premium access works',
+                  style: TextStyle(
+                    color: _text,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  'Premium access is assigned by the administrator. '
+                  'There is currently no in-app payment or subscription checkout.',
+                  style: TextStyle(
+                    color: _muted,
+                    height: 1.45,
+                    fontSize: 12.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
