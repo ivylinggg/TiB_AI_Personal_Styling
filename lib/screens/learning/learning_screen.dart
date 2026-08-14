@@ -36,6 +36,13 @@ class _LearningScreenState extends State<LearningScreen> {
         title: const Text('Learning'),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        actions: [
+          IconButton(
+            tooltip: 'Refresh',
+            onPressed: () => setState(() {}),
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -83,7 +90,7 @@ class _LearningScreenState extends State<LearningScreen> {
 
   Widget _buildCategoryFilter() {
     return SizedBox(
-      height: 46,
+      height: 54,
       child: ListView.separated(
         padding: const EdgeInsets.symmetric(horizontal: 20),
         scrollDirection: Axis.horizontal,
@@ -182,7 +189,14 @@ class _LearningScreenState extends State<LearningScreen> {
     return Card(
       elevation: 0,
       margin: EdgeInsets.zero,
+      color: Colors.white,
       clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: const BorderSide(
+          color: Color(0xFFF0DDD2),
+        ),
+      ),
       child: InkWell(
         onTap: () {
           _openContent(
@@ -241,7 +255,7 @@ class _LearningScreenState extends State<LearningScreen> {
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
                       Text(
-                        'Read More',
+                        'Explore this guide',
                         style: TextStyle(fontWeight: FontWeight.w600),
                       ),
                       SizedBox(width: 6),
@@ -283,7 +297,11 @@ class _LearningScreenState extends State<LearningScreen> {
 
           return Container(
             color: const Color(0xFFF5D8C7),
-            child: const Center(child: CircularProgressIndicator()),
+            child: const Center(
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+              ),
+            ),
           );
         },
       ),
@@ -358,7 +376,7 @@ class _LearningScreenState extends State<LearningScreen> {
               ),
               const SizedBox(height: 16),
               Text(
-                'No learning content yet.',
+                'Nothing to learn here yet',
                 style: Theme.of(
                   context,
                 ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
@@ -367,7 +385,7 @@ class _LearningScreenState extends State<LearningScreen> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 40),
                 child: Text(
-                  'New articles and styling tips will appear here.',
+                  'New colour guides, styling tips and fashion lessons will appear here when they’re published.',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Colors.grey.shade600),
                 ),
@@ -393,13 +411,13 @@ class _LearningScreenState extends State<LearningScreen> {
             const Icon(Icons.error_outline, size: 60),
             const SizedBox(height: 16),
             const Text(
-              'Unable to load learning content.',
+              'We couldn’t load the learning content.',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             Text(
-              'Please try again later.',
+              'Please check your connection and try again.',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.grey.shade600),
             ),
@@ -441,7 +459,9 @@ class _ContentDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Learning')),
+      appBar: AppBar(
+        title: const Text('Learn & Discover'),
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -475,6 +495,29 @@ class _ContentDetailScreen extends StatelessWidget {
 
             const SizedBox(height: 18),
 
+            if (isFeatured)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.auto_awesome,
+                      size: 16,
+                      color: Color(0xFFC58F73),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Featured guide',
+                      style: TextStyle(
+                        color: Colors.brown.shade600,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
             Text(
               title,
               style: Theme.of(
@@ -494,7 +537,9 @@ class _ContentDetailScreen extends StatelessWidget {
             const SizedBox(height: 24),
 
             Text(
-              body.isNotEmpty ? body : 'No additional information available.',
+              body.isNotEmpty
+                  ? body
+                  : 'This guide does not have additional details yet.',
               style: Theme.of(
                 context,
               ).textTheme.bodyLarge?.copyWith(height: 1.6),

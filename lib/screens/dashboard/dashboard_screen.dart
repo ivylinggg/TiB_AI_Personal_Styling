@@ -11,6 +11,9 @@ import '/screens/dashboard/tip_card.dart';
 import '/widgets/todays_colour_card.dart';
 import '/screens/dashboard/hero_card.dart';
 import '../analysis/analysis_screen.dart';
+import '../ai/ai_stylist_screen.dart';
+import '../learning/learning_screen.dart';
+import '../wardrobe/wardrobe_screen.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
@@ -40,23 +43,50 @@ class DashboardScreen extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          "Good Morning 👋",
-                          style: Theme.of(context).textTheme.bodyMedium,
+                        Builder(
+                          builder: (context) {
+                            final hour = DateTime.now().hour;
+                            final greeting = hour < 12
+                                ? 'Good Morning 👋'
+                                : hour < 18
+                                    ? 'Good Afternoon 👋'
+                                    : 'Good Evening 👋';
+
+                            return Text(
+                              greeting,
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            );
+                          },
                         ),
 
                         const SizedBox(height: 4),
 
                         Text(
-                          "Welcome to TiB AI",
+                          "Welcome back to TiB AI",
                           style: Theme.of(context).textTheme.headlineMedium,
+                        ),
+
+                        const SizedBox(height: 3),
+
+                        Text(
+                          "Let’s find a look that feels like you.",
+                          style: Theme.of(context).textTheme.bodySmall,
                         ),
                       ],
                     ),
                   ),
 
                   IconButton(
-                    onPressed: () {},
+                    tooltip: 'Notifications',
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'You’re all caught up. New styling updates will appear here.',
+                          ),
+                        ),
+                      );
+                    },
                     icon: const Icon(Icons.notifications_none),
                   ),
                 ],
@@ -64,7 +94,17 @@ class DashboardScreen extends StatelessWidget {
 
               const SizedBox(height: 30),
 
-              const HeroCard(),
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const AnalysisScreen(),
+                    ),
+                  );
+                },
+                child: const HeroCard(),
+              ),
 
               const SizedBox(height: 20),
 
@@ -127,9 +167,10 @@ class DashboardScreen extends StatelessWidget {
                     icon: Icons.checkroom_outlined,
                     title: "Wardrobe",
                     onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("Wardrobe Module Coming Soon"),
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const WardrobeScreen(),
                         ),
                       );
                     },
@@ -139,9 +180,10 @@ class DashboardScreen extends StatelessWidget {
                     icon: Icons.auto_awesome,
                     title: "AI Stylist",
                     onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("AI Stylist Module Coming Soon"),
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const AIStylistScreen(),
                         ),
                       );
                     },
@@ -151,9 +193,10 @@ class DashboardScreen extends StatelessWidget {
                     icon: Icons.school_outlined,
                     title: "Learning",
                     onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("Learning Module Coming Soon"),
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const LearningScreen(),
                         ),
                       );
                     },
@@ -224,7 +267,15 @@ class DashboardScreen extends StatelessWidget {
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton(
-                        onPressed: () {},
+                        onPressed: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Premium plans will be available soon.',
+                              ),
+                            ),
+                          );
+                        },
                         child: const Text("Upgrade to Premium"),
                       ),
                     ),

@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import '../dashboard/dashboard_screen.dart';
 import '../analysis/analysis_screen.dart';
 import '../ai/ai_stylist_screen.dart';
-import '../learning/learning_screen.dart';
 import '../profile/profile_screen.dart';
+import '../wardrobe/wardrobe_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -20,7 +20,7 @@ class _MainScreenState extends State<MainScreen> {
     DashboardScreen(),
     AnalysisScreen(),
     AIStylistScreen(),
-    LearningScreen(),
+    WardrobeScreen(),
     ProfileScreen(),
   ];
 
@@ -30,7 +30,11 @@ class _MainScreenState extends State<MainScreen> {
       body: IndexedStack(index: _selectedIndex, children: _pages),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
         onDestinationSelected: (index) {
+          if (index == _selectedIndex) {
+            return;
+          }
           setState(() {
             _selectedIndex = index;
           });
@@ -52,9 +56,9 @@ class _MainScreenState extends State<MainScreen> {
             label: 'AI',
           ),
           NavigationDestination(
-            icon: Icon(Icons.school_outlined),
-            selectedIcon: Icon(Icons.school),
-            label: 'Learn',
+            icon: Icon(Icons.checkroom_outlined),
+            selectedIcon: Icon(Icons.checkroom),
+            label: 'Wardrobe',
           ),
           NavigationDestination(
             icon: Icon(Icons.person_outline),

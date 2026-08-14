@@ -38,6 +38,9 @@ class _AnalysisManagementScreenState extends State<AnalysisManagementScreen> {
   }
 
   void _onSearchChanged() {
+    if (!mounted) {
+      return;
+    }
     setState(() {});
   }
 
@@ -133,7 +136,16 @@ class _AnalysisManagementScreenState extends State<AnalysisManagementScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Analysis Management')),
+      appBar: AppBar(
+        title: const Text('Analysis Management'),
+        actions: [
+          IconButton(
+            tooltip: 'Refresh',
+            onPressed: () => setState(() {}),
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
+      ),
 
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: _analysisStream(),
@@ -145,7 +157,7 @@ class _AnalysisManagementScreenState extends State<AnalysisManagementScreen> {
           }
 
           if (snapshot.hasError) {
-            return _buildError(snapshot.error.toString());
+            return _buildError();
           }
 
           final documents = snapshot.data?.docs ?? [];
@@ -299,7 +311,6 @@ class _AnalysisManagementScreenState extends State<AnalysisManagementScreen> {
                   children: [
                     const Text(
                       'Analysis Records',
-
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -502,8 +513,8 @@ class _AnalysisManagementScreenState extends State<AnalysisManagementScreen> {
 
             child: ChoiceChip(
               label: Text(season),
-
               selected: selected,
+              showCheckmark: false,
 
               onSelected: (_) {
                 setState(() {
@@ -541,9 +552,13 @@ class _AnalysisManagementScreenState extends State<AnalysisManagementScreen> {
 
     return Card(
       elevation: 0,
-
       margin: const EdgeInsets.only(bottom: 10),
-
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: const BorderSide(
+          color: Color(0xFFF0DDD2),
+        ),
+      ),
       clipBehavior: Clip.antiAlias,
 
       child: InkWell(
@@ -628,7 +643,11 @@ class _AnalysisManagementScreenState extends State<AnalysisManagementScreen> {
           borderRadius: BorderRadius.circular(14),
         ),
 
-        child: const Icon(Icons.auto_awesome, color: Color(0xFFC58F73)),
+        child: const Icon(
+        Icons.auto_awesome,
+        color: Color(0xFFC58F73),
+        size: 30,
+      ),
       );
     }
 
@@ -681,17 +700,24 @@ class _AnalysisManagementScreenState extends State<AnalysisManagementScreen> {
           const SizedBox(height: 12),
 
           const Text(
-            'No analysis records found.',
-
-            style: TextStyle(fontWeight: FontWeight.w600),
+            'No analysis records found',
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 16,
+            ),
           ),
 
-          const SizedBox(height: 5),
+          const SizedBox(height: 6),
 
           Text(
-            'Try changing your search or filter.',
-
-            style: TextStyle(color: Colors.grey.shade600),
+            _searchController.text.trim().isEmpty &&
+                    _selectedSeason == 'All'
+                ? 'Customer colour analysis results will appear here.'
+                : 'Try changing your search or season filter.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Colors.grey.shade600,
+            ),
           ),
         ],
       ),
@@ -702,7 +728,7 @@ class _AnalysisManagementScreenState extends State<AnalysisManagementScreen> {
   // ERROR
   // ============================================================
 
-  Widget _buildError(String error) {
+  Widget _buildError() {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -715,16 +741,31 @@ class _AnalysisManagementScreenState extends State<AnalysisManagementScreen> {
 
             const SizedBox(height: 15),
 
-            const Text('Unable to load analysis records.'),
+            const Text(
+              'We couldn’t load the analysis records.',
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 16,
+              ),
+            ),
 
             const SizedBox(height: 8),
 
             Text(
-              error,
-
+              'Please check your connection and try again.',
               textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.grey.shade600,
+              ),
+            ),
 
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            const SizedBox(height: 16),
+
+            OutlinedButton.icon(
+              onPressed: () => setState(() {}),
+              icon: const Icon(Icons.refresh),
+              label: const Text('Try Again'),
             ),
           ],
         ),

@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import 'customer_detail_screen.dart';
@@ -57,7 +58,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           .orderBy('createdAt', descending: true)
           .get();
 
-      if (!mounted) return;
+      if (!mounted) {
+      return;
+    }
 
       setState(() {
         users = snapshot.docs;
@@ -66,15 +69,21 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
       filterUsers();
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) {
+      return;
+    }
 
       setState(() {
         isLoading = false;
       });
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Unable to load users: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'We couldn’t load the users. Please try again.',
+          ),
+        ),
+      );
     }
   }
 
@@ -85,7 +94,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   void filterUsers() {
     final query = searchController.text.trim().toLowerCase();
 
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
 
     setState(() {
       filteredUsers = users.where((document) {
@@ -152,11 +163,15 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             'updatedAt': FieldValue.serverTimestamp(),
           });
 
-      if (!mounted) return;
+      if (!mounted) {
+      return;
+    }
 
       await loadUsers();
 
-      if (!mounted) return;
+      if (!mounted) {
+      return;
+    }
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -166,11 +181,17 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         ),
       );
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) {
+      return;
+    }
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Unable to update user: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Could not update this user. Please try again.',
+          ),
+        ),
+      );
     }
   }
 
@@ -188,7 +209,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       ),
     );
 
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
 
     await loadUsers();
   }
@@ -216,6 +239,22 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     // below where available.
 
     final userId = data['uid'] as String? ?? document.id;
+
+    // Never allow the currently signed-in admin to delete their own
+    // Firestore profile from User Management.
+    if (FirebaseAuth.instance.currentUser?.uid == userId) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'You cannot delete your own admin account here.',
+          ),
+        ),
+      );
+      return;
+    }
 
     // ------------------------------------------------------------
     // Confirmation dialog
@@ -255,7 +294,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       return;
     }
 
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
 
     setState(() {
       isDeleting = true;
@@ -286,20 +327,32 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
       await batch.commit();
 
-      if (!mounted) return;
+      if (!mounted) {
+      return;
+    }
 
       await loadUsers();
 
-      if (!mounted) return;
+      if (!mounted) {
+      return;
+    }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Customer data deleted successfully.')),
+        const SnackBar(
+          content: Text('Customer data deleted successfully.'),
+        ),
       );
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) {
+      return;
+    }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Unable to delete customer data: $e')),
+        const SnackBar(
+          content: Text(
+            'Could not delete this customer data. Please try again.',
+          ),
+        ),
       );
     } finally {
       if (mounted) {
@@ -341,6 +394,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
     return FilterChip(
       label: Text(label),
+      showCheckmark: false,
       selected: isSelected,
       onSelected: (_) {
         changeStatusFilter(label);
@@ -362,6 +416,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     final role = data['role'] as String? ?? 'customer';
 
     final isActive = data['isActive'] as bool? ?? true;
+    final isPremium = data['isPremium'] as bool? ?? false;
 
     final colourSeason = data['colourSeason'] as String? ?? 'Not analysed';
 
@@ -370,6 +425,12 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     return Card(
       elevation: 0,
       margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: const BorderSide(
+          color: Color(0xFFF0DDD2),
+        ),
+      ),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: () {
@@ -436,6 +497,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                               isActive ? 'ACTIVE' : 'INACTIVE',
                               isActive ? Colors.green : Colors.red,
                             ),
+                            if (isPremium)
+                              _statusChip(
+                                'PREMIUM',
+                                Colors.amber,
+                              ),
                           ],
                         ),
                       ],
@@ -687,14 +753,33 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   : filteredUsers.isEmpty
                   ? ListView(
                       physics: const AlwaysScrollableScrollPhysics(),
-                      children: const [
-                        SizedBox(height: 180),
+                      children: [
+                        const SizedBox(height: 180),
                         Center(
                           child: Column(
                             children: [
-                              Icon(Icons.people_outline, size: 70),
-                              SizedBox(height: 16),
-                              Text('No users found.'),
+                              const Icon(
+                                Icons.people_outline,
+                                size: 70,
+                              ),
+                              const SizedBox(height: 16),
+                              const Text(
+                                'No users found',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                searchController.text.trim().isEmpty
+                                    ? 'There are no users in this filter yet.'
+                                    : 'Try a different name, email or role.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Colors.grey.shade600,
+                                ),
+                              ),
                             ],
                           ),
                         ),

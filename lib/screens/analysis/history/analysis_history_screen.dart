@@ -51,9 +51,16 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
       backgroundColor: const Color(0xFFFDF9F6),
 
       appBar: AppBar(
-        title: const Text('Analysis History'),
+        title: const Text('Your Analysis History'),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        actions: [
+          IconButton(
+            tooltip: 'Refresh history',
+            onPressed: refreshHistory,
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
       ),
 
       body: FutureBuilder<List<ColourAnalysisResult>>(
@@ -93,13 +100,25 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
             onRefresh: refreshHistory,
             child: ListView.separated(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
-              itemCount: history.length,
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 30),
+              itemCount: history.length + 1,
               separatorBuilder: (context, index) => const SizedBox(height: 14),
               itemBuilder: (context, index) {
-                final item = history[index];
+                if (index == 0) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 2),
+                    child: Text(
+                      'Look back at your colour journey and tap any result to explore it again.',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Colors.grey.shade700,
+                        height: 1.4,
+                      ),
+                    ),
+                  );
+                }
 
-                return _buildHistoryCard(context, item, index);
+                final item = history[index - 1];
+                return _buildHistoryCard(context, item, index - 1);
               },
             ),
           );
@@ -121,6 +140,10 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
       elevation: 0,
       margin: EdgeInsets.zero,
       clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: const BorderSide(color: Color(0xFFF0DDD2)),
+      ),
       child: InkWell(
         onTap: () {
           Navigator.push(
@@ -195,7 +218,11 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
 
               const SizedBox(width: 8),
 
-              const Icon(Icons.arrow_forward_ios, size: 16),
+              const Icon(
+                Icons.chevron_right_rounded,
+                size: 24,
+                color: Color(0xFFC58F73),
+              ),
             ],
           ),
         ),
@@ -282,7 +309,7 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
                   const SizedBox(height: 18),
 
                   Text(
-                    'No Analysis History',
+                    'Your colour journey starts here',
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.bold,
                     ),
@@ -291,7 +318,7 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
                   const SizedBox(height: 8),
 
                   Text(
-                    'Your previous colour analysis results will appear here.',
+                    'Complete your first colour analysis and your personalised results will be saved here for easy reference.',
                     textAlign: TextAlign.center,
                     style: TextStyle(color: Colors.grey.shade600),
                   ),
@@ -330,7 +357,7 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
             const SizedBox(height: 16),
 
             const Text(
-              'Unable to load analysis history.',
+              'We couldn’t load your colour history.',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
             ),
@@ -338,7 +365,7 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
             const SizedBox(height: 8),
 
             Text(
-              'Please check your connection and try again.',
+              'Please check your internet connection, then try again.',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.grey.shade600),
             ),

@@ -23,6 +23,7 @@ class _WardrobeScreenState extends State<WardrobeScreen> {
   static const _muted = Color(0xFF756B67);
 
   String _category = 'All';
+  bool _showFavouritesOnly = false;
 
   String? get _uid => FirebaseAuth.instance.currentUser?.uid;
 
@@ -41,6 +42,17 @@ class _WardrobeScreenState extends State<WardrobeScreen> {
         ),
         iconTheme: const IconThemeData(color: _text),
         actions: [
+          IconButton(
+            tooltip: 'Favourites',
+            onPressed: uid == null
+                ? null
+                : () => setState(
+                    () => _showFavouritesOnly = !_showFavouritesOnly,
+                  ),
+            icon: Icon(
+              _showFavouritesOnly ? Icons.favorite : Icons.favorite_border,
+            ),
+          ),
           IconButton(
             tooltip: 'Add clothing',
             onPressed: uid == null ? null : () => _showAddItem(uid),
@@ -61,18 +73,25 @@ class _WardrobeScreenState extends State<WardrobeScreen> {
                 }
 
                 final items = snapshot.data ?? const <WardrobeItem>[];
-                final filtered = _category == 'All'
-                    ? items
-                    : items
-                          .where((item) => item.category == _category)
-                          .toList();
+                final filtered = items.where((item) {
+                  final categoryMatches =
+                      _category == 'All' || item.category == _category;
+                  final favouriteMatches =
+                      !_showFavouritesOnly || item.isFavourite;
+                  return categoryMatches && favouriteMatches;
+                }).toList();
 
                 return RefreshIndicator(
                   onRefresh: () async => setState(() {}),
                   child: CustomScrollView(
                     physics: const AlwaysScrollableScrollPhysics(),
                     slivers: [
-                      SliverToBoxAdapter(child: _buildHeader(items.length)),
+                      SliverToBoxAdapter(
+                        child: _buildHeader(
+                          filtered.length,
+                          totalCount: items.length,
+                        ),
+                      ),
                       SliverToBoxAdapter(child: _buildCategories()),
                       if (filtered.isEmpty)
                         SliverFillRemaining(
@@ -114,7 +133,7 @@ class _WardrobeScreenState extends State<WardrobeScreen> {
     );
   }
 
-  Widget _buildHeader(int count) {
+  Widget _buildHeader(int count, {required int totalCount}) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
       child: Container(
@@ -143,7 +162,11 @@ class _WardrobeScreenState extends State<WardrobeScreen> {
                 children: [
                   Text(
                     count == 0
-                        ? 'Your wardrobe is waiting.'
+                        ? (_showFavouritesOnly
+                              ? 'No favourite pieces yet.'
+                              : 'Your wardrobe is waiting.')
+                        : _showFavouritesOnly
+                        ? '$count favourite pieces.'
                         : '$count pieces and counting.',
                     style: const TextStyle(
                       color: _text,
@@ -152,9 +175,15 @@ class _WardrobeScreenState extends State<WardrobeScreen> {
                     ),
                   ),
                   const SizedBox(height: 5),
-                  const Text(
-                    'Add pieces you genuinely love. I’ll use them when helping you build outfits.',
-                    style: TextStyle(color: _muted, height: 1.4, fontSize: 13),
+                  Text(
+                    _showFavouritesOnly
+                        ? 'Your saved favourites are ready whenever you need outfit inspiration.'
+                        : '$totalCount pieces saved. Add the clothes you actually wear so your outfit suggestions feel more like you.',
+                    style: const TextStyle(
+                      color: _muted,
+                      height: 1.4,
+                      fontSize: 13,
+                    ),
                   ),
                 ],
               ),
@@ -278,6 +307,19 @@ class _WardrobeScreenState extends State<WardrobeScreen> {
                         : Image.network(
                             item.imageUrl,
                             fit: BoxFit.cover,
+                            loadingBuilder: (context, child, progress) {
+                              if (progress == null) {
+                                return child;
+                              }
+                              return Container(
+                                color: _soft,
+                                child: const Center(
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                ),
+                              );
+                            },
                             errorBuilder: (_, _, _) => Container(
                               color: _soft,
                               child: const Icon(
@@ -658,10 +700,49 @@ class _WardrobeScreenState extends State<WardrobeScreen> {
                     ),
                   ),
                   IconButton(
+                    tooltip: 'Delete item',
                     onPressed: () async {
-                      await FirestoreService.deleteWardrobeItem(uid, item.id);
-                      if (context.mounted) {
-                        Navigator.pop(context);
+                      final confirmed = await showDialog<bool>(
+                        context: context,
+                        builder: (dialogContext) => AlertDialog(
+                          title: const Text('Remove this piece?'),
+                          content: Text(
+                            '“${item.name}” will be removed from your wardrobe.',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () =>
+                                  Navigator.pop(dialogContext, false),
+                              child: const Text('Keep it'),
+                            ),
+                            FilledButton(
+                              onPressed: () =>
+                                  Navigator.pop(dialogContext, true),
+                              child: const Text('Remove'),
+                            ),
+                          ],
+                        ),
+                      );
+
+                      if (confirmed != true) {
+                        return;
+                      }
+
+                      try {
+                        await FirestoreService.deleteWardrobeItem(uid, item.id);
+                        if (context.mounted) {
+                          Navigator.pop(context);
+                        }
+                      } catch (_) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Could not remove this piece. Please try again.',
+                              ),
+                            ),
+                          );
+                        }
                       }
                     },
                     icon: const Icon(
@@ -687,15 +768,18 @@ class _WardrobeScreenState extends State<WardrobeScreen> {
               SizedBox(
                 width: double.infinity,
                 child: FilledButton.icon(
-                  onPressed: () {
-                    Navigator.pop(context);
+                  onPressed: () async {
+                    await _toggleFavourite(item, uid);
+                    if (context.mounted) {
+                      Navigator.pop(context);
+                    }
                   },
                   icon: Icon(
                     item.isFavourite ? Icons.favorite : Icons.favorite_border,
                   ),
                   label: Text(
                     item.isFavourite
-                        ? 'Saved to favourites'
+                        ? 'Remove from favourites'
                         : 'Save as favourite',
                   ),
                   style: FilledButton.styleFrom(backgroundColor: _brown),

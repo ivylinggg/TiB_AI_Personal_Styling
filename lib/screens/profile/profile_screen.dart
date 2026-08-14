@@ -10,6 +10,7 @@ import '../../core/constants/app_colors.dart';
 import '../../models/user_model.dart';
 import '../../services/firestore_service.dart';
 import '../ai/ai_stylist_screen.dart';
+import '../ai/style_preferences_screen.dart';
 import '../auth/login_screen.dart';
 import '../wardrobe/wardrobe_screen.dart';
 
@@ -39,7 +40,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final firebaseUser = FirebaseAuth.instance.currentUser;
 
     if (firebaseUser == null) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       setState(() => isLoading = false);
       return;
     }
@@ -51,14 +54,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
           .doc(firebaseUser.uid)
           .get();
 
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       setState(() {
         user = result;
         isPremium = userDoc.data()?['isPremium'] as bool? ?? false;
         isLoading = false;
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       setState(() => isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Unable to load profile: $e')),
@@ -67,10 +74,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> changeProfilePhoto() async {
-    if (isUploadingPhoto) return;
+    if (isUploadingPhoto) {
+      return;
+    }
 
     final firebaseUser = FirebaseAuth.instance.currentUser;
-    if (firebaseUser == null) return;
+    if (firebaseUser == null) {
+      return;
+    }
 
     final source = await showModalBottomSheet<ImageSource>(
       context: context,
@@ -107,7 +118,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       },
     );
 
-    if (source == null) return;
+    if (source == null) {
+      return;
+    }
 
     try {
       setState(() => isUploadingPhoto = true);
@@ -134,16 +147,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       await FirestoreService.updateUser(firebaseUser.uid, {'photoUrl': url});
 
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       setState(() => isUploadingPhoto = false);
       await loadUser();
 
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Profile photo updated.')),
       );
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       setState(() => isUploadingPhoto = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Unable to update profile photo: $e')),
@@ -152,20 +171,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> logout() async {
-    if (isLoggingOut) return;
+    if (isLoggingOut) {
+      return;
+    }
 
     setState(() => isLoggingOut = true);
 
     try {
       await FirebaseAuth.instance.signOut();
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (_) => const LoginScreen()),
         (route) => false,
       );
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       setState(() => isLoggingOut = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Logout failed: $e')),
@@ -178,7 +203,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Logout'),
-        content: const Text('Are you sure you want to logout?'),
+        content: const Text('You can sign in again anytime with your account.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
@@ -192,12 +217,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
 
-    if (shouldLogout == true) await logout();
+    if (shouldLogout == true) {
+      await logout();
+    }
   }
 
   Future<void> openEditProfile() async {
     final firebaseUser = FirebaseAuth.instance.currentUser;
-    if (firebaseUser == null || user == null) return;
+    if (firebaseUser == null || user == null) {
+      return;
+    }
 
     final nameController = TextEditingController(text: user!.name);
     final formKey = GlobalKey<FormState>();
@@ -269,7 +298,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> changePassword() async {
     final firebaseUser = FirebaseAuth.instance.currentUser;
-    if (firebaseUser == null || firebaseUser.email == null) return;
+    if (firebaseUser == null || firebaseUser.email == null) {
+      return;
+    }
 
     final shouldSendReset = await showDialog<bool>(
       context: context,
@@ -291,18 +322,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
 
-    if (shouldSendReset != true) return;
+    if (shouldSendReset != true) {
+      return;
+    }
 
     try {
       await FirebaseAuth.instance.sendPasswordResetEmail(
         email: firebaseUser.email!,
       );
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Password reset email sent. Please check your inbox.')),
       );
     } on FirebaseAuthException catch (e) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.message ?? 'Unable to send password reset email.')),
       );
@@ -323,11 +360,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Future<void> openStylePreferences() async {
+    final updated = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const StylePreferencesScreen(),
+      ),
+    );
+
+    if (updated == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Your style profile is up to date.'),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(title: const Text('My Profile')),
+      appBar: AppBar(
+        title: const Text('My Profile'),
+        actions: [
+          IconButton(
+            tooltip: 'Refresh profile',
+            onPressed: isLoading ? null : loadUser,
+            icon: const Icon(Icons.refresh_rounded),
+          ),
+        ],
+      ),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
@@ -490,6 +553,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
         const SizedBox(height: 10),
         _actionCard(
+          icon: Icons.tune_rounded,
+          title: 'My Style Preferences',
+          subtitle: 'Tell your stylist what feels most like you',
+          onTap: openStylePreferences,
+        ),
+        const SizedBox(height: 10),
+        _actionCard(
           icon: Icons.edit_outlined,
           title: 'Edit Profile',
           subtitle: 'Update your personal information',
@@ -513,7 +583,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _actionCard(
           icon: Icons.verified_user_outlined,
           title: 'Account Status',
-          subtitle: user?.isActive == true ? 'Your account is active' : 'Your account is inactive',
+          subtitle: user?.isActive == true
+              ? 'Your account is active and ready to use'
+              : 'Your account is currently inactive',
           trailing: Icon(
             user?.isActive == true ? Icons.check_circle : Icons.error_outline,
             color: user?.isActive == true ? Colors.green : Colors.red,

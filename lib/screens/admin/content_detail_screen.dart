@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class ContentDetailScreen extends StatelessWidget {
   final String title;
@@ -31,6 +32,33 @@ class ContentDetailScreen extends StatelessWidget {
         title: const Text('Content Preview'),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        actions: [
+          IconButton(
+            tooltip: 'Copy content',
+            onPressed: () async {
+              final textToCopy = [
+                title,
+                description,
+                body,
+              ].where((value) => value.trim().isNotEmpty).join('\n\n');
+
+              await Clipboard.setData(
+                ClipboardData(text: textToCopy),
+              );
+
+              if (!context.mounted) {
+                return;
+              }
+
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Content copied to clipboard.'),
+                ),
+              );
+            },
+            icon: const Icon(Icons.copy_outlined),
+          ),
+        ],
       ),
 
       body: ListView(
@@ -46,24 +74,31 @@ class ContentDetailScreen extends StatelessWidget {
 
           _buildSection(
             title: 'Description',
-            child: Text(
-              description.isEmpty ? 'No description available.' : description,
-              style: TextStyle(
-                fontSize: 15,
-                height: 1.6,
-                color: Colors.grey.shade700,
-              ),
-            ),
+            child: description.isEmpty
+                ? _emptyContentMessage('No description available.')
+                : Text(
+                    description,
+                    style: TextStyle(
+                      fontSize: 15,
+                      height: 1.6,
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
           ),
 
           const SizedBox(height: 20),
 
           _buildSection(
             title: 'Content',
-            child: Text(
-              body.isEmpty ? 'No content available.' : body,
-              style: const TextStyle(fontSize: 15, height: 1.7),
-            ),
+            child: body.isEmpty
+                ? _emptyContentMessage('No content available.')
+                : Text(
+                    body,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      height: 1.7,
+                    ),
+                  ),
           ),
 
           const SizedBox(height: 24),
@@ -101,22 +136,59 @@ class ContentDetailScreen extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
 
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-
-            decoration: BoxDecoration(
-              color: const Color(0xFFF5D8C7),
-              borderRadius: BorderRadius.circular(20),
-            ),
-
-            child: Text(
-              type,
-              style: const TextStyle(
-                color: Color(0xFFC58F73),
-                fontWeight: FontWeight.bold,
-                fontSize: 12,
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF5D8C7),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  type,
+                  style: const TextStyle(
+                    color: Color(0xFFC58F73),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
               ),
-            ),
+              if (isFeatured) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF3D6),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.star,
+                        size: 14,
+                        color: Color(0xFFC58F73),
+                      ),
+                      SizedBox(width: 4),
+                      Text(
+                        'FEATURED',
+                        style: TextStyle(
+                          color: Color(0xFFC58F73),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
           ),
 
           const SizedBox(height: 14),
@@ -214,6 +286,37 @@ class ContentDetailScreen extends StatelessWidget {
           const SizedBox(height: 12),
 
           child,
+        ],
+      ),
+    );
+  }
+
+  Widget _emptyContentMessage(String message) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFDF9F6),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.info_outline,
+            size: 20,
+            color: Color(0xFFC58F73),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(
+                color: Colors.grey.shade700,
+                height: 1.5,
+              ),
+            ),
+          ),
         ],
       ),
     );

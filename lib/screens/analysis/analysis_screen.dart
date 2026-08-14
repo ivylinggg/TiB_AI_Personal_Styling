@@ -23,13 +23,19 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
   Future<void> pickCamera() async {
     final provider = context.read<AnalysisProvider>();
 
-    if (provider.isLoading) return;
+    if (provider.isLoading) {
+      return;
+    }
 
     final image = await ImagePickerService.pickCamera();
 
-    if (image == null) return;
+    if (image == null) {
+      return;
+    }
 
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
 
     provider.setImage(image);
   }
@@ -41,13 +47,19 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
   Future<void> pickGallery() async {
     final provider = context.read<AnalysisProvider>();
 
-    if (provider.isLoading) return;
+    if (provider.isLoading) {
+      return;
+    }
 
     final image = await ImagePickerService.pickGallery();
 
-    if (image == null) return;
+    if (image == null) {
+      return;
+    }
 
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
 
     provider.setImage(image);
   }
@@ -59,7 +71,9 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
   Future<void> analyse() async {
     final provider = context.read<AnalysisProvider>();
 
-    if (provider.isLoading) return;
+    if (provider.isLoading) {
+      return;
+    }
 
     final currentUser = AuthService.currentUser;
 
@@ -75,7 +89,9 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
 
     final success = await provider.analyse(uid: currentUser.uid);
 
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
 
     if (success && provider.result != null) {
       Navigator.push(
@@ -96,7 +112,9 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
   // ============================================================
 
   void openAnalysisHistory() {
-    if (context.read<AnalysisProvider>().isLoading) return;
+    if (context.read<AnalysisProvider>().isLoading) {
+      return;
+    }
 
     Navigator.push(
       context,
@@ -127,6 +145,30 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                   // ==================================================
                   // IMAGE PREVIEW
                   // ==================================================
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Let’s find the colours that suit you',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 6),
+
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Choose a clear, front-facing photo in natural light.',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: Colors.grey.shade600,
+                          ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 14),
+
                   Expanded(
                     child: Container(
                       width: double.infinity,
@@ -149,7 +191,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                                 const SizedBox(height: 16),
 
                                 Text(
-                                  'Select a clear photo',
+                                  'Ready when you are',
                                   style: Theme.of(
                                     context,
                                   ).textTheme.titleMedium,
@@ -158,19 +200,41 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                                 const SizedBox(height: 6),
 
                                 Text(
-                                  'Use a front-facing photo with one face.',
+                                  'Take a photo or choose one from your gallery.\nFor the best result, keep your face clearly visible.',
                                   textAlign: TextAlign.center,
                                   style: TextStyle(color: Colors.grey.shade600),
                                 ),
                               ],
                             )
-                          : ClipRRect(
-                              borderRadius: BorderRadius.circular(20),
-
-                              child: Image.file(
-                                selectedImage,
-                                fit: BoxFit.cover,
-                              ),
+                          : Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(20),
+                                  child: Image.file(
+                                    selectedImage,
+                                    fit: BoxFit.cover,
+                                  ),
+                                ),
+                                Positioned(
+                                  right: 12,
+                                  top: 12,
+                                  child: DecoratedBox(
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withValues(alpha: 0.55),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: IconButton(
+                                      tooltip: 'Choose another photo',
+                                      onPressed: isLoading
+                                          ? null
+                                          : () => pickGallery(),
+                                      color: Colors.white,
+                                      icon: const Icon(Icons.refresh),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                     ),
                   ),
@@ -190,11 +254,27 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                       borderRadius: BorderRadius.circular(12),
                     ),
 
-                    child: Text(
-                      provider.status,
-                      textAlign: TextAlign.center,
-
-                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    child: Row(
+                      children: [
+                        Icon(
+                          isLoading
+                              ? Icons.hourglass_top_rounded
+                              : selectedImage != null
+                                  ? Icons.check_circle_outline
+                                  : Icons.info_outline,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            provider.status,
+                            textAlign: TextAlign.left,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
 
@@ -211,7 +291,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
 
                           icon: const Icon(Icons.camera_alt_outlined),
 
-                          label: const Text('Camera'),
+                          label: const Text('Take a Photo'),
                         ),
                       ),
 
@@ -223,7 +303,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
 
                           icon: const Icon(Icons.photo_outlined),
 
-                          label: const Text('Gallery'),
+                          label: const Text('Choose from Gallery'),
                         ),
                       ),
                     ],
@@ -242,7 +322,17 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                     onPressed: isLoading ? null : analyse,
                   ),
 
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
+
+                  Text(
+                    'Your photo is used to create your personalised colour result.',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Colors.grey.shade600,
+                        ),
+                  ),
+
+                  const SizedBox(height: 14),
 
                   // ==================================================
                   // ANALYSIS HISTORY

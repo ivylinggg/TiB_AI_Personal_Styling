@@ -12,9 +12,16 @@ class AnalysisResultScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFFFDF9F6),
       appBar: AppBar(
-        title: const Text('Colour Analysis Result'),
+        title: const Text('Your Colour Result'),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        actions: [
+          IconButton(
+            tooltip: 'Back to analysis',
+            onPressed: () => Navigator.pop(context),
+            icon: const Icon(Icons.close),
+          ),
+        ],
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 10, 20, 30),
@@ -22,12 +29,25 @@ class AnalysisResultScreen extends StatelessWidget {
           // ========================================================
           // HEADER
           // ========================================================
-          const Icon(Icons.auto_awesome, size: 58, color: Color(0xFFC58F73)),
+          Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF5D8C7),
+              shape: BoxShape.circle,
+              border: Border.all(color: const Color(0xFFE7B9A3), width: 1.5),
+            ),
+            child: const Icon(
+              Icons.auto_awesome,
+              size: 34,
+              color: Color(0xFFC58F73),
+            ),
+          ),
 
           const SizedBox(height: 12),
 
           Text(
-            'Your Colour Result',
+            'Here’s what suits you',
             textAlign: TextAlign.center,
             style: Theme.of(
               context,
@@ -37,7 +57,7 @@ class AnalysisResultScreen extends StatelessWidget {
           const SizedBox(height: 6),
 
           Text(
-            'Discover the colours that best complement you.',
+            'Your result gives you a simple starting point for choosing clothes, accessories and everyday colours.',
             textAlign: TextAlign.center,
             style: Theme.of(
               context,
@@ -75,6 +95,16 @@ class AnalysisResultScreen extends StatelessWidget {
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                     fontWeight: FontWeight.bold,
+                  ),
+                ),
+
+                const SizedBox(height: 8),
+
+                Text(
+                  'Your personalised colour direction',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: const Color(0xFF8B5E4B),
                   ),
                 ),
 
@@ -119,7 +149,7 @@ class AnalysisResultScreen extends StatelessWidget {
           // ANALYSIS DETAILS
           // ========================================================
           Text(
-            'Analysis Details',
+            'What we found',
             style: Theme.of(
               context,
             ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
@@ -151,7 +181,7 @@ class AnalysisResultScreen extends StatelessWidget {
           // BEST COLOURS
           // ========================================================
           Text(
-            'Your Best Colours',
+            'Colours to Try',
             style: Theme.of(
               context,
             ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
@@ -160,7 +190,7 @@ class AnalysisResultScreen extends StatelessWidget {
           const SizedBox(height: 8),
 
           Text(
-            'These colours are recommended based on your analysis.',
+            'Start with these shades when choosing your next outfit.',
             style: Theme.of(
               context,
             ).textTheme.bodyMedium?.copyWith(color: Colors.grey.shade700),
@@ -179,6 +209,52 @@ class AnalysisResultScreen extends StatelessWidget {
                   .toList(),
             ),
 
+          const SizedBox(height: 24),
+
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: const Color(0xFFF0DDD2)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const CircleAvatar(
+                  radius: 21,
+                  backgroundColor: Color(0xFFF5D8C7),
+                  child: Icon(
+                    Icons.lightbulb_outline,
+                    color: Color(0xFFC58F73),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'A little tip for you',
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        'Use your recommended colours as a guide, not a rule. The best outfit is one that also feels comfortable and like you.',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Colors.grey.shade700,
+                          height: 1.45,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
           const SizedBox(height: 30),
 
           // ========================================================
@@ -186,7 +262,7 @@ class AnalysisResultScreen extends StatelessWidget {
           // ========================================================
           if (result.imageUrl.isNotEmpty) ...[
             Text(
-              'Analysis Photo',
+              'Your Analysis Photo',
               style: Theme.of(
                 context,
               ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
@@ -236,8 +312,8 @@ class AnalysisResultScreen extends StatelessWidget {
               onPressed: () {
                 Navigator.pop(context);
               },
-              icon: const Icon(Icons.arrow_back),
-              label: const Text('Back to Analysis'),
+              icon: const Icon(Icons.refresh),
+              label: const Text('Analyse Another Photo'),
               style: FilledButton.styleFrom(
                 minimumSize: const Size(double.infinity, 52),
               ),
@@ -347,9 +423,15 @@ class AnalysisResultScreen extends StatelessWidget {
         color: Colors.grey.shade100,
         borderRadius: BorderRadius.circular(16),
       ),
-      child: const Text(
-        'No recommended colours available yet.',
-        textAlign: TextAlign.center,
+      child: Column(
+        children: [
+          Icon(Icons.palette_outlined, size: 32, color: Colors.grey),
+          const SizedBox(height: 8),
+          const Text(
+            'No recommended colours are available for this result yet.',
+            textAlign: TextAlign.center,
+          ),
+        ],
       ),
     );
   }

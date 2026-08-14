@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 class CustomerDetailScreen extends StatelessWidget {
@@ -47,6 +48,7 @@ class CustomerDetailScreen extends StatelessWidget {
     final skinTone = _stringValue('skinTone', 'Not analysed');
 
     final isActive = _boolValue('isActive', true);
+    final isPremium = _boolValue('isPremium', false);
 
     return Scaffold(
       backgroundColor: const Color(0xFFFDF9F6),
@@ -55,6 +57,13 @@ class CustomerDetailScreen extends StatelessWidget {
         title: const Text('Customer Detail'),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        actions: [
+          IconButton(
+            tooltip: 'Refresh',
+            onPressed: () => (context as Element).markNeedsBuild(),
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
       ),
 
       body: RefreshIndicator(
@@ -75,6 +84,7 @@ class CustomerDetailScreen extends StatelessWidget {
               email: email,
               role: role,
               isActive: isActive,
+              isPremium: isPremium,
             ),
 
             const SizedBox(height: 24),
@@ -108,6 +118,12 @@ class CustomerDetailScreen extends StatelessWidget {
               icon: Icons.verified_user_outlined,
               title: 'Account Status',
               value: isActive ? 'Active' : 'Inactive',
+            ),
+
+            _detailCard(
+              icon: Icons.workspace_premium_outlined,
+              title: 'Membership',
+              value: isPremium ? 'Premium' : 'Free',
             ),
 
             const SizedBox(height: 20),
@@ -209,6 +225,7 @@ class CustomerDetailScreen extends StatelessWidget {
     required String email,
     required String role,
     required bool isActive,
+    required bool isPremium,
   }) {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -269,6 +286,11 @@ class CustomerDetailScreen extends StatelessWidget {
                       isActive ? 'ACTIVE' : 'INACTIVE',
                       isActive ? Colors.green : Colors.red,
                     ),
+                    if (isPremium)
+                      _statusChip(
+                        'PREMIUM',
+                        Colors.amber,
+                      ),
                   ],
                 ),
               ],
@@ -293,6 +315,12 @@ class CustomerDetailScreen extends StatelessWidget {
           .snapshots(),
 
       builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return _errorCard(
+            message: 'Unable to load the analysis overview.',
+          );
+        }
+
         if (snapshot.connectionState == ConnectionState.waiting &&
             !snapshot.hasData) {
           return const SizedBox(
@@ -420,7 +448,12 @@ class CustomerDetailScreen extends StatelessWidget {
     return Card(
       elevation: 0,
       margin: const EdgeInsets.only(bottom: 12),
-
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: const BorderSide(
+          color: Color(0xFFF0DDD2),
+        ),
+      ),
       clipBehavior: Clip.antiAlias,
 
       child: InkWell(
@@ -631,6 +664,52 @@ class CustomerDetailScreen extends StatelessWidget {
     BuildContext context,
     bool currentStatus,
   ) async {
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+
+    if (currentUserId == userId) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'You cannot deactivate the account you are currently using.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    final action = currentStatus ? 'deactivate' : 'activate';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text(
+            currentStatus ? 'Deactivate User?' : 'Activate User?',
+          ),
+          content: Text(
+            currentStatus
+                ? 'This user will no longer be able to use the app until the account is activated again.'
+                : 'This user will be able to use the app again after activation.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: Text(
+                action[0].toUpperCase() + action.substring(1),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
     try {
       await FirebaseFirestore.instance.collection('users').doc(userId).update({
         'isActive': !currentStatus,
@@ -652,14 +731,18 @@ class CustomerDetailScreen extends StatelessWidget {
       );
 
       Navigator.pop(context);
-    } catch (e) {
+    } catch (_) {
       if (!context.mounted) {
         return;
       }
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Unable to update account: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Could not update this account. Please try again.',
+          ),
+        ),
+      );
     }
   }
 
@@ -686,7 +769,8 @@ class CustomerDetailScreen extends StatelessWidget {
           const SizedBox(height: 10),
 
           const Text(
-            'No analysis records yet.',
+            'No analysis records yet',
+            
 
             style: TextStyle(fontWeight: FontWeight.w600),
           ),
@@ -699,7 +783,9 @@ class CustomerDetailScreen extends StatelessWidget {
   // ERROR CARD
   // ============================================================
 
-  Widget _errorCard() {
+  Widget _errorCard({
+    String message = 'Unable to load analysis history.',
+  }) {
     return Container(
       width: double.infinity,
 
@@ -712,7 +798,7 @@ class CustomerDetailScreen extends StatelessWidget {
       ),
 
       child: Text(
-        'Unable to load analysis history.',
+        message,
 
         style: TextStyle(
           color: Colors.red.shade700,

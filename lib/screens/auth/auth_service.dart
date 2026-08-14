@@ -24,10 +24,7 @@ class AuthService {
     required String email,
     required String password,
   }) async {
-    return _auth.signInWithEmailAndPassword(
-      email: email,
-      password: password,
-    );
+    return _auth.signInWithEmailAndPassword(email: email, password: password);
   }
 
   // ============================================================
@@ -35,10 +32,11 @@ class AuthService {
   // ============================================================
 
   static Future<void> _initializeGoogleSignIn() async {
-    if (_googleInitialized) return;
+    if (_googleInitialized) {
+      return;
+    }
 
-    _googleInitialization ??=
-        GoogleSignIn.instance.initialize();
+    _googleInitialization ??= GoogleSignIn.instance.initialize();
 
     await _googleInitialization;
 
@@ -48,8 +46,7 @@ class AuthService {
   static Future<UserCredential?> loginWithGoogle() async {
     await _initializeGoogleSignIn();
 
-    final googleUser =
-        await GoogleSignIn.instance.authenticate();
+    final googleUser = await GoogleSignIn.instance.authenticate();
 
     final googleAuth = googleUser.authentication;
 
@@ -62,12 +59,9 @@ class AuthService {
       );
     }
 
-    final credential = GoogleAuthProvider.credential(
-      idToken: idToken,
-    );
+    final credential = GoogleAuthProvider.credential(idToken: idToken);
 
-    final userCredential =
-        await _auth.signInWithCredential(credential);
+    final userCredential = await _auth.signInWithCredential(credential);
 
     final user = userCredential.user;
 
@@ -79,9 +73,7 @@ class AuthService {
     }
 
     // Create the Firestore profile automatically for a new Google user.
-    final existingProfile = await FirestoreService.getUser(
-      user.uid,
-    );
+    final existingProfile = await FirestoreService.getUser(user.uid);
 
     if (existingProfile == null) {
       final profile = UserModel(
@@ -89,7 +81,7 @@ class AuthService {
         name: user.displayName?.trim().isNotEmpty == true
             ? user.displayName!.trim()
             : 'Google User',
-        email: user.email ?? '',
+        email: user.email?.trim() ?? '',
         photoUrl: user.photoURL,
       );
 
@@ -113,10 +105,7 @@ class AuthService {
       );
     }
 
-    final document = await _firestore
-        .collection('users')
-        .doc(user.uid)
-        .get();
+    final document = await _firestore.collection('users').doc(user.uid).get();
 
     if (!document.exists) {
       throw FirebaseException(
@@ -171,12 +160,8 @@ class AuthService {
   // PASSWORD RESET
   // ============================================================
 
-  static Future<void> resetPassword({
-    required String email,
-  }) async {
-    await _auth.sendPasswordResetEmail(
-      email: email,
-    );
+  static Future<void> resetPassword({required String email}) async {
+    await _auth.sendPasswordResetEmail(email: email);
   }
 
   // ============================================================
@@ -185,6 +170,10 @@ class AuthService {
 
   static Future<void> logout() async {
     await _auth.signOut();
+
+    if (!_googleInitialized) {
+      return;
+    }
 
     try {
       await GoogleSignIn.instance.signOut();

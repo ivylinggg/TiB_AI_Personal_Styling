@@ -57,7 +57,9 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
           .orderBy('createdAt', descending: true)
           .get();
 
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       setState(() {
         contents = snapshot.docs;
@@ -67,15 +69,21 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
 
       filterContents();
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       setState(() {
         isLoading = false;
       });
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Unable to load content: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'We couldn’t load the content. Please try again.',
+          ),
+        ),
+      );
     }
   }
 
@@ -86,7 +94,9 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
   void filterContents() {
     final query = searchController.text.trim().toLowerCase();
 
-    if (!mounted) return;
+    if (!mounted) {
+        return;
+      }
 
     setState(() {
       filteredContents = contents.where((document) {
@@ -164,6 +174,33 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
 
     final current = data['isPublished'] as bool? ?? false;
 
+    final title = data['title'] as String? ?? 'this content';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(current ? 'Unpublish Content?' : 'Publish Content?'),
+        content: Text(
+          current
+              ? '“$title” will no longer be shown to customers.'
+              : '“$title” will become visible to customers.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(current ? 'Unpublish' : 'Publish'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
     try {
       await FirebaseFirestore.instance
           .collection('content')
@@ -173,11 +210,15 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
             'updatedAt': FieldValue.serverTimestamp(),
           });
 
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       await loadContents();
 
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -187,11 +228,17 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
         ),
       );
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Unable to update content: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Could not update this content. Please try again.',
+          ),
+        ),
+      );
     }
   }
 
@@ -238,21 +285,31 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
           .doc(document.id)
           .delete();
 
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       await loadContents();
 
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Content deleted successfully.')),
       );
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Unable to delete content: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Could not delete this content. Please try again.',
+          ),
+        ),
+      );
     }
   }
 
@@ -323,6 +380,11 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
 
         actions: [
           IconButton(
+            tooltip: 'Refresh',
+            onPressed: loadContents,
+            icon: const Icon(Icons.refresh),
+          ),
+          IconButton(
             onPressed: createContent,
             icon: const Icon(Icons.add),
             tooltip: 'Create Content',
@@ -391,8 +453,8 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
 
                   return ChoiceChip(
                     label: Text(type),
-
                     selected: selectedType == type,
+                    showCheckmark: false,
 
                     onSelected: (_) {
                       setState(() {
@@ -408,6 +470,23 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
 
             const SizedBox(height: 12),
 
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '${filteredContents.length} content item${filteredContents.length == 1 ? '' : 's'}',
+                  style: TextStyle(
+                    color: Colors.grey.shade600,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 8),
+
             // ==================================================
             // CONTENT LIST
             // ==================================================
@@ -418,17 +497,35 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
                   ? ListView(
                       physics: const AlwaysScrollableScrollPhysics(),
 
-                      children: const [
-                        SizedBox(height: 180),
-
+                      children: [
+                        const SizedBox(height: 150),
                         Center(
                           child: Column(
                             children: [
-                              Icon(Icons.library_books_outlined, size: 70),
-
-                              SizedBox(height: 16),
-
-                              Text('No content found.'),
+                              const Icon(
+                                Icons.library_books_outlined,
+                                size: 64,
+                                color: Color(0xFFC58F73),
+                              ),
+                              const SizedBox(height: 16),
+                              const Text(
+                                'No content found',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                searchController.text.trim().isEmpty &&
+                                        selectedType == 'All'
+                                    ? 'Create your first learning resource to show it here.'
+                                    : 'Try a different search or content type.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Colors.grey.shade600,
+                                ),
+                              ),
                             ],
                           ),
                         ),
@@ -463,7 +560,12 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
 
                         return Card(
                           elevation: 0,
-
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(18),
+                            side: const BorderSide(
+                              color: Color(0xFFF0DDD2),
+                            ),
+                          ),
                           child: ListTile(
                             onTap: () {
                               openContentDetail(context, data);
@@ -686,9 +788,16 @@ class _ContentFormDialogState extends State<_ContentFormDialog> {
 
     if (title.isEmpty || description.isEmpty || body.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please complete all required fields.')),
+        const SnackBar(
+          content: Text(
+            'Please complete the title, description and content fields.',
+          ),
+        ),
       );
+      return;
+    }
 
+    if (!mounted) {
       return;
     }
 
@@ -722,19 +831,27 @@ class _ContentFormDialogState extends State<_ContentFormDialog> {
         });
       }
 
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       Navigator.pop(context, true);
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       setState(() {
         isSaving = false;
       });
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Unable to save content: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Could not save this content. Please try again.',
+          ),
+        ),
+      );
     }
   }
 

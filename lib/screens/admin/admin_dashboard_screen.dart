@@ -31,7 +31,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   Future<void> loadDashboardData() async {
-    if (mounted) setState(() => isLoading = true);
+    if (mounted) {
+      setState(() => isLoading = true);
+    }
 
     try {
       final firestore = FirebaseFirestore.instance;
@@ -85,7 +87,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           .where((document) => document.data()['isPublished'] as bool? ?? false)
           .length;
 
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       setState(() {
         totalUsers = usersSnapshot.docs.length;
@@ -102,10 +106,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         isLoading = false;
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       setState(() => isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Unable to load dashboard data: $e')),
+        SnackBar(content: Text('Could not load the dashboard. Please try again.')),
       );
     }
   }
@@ -116,7 +122,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F6F4),
-      appBar: AppBar(title: const Text('Admin Dashboard'), elevation: 0),
+      appBar: AppBar(
+        title: const Text('Admin Dashboard'),
+        elevation: 0,
+        actions: [
+          IconButton(
+            tooltip: 'Refresh',
+            onPressed: isLoading ? null : loadDashboardData,
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
+      ),
       body: RefreshIndicator(
         onRefresh: loadDashboardData,
         child: isLoading
@@ -128,7 +144,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Welcome, Admin 👋',
+                      'Welcome back, Admin 👋',
                       style: Theme.of(context)
                           .textTheme
                           .headlineMedium
@@ -136,7 +152,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Here is your TiB AI system overview.',
+                      'Here’s a quick overview of your TiB AI system.',
                       style: TextStyle(color: Colors.grey.shade600),
                     ),
                     const SizedBox(height: 24),
@@ -213,6 +229,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   Widget _buildStatCard(String title, String value, IconData icon, VoidCallback onTap) {
     return Card(
       elevation: 0,
+      margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: Color(0xFFF0DDD2)),
+      ),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
@@ -264,6 +286,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
     return Card(
       elevation: 0,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: Color(0xFFF0DDD2)),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Row(
@@ -329,6 +356,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         return Card(
           elevation: 0,
           margin: const EdgeInsets.only(bottom: 10),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: const BorderSide(color: Color(0xFFF0DDD2)),
+          ),
           child: ListTile(
             onTap: () => _goTo(2),
             leading: const CircleAvatar(
@@ -357,6 +388,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   Widget _buildOverviewCard(IconData icon, String title, String description, VoidCallback onTap) {
     return Card(
       elevation: 0,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: Color(0xFFF0DDD2)),
+      ),
       child: ListTile(
         onTap: onTap,
         contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),

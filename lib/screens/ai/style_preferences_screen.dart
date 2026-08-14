@@ -48,14 +48,18 @@ class _StylePreferencesScreenState extends State<StylePreferencesScreen> {
     final user = AuthService.currentUser;
 
     if (user == null) {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) {
+        setState(() => _loading = false);
+      }
       return;
     }
 
     try {
       final data = await StylePreferenceService.getStylePreferences(user.uid);
 
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       setState(() {
         _styles
@@ -67,14 +71,18 @@ class _StylePreferencesScreenState extends State<StylePreferencesScreen> {
         _loading = false;
       });
     } catch (_) {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) {
+        setState(() => _loading = false);
+      }
     }
   }
 
   Future<void> _save() async {
     final user = AuthService.currentUser;
 
-    if (user == null) return;
+    if (user == null) {
+      return;
+    }
 
     if (_styles.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -92,19 +100,29 @@ class _StylePreferencesScreenState extends State<StylePreferencesScreen> {
         preferences: _preferences.toList(),
       );
 
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Your style preferences have been saved.')),
+        const SnackBar(
+          content: Text('Your style preferences have been saved.'),
+        ),
       );
       Navigator.pop(context, true);
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not save your preferences. Please try again.')),
+        const SnackBar(
+          content: Text('Could not save your preferences. Please try again.'),
+        ),
       );
     } finally {
-      if (mounted) setState(() => _saving = false);
+      if (mounted) {
+        setState(() => _saving = false);
+      }
     }
   }
 
@@ -130,36 +148,48 @@ class _StylePreferencesScreenState extends State<StylePreferencesScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _intro(),
+                    const SizedBox(height: 16),
+                    _selectionSummary(),
                     const SizedBox(height: 26),
-                    _sectionTitle('What feels most like you?', 'Choose as many as you like.'),
+                    _sectionTitle(
+                      'What feels most like you?',
+                      'Choose as many as you like.',
+                    ),
                     const SizedBox(height: 12),
-                    ..._styleOptions.map((item) => _optionCard(
-                          title: item.$1,
-                          subtitle: item.$2,
-                          selected: _styles.contains(item.$1),
-                          onTap: () => setState(() {
-                            if (_styles.contains(item.$1)) {
-                              _styles.remove(item.$1);
-                            } else {
-                              _styles.add(item.$1);
-                            }
-                          }),
-                        )),
+                    ..._styleOptions.map(
+                      (item) => _optionCard(
+                        title: item.$1,
+                        subtitle: item.$2,
+                        selected: _styles.contains(item.$1),
+                        onTap: () => setState(() {
+                          if (_styles.contains(item.$1)) {
+                            _styles.remove(item.$1);
+                          } else {
+                            _styles.add(item.$1);
+                          }
+                        }),
+                      ),
+                    ),
                     const SizedBox(height: 20),
-                    _sectionTitle('What matters when you get dressed?', 'A little more detail helps your recommendations feel personal.'),
+                    _sectionTitle(
+                      'What matters when you get dressed?',
+                      'A little more detail helps your recommendations feel personal.',
+                    ),
                     const SizedBox(height: 12),
-                    ..._preferenceOptions.map((item) => _optionCard(
-                          title: item.$1,
-                          subtitle: item.$2,
-                          selected: _preferences.contains(item.$1),
-                          onTap: () => setState(() {
-                            if (_preferences.contains(item.$1)) {
-                              _preferences.remove(item.$1);
-                            } else {
-                              _preferences.add(item.$1);
-                            }
-                          }),
-                        )),
+                    ..._preferenceOptions.map(
+                      (item) => _optionCard(
+                        title: item.$1,
+                        subtitle: item.$2,
+                        selected: _preferences.contains(item.$1),
+                        onTap: () => setState(() {
+                          if (_preferences.contains(item.$1)) {
+                            _preferences.remove(item.$1);
+                          } else {
+                            _preferences.add(item.$1);
+                          }
+                        }),
+                      ),
+                    ),
                     const SizedBox(height: 18),
                     Container(
                       width: double.infinity,
@@ -170,7 +200,11 @@ class _StylePreferencesScreenState extends State<StylePreferencesScreen> {
                       ),
                       child: const Text(
                         'There is no right style. These choices simply help your stylist understand you better.',
-                        style: TextStyle(color: _muted, height: 1.45, fontSize: 13),
+                        style: TextStyle(
+                          color: _muted,
+                          height: 1.45,
+                          fontSize: 13,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 22),
@@ -182,15 +216,22 @@ class _StylePreferencesScreenState extends State<StylePreferencesScreen> {
                             ? const SizedBox(
                                 width: 18,
                                 height: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
                               )
                             : const Icon(Icons.favorite_border_rounded),
-                        label: Text(_saving ? 'Saving...' : 'Save My Style'),
+                        label: Text(
+                          _saving ? 'Saving your style...' : 'Save My Style',
+                        ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: _brown,
                           foregroundColor: Colors.white,
                           minimumSize: const Size.fromHeight(52),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
                         ),
                       ),
                     ),
@@ -218,7 +259,49 @@ class _StylePreferencesScreenState extends State<StylePreferencesScreen> {
           Expanded(
             child: Text(
               'Tell me a little about your style. I will use it to make future suggestions feel more like you.',
-              style: TextStyle(color: _text, fontSize: 15, height: 1.45, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                color: _text,
+                fontSize: 15,
+                height: 1.45,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _selectionSummary() {
+    final styleCount = _styles.length;
+    final preferenceCount = _preferences.length;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFF0DDD2)),
+      ),
+      child: Row(
+        children: [
+          const CircleAvatar(
+            radius: 20,
+            backgroundColor: _softPink,
+            child: Icon(Icons.tune_rounded, color: _brown),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              styleCount == 0 && preferenceCount == 0
+                  ? 'Start with what feels most like you.'
+                  : '$styleCount style ${styleCount == 1 ? 'choice' : 'choices'} · $preferenceCount ${preferenceCount == 1 ? 'preference' : 'preferences'} selected',
+              style: const TextStyle(
+                color: _text,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],
@@ -230,9 +313,19 @@ class _StylePreferencesScreenState extends State<StylePreferencesScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: const TextStyle(color: _text, fontSize: 19, fontWeight: FontWeight.w700)),
+        Text(
+          title,
+          style: const TextStyle(
+            color: _text,
+            fontSize: 19,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
         const SizedBox(height: 4),
-        Text(subtitle, style: const TextStyle(color: _muted, fontSize: 13, height: 1.4)),
+        Text(
+          subtitle,
+          style: const TextStyle(color: _muted, fontSize: 13, height: 1.4),
+        ),
       ],
     );
   }
@@ -273,13 +366,27 @@ class _StylePreferencesScreenState extends State<StylePreferencesScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(title, style: const TextStyle(color: _text, fontWeight: FontWeight.w700)),
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          color: _text,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                       const SizedBox(height: 3),
-                      Text(subtitle, style: const TextStyle(color: _muted, fontSize: 12.5, height: 1.35)),
+                      Text(
+                        subtitle,
+                        style: const TextStyle(
+                          color: _muted,
+                          fontSize: 12.5,
+                          height: 1.35,
+                        ),
+                      ),
                     ],
                   ),
                 ),
-                if (selected) const Icon(Icons.favorite_rounded, color: _brown, size: 20),
+                if (selected)
+                  const Icon(Icons.favorite_rounded, color: _brown, size: 20),
               ],
             ),
           ),

@@ -33,9 +33,39 @@ class _PremiumManagementScreenState extends State<PremiumManagementScreen> {
     return searchMatch && filterMatch;
   }
 
-  Future<void> _togglePremium(QueryDocumentSnapshot<Map<String, dynamic>> doc) async {
+  Future<void> _togglePremium(
+    QueryDocumentSnapshot<Map<String, dynamic>> doc,
+  ) async {
     final data = doc.data();
     final current = data['isPremium'] as bool? ?? false;
+    final name = data['name'] as String? ?? 'this user';
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(current ? 'Remove Premium?' : 'Grant Premium?'),
+        content: Text(
+          current
+              ? 'Premium access will be removed from $name.'
+              : '$name will receive Premium access immediately.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(current ? 'Remove' : 'Grant'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
     try {
       await doc.reference.update({
         'isPremium': !current,
@@ -58,6 +88,13 @@ class _PremiumManagementScreenState extends State<PremiumManagementScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Premium Management'),
+        actions: [
+          IconButton(
+            tooltip: 'Refresh',
+            onPressed: () => setState(() {}),
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
       ),
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: _users(),
@@ -66,7 +103,35 @@ class _PremiumManagementScreenState extends State<PremiumManagementScreen> {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
-            return Center(child: Text('Unable to load users: ${snapshot.error}'));
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.cloud_off_outlined,
+                      size: 44,
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'We couldn’t load the premium list.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Please check your connection and try again.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.grey.shade600),
+                    ),
+                  ],
+                ),
+              ),
+            );
           }
 
           final all = snapshot.data?.docs ?? const [];
@@ -86,6 +151,16 @@ class _PremiumManagementScreenState extends State<PremiumManagementScreen> {
                     const SizedBox(width: 10),
                     Expanded(child: _stat('Total', all.length, Icons.people_outline)),
                   ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
+                child: Text(
+                  'Manage premium access for individual user accounts.',
+                  style: TextStyle(
+                    color: Colors.grey.shade600,
+                    fontSize: 13,
+                  ),
                 ),
               ),
               Padding(
@@ -115,7 +190,38 @@ class _PremiumManagementScreenState extends State<PremiumManagementScreen> {
               ),
               Expanded(
                 child: visible.isEmpty
-                    ? const Center(child: Text('No users match this filter.'))
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.people_outline,
+                                size: 44,
+                              ),
+                              const SizedBox(height: 12),
+                              const Text(
+                                'No users found',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                _searchController.text.trim().isEmpty
+                                    ? 'There are no users in this filter yet.'
+                                    : 'Try a different name or email.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Colors.grey.shade600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
                     : ListView.separated(
                         padding: const EdgeInsets.fromLTRB(20, 10, 20, 30),
                         itemCount: visible.length,

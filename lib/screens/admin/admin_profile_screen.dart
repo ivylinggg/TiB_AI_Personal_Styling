@@ -57,8 +57,8 @@ class AdminProfileScreen extends StatelessWidget {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            'Unable to logout: $e',
+          content: const Text(
+            'Could not log out. Please try again.',
           ),
         ),
       );
@@ -105,8 +105,8 @@ class AdminProfileScreen extends StatelessWidget {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            'Unable to send password reset email: $e',
+          content: const Text(
+            'Could not send the password reset email. Please try again.',
           ),
         ),
       );
@@ -128,6 +128,13 @@ class AdminProfileScreen extends StatelessWidget {
         title: const Text(
           'Admin Profile',
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Refresh',
+            onPressed: () {},
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
       ),
 
       body: ListView(
@@ -275,6 +282,12 @@ class AdminProfileScreen extends StatelessWidget {
 
           Card(
             elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+              side: const BorderSide(
+                color: Color(0xFFF0DDD2),
+              ),
+            ),
             child: ListTile(
               leading: const CircleAvatar(
                 backgroundColor: Color(0xFFF5D8C7),
@@ -299,6 +312,37 @@ class AdminProfileScreen extends StatelessWidget {
             ),
           ),
 
+          const SizedBox(height: 10),
+
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFDF1EA),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(
+                  Icons.info_outline,
+                  size: 19,
+                  color: Color(0xFFC58F73),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'A password reset link will be sent to the admin email above. You can continue using the account until the password is changed.',
+                    style: TextStyle(
+                      color: Colors.brown.shade700,
+                      height: 1.45,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
           const SizedBox(height: 24),
 
           // ======================================================
@@ -311,6 +355,9 @@ class AdminProfileScreen extends StatelessWidget {
               onPressed: () {
                 _logout(context);
               },
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(52),
+              ),
               icon: const Icon(
                 Icons.logout,
               ),

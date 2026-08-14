@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class AnalysisResultDetailScreen extends StatelessWidget {
   final String season;
@@ -27,6 +28,34 @@ class AnalysisResultDetailScreen extends StatelessWidget {
         title: const Text('Analysis Result'),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        actions: [
+          IconButton(
+            tooltip: 'Copy result',
+            onPressed: () async {
+              final summary = [
+                'Colour Season: $season',
+                'Undertone: $undertone',
+                'Brightness: $brightness',
+                'Contrast: $contrast',
+              ].join('\n');
+
+              await Clipboard.setData(
+                ClipboardData(text: summary),
+              );
+
+              if (!context.mounted) {
+                return;
+              }
+
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Analysis result copied.'),
+                ),
+              );
+            },
+            icon: const Icon(Icons.copy_outlined),
+          ),
+        ],
       ),
 
       body: ListView(
@@ -77,6 +106,36 @@ class AnalysisResultDetailScreen extends StatelessWidget {
             value: contrast,
           ),
 
+          const SizedBox(height: 4),
+
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFDF1EA),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(
+                  Icons.info_outline,
+                  size: 20,
+                  color: Color(0xFFC58F73),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'These values are the colour analysis results recorded for this customer.',
+                    style: TextStyle(
+                      color: Colors.brown.shade700,
+                      height: 1.45,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
           const SizedBox(height: 24),
 
           // ======================================================
@@ -118,7 +177,7 @@ class AnalysisResultDetailScreen extends StatelessWidget {
 
                 Expanded(
                   child: Text(
-                    'This page allows administrators to review the customer colour analysis result and its recorded analysis information.',
+                    'Administrators can review the customer’s recorded colour analysis result and analysis information from this page.',
                     style: TextStyle(color: Colors.grey.shade700, height: 1.5),
                   ),
                 ),
@@ -255,6 +314,26 @@ class AnalysisResultDetailScreen extends StatelessWidget {
         height: 320,
 
         fit: BoxFit.cover,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) {
+            return child;
+          }
+
+          return Container(
+            width: double.infinity,
+            height: 320,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF5D8C7),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: const Center(
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Color(0xFFC58F73),
+              ),
+            ),
+          );
+        },
 
         errorBuilder: (context, error, stackTrace) {
           return Container(
@@ -304,10 +383,10 @@ class AnalysisResultDetailScreen extends StatelessWidget {
 
       decoration: BoxDecoration(
         color: Colors.white,
-
         borderRadius: BorderRadius.circular(16),
-
-        border: Border.all(color: const Color(0xFFF0DDD2)),
+        border: Border.all(
+          color: const Color(0xFFF0DDD2),
+        ),
       ),
 
       child: Row(
