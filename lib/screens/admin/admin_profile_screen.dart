@@ -45,7 +45,9 @@ class AdminProfileScreen extends StatelessWidget {
       }
 
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        MaterialPageRoute(
+          builder: (_) => const LoginScreen(),
+        ),
         (route) => false,
       );
     } catch (e) {
@@ -53,32 +55,48 @@ class AdminProfileScreen extends StatelessWidget {
         return;
       }
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Unable to logout: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Unable to logout: $e',
+          ),
+        ),
+      );
     }
   }
 
-  Future<void> _changePassword(BuildContext context) async {
+  Future<void> _changePassword(
+    BuildContext context,
+  ) async {
     final user = FirebaseAuth.instance.currentUser;
 
     if (user == null || user.email == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No authenticated admin account found.')),
+        const SnackBar(
+          content: Text(
+            'No authenticated admin account found.',
+          ),
+        ),
       );
 
       return;
     }
 
     try {
-      await FirebaseAuth.instance.sendPasswordResetEmail(email: user.email!);
+      await FirebaseAuth.instance.sendPasswordResetEmail(
+        email: user.email!,
+      );
 
       if (!context.mounted) {
         return;
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Password reset email sent to ${user.email}.')),
+        SnackBar(
+          content: Text(
+            'Password reset email sent to ${user.email}.',
+          ),
+        ),
       );
     } catch (e) {
       if (!context.mounted) {
@@ -86,7 +104,11 @@ class AdminProfileScreen extends StatelessWidget {
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Unable to send password reset email: $e')),
+        SnackBar(
+          content: Text(
+            'Unable to send password reset email: $e',
+          ),
+        ),
       );
     }
   }
@@ -95,25 +117,39 @@ class AdminProfileScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
 
-    final email = user?.email ?? 'No email available';
+    final email =
+        user?.email ?? 'No email available';
 
-    final uid = user?.uid ?? 'Unavailable';
+    final uid =
+        user?.uid ?? 'Unavailable';
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Admin Profile')),
+      appBar: AppBar(
+        title: const Text(
+          'Admin Profile',
+        ),
+      ),
 
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 30),
+        padding: const EdgeInsets.fromLTRB(
+          20,
+          20,
+          20,
+          30,
+        ),
         children: [
           // ======================================================
           // PROFILE HEADER
           // ======================================================
+
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: const Color(0xFFF0DDD2)),
+              border: Border.all(
+                color: const Color(0xFFF0DDD2),
+              ),
             ),
             child: Column(
               children: [
@@ -135,14 +171,19 @@ class AdminProfileScreen extends StatelessWidget {
 
                 const Text(
                   'Administrator',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
 
                 const SizedBox(height: 6),
 
                 Text(
                   email,
-                  style: TextStyle(color: Colors.grey.shade600),
+                  style: TextStyle(
+                    color: Colors.grey.shade600,
+                  ),
                   textAlign: TextAlign.center,
                 ),
 
@@ -175,9 +216,13 @@ class AdminProfileScreen extends StatelessWidget {
           // ======================================================
           // ACCOUNT INFORMATION
           // ======================================================
+
           const Text(
             'Account Information',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
           ),
 
           const SizedBox(height: 10),
@@ -217,9 +262,13 @@ class AdminProfileScreen extends StatelessWidget {
           // ======================================================
           // SECURITY
           // ======================================================
+
           const Text(
             'Security',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
           ),
 
           const SizedBox(height: 10),
@@ -229,13 +278,21 @@ class AdminProfileScreen extends StatelessWidget {
             child: ListTile(
               leading: const CircleAvatar(
                 backgroundColor: Color(0xFFF5D8C7),
-                child: Icon(Icons.lock_reset, color: Color(0xFFC58F73)),
+                child: Icon(
+                  Icons.lock_reset,
+                  color: Color(0xFFC58F73),
+                ),
               ),
-              title: const Text('Change Password'),
+              title: const Text(
+                'Change Password',
+              ),
               subtitle: const Text(
                 'Send a password reset email to your admin account.',
               ),
-              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+              trailing: const Icon(
+                Icons.arrow_forward_ios,
+                size: 16,
+              ),
               onTap: () {
                 _changePassword(context);
               },
@@ -247,14 +304,19 @@ class AdminProfileScreen extends StatelessWidget {
           // ======================================================
           // LOGOUT
           // ======================================================
+
           SizedBox(
             height: 52,
             child: OutlinedButton.icon(
               onPressed: () {
                 _logout(context);
               },
-              icon: const Icon(Icons.logout),
-              label: const Text('Logout'),
+              icon: const Icon(
+                Icons.logout,
+              ),
+              label: const Text(
+                'Logout',
+              ),
             ),
           ),
         ],
@@ -272,7 +334,9 @@ class AdminProfileScreen extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFF0DDD2)),
+        border: Border.all(
+          color: const Color(0xFFF0DDD2),
+        ),
       ),
       child: Row(
         children: [
@@ -283,18 +347,25 @@ class AdminProfileScreen extends StatelessWidget {
               color: const Color(0xFFFDF1EA),
               borderRadius: BorderRadius.circular(13),
             ),
-            child: Icon(icon, color: const Color(0xFFC58F73)),
+            child: Icon(
+              icon,
+              color: const Color(0xFFC58F73),
+            ),
           ),
 
           const SizedBox(width: 14),
 
           Expanded(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
               children: [
                 Text(
                   title,
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade600,
+                  ),
                 ),
 
                 const SizedBox(height: 4),
@@ -303,7 +374,9 @@ class AdminProfileScreen extends StatelessWidget {
                   value,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ],
             ),

@@ -42,6 +42,15 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
+    if (!email.contains('@') || !email.contains('.')) {
+      _showMessage('Please enter a valid email address.');
+      return;
+    }
+
+    if (!mounted) {
+      return;
+    }
+
     try {
       setState(() {
         isLoading = true;
@@ -54,15 +63,21 @@ class _LoginScreenState extends State<LoginScreen> {
 
       await _routeAuthenticatedUser();
     } on FirebaseAuthException catch (e) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       _showMessage(_authErrorMessage(e));
     } on FirebaseException catch (e) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       _showMessage(
         e.message ?? 'Unable to load your account profile.',
       );
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       _showMessage('Login failed. Please try again.');
     } finally {
       if (mounted) {
@@ -78,7 +93,13 @@ class _LoginScreenState extends State<LoginScreen> {
   // ============================================================
 
   Future<void> loginWithGoogle() async {
-    if (isLoading) return;
+    if (isLoading) {
+      return;
+    }
+
+    if (!mounted) {
+      return;
+    }
 
     try {
       setState(() {
@@ -97,14 +118,20 @@ class _LoginScreenState extends State<LoginScreen> {
 
       await _routeAuthenticatedUser();
     } on FirebaseAuthException catch (e) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       _showMessage(_authErrorMessage(e));
     } catch (e) {
       if (!mounted) return;
 
-      final message = e.toString().contains('ApiException: 10')
+      final errorText = e.toString();
+
+      final message = errorText.contains('ApiException: 10')
           ? 'Google Sign-In configuration is incomplete. Check Firebase Android SHA-1 / SHA-256 and Google Sign-In setup.'
-          : 'Google Login failed. Please try again.';
+          : errorText.toLowerCase().contains('cancel')
+              ? 'Google sign-in was cancelled.'
+              : 'Google Login failed. Please try again.';
 
       _showMessage(message);
     } finally {
@@ -182,7 +209,6 @@ class _LoginScreenState extends State<LoginScreen> {
       case 'invalid-email':
         return 'Please enter a valid email address.';
 
-      case 'user-not-found':
       case 'wrong-password':
       case 'invalid-credential':
         return 'Incorrect email or password.';
@@ -195,6 +221,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
       case 'network-request-failed':
         return 'Network error. Please check your internet connection.';
+
+      case 'user-not-found':
+        return 'No account was found with this email address.';
 
       case 'no-current-user':
         return 'No authenticated user was found.';
@@ -279,13 +308,17 @@ class _LoginScreenState extends State<LoginScreen> {
         email: email,
       );
 
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       _showMessage(
         'Password reset email sent. Please check your inbox.',
       );
     } on FirebaseAuthException catch (e) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       _showMessage(_authErrorMessage(e));
     } catch (_) {
       if (!mounted) return;
@@ -300,7 +333,9 @@ class _LoginScreenState extends State<LoginScreen> {
   // ============================================================
 
   void _openRegister() {
-    if (isLoading) return;
+    if (isLoading) {
+      return;
+    }
 
     Navigator.push(
       context,
@@ -388,7 +423,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 textInputAction:
                     TextInputAction.done,
                 onSubmitted: (_) {
-                  if (!isLoading) login();
+                  if (!isLoading) {
+                    login();
+                  }
                 },
                 decoration:
                     InputDecoration(

@@ -80,7 +80,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   void _checkPassword() {
     final password = passwordController.text;
 
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
 
     setState(() {
       hasMinLength = password.length >= 8;
@@ -200,9 +202,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       // --------------------------------------------------------
       // Save user to Firestore
+      //
+      // If the profile cannot be created, remove the Firebase
+      // Authentication account so we never leave a half-created
+      // account behind.
       // --------------------------------------------------------
 
-      await FirestoreService.createUser(user);
+      try {
+        await FirestoreService.createUser(user);
+      } catch (firestoreError) {
+        try {
+          await firebaseUser.delete();
+        } catch (_) {
+          // Keep the original Firestore error as the primary failure.
+        }
+
+        throw Exception(
+          'Could not create your user profile. Please try again.',
+        );
+      }
 
       if (!mounted) return;
 
