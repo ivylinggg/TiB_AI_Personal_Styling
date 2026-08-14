@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../../screens/auth/auth_service.dart';
@@ -21,6 +22,8 @@ class _StylePreferencesScreenState extends State<StylePreferencesScreen> {
   final Set<String> _preferences = <String>{};
   bool _loading = true;
   bool _saving = false;
+  bool _isPremium = false;
+  bool _premiumLoaded = false;
 
   static const _styleOptions = [
     ('Minimal', 'Clean and uncomplicated'),
@@ -55,7 +58,16 @@ class _StylePreferencesScreenState extends State<StylePreferencesScreen> {
     }
 
     try {
-      final data = await StylePreferenceService.getStylePreferences(user.uid);
+      final results = await Future.wait([
+        StylePreferenceService.getStylePreferences(user.uid),
+        FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get(),
+      ]);
+
+      final data = results[0] as Map<String, dynamic>?;
+      final userSnapshot = results[1] as DocumentSnapshot<Map<String, dynamic>>;
 
       if (!mounted) {
         return;
@@ -68,11 +80,16 @@ class _StylePreferencesScreenState extends State<StylePreferencesScreen> {
         _preferences
           ..clear()
           ..addAll(List<String>.from(data?['preferences'] ?? const []));
+        _isPremium = userSnapshot.data()?['isPremium'] == true;
+        _premiumLoaded = true;
         _loading = false;
       });
     } catch (_) {
       if (mounted) {
-        setState(() => _loading = false);
+        setState(() {
+          _premiumLoaded = true;
+          _loading = false;
+        });
       }
     }
   }
@@ -148,6 +165,8 @@ class _StylePreferencesScreenState extends State<StylePreferencesScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _intro(),
+                    const SizedBox(height: 14),
+                    _buildPremiumStatus(),
                     const SizedBox(height: 16),
                     _selectionSummary(),
                     const SizedBox(height: 26),
@@ -207,6 +226,10 @@ class _StylePreferencesScreenState extends State<StylePreferencesScreen> {
                         ),
                       ),
                     ),
+                    const SizedBox(height: 20),
+                    if (_premiumLoaded && _isPremium)
+                      _buildPremiumProfileCard(),
+
                     const SizedBox(height: 22),
                     SizedBox(
                       width: double.infinity,
@@ -239,6 +262,175 @@ class _StylePreferencesScreenState extends State<StylePreferencesScreen> {
                 ),
               ),
             ),
+    );
+  }
+
+
+  Widget _buildPremiumStatus() {
+    final isPremium = _premiumLoaded && _isPremium;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: isPremium
+            ? const Color(0xFFF5D8C7)
+            : const Color(0xFFF7F1ED),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: const Color(0xFFF0DDD2),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            isPremium
+                ? Icons.workspace_premium_outlined
+                : Icons.tune_rounded,
+            color: _brown,
+            size: 22,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              isPremium
+                  ? 'Premium Style Profile is active. Your preferences can be used for more personalised styling.'
+                  : 'Basic Style Profile. Premium members get additional personalised styling guidance.',
+              style: const TextStyle(
+                color: _text,
+                fontSize: 12.5,
+                height: 1.4,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPremiumProfileCard() {
+    final selectedStyles = _styles.toList()..sort();
+    final selectedPreferences = _preferences.toList()..sort();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFDF1EA),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: const Color(0xFFE7B9A3),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(
+                Icons.workspace_premium_outlined,
+                color: _brown,
+                size: 22,
+              ),
+              SizedBox(width: 8),
+              Text(
+                'Premium Style Profile',
+                style: TextStyle(
+                  color: _text,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Your selected preferences will guide Premium AI Stylist recommendations.',
+            style: TextStyle(
+              color: _muted,
+              fontSize: 12.5,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 14),
+          _buildProfileInsight(
+            Icons.checkroom_outlined,
+            'Preferred styles',
+            selectedStyles.isEmpty
+                ? 'Choose at least one style.'
+                : selectedStyles.join(' • '),
+          ),
+          _buildProfileInsight(
+            Icons.favorite_border_rounded,
+            'What matters to you',
+            selectedPreferences.isEmpty
+                ? 'Add preferences for more personalised results.'
+                : selectedPreferences.join(' • '),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Tip: keep your selections updated so your AI Stylist recommendations stay relevant.',
+            style: TextStyle(
+              color: _muted,
+              fontSize: 11.5,
+              height: 1.4,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProfileInsight(
+    IconData icon,
+    String title,
+    String value,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 11),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: const BoxDecoration(
+              color: _softPink,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              icon,
+              size: 18,
+              color: _brown,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: _text,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    color: _muted,
+                    fontSize: 12,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 

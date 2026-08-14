@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
@@ -7,6 +8,7 @@ import '../../models/wardrobe_item.dart';
 import '../../services/firestore_service.dart';
 import '../../services/image_picker_service.dart';
 import '../../services/storage_service.dart';
+import '../ai/ai_stylist_screen.dart';
 
 class WardrobeScreen extends StatefulWidget {
   const WardrobeScreen({super.key});
@@ -24,12 +26,18 @@ class _WardrobeScreenState extends State<WardrobeScreen> {
 
   String _category = 'All';
   bool _showFavouritesOnly = false;
+  bool _isPremium = false;
+  bool _premiumLoaded = false;
 
   String? get _uid => FirebaseAuth.instance.currentUser?.uid;
 
   @override
   Widget build(BuildContext context) {
     final uid = _uid;
+
+    if (uid != null && !_premiumLoaded) {
+      _loadPremiumStatus(uid);
+    }
 
     return Scaffold(
       backgroundColor: _cream,
@@ -52,6 +60,11 @@ class _WardrobeScreenState extends State<WardrobeScreen> {
             icon: Icon(
               _showFavouritesOnly ? Icons.favorite : Icons.favorite_border,
             ),
+          ),
+          IconButton(
+            tooltip: 'Smart Wardrobe',
+            onPressed: uid == null ? null : () => _showSmartWardrobe(uid),
+            icon: Icon(_isPremium ? Icons.auto_awesome : Icons.lock_outline),
           ),
           IconButton(
             tooltip: 'Add clothing',
@@ -92,6 +105,10 @@ class _WardrobeScreenState extends State<WardrobeScreen> {
                           totalCount: items.length,
                         ),
                       ),
+                      if (_isPremium && items.isNotEmpty)
+                        SliverToBoxAdapter(
+                          child: _buildPremiumInsightCard(items),
+                        ),
                       SliverToBoxAdapter(child: _buildCategories()),
                       if (filtered.isEmpty)
                         SliverFillRemaining(
@@ -130,6 +147,300 @@ class _WardrobeScreenState extends State<WardrobeScreen> {
               icon: const Icon(Icons.add_rounded),
               label: const Text('Add Item'),
             ),
+    );
+  }
+
+  Future<void> _loadPremiumStatus(String uid) async {
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
+
+      if (!mounted || _uid != uid) {
+        return;
+      }
+
+      setState(() {
+        _isPremium = snapshot.data()?['isPremium'] == true;
+        _premiumLoaded = true;
+      });
+    } catch (_) {
+      if (!mounted || _uid != uid) {
+        return;
+      }
+
+      setState(() {
+        _isPremium = false;
+        _premiumLoaded = true;
+      });
+    }
+  }
+
+  Future<void> _openPremiumAccess(BuildContext context) async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.workspace_premium_outlined, color: _brown),
+            SizedBox(width: 8),
+            Text('Premium Feature'),
+          ],
+        ),
+        content: const Text(
+          'Smart Wardrobe is a Premium feature. '
+          'Premium access is managed by your administrator.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSmartWardrobe(String uid) {
+    if (!_isPremium) {
+      _openPremiumAccess(context);
+      return;
+    }
+
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: _cream,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 25),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.auto_awesome, color: _brown),
+                  SizedBox(width: 10),
+                  Text(
+                    'Smart Wardrobe',
+                    style: TextStyle(
+                      color: _text,
+                      fontSize: 21,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Premium tools help you understand what is already in your wardrobe and turn it into more useful outfit ideas.',
+                style: TextStyle(color: _muted, height: 1.45),
+              ),
+              const SizedBox(height: 18),
+              _premiumInsightListTile(
+                Icons.category_outlined,
+                'Wardrobe overview',
+                'See your collection by category, favourites and colour.',
+              ),
+              _premiumInsightListTile(
+                Icons.palette_outlined,
+                'Colour insights',
+                'Find the colours you have saved most often.',
+              ),
+              _premiumInsightListTile(
+                Icons.auto_awesome_outlined,
+                'AI outfit matching',
+                'Use your wardrobe with the Premium AI Stylist.',
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () {
+                    Navigator.pop(sheetContext);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const AIStylistScreen(),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.auto_awesome),
+                  label: const Text('Open AI Stylist'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: _brown,
+                    minimumSize: const Size.fromHeight(52),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _premiumInsightListTile(IconData icon, String title, String subtitle) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Container(
+        padding: const EdgeInsets.all(13),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(color: const Color(0xFFF0DDD2)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: const BoxDecoration(
+                color: _soft,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, size: 19, color: _brown),
+            ),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: _text,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      color: _muted,
+                      fontSize: 12,
+                      height: 1.35,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPremiumInsightCard(List<WardrobeItem> items) {
+    final categoryCounts = <String, int>{};
+    final colourCounts = <String, int>{};
+
+    for (final item in items) {
+      categoryCounts[item.category] = (categoryCounts[item.category] ?? 0) + 1;
+      colourCounts[item.colour] = (colourCounts[item.colour] ?? 0) + 1;
+    }
+
+    String mostCommon(Map<String, int> values) {
+      if (values.isEmpty) {
+        return '—';
+      }
+
+      var bestKey = values.keys.first;
+      var bestValue = values[bestKey] ?? 0;
+
+      for (final entry in values.entries) {
+        if (entry.value > bestValue) {
+          bestKey = entry.key;
+          bestValue = entry.value;
+        }
+      }
+
+      return bestKey;
+    }
+
+    final favouriteCount = items.where((item) => item.isFavourite).length;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(18, 2, 18, 12),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFFF7E0D6), Color(0xFFFFF4EE)],
+          ),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: const Color(0xFFF0DDD2)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.auto_awesome, size: 19, color: _brown),
+                SizedBox(width: 7),
+                Text(
+                  'Premium Wardrobe Insights',
+                  style: TextStyle(color: _text, fontWeight: FontWeight.w700),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(child: _insightStat('Pieces', '${items.length}')),
+                const SizedBox(width: 8),
+                Expanded(child: _insightStat('Favourites', '$favouriteCount')),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _insightStat('Top colour', mostCommon(colourCounts)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 9),
+            Text(
+              'Most saved category: ${mostCommon(categoryCounts)}',
+              style: TextStyle(
+                color: Colors.brown.shade700,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _insightStat(String label, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: .75),
+        borderRadius: BorderRadius.circular(13),
+      ),
+      child: Column(
+        children: [
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: _brown,
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: _muted, fontSize: 10),
+          ),
+        ],
+      ),
     );
   }
 

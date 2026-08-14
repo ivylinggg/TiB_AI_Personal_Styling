@@ -1,11 +1,67 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/colour_analysis_result.dart';
 
-class AnalysisResultScreen extends StatelessWidget {
+class AnalysisResultScreen extends StatefulWidget {
   final ColourAnalysisResult result;
 
   const AnalysisResultScreen({super.key, required this.result});
+
+  @override
+  State<AnalysisResultScreen> createState() => _AnalysisResultScreenState();
+}
+
+class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
+  bool _isPremium = false;
+  bool _premiumLoaded = false;
+
+  ColourAnalysisResult get result => widget.result;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPremiumStatus();
+  }
+
+  Future<void> _loadPremiumStatus() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+
+    if (uid == null) {
+      if (mounted) {
+        setState(() {
+          _premiumLoaded = true;
+        });
+      }
+      return;
+    }
+
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isPremium = snapshot.data()?['isPremium'] == true;
+        _premiumLoaded = true;
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isPremium = false;
+        _premiumLoaded = true;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -46,12 +102,37 @@ class AnalysisResultScreen extends StatelessWidget {
 
           const SizedBox(height: 12),
 
-          Text(
-            'Here’s what suits you',
-            textAlign: TextAlign.center,
-            style: Theme.of(
-              context,
-            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Flexible(
+                child: Text(
+                  'Here’s what suits you',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              if (_premiumLoaded && _isPremium) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF5D8C7),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Icon(
+                    Icons.workspace_premium,
+                    size: 16,
+                    color: Color(0xFFC58F73),
+                  ),
+                ),
+              ],
+            ],
           ),
 
           const SizedBox(height: 6),
@@ -174,6 +255,10 @@ class AnalysisResultScreen extends StatelessWidget {
             title: 'Contrast Level',
             value: result.contrast,
           ),
+
+          const SizedBox(height: 18),
+
+          if (_premiumLoaded && _isPremium) _buildPremiumInsights(),
 
           const SizedBox(height: 18),
 
@@ -327,6 +412,164 @@ class AnalysisResultScreen extends StatelessWidget {
   // ============================================================
   // SUMMARY ITEM
   // ============================================================
+
+  Widget _buildPremiumInsights() {
+    final season = result.season.trim();
+    final undertone = result.undertone.trim();
+    final brightness = result.brightness.trim();
+    final contrast = result.contrast.trim();
+
+    String stylingDirection() {
+      if (season.isEmpty) {
+        return 'Build outfits around your recommended colours and keep your palette consistent across clothing and accessories.';
+      }
+
+      return 'Use your $season palette as the main colour direction, then balance it with your recorded undertone and contrast level.';
+    }
+
+    String contrastTip() {
+      final value = contrast.toLowerCase();
+
+      if (value.contains('high')) {
+        return 'Your contrast level can support clearer separation between outfit colours. Try pairing a stronger colour with a lighter or darker supporting shade.';
+      }
+
+      if (value.contains('low')) {
+        return 'A softer tonal outfit can work well with your contrast level. Try keeping neighbouring shades close in depth for a more blended look.';
+      }
+
+      return 'Your contrast level gives you flexibility. Start with one main colour and add a supporting shade without making the outfit feel too busy.';
+    }
+
+    String undertoneTip() {
+      final value = undertone.toLowerCase();
+
+      if (value.contains('warm')) {
+        return 'For everyday styling, explore warmer versions of your recommended colours and repeat warm accents in accessories.';
+      }
+
+      if (value.contains('cool')) {
+        return 'For everyday styling, explore cooler versions of your recommended colours and repeat cool accents in accessories.';
+      }
+
+      return 'Your undertone can work with a broad range of shades. Compare warmer and cooler versions of a colour to find the most flattering balance.';
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFDF1EA),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE7B9A3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(
+                Icons.workspace_premium_outlined,
+                color: Color(0xFFC58F73),
+                size: 22,
+              ),
+              SizedBox(width: 8),
+              Text(
+                'Premium Colour Insights',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF5D4037),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Personalised styling guidance based on your recorded analysis.',
+            style: TextStyle(
+              color: Color(0xFF7A6258),
+              fontSize: 12.5,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 14),
+          _buildPremiumInsightRow(
+            Icons.palette_outlined,
+            'Colour direction',
+            stylingDirection(),
+          ),
+          _buildPremiumInsightRow(
+            Icons.thermostat_outlined,
+            'Undertone styling',
+            undertoneTip(),
+          ),
+          _buildPremiumInsightRow(
+            Icons.contrast_outlined,
+            'Contrast styling',
+            contrastTip(),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Profile: $undertone • $brightness • $contrast',
+            style: TextStyle(
+              color: Colors.brown.shade700,
+              fontSize: 11.5,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPremiumInsightRow(
+    IconData icon,
+    String title,
+    String description,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: const BoxDecoration(
+              color: Color(0xFFF5D8C7),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, size: 18, color: Color(0xFFC58F73)),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF5D4037),
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  description,
+                  style: TextStyle(
+                    color: Colors.brown.shade700,
+                    fontSize: 12,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildSummaryItem({
     required IconData icon,

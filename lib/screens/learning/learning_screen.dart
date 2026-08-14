@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 class LearningScreen extends StatefulWidget {
@@ -12,6 +13,8 @@ class _LearningScreenState extends State<LearningScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   String selectedCategory = 'All';
+  bool _isPremium = false;
+  bool _premiumLoaded = false;
 
   final List<String> categories = const [
     'All',
@@ -30,6 +33,12 @@ class _LearningScreenState extends State<LearningScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+
+    if (uid != null && !_premiumLoaded) {
+      _loadPremiumStatus(uid);
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFFFDF9F6),
       appBar: AppBar(
@@ -79,6 +88,8 @@ class _LearningScreenState extends State<LearningScreen> {
               context,
             ).textTheme.bodyMedium?.copyWith(color: Colors.grey.shade700),
           ),
+          const SizedBox(height: 12),
+          _buildPremiumStatusBanner(),
         ],
       ),
     );
@@ -116,6 +127,107 @@ class _LearningScreenState extends State<LearningScreen> {
   // ============================================================
   // FIRESTORE CONTENT
   // ============================================================
+
+
+  Future<void> _loadPremiumStatus(String uid) async {
+    try {
+      final snapshot = await _firestore
+          .collection('users')
+          .doc(uid)
+          .get();
+
+      if (!mounted ||
+          FirebaseAuth.instance.currentUser?.uid != uid) {
+        return;
+      }
+
+      setState(() {
+        _isPremium = snapshot.data()?['isPremium'] == true;
+        _premiumLoaded = true;
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isPremium = false;
+        _premiumLoaded = true;
+      });
+    }
+  }
+
+  Widget _buildPremiumStatusBanner() {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 14,
+        vertical: 11,
+      ),
+      decoration: BoxDecoration(
+        color: _isPremium
+            ? const Color(0xFFF5D8C7)
+            : const Color(0xFFF7F1ED),
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(
+          color: const Color(0xFFF0DDD2),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            _isPremium
+                ? Icons.workspace_premium
+                : Icons.menu_book_outlined,
+            size: 20,
+            color: const Color(0xFFC58F73),
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Text(
+              _isPremium
+                  ? 'Premium access is active — enjoy all learning content.'
+                  : 'Free access — Premium guides are marked with a lock.',
+              style: const TextStyle(
+                color: Color(0xFF6F5144),
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showPremiumRequiredDialog() async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(
+              Icons.workspace_premium_outlined,
+              color: Color(0xFFC58F73),
+            ),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text('Premium Guide'),
+            ),
+          ],
+        ),
+        content: const Text(
+          'This learning guide is available to Premium members. '
+          'Premium access is managed by your administrator.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildContentList() {
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
@@ -185,6 +297,10 @@ class _LearningScreenState extends State<LearningScreen> {
     final imageUrl = data['imageUrl'] as String? ?? '';
 
     final isFeatured = data['isFeatured'] as bool? ?? false;
+    final isPremiumContent =
+        data['isPremium'] as bool? ??
+        data['premiumOnly'] as bool? ??
+        false;
 
     return Card(
       elevation: 0,
@@ -206,6 +322,7 @@ class _LearningScreenState extends State<LearningScreen> {
             type: type,
             imageUrl: imageUrl,
             isFeatured: isFeatured,
+            isPremiumContent: isPremiumContent,
           );
         },
         child: Column(
@@ -231,7 +348,19 @@ class _LearningScreenState extends State<LearningScreen> {
                         ),
                       ),
                       if (isFeatured)
-                        const Icon(Icons.star, color: Colors.amber, size: 20),
+                        const Icon(
+                          Icons.star,
+                          color: Colors.amber,
+                          size: 20,
+                        ),
+                      if (isPremiumContent) ...[
+                        const SizedBox(width: 7),
+                        const Icon(
+                          Icons.workspace_premium_outlined,
+                          color: Color(0xFFC58F73),
+                          size: 19,
+                        ),
+                      ],
                     ],
                   ),
 
@@ -251,15 +380,26 @@ class _LearningScreenState extends State<LearningScreen> {
 
                   const SizedBox(height: 14),
 
-                  const Row(
+                  Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
                       Text(
-                        'Explore this guide',
-                        style: TextStyle(fontWeight: FontWeight.w600),
+                        isPremiumContent
+                            ? (_isPremium
+                                ? 'Read Premium guide'
+                                : 'Premium guide')
+                            : 'Explore this guide',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                      SizedBox(width: 6),
-                      Icon(Icons.arrow_forward_ios, size: 13),
+                      const SizedBox(width: 6),
+                      Icon(
+                        isPremiumContent && !_isPremium
+                            ? Icons.lock_outline
+                            : Icons.arrow_forward_ios,
+                        size: 15,
+                      ),
                     ],
                   ),
                 ],
@@ -341,7 +481,13 @@ class _LearningScreenState extends State<LearningScreen> {
     required String type,
     required String imageUrl,
     required bool isFeatured,
+    required bool isPremiumContent,
   }) {
+    if (isPremiumContent && !_isPremium) {
+      _showPremiumRequiredDialog();
+      return;
+    }
+
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -352,6 +498,7 @@ class _LearningScreenState extends State<LearningScreen> {
           type: type,
           imageUrl: imageUrl,
           isFeatured: isFeatured,
+          isPremiumContent: isPremiumContent,
         ),
       ),
     );
@@ -446,6 +593,7 @@ class _ContentDetailScreen extends StatelessWidget {
   final String type;
   final String imageUrl;
   final bool isFeatured;
+  final bool isPremiumContent;
 
   const _ContentDetailScreen({
     required this.title,
@@ -454,6 +602,7 @@ class _ContentDetailScreen extends StatelessWidget {
     required this.type,
     required this.imageUrl,
     required this.isFeatured,
+    required this.isPremiumContent,
   });
 
   @override
@@ -488,7 +637,17 @@ class _ContentDetailScreen extends StatelessWidget {
                 _buildDetailCategory(context, type),
                 if (isFeatured) ...[
                   const SizedBox(width: 8),
-                  const Icon(Icons.star, color: Colors.amber),
+                  const Icon(
+                    Icons.star,
+                    color: Colors.amber,
+                  ),
+                ],
+                if (isPremiumContent) ...[
+                  const SizedBox(width: 8),
+                  const Icon(
+                    Icons.workspace_premium_outlined,
+                    color: Color(0xFFC58F73),
+                  ),
                 ],
               ],
             ),

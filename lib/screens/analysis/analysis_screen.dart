@@ -126,6 +126,62 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
   // BUILD
   // ============================================================
 
+  Widget _buildAnalysisAccessCard(bool isPremium) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: isPremium
+            ? const Color(0xFFF5D8C7)
+            : const Color(0xFFF7F1ED),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: const Color(0xFFF0DDD2),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            isPremium
+                ? Icons.workspace_premium_outlined
+                : Icons.palette_outlined,
+            color: const Color(0xFFC58F73),
+            size: 22,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  isPremium
+                      ? 'Premium Colour Analysis'
+                      : 'Basic Colour Analysis',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF5D4037),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  isPremium
+                      ? 'Your analysis includes Premium colour insights and a more personalised result.'
+                      : 'Get your personalised colour analysis. Premium insights are available to Premium members.',
+                  style: TextStyle(
+                    color: Colors.brown.shade700,
+                    fontSize: 12.5,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer<AnalysisProvider>(
@@ -143,6 +199,11 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
               child: Column(
                 children: [
                   // ==================================================
+
+                  const SizedBox(height: 14),
+
+                  _buildAnalysisAccessCard(provider.isPremium),
+
                   // IMAGE PREVIEW
                   // ==================================================
                   Align(
@@ -315,7 +376,11 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                   // ANALYSE BUTTON
                   // ==================================================
                   PrimaryButton(
-                    text: isLoading ? 'Analysing...' : 'Analyse My Colours',
+                    text: isLoading
+                        ? 'Analysing...'
+                        : provider.isPremium
+                            ? 'Analyse with Premium Insights'
+                            : 'Analyse My Colours',
 
                     icon: Icons.auto_awesome,
 

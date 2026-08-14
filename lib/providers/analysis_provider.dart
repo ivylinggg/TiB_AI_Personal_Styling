@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/colour_analysis_result.dart';
 import '../services/colour_analysis_service.dart';
@@ -14,12 +15,14 @@ class AnalysisProvider extends ChangeNotifier {
   bool _isLoading = false;
   String _status = 'No image selected';
   String? _errorMessage;
+  bool _isPremium = false;
 
   File? get selectedImage => _selectedImage;
   ColourAnalysisResult? get result => _result;
   bool get isLoading => _isLoading;
   String get status => _status;
   String? get errorMessage => _errorMessage;
+  bool get isPremium => _isPremium;
 
   void setImage(File image) {
     _selectedImage = image;
@@ -44,8 +47,25 @@ class AnalysisProvider extends ChangeNotifier {
 
     _isLoading = true;
     _errorMessage = null;
-    _status = 'Detecting face...';
+    _status = 'Checking Premium access...';
     notifyListeners();
+
+    try {
+      final userSnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
+
+      _isPremium = userSnapshot.data()?['isPremium'] == true;
+      _status = _isPremium
+          ? 'Premium access active. Detecting face...'
+          : 'Detecting face...';
+      notifyListeners();
+    } catch (_) {
+      _isPremium = false;
+      _status = 'Detecting face...';
+      notifyListeners();
+    }
 
     try {
       // 1. Validate that the photo contains exactly one face.
@@ -72,7 +92,9 @@ class AnalysisProvider extends ChangeNotifier {
         image: image,
       );
 
-      _status = 'Analysing your colours...';
+      _status = _isPremium
+          ? 'Analysing your colours with Premium insights...'
+          : 'Analysing your colours...';
       notifyListeners();
 
       // 3. Run the colour analysis against the selected image.
@@ -81,7 +103,9 @@ class AnalysisProvider extends ChangeNotifier {
         imageUrl: imageUrl,
       );
 
-      _status = 'Saving your analysis...';
+      _status = _isPremium
+          ? 'Preparing your Premium colour insights...'
+          : 'Saving your analysis...';
       notifyListeners();
 
       // 4. Persist the result in the authenticated user's history.
@@ -91,7 +115,9 @@ class AnalysisProvider extends ChangeNotifier {
       );
 
       _result = analysisResult;
-      _status = 'Analysis completed successfully';
+      _status = _isPremium
+          ? 'Premium colour analysis completed successfully'
+          : 'Analysis completed successfully';
       return true;
     } catch (e) {
       _setError('Analysis failed: $e');

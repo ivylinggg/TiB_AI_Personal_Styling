@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -8,6 +9,7 @@ import '../../services/firestore_service.dart';
 import '../../services/style_preference_service.dart';
 import '../wardrobe/wardrobe_screen.dart';
 import 'style_preferences_screen.dart';
+import '../premium/premium_screen.dart';
 
 class AIStylistScreen extends StatefulWidget {
   const AIStylistScreen({super.key});
@@ -28,6 +30,7 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
   List<String> _styles = const [];
   List<String> _preferences = const [];
   bool _loading = true;
+  bool _isPremium = false;
   String? _loadError;
 
   @override
@@ -58,11 +61,23 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
     try {
       final wardrobe = await FirestoreService.getWardrobeItems(user.uid);
       final style = await StylePreferenceService.getStylePreferences(user.uid);
-      if (!mounted) return;
+      final userSnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      final userData = userSnapshot.data();
+      final isPremium = userData?['isPremium'] == true;
+
+      if (!mounted) {
+        return;
+      }
+
       setState(() {
         _wardrobe = wardrobe;
         _styles = List<String>.from(style?['styles'] ?? const []);
         _preferences = List<String>.from(style?['preferences'] ?? const []);
+        _isPremium = isPremium;
         _loadError = null;
         _loading = false;
       });
@@ -141,6 +156,8 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
               ],
               const SizedBox(height: 18),
               _profileCard(result?.season, result?.undertone, colours),
+              const SizedBox(height: 10),
+              _premiumStatusCard(),
               const SizedBox(height: 10),
               _personalCard(),
               const SizedBox(height: 26),
@@ -307,6 +324,87 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
     );
   }
 
+  Widget _premiumStatusCard() {
+    return Material(
+      color: _isPremium ? const Color(0xFFFFF3D6) : Colors.white,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const PremiumScreen(),
+            ),
+          );
+        },
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: _isPremium
+                  ? const Color(0xFFE7C77A)
+                  : const Color(0xFFEADFD9),
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: _isPremium ? Colors.white : _soft,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  _isPremium
+                      ? Icons.workspace_premium_rounded
+                      : Icons.lock_outline_rounded,
+                  color: _brown,
+                  size: 21,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _isPremium
+                          ? 'Premium styling is active'
+                          : 'Unlock Premium styling',
+                      style: const TextStyle(
+                        color: _text,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _isPremium
+                          ? 'Your account can use advanced wardrobe styling.'
+                          : 'Get advanced wardrobe-based styling features.',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: _muted,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: _muted,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _personalCard() {
     final wardrobeText = _loading
         ? 'Looking through your wardrobe...'
@@ -447,7 +545,7 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
     final ranked = List<WardrobeItem>.from(_wardrobe)
       ..sort((a, b) => _itemScore(b, wanted).compareTo(_itemScore(a, wanted)));
 
-    return ranked.take(6).toList();
+    return ranked.take(_isPremium ? 6 : 2).toList();
   }
 
   int _itemScore(WardrobeItem item, List<String> wantedColours) {
@@ -464,8 +562,10 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
       score += 6;
     }
 
-    final combined = '${_styles.join(' ')} ${_preferences.join(' ')}'
-        .toLowerCase();
+    final styleProfile = [
+      ..._styles,
+      ..._preferences,
+    ].map((value) => value.toLowerCase()).join(' ');
 
     final itemText = '${item.name} ${item.category} $itemColour'.toLowerCase();
 
@@ -480,8 +580,45 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
       'comfortable',
       'neutral',
     ]) {
-      if (combined.contains(keyword) && itemText.contains(keyword)) {
+      if (styleProfile.contains(keyword) && itemText.contains(keyword)) {
         score += 2;
+      }
+    }
+
+    if (_isPremium) {
+      final premiumStyleRules = <String, List<String>>{
+        'minimal': ['minimal', 'basic', 'plain', 'simple', 'neutral'],
+        'elegant': ['elegant', 'dress', 'blouse', 'skirt', 'heels'],
+        'classic': ['classic', 'blazer', 'shirt', 'trousers', 'neutral'],
+        'casual': ['casual', 'jeans', 't-shirt', 'tee', 'sneaker'],
+        'feminine': ['feminine', 'dress', 'skirt', 'blouse', 'pink'],
+        'street': ['street', 'oversized', 'hoodie', 'sneaker', 'denim'],
+        'smart': ['smart', 'blazer', 'shirt', 'trousers', 'loafer'],
+        'comfortable': ['comfortable', 'knit', 'cardigan', 'sweater', 'flat'],
+      };
+
+      for (final entry in premiumStyleRules.entries) {
+        if (styleProfile.contains(entry.key) &&
+            entry.value.any(itemText.contains)) {
+          score += 5;
+        }
+      }
+
+      if (styleProfile.contains('keep it simple') &&
+          !itemText.contains('statement') &&
+          !itemText.contains('bold')) {
+        score += 3;
+      }
+
+      if (styleProfile.contains('i love accessories')) {
+        score += item.category == 'Accessories' ? 6 : 1;
+      }
+
+      if (styleProfile.contains('comfort first') &&
+          (itemText.contains('comfortable') ||
+              itemText.contains('soft') ||
+              itemText.contains('relaxed'))) {
+        score += 5;
       }
     }
 
@@ -555,6 +692,37 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
                 ),
               ),
               const Spacer(),
+              if (_isPremium)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF3D6),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.workspace_premium_rounded,
+                        size: 15,
+                        color: _brown,
+                      ),
+                      SizedBox(width: 4),
+                      Text(
+                        'PREMIUM',
+                        style: TextStyle(
+                          color: _brown,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              const SizedBox(width: 8),
               const Icon(Icons.favorite_border_rounded, color: _brown),
             ],
           ),
@@ -575,7 +743,9 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
                 ? (hasProfile
                       ? 'Try $mainColour as your main colour, then add a calm neutral.'
                       : 'Complete your colour analysis and add a few wardrobe pieces so I can style what you actually own.')
-                : 'I prioritised pieces you already own, your colour profile and the style preferences you saved.',
+                : _isPremium
+                    ? 'I prioritised pieces you already own, your colour profile and your saved Style Profile. Premium preferences have a stronger influence on the ranking.'
+                    : 'I prioritised pieces you already own, your colour profile and the style preferences you saved.',
             style: const TextStyle(color: _muted, fontSize: 14, height: 1.5),
           ),
           if (_styles.isNotEmpty) ...[
@@ -709,8 +879,10 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
       _help(
         Icons.shopping_bag_outlined,
         'Shopping help',
-        'See what your wardrobe is missing.',
-        _showShoppingIdeas,
+        _isPremium
+            ? 'See what your wardrobe is missing.'
+            : 'Premium feature · See what your wardrobe is missing.',
+        () => _runPremiumAction(_showShoppingIdeas),
       ),
       _help(
         Icons.event_outlined,
@@ -784,6 +956,90 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
       ],
     ),
   );
+
+  void _runPremiumAction(VoidCallback action) {
+    if (_isPremium) {
+      action();
+      return;
+    }
+
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: _cream,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 46,
+                    height: 46,
+                    decoration: const BoxDecoration(
+                      color: _soft,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.workspace_premium_rounded,
+                      color: _brown,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text(
+                      'Premium feature',
+                      style: TextStyle(
+                        color: _text,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              const Text(
+                'This advanced styling feature is available to Premium members.',
+                style: TextStyle(
+                  color: _muted,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 18),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(sheetContext);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const PremiumScreen(),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.workspace_premium_rounded),
+                  label: const Text('View Premium'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _brown,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size.fromHeight(50),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   void _showRecommendation(List<WardrobeItem> items, String colour) {
     _sheet('Your personal look', Icons.auto_awesome_rounded, [
