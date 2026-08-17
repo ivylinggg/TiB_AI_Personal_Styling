@@ -11,6 +11,7 @@ class UserModel {
   final String? skinTone;
   final UserRole role;
   final bool isActive;
+  final bool isPremium;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -23,6 +24,7 @@ class UserModel {
     this.skinTone,
     this.role = UserRole.customer,
     this.isActive = true,
+    this.isPremium = false,
     this.createdAt,
     this.updatedAt,
   });
@@ -39,6 +41,7 @@ class UserModel {
       skinTone: data['skinTone'] as String?,
       role: UserRoleExtension.fromString(data['role'] as String?),
       isActive: data['isActive'] as bool? ?? true,
+      isPremium: data['isPremium'] as bool? ?? false,
       createdAt: _dateTimeFromTimestamp(data['createdAt']),
       updatedAt: _dateTimeFromTimestamp(data['updatedAt']),
     );
@@ -53,6 +56,7 @@ class UserModel {
       'skinTone': skinTone,
       'role': role.value,
       'isActive': isActive,
+      'isPremium': isPremium,
       'createdAt': createdAt != null
           ? Timestamp.fromDate(createdAt!)
           : FieldValue.serverTimestamp(),
@@ -70,6 +74,7 @@ class UserModel {
     String? skinTone,
     UserRole? role,
     bool? isActive,
+    bool? isPremium,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -82,6 +87,7 @@ class UserModel {
       skinTone: skinTone ?? this.skinTone,
       role: role ?? this.role,
       isActive: isActive ?? this.isActive,
+      isPremium: isPremium ?? this.isPremium,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
