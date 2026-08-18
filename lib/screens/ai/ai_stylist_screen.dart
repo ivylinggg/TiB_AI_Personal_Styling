@@ -3,8 +3,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../models/colour_analysis_result.dart';
 import '../../models/wardrobe_item.dart';
 import '../../providers/analysis_provider.dart';
+import '../../services/ai_styling_service.dart';
 import '../../services/firestore_service.dart';
 import '../../services/style_preference_service.dart';
 import '../wardrobe/wardrobe_screen.dart';
@@ -32,6 +34,14 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
   bool _loading = true;
   bool _isPremium = false;
   String? _loadError;
+
+  // Real Claude AI styling (Premium only). The local heuristic engine
+  // above always keeps working and is what free accounts see; these
+  // fields only ever hold something when a real AI response arrived.
+  AiStylingResult? _aiResult;
+  bool _aiLoading = false;
+  String? _aiSignature;
+  int _aiRequestId = 0;
 
   @override
   void initState() {
@@ -111,8 +121,14 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
   Widget build(BuildContext context) {
     final result = context.watch<AnalysisProvider>().result;
     final colours = result?.colours ?? const <String>[];
-    final matches = _matchingItems(colours);
+    final matches = _matchingItems(
+      colours,
+      result?.brightness,
+      result?.contrast,
+    );
     final mainColour = colours.isEmpty ? 'a soft neutral' : colours.first;
+
+    _syncAiStyling(result);
 
     return Scaffold(
       backgroundColor: _cream,
@@ -168,7 +184,7 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
               const SizedBox(height: 12),
               _occasions(),
               const SizedBox(height: 18),
-              _recommendation(result != null, mainColour, matches),
+              _recommendation(result, mainColour, matches),
               const SizedBox(height: 26),
               _title(
                 'A little help, when you need it',
@@ -332,9 +348,7 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
         onTap: () {
           Navigator.push(
             context,
-            MaterialPageRoute(
-              builder: (_) => const PremiumScreen(),
-            ),
+            MaterialPageRoute(builder: (_) => const PremiumScreen()),
           );
         },
         borderRadius: BorderRadius.circular(18),
@@ -386,18 +400,12 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
                           : 'Get advanced wardrobe-based styling features.',
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: _muted,
-                        fontSize: 12,
-                      ),
+                      style: const TextStyle(color: _muted, fontSize: 12),
                     ),
                   ],
                 ),
               ),
-              const Icon(
-                Icons.chevron_right_rounded,
-                color: _muted,
-              ),
+              const Icon(Icons.chevron_right_rounded, color: _muted),
             ],
           ),
         ),
@@ -535,7 +543,196 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
     );
   }
 
-  List<WardrobeItem> _matchingItems(List<String> colours) {
+  /// Fires (or clears) the real Claude AI request in response to state
+  /// that actually changed -- never on every rebuild. Safe to call from
+  /// build(): it only schedules work via a post-frame callback, it never
+  /// calls setState synchronously here.
+  void _syncAiStyling(ColourAnalysisResult? result) {
+    if (_loading) {
+      return;
+    }
+
+    if (!_isPremium) {
+      if (_aiResult != null || _aiLoading) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          setState(() {
+            _aiResult = null;
+            _aiLoading = false;
+          });
+        });
+      }
+      _aiSignature = null;
+      return;
+    }
+
+    final signature = _aiSignatureFor(result);
+    if (signature == _aiSignature) {
+      return;
+    }
+    _aiSignature = signature;
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _requestAiStyling(result),
+    );
+  }
+
+  String _aiSignatureFor(ColourAnalysisResult? result) {
+    final profileSignature = result == null
+        ? 'none'
+        : '${result.season}|${result.undertone}|${result.brightness}|${result.contrast}|${result.colours.join(',')}';
+    final wardrobeSignature = _wardrobe
+        .map((item) => '${item.id}:${item.colour}:${item.isFavourite}')
+        .join(',');
+    final styleSignature = [..._styles, ..._preferences].join(',');
+    return '$profileSignature::$_occasion::$wardrobeSignature::$styleSignature';
+  }
+
+  Future<void> _requestAiStyling(ColourAnalysisResult? result) async {
+    if (!mounted) {
+      return;
+    }
+
+    if (!_isPremium || result == null || _wardrobe.isEmpty) {
+      setState(() {
+        _aiResult = null;
+        _aiLoading = false;
+      });
+      return;
+    }
+
+    final requestId = ++_aiRequestId;
+    setState(() => _aiLoading = true);
+
+    final aiResult = await AiStylingService.getRecommendation(
+      profile: result,
+      wardrobe: _wardrobe,
+      styles: _styles,
+      preferences: _preferences,
+      occasion: _occasion,
+    );
+
+    if (!mounted || requestId != _aiRequestId) {
+      return;
+    }
+
+    setState(() {
+      _aiResult = aiResult;
+      _aiLoading = false;
+    });
+  }
+
+  WardrobeItem? _findWardrobeItem(String? id) {
+    if (id == null) {
+      return null;
+    }
+    for (final item in _wardrobe) {
+      if (item.id == id) {
+        return item;
+      }
+    }
+    return null;
+  }
+
+  // Colour-analysis-grounded vocabulary: a "Light" brightness profile is
+  // typically recommended lighter clothing values, a "Deep" profile can
+  // carry deeper values, and "High"/"Low" contrast maps to how much
+  // contrast an outfit itself can carry. These word lists are matched
+  // against the wardrobe item's own colour text, the same way the rest
+  // of this screen already matches colour/style keywords.
+  static const _lightColourWords = [
+    'white',
+    'ivory',
+    'cream',
+    'pastel',
+    'light',
+    'pale',
+    'blush',
+    'powder',
+    'beige',
+    'nude',
+  ];
+  static const _deepColourWords = [
+    'black',
+    'navy',
+    'charcoal',
+    'burgundy',
+    'deep',
+    'dark',
+    'wine',
+    'emerald',
+    'plum',
+    'maroon',
+  ];
+  static const _highContrastColourWords = [
+    'black',
+    'white',
+    'red',
+    'bold',
+    'bright',
+    'vivid',
+  ];
+  static const _lowContrastColourWords = [
+    'beige',
+    'cream',
+    'muted',
+    'soft',
+    'tonal',
+    'pastel',
+    'neutral',
+    'nude',
+  ];
+
+  int _brightnessScore(String? brightness, String itemColour) {
+    if (brightness == null) {
+      return 0;
+    }
+    final isLight = _lightColourWords.any(itemColour.contains);
+    final isDeep = _deepColourWords.any(itemColour.contains);
+    switch (brightness) {
+      case 'Light':
+        if (isLight) return 3;
+        if (isDeep) return -2;
+        return 0;
+      case 'Deep':
+        if (isDeep) return 3;
+        if (isLight) return -2;
+        return 0;
+      case 'Medium':
+        if (!isLight && !isDeep) return 2;
+        return 0;
+      default:
+        return 0;
+    }
+  }
+
+  int _contrastScore(String? contrast, String itemColour) {
+    if (contrast == null) {
+      return 0;
+    }
+    final isHigh = _highContrastColourWords.any(itemColour.contains);
+    final isLow = _lowContrastColourWords.any(itemColour.contains);
+    switch (contrast) {
+      case 'High':
+        if (isHigh) return 3;
+        if (isLow) return -1;
+        return 0;
+      case 'Low':
+        if (isLow) return 3;
+        if (isHigh) return -1;
+        return 0;
+      case 'Medium':
+        if (!isHigh && !isLow) return 2;
+        return 0;
+      default:
+        return 0;
+    }
+  }
+
+  List<WardrobeItem> _matchingItems(
+    List<String> colours,
+    String? brightness,
+    String? contrast,
+  ) {
     if (_wardrobe.isEmpty) {
       return const [];
     }
@@ -543,12 +740,24 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
     final wanted = colours.map((e) => e.toLowerCase()).toList();
 
     final ranked = List<WardrobeItem>.from(_wardrobe)
-      ..sort((a, b) => _itemScore(b, wanted).compareTo(_itemScore(a, wanted)));
+      ..sort(
+        (a, b) => _itemScore(
+          b,
+          wanted,
+          brightness,
+          contrast,
+        ).compareTo(_itemScore(a, wanted, brightness, contrast)),
+      );
 
     return ranked.take(_isPremium ? 6 : 2).toList();
   }
 
-  int _itemScore(WardrobeItem item, List<String> wantedColours) {
+  int _itemScore(
+    WardrobeItem item,
+    List<String> wantedColours,
+    String? brightness,
+    String? contrast,
+  ) {
     var score = 0;
 
     if (item.isFavourite) {
@@ -561,6 +770,9 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
     )) {
       score += 6;
     }
+
+    score += _brightnessScore(brightness, itemColour);
+    score += _contrastScore(contrast, itemColour);
 
     final styleProfile = [
       ..._styles,
@@ -622,26 +834,104 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
       }
     }
 
-    if (_occasion == 'Work' &&
-        (item.category == 'Tops' || item.category == 'Bottoms')) {
-      score += 2;
+    score += _occasionScore(_occasion, item);
+
+    return score;
+  }
+
+  // Occasion-preferred styles use the exact Style dropdown values the
+  // Wardrobe screen already offers ('Everyday', 'Minimal', 'Elegant',
+  // 'Casual', 'Smart Casual', 'Feminine', 'Trendy') -- no invented
+  // vocabulary, just real values items can actually have.
+  static const Map<String, List<String>> _occasionPreferredStyles = {
+    'Everyday': ['everyday', 'casual'],
+    'Work': ['smart casual', 'minimal', 'elegant'],
+    'Date': ['elegant', 'feminine', 'smart casual', 'trendy'],
+    'Event': ['elegant', 'trendy', 'feminine'],
+    'Weekend': ['casual', 'everyday'],
+  };
+
+  /// How well [item] suits [occasion], using its real style and category
+  /// fields. Only ever adjusts ranking order within a category -- it never
+  /// excludes an item, so the fallback still always has something to show
+  /// even if the wardrobe has nothing occasion-perfect.
+  int _occasionScore(String occasion, WardrobeItem item) {
+    var score = 0;
+    final style = item.style.toLowerCase();
+    final category = item.category;
+
+    if ((_occasionPreferredStyles[occasion] ?? const []).any(style.contains)) {
+      score += 4;
     }
 
-    if (_occasion == 'Weekend' && item.category == 'Tops') {
-      score += 1;
+    switch (occasion) {
+      case 'Work':
+        // Professional, polished, more structured combinations.
+        if (category == 'Tops' ||
+            category == 'Bottoms' ||
+            category == 'Dresses') {
+          score += 2;
+        }
+        break;
+      case 'Date':
+        // More polished/coordinated; an accessory can lift the look.
+        if (category == 'Dresses') {
+          score += 2;
+        }
+        if (category == 'Accessories') {
+          score += 2;
+        }
+        break;
+      case 'Event':
+        // More elevated/statement styling where the wardrobe supports it.
+        if (category == 'Dresses') {
+          score += 3;
+        }
+        if (category == 'Accessories') {
+          score += 2;
+        }
+        break;
+      case 'Weekend':
+        // Relaxed and comfortable.
+        if (category == 'Tops' || category == 'Shoes') {
+          score += 1;
+        }
+        break;
+      case 'Everyday':
+        // Practical, versatile basics.
+        if (category == 'Tops' || category == 'Bottoms') {
+          score += 1;
+        }
+        break;
     }
 
     return score;
   }
 
   Widget _recommendation(
-    bool hasProfile,
+    ColourAnalysisResult? result,
     String mainColour,
     List<WardrobeItem> items,
   ) {
+    final hasProfile = result != null;
+    final wanted = (result?.colours ?? const <String>[])
+        .map((e) => e.toLowerCase())
+        .toList();
     WardrobeItem? top;
     WardrobeItem? bottom;
     WardrobeItem? shoes;
+    WardrobeItem? accessory;
+
+    // Premium accounts with a real Claude pick get that pick first; the
+    // heuristic below still fills in any slot Claude left null or that
+    // didn't resolve to a real, current wardrobe item.
+    if (_isPremium && _aiResult != null) {
+      top = _findWardrobeItem(_aiResult!.topId);
+      bottom = _findWardrobeItem(_aiResult!.bottomId);
+      shoes = _findWardrobeItem(_aiResult!.shoesId);
+      accessory = _findWardrobeItem(_aiResult!.accessoryId);
+    }
+
     for (final item in items) {
       if (top == null &&
           (item.category == 'Tops' || item.category == 'Dresses')) {
@@ -653,7 +943,21 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
       if (shoes == null && item.category == 'Shoes') {
         shoes = item;
       }
+      if (accessory == null && item.category == 'Accessories') {
+        accessory = item;
+      }
     }
+
+    // An accessory row is only shown for the occasions where one is
+    // actually part of the styling guidance (Date/Event) and only when a
+    // real accessory was found -- never invented.
+    final showAccessory =
+        accessory != null && (_occasion == 'Date' || _occasion == 'Event');
+
+    final showAiBadge =
+        _isPremium && items.isNotEmpty && (_aiLoading || _aiResult != null);
+    final useAiExplanation =
+        _isPremium && _aiResult != null && _aiResult!.explanation.isNotEmpty;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -738,14 +1042,20 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
             ),
           ),
           const SizedBox(height: 7),
+          if (showAiBadge) ...[_aiInsightBadge(), const SizedBox(height: 8)],
           Text(
             items.isEmpty
                 ? (hasProfile
                       ? 'Try $mainColour as your main colour, then add a calm neutral.'
                       : 'Complete your colour analysis and add a few wardrobe pieces so I can style what you actually own.')
-                : _isPremium
-                    ? 'I prioritised pieces you already own, your colour profile and your saved Style Profile. Premium preferences have a stronger influence on the ranking.'
-                    : 'I prioritised pieces you already own, your colour profile and the style preferences you saved.',
+                : useAiExplanation
+                ? _aiResult!.explanation
+                : _pickExplanation(
+                    items,
+                    wanted,
+                    result?.brightness,
+                    result?.contrast,
+                  ),
             style: const TextStyle(color: _muted, fontSize: 14, height: 1.5),
           ),
           if (_styles.isNotEmpty) ...[
@@ -785,6 +1095,15 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
               shoes.colour,
             ),
           ],
+          if (showAccessory) ...[
+            const SizedBox(height: 11),
+            _lookRow(
+              Icons.diamond_outlined,
+              'Accessory',
+              accessory.name,
+              accessory.colour,
+            ),
+          ],
           if (items.isEmpty)
             _lookRow(
               Icons.auto_awesome_outlined,
@@ -822,6 +1141,143 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
         ],
       ),
     );
+  }
+
+  Widget _aiInsightBadge() {
+    if (_aiLoading) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(
+            width: 14,
+            height: 14,
+            child: CircularProgressIndicator(strokeWidth: 2, color: _brown),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            'Asking your AI stylist...',
+            style: TextStyle(
+              color: _muted,
+              fontSize: 12,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Icon(Icons.auto_awesome_rounded, size: 14, color: _brown),
+        const SizedBox(width: 6),
+        const Text(
+          'AI Stylist pick',
+          style: TextStyle(
+            color: _brown,
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Real, verifiable reasons why [item] was picked -- only factors that
+  /// are actually true for this item are included, nothing is assumed.
+  List<String> _pickReasons(
+    WardrobeItem item,
+    List<String> wantedColours,
+    String? brightness,
+    String? contrast,
+  ) {
+    final reasons = <String>[];
+    final itemColour = item.colour.toLowerCase();
+
+    final colourMatch = wantedColours.any(
+      (colour) => colour.contains(itemColour) || itemColour.contains(colour),
+    );
+    if (colourMatch) {
+      reasons.add('matches your colour profile');
+    }
+
+    if (brightness != null && _brightnessScore(brightness, itemColour) > 0) {
+      reasons.add('suits your ${brightness.toLowerCase()} brightness');
+    }
+
+    if (contrast != null && _contrastScore(contrast, itemColour) > 0) {
+      reasons.add('works with your ${contrast.toLowerCase()} contrast level');
+    }
+
+    final styleProfile = [
+      ..._styles,
+      ..._preferences,
+    ].map((value) => value.toLowerCase()).join(' ');
+    final itemText = '${item.name} ${item.category} $itemColour'.toLowerCase();
+    final styleMatch =
+        [
+          'casual',
+          'minimal',
+          'classic',
+          'elegant',
+          'feminine',
+          'street',
+          'smart',
+          'comfortable',
+          'neutral',
+        ].any(
+          (keyword) =>
+              styleProfile.contains(keyword) && itemText.contains(keyword),
+        );
+    if (styleMatch) {
+      reasons.add('fits the style you saved');
+    }
+
+    if (_occasionScore(_occasion, item) > 0) {
+      reasons.add('suits $_occasion');
+    }
+
+    if (item.isFavourite) {
+      reasons.add("it's one of your favourites");
+    }
+
+    return reasons;
+  }
+
+  String _reasonSentence(List<String> reasons) {
+    if (reasons.isEmpty) {
+      return '';
+    }
+    if (reasons.length == 1) {
+      return reasons.first;
+    }
+    if (reasons.length == 2) {
+      return '${reasons[0]} and ${reasons[1]}';
+    }
+    return '${reasons.sublist(0, reasons.length - 1).join(', ')} and ${reasons.last}';
+  }
+
+  String _pickExplanation(
+    List<WardrobeItem> items,
+    List<String> wantedColours,
+    String? brightness,
+    String? contrast,
+  ) {
+    final base = _isPremium
+        ? 'I prioritised pieces you already own, your colour profile and your saved Style Profile. Premium preferences have a stronger influence on the ranking.'
+        : 'I prioritised pieces you already own, your colour profile and the style preferences you saved.';
+
+    final reasons = _pickReasons(
+      items.first,
+      wantedColours,
+      brightness,
+      contrast,
+    );
+    final sentence = _reasonSentence(reasons);
+    if (sentence.isEmpty) {
+      return base;
+    }
+    return '$base This top pick $sentence.';
   }
 
   Widget _lookRow(
@@ -1004,10 +1460,7 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
               const SizedBox(height: 14),
               const Text(
                 'This advanced styling feature is available to Premium members.',
-                style: TextStyle(
-                  color: _muted,
-                  height: 1.5,
-                ),
+                style: TextStyle(color: _muted, height: 1.5),
               ),
               const SizedBox(height: 18),
               SizedBox(
@@ -1017,9 +1470,7 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
                     Navigator.pop(sheetContext);
                     Navigator.push(
                       context,
-                      MaterialPageRoute(
-                        builder: (_) => const PremiumScreen(),
-                      ),
+                      MaterialPageRoute(builder: (_) => const PremiumScreen()),
                     );
                   },
                   icon: const Icon(Icons.workspace_premium_rounded),
@@ -1042,11 +1493,17 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
   }
 
   void _showRecommendation(List<WardrobeItem> items, String colour) {
+    final aiExplanation =
+        _isPremium && _aiResult != null && _aiResult!.explanation.isNotEmpty
+        ? _aiResult!.explanation
+        : null;
+
     _sheet('Your personal look', Icons.auto_awesome_rounded, [
       _sheetText(
         items.isEmpty
             ? 'Add a few pieces first. Then I can build outfits from what you actually own.'
-            : 'I picked from your own wardrobe first, then considered your colour profile, saved preferences and $_occasion.',
+            : aiExplanation ??
+                  'I picked from your own wardrobe first, then considered your colour profile, saved preferences and $_occasion.',
       ),
       ...items
           .map(

@@ -111,4 +111,66 @@ class GoogleDriveService {
       type: 'wardrobe',
     );
   }
+
+  Future<GoogleDriveUploadResult?> uploadProfileImage({
+    required File imageFile,
+    required String fileName,
+  }) {
+    return uploadImage(
+      imageFile: imageFile,
+      fileName: fileName,
+      type: 'profile',
+    );
+  }
+
+  Future<bool> deleteFile({required String fileId}) async {
+    try {
+      final response = await http.post(
+        Uri.parse(GoogleDriveConfig.uploadUrl),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'action': 'delete', 'fileId': fileId}),
+      );
+
+      String responseBody = response.body;
+
+      if (response.statusCode == 301 ||
+          response.statusCode == 302 ||
+          response.statusCode == 303 ||
+          response.statusCode == 307 ||
+          response.statusCode == 308) {
+        final location = response.headers['location'];
+
+        if (location == null || location.isEmpty) {
+          return false;
+        }
+
+        final redirectedResponse = await http.get(Uri.parse(location));
+
+        if (redirectedResponse.statusCode != 200) {
+          return false;
+        }
+
+        responseBody = redirectedResponse.body;
+      }
+
+      if (response.statusCode != 200 &&
+          response.statusCode != 301 &&
+          response.statusCode != 302 &&
+          response.statusCode != 303 &&
+          response.statusCode != 307 &&
+          response.statusCode != 308) {
+        return false;
+      }
+
+      final data = jsonDecode(responseBody);
+
+      if (data is! Map<String, dynamic>) {
+        return false;
+      }
+
+      return data['success'] == true;
+    } catch (_) {
+      return false;
+    }
+  }
 }

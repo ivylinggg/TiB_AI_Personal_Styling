@@ -27,16 +27,39 @@ class FirestoreService {
     });
   }
 
+  /// Syncs the existing UserModel.colourSeason / UserModel.skinTone fields
+  /// on the user's profile document after a colour analysis is saved, so
+  /// Profile and the admin screens can display them without needing to
+  /// read the analysis subcollection themselves.
+  static Future<void> updateColourProfile({
+    required String uid,
+    required String colourSeason,
+    required String skinTone,
+  }) async {
+    await updateUser(uid, {'colourSeason': colourSeason, 'skinTone': skinTone});
+  }
+
   static Future<void> saveAnalysis({
     required String uid,
     required AnalysisModel analysis,
   }) async {
-    await _db.collection('users').doc(uid).collection('analysis').add(analysis.toMap());
+    await _db
+        .collection('users')
+        .doc(uid)
+        .collection('analysis')
+        .add(analysis.toMap());
   }
 
   static Future<List<AnalysisModel>> getAnalysisHistory(String uid) async {
-    final snapshot = await _db.collection('users').doc(uid).collection('analysis').orderBy('createdAt', descending: true).get();
-    return snapshot.docs.map((doc) => AnalysisModel.fromFirestore(doc)).toList();
+    final snapshot = await _db
+        .collection('users')
+        .doc(uid)
+        .collection('analysis')
+        .orderBy('createdAt', descending: true)
+        .get();
+    return snapshot.docs
+        .map((doc) => AnalysisModel.fromFirestore(doc))
+        .toList();
   }
 
   static Future<void> saveAnalysisResult({
@@ -54,8 +77,15 @@ class FirestoreService {
     });
   }
 
-  static Future<List<ColourAnalysisResult>> getColourAnalysisHistory(String uid) async {
-    final snapshot = await _db.collection('users').doc(uid).collection('analysis').orderBy('createdAt', descending: true).get();
+  static Future<List<ColourAnalysisResult>> getColourAnalysisHistory(
+    String uid,
+  ) async {
+    final snapshot = await _db
+        .collection('users')
+        .doc(uid)
+        .collection('analysis')
+        .orderBy('createdAt', descending: true)
+        .get();
     return snapshot.docs.map((doc) {
       final data = doc.data();
       final colours = data['colours'];
@@ -65,13 +95,23 @@ class FirestoreService {
         brightness: data['brightness'] as String? ?? 'Unknown',
         contrast: data['contrast'] as String? ?? 'Unknown',
         imageUrl: data['imageUrl'] as String? ?? '',
-        colours: colours is List ? colours.map((item) => item.toString()).toList() : const [],
+        colours: colours is List
+            ? colours.map((item) => item.toString()).toList()
+            : const [],
       );
     }).toList();
   }
 
-  static Future<ColourAnalysisResult?> getLatestColourAnalysis(String uid) async {
-    final snapshot = await _db.collection('users').doc(uid).collection('analysis').orderBy('createdAt', descending: true).limit(1).get();
+  static Future<ColourAnalysisResult?> getLatestColourAnalysis(
+    String uid,
+  ) async {
+    final snapshot = await _db
+        .collection('users')
+        .doc(uid)
+        .collection('analysis')
+        .orderBy('createdAt', descending: true)
+        .limit(1)
+        .get();
     if (snapshot.docs.isEmpty) return null;
     final data = snapshot.docs.first.data();
     final colours = data['colours'];
@@ -81,7 +121,9 @@ class FirestoreService {
       brightness: data['brightness'] as String? ?? 'Unknown',
       contrast: data['contrast'] as String? ?? 'Unknown',
       imageUrl: data['imageUrl'] as String? ?? '',
-      colours: colours is List ? colours.map((item) => item.toString()).toList() : const [],
+      colours: colours is List
+          ? colours.map((item) => item.toString()).toList()
+          : const [],
     );
   }
 
@@ -94,17 +136,26 @@ class FirestoreService {
   }
 
   static Future<List<WardrobeItem>> getWardrobeItems(String uid) async {
-    final snapshot = await _wardrobe(uid).orderBy('createdAt', descending: true).get();
+    final snapshot = await _wardrobe(
+      uid,
+    ).orderBy('createdAt', descending: true).get();
     return snapshot.docs.map(WardrobeItem.fromFirestore).toList();
   }
 
   static Stream<List<WardrobeItem>> watchWardrobeItems(String uid) {
-    return _wardrobe(uid).orderBy('createdAt', descending: true).snapshots().map(
-      (snapshot) => snapshot.docs.map(WardrobeItem.fromFirestore).toList(),
-    );
+    return _wardrobe(uid)
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map(
+          (snapshot) => snapshot.docs.map(WardrobeItem.fromFirestore).toList(),
+        );
   }
 
-  static Future<void> updateWardrobeItem(String uid, String itemId, Map<String, dynamic> data) async {
+  static Future<void> updateWardrobeItem(
+    String uid,
+    String itemId,
+    Map<String, dynamic> data,
+  ) async {
     await _wardrobe(uid).doc(itemId).update(data);
   }
 

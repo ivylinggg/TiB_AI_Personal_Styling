@@ -13,6 +13,7 @@ class AnalysisProvider extends ChangeNotifier {
   File? _selectedImage;
   ColourAnalysisResult? _result;
   bool _isLoading = false;
+  bool _isLoadingSavedResult = false;
   String _status = 'No image selected';
   String? _errorMessage;
   bool _isPremium = false;
@@ -20,9 +21,39 @@ class AnalysisProvider extends ChangeNotifier {
   File? get selectedImage => _selectedImage;
   ColourAnalysisResult? get result => _result;
   bool get isLoading => _isLoading;
+  bool get isLoadingSavedResult => _isLoadingSavedResult;
   String get status => _status;
   String? get errorMessage => _errorMessage;
   bool get isPremium => _isPremium;
+
+  /// Loads the user's most recently saved colour analysis (if any) from
+  /// Firestore into [result], so screens that depend on [result] (Dashboard,
+  /// AI Stylist) reflect a previous analysis without requiring the user to
+  /// run a fresh one in the current session. Called once per session, e.g.
+  /// when the customer's main shell first mounts after login.
+  Future<void> loadLatestResult(String uid) async {
+    if (uid.trim().isEmpty) {
+      return;
+    }
+
+    _isLoadingSavedResult = true;
+    notifyListeners();
+
+    try {
+      final latest = await FirestoreService.getLatestColourAnalysis(uid);
+
+      if (latest != null) {
+        _result = latest;
+      }
+    } catch (_) {
+      // Best-effort background load: if it fails, keep whatever is
+      // already in memory (nothing, on a fresh session) rather than
+      // surfacing an error for a load the user didn't explicitly request.
+    } finally {
+      _isLoadingSavedResult = false;
+      notifyListeners();
+    }
+  }
 
   void setImage(File image) {
     _selectedImage = image;
@@ -114,6 +145,22 @@ class AnalysisProvider extends ChangeNotifier {
         result: analysisResult,
       );
 
+      // 5. Sync the summary colourSeason/skinTone fields onto the user's
+      // profile document so Profile and the admin screens can display
+      // them directly. This is best-effort: the analysis itself is
+      // already saved successfully above, so a failure here should not
+      // fail the analysis the user is waiting on.
+      try {
+        await FirestoreService.updateColourProfile(
+          uid: uid,
+          colourSeason: analysisResult.season,
+          skinTone: '${analysisResult.brightness} ${analysisResult.undertone}'
+              .trim(),
+        );
+      } catch (_) {
+        // Ignore: see comment above.
+      }
+
       _result = analysisResult;
       _status = _isPremium
           ? 'Premium colour analysis completed successfully'
@@ -132,6 +179,7 @@ class AnalysisProvider extends ChangeNotifier {
     _selectedImage = null;
     _result = null;
     _isLoading = false;
+    _isLoadingSavedResult = false;
     _status = 'No image selected';
     _errorMessage = null;
     notifyListeners();

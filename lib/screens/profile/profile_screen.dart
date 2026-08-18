@@ -1,14 +1,17 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:provider/provider.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../models/user_model.dart';
+import '../../providers/analysis_provider.dart';
 import '../../services/firestore_service.dart';
+import '../../services/storage_service.dart';
 import '../ai/ai_stylist_screen.dart';
 import '../ai/style_preferences_screen.dart';
 import '../auth/login_screen.dart';
@@ -20,6 +23,8 @@ class ProfileScreen extends StatefulWidget {
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
+
+enum _PhotoAction { camera, gallery, remove }
 
 class _ProfileScreenState extends State<ProfileScreen> {
   UserModel? user;
@@ -67,9 +72,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         return;
       }
       setState(() => isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Unable to load profile: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Unable to load profile: $e')));
     }
   }
 
@@ -83,7 +88,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return;
     }
 
-    final source = await showModalBottomSheet<ImageSource>(
+    final action = await _pickPhotoAction();
+
+    if (action == null || !mounted) {
+      return;
+    }
+
+    if (action == _PhotoAction.remove) {
+      await _confirmAndRemovePhoto(firebaseUser.uid);
+      return;
+    }
+
+    final source = action == _PhotoAction.camera
+        ? ImageSource.camera
+        : ImageSource.gallery;
+
+    final picked = await _imagePicker.pickImage(
+      source: source,
+      imageQuality: 85,
+      maxWidth: 1200,
+    );
+
+    if (picked == null || !mounted) {
+      return;
+    }
+
+    final file = File(picked.path);
+
+    await _showPhotoPreview(firebaseUser.uid, file);
+  }
+
+  Future<_PhotoAction?> _pickPhotoAction() {
+    final hasPhoto = user?.photoUrl != null && user!.photoUrl!.isNotEmpty;
+
+    return showModalBottomSheet<_PhotoAction>(
       context: context,
       showDragHandle: true,
       builder: (sheetContext) {
@@ -102,50 +140,83 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
               ListTile(
-                leading: const CircleAvatar(child: Icon(Icons.camera_alt_outlined)),
+                leading: const CircleAvatar(
+                  child: Icon(Icons.camera_alt_outlined),
+                ),
                 title: const Text('Take a photo'),
-                onTap: () => Navigator.pop(sheetContext, ImageSource.camera),
+                onTap: () => Navigator.pop(sheetContext, _PhotoAction.camera),
               ),
               ListTile(
-                leading: const CircleAvatar(child: Icon(Icons.photo_library_outlined)),
+                leading: const CircleAvatar(
+                  child: Icon(Icons.photo_library_outlined),
+                ),
                 title: const Text('Choose from gallery'),
-                onTap: () => Navigator.pop(sheetContext, ImageSource.gallery),
+                onTap: () => Navigator.pop(sheetContext, _PhotoAction.gallery),
               ),
+              if (hasPhoto)
+                ListTile(
+                  leading: const CircleAvatar(
+                    backgroundColor: Color(0xFFFBE7E7),
+                    child: Icon(Icons.delete_outline, color: Colors.red),
+                  ),
+                  title: const Text(
+                    'Remove photo',
+                    style: TextStyle(color: Colors.red),
+                  ),
+                  onTap: () => Navigator.pop(sheetContext, _PhotoAction.remove),
+                ),
               const SizedBox(height: 8),
             ],
           ),
         );
       },
     );
+  }
 
-    if (source == null) {
+  Future<void> _confirmAndRemovePhoto(String uid) async {
+    if (!mounted) {
       return;
     }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Remove Profile Photo?'),
+        content: const Text(
+          'Your profile photo will be removed. You can add a new one anytime.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) {
+      return;
+    }
+
+    await _removeProfilePhoto(uid);
+  }
+
+  Future<void> _removeProfilePhoto(String uid) async {
+    if (!mounted) {
+      return;
+    }
+
+    final previousPhotoUrl = user?.photoUrl;
 
     try {
       setState(() => isUploadingPhoto = true);
 
-      final picked = await _imagePicker.pickImage(
-        source: source,
-        imageQuality: 85,
-        maxWidth: 1200,
-      );
-
-      if (picked == null) {
-        if (mounted) setState(() => isUploadingPhoto = false);
-        return;
-      }
-
-      final file = File(picked.path);
-      final ref = FirebaseStorage.instance
-          .ref()
-          .child('profile_photos')
-          .child('${firebaseUser.uid}.jpg');
-
-      await ref.putFile(file, SettableMetadata(contentType: 'image/jpeg'));
-      final url = await ref.getDownloadURL();
-
-      await FirestoreService.updateUser(firebaseUser.uid, {'photoUrl': url});
+      await FirestoreService.updateUser(uid, {'photoUrl': null});
 
       if (!mounted) {
         return;
@@ -156,9 +227,124 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (!mounted) {
         return;
       }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Profile photo removed.')));
+
+      // Best-effort cleanup of the old file in Google Drive. This never
+      // throws (see StorageService.removeProfileImage) and never affects
+      // the success the user already saw above: the Firestore photoUrl
+      // is the source of truth for whether a profile photo exists.
+      unawaited(StorageService.removeProfileImage(photoUrl: previousPhotoUrl));
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => isUploadingPhoto = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Profile photo updated.')),
+        SnackBar(content: Text('Unable to remove profile photo: $e')),
       );
+    }
+  }
+
+  Future<void> _showPhotoPreview(String uid, File image) async {
+    if (!mounted) {
+      return;
+    }
+
+    final confirmed = await showModalBottomSheet<bool>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 4, 24, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Preview your photo',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'This will be visible on your profile.',
+                    style: TextStyle(color: Colors.black54),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Center(
+                  child: ClipOval(
+                    child: Image.file(
+                      image,
+                      width: 160,
+                      height: 160,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                OutlinedButton(
+                  onPressed: () => Navigator.pop(sheetContext, false),
+                  child: const Text('Choose a Different Photo'),
+                ),
+                const SizedBox(height: 10),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFC58F73),
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: () => Navigator.pop(sheetContext, true),
+                  child: const Text('Use This Photo'),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    await _uploadProfilePhoto(uid, image);
+  }
+
+  Future<void> _uploadProfilePhoto(String uid, File image) async {
+    if (!mounted) {
+      return;
+    }
+
+    try {
+      setState(() => isUploadingPhoto = true);
+
+      final url = await StorageService.uploadProfileImage(
+        uid: uid,
+        image: image,
+      );
+
+      await FirestoreService.updateUser(uid, {'photoUrl': url});
+
+      if (!mounted) {
+        return;
+      }
+      setState(() => isUploadingPhoto = false);
+      await loadUser();
+
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Profile photo updated.')));
     } catch (e) {
       if (!mounted) {
         return;
@@ -182,6 +368,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (!mounted) {
         return;
       }
+
+      // Clear any in-memory colour analysis result so a different account
+      // signing in afterwards never briefly sees this user's data.
+      context.read<AnalysisProvider>().clear();
+
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (_) => const LoginScreen()),
@@ -192,9 +383,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         return;
       }
       setState(() => isLoggingOut = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Logout failed: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Logout failed: $e')));
     }
   }
 
@@ -255,7 +446,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             actions: [
               TextButton(
-                onPressed: saving ? null : () => Navigator.pop(dialogContext, false),
+                onPressed: saving
+                    ? null
+                    : () => Navigator.pop(dialogContext, false),
                 child: const Text('Cancel'),
               ),
               ElevatedButton(
@@ -274,7 +467,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           if (!dialogContext.mounted) return;
                           setDialogState(() => saving = false);
                           ScaffoldMessenger.of(dialogContext).showSnackBar(
-                            SnackBar(content: Text('Unable to update profile: $e')),
+                            SnackBar(
+                              content: Text('Unable to update profile: $e'),
+                            ),
                           );
                         }
                       },
@@ -334,14 +529,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Password reset email sent. Please check your inbox.')),
+        const SnackBar(
+          content: Text('Password reset email sent. Please check your inbox.'),
+        ),
       );
     } on FirebaseAuthException catch (e) {
       if (!mounted) {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message ?? 'Unable to send password reset email.')),
+        SnackBar(
+          content: Text(e.message ?? 'Unable to send password reset email.'),
+        ),
       );
     }
   }
@@ -363,16 +562,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> openStylePreferences() async {
     final updated = await Navigator.push<bool>(
       context,
-      MaterialPageRoute(
-        builder: (_) => const StylePreferencesScreen(),
-      ),
+      MaterialPageRoute(builder: (_) => const StylePreferencesScreen()),
     );
 
     if (updated == true && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Your style profile is up to date.'),
-        ),
+        const SnackBar(content: Text('Your style profile is up to date.')),
       );
     }
   }
@@ -420,48 +615,72 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     return Column(
       children: [
-        Stack(
-          alignment: Alignment.bottomRight,
-          children: [
-            CircleAvatar(
-              radius: 58,
-              backgroundColor: const Color(0xFFF5D8C7),
-              backgroundImage: user?.photoUrl != null && user!.photoUrl!.isNotEmpty
-                  ? NetworkImage(user!.photoUrl!)
-                  : null,
-              child: user?.photoUrl == null || user!.photoUrl!.isEmpty
-                  ? const Icon(Icons.person, size: 58, color: Colors.white)
-                  : null,
-            ),
-            Material(
-              color: const Color(0xFFC58F73),
-              shape: const CircleBorder(),
-              child: InkWell(
-                onTap: isUploadingPhoto ? null : changeProfilePhoto,
-                customBorder: const CircleBorder(),
-                child: Padding(
-                  padding: const EdgeInsets.all(10),
-                  child: isUploadingPhoto
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
+        GestureDetector(
+          onTap: isUploadingPhoto ? null : changeProfilePhoto,
+          child: Stack(
+            alignment: Alignment.bottomRight,
+            children: [
+              CircleAvatar(
+                radius: 58,
+                backgroundColor: const Color(0xFFF5D8C7),
+                backgroundImage:
+                    user?.photoUrl != null && user!.photoUrl!.isNotEmpty
+                    ? NetworkImage(user!.photoUrl!)
+                    : null,
+                child: user?.photoUrl == null || user!.photoUrl!.isEmpty
+                    ? const Icon(Icons.person, size: 58, color: Colors.white)
+                    : null,
+              ),
+              Material(
+                color: const Color(0xFFC58F73),
+                shape: const CircleBorder(),
+                child: InkWell(
+                  onTap: isUploadingPhoto ? null : changeProfilePhoto,
+                  customBorder: const CircleBorder(),
+                  child: Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: isUploadingPhoto
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(
+                            Icons.camera_alt_outlined,
+                            size: 18,
                             color: Colors.white,
                           ),
-                        )
-                      : const Icon(Icons.camera_alt_outlined, size: 18, color: Colors.white),
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 8),
+        TextButton.icon(
+          onPressed: isUploadingPhoto ? null : changeProfilePhoto,
+          icon: const Icon(
+            Icons.camera_alt_outlined,
+            size: 18,
+            color: Color(0xFFC58F73),
+          ),
+          label: Text(
+            isUploadingPhoto ? 'Uploading photo...' : 'Change Photo',
+            style: const TextStyle(
+              color: Color(0xFFC58F73),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
         Text(
           name?.isNotEmpty == true ? name! : 'TiB AI User',
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 5),
@@ -476,7 +695,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
           decoration: BoxDecoration(
-            color: isPremium ? const Color(0xFFFFF1D8) : const Color(0xFFF4F1EF),
+            color: isPremium
+                ? const Color(0xFFFFF1D8)
+                : const Color(0xFFF4F1EF),
             borderRadius: BorderRadius.circular(30),
           ),
           child: Row(
@@ -485,7 +706,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Icon(
                 isPremium ? Icons.workspace_premium : Icons.person_outline,
                 size: 17,
-                color: isPremium ? const Color(0xFFB27B27) : Colors.grey.shade700,
+                color: isPremium
+                    ? const Color(0xFFB27B27)
+                    : Colors.grey.shade700,
               ),
               const SizedBox(width: 7),
               Text(
@@ -623,9 +846,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       children: [
         Text(
           title,
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 13),
         ...children,

@@ -8,6 +8,7 @@ class ContentDetailScreen extends StatelessWidget {
   final String type;
   final bool isPublished;
   final bool isFeatured;
+  final bool isPremium;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -19,6 +20,7 @@ class ContentDetailScreen extends StatelessWidget {
     required this.type,
     required this.isPublished,
     required this.isFeatured,
+    required this.isPremium,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -42,18 +44,14 @@ class ContentDetailScreen extends StatelessWidget {
                 body,
               ].where((value) => value.trim().isNotEmpty).join('\n\n');
 
-              await Clipboard.setData(
-                ClipboardData(text: textToCopy),
-              );
+              await Clipboard.setData(ClipboardData(text: textToCopy));
 
               if (!context.mounted) {
                 return;
               }
 
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Content copied to clipboard.'),
-                ),
+                const SnackBar(content: Text('Content copied to clipboard.')),
               );
             },
             icon: const Icon(Icons.copy_outlined),
@@ -92,13 +90,7 @@ class ContentDetailScreen extends StatelessWidget {
             title: 'Content',
             child: body.isEmpty
                 ? _emptyContentMessage('No content available.')
-                : Text(
-                    body,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      height: 1.7,
-                    ),
-                  ),
+                : Text(body, style: const TextStyle(fontSize: 15, height: 1.7)),
           ),
 
           const SizedBox(height: 24),
@@ -170,14 +162,42 @@ class ContentDetailScreen extends StatelessWidget {
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      Icon(Icons.star, size: 14, color: Color(0xFFC58F73)),
+                      SizedBox(width: 4),
+                      Text(
+                        'FEATURED',
+                        style: TextStyle(
+                          color: Color(0xFFC58F73),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              if (isPremium) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF5D8C7),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
                       Icon(
-                        Icons.star,
+                        Icons.workspace_premium,
                         size: 14,
                         color: Color(0xFFC58F73),
                       ),
                       SizedBox(width: 4),
                       Text(
-                        'FEATURED',
+                        'PREMIUM',
                         style: TextStyle(
                           color: Color(0xFFC58F73),
                           fontWeight: FontWeight.bold,
@@ -222,6 +242,19 @@ class ContentDetailScreen extends StatelessWidget {
             title: 'Featured',
             value: isFeatured ? 'Yes' : 'No',
             active: isFeatured,
+          ),
+        ),
+
+        const SizedBox(width: 10),
+
+        Expanded(
+          child: _statusCard(
+            icon: isPremium
+                ? Icons.workspace_premium
+                : Icons.workspace_premium_outlined,
+            title: 'Premium',
+            value: isPremium ? 'Yes' : 'No',
+            active: isPremium,
           ),
         ),
       ],
@@ -302,19 +335,12 @@ class ContentDetailScreen extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(
-            Icons.info_outline,
-            size: 20,
-            color: Color(0xFFC58F73),
-          ),
+          const Icon(Icons.info_outline, size: 20, color: Color(0xFFC58F73)),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               message,
-              style: TextStyle(
-                color: Colors.grey.shade700,
-                height: 1.5,
-              ),
+              style: TextStyle(color: Colors.grey.shade700, height: 1.5),
             ),
           ),
         ],

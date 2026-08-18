@@ -1,0 +1,174 @@
+rules_version = '2';
+
+// =====================================================================
+// TiB AI Personal Styling — Firestore Security Rules
+//
+// Firestore structure (matches the current app code):
+//   users/{uid}                         profile doc (role, isActive, isPremium, ...)
+//   users/{uid}/analysis/{analysisId}   this user's colour analysis history
+//   users/{uid}/wardrobe/{itemId}       this user's wardrobe items
+//   users/{uid}/preferences/{prefId}    this user's style preferences (doc id "style")
+//   content/{contentId}                 learning content (admin managed)
+// =====================================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // -----------------------------------------------------------------
+    // Helpers
+    // -----------------------------------------------------------------
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // NOTE: these read the requesting user's OWN profile doc. get()/exists()
+    // calls inside rules read data directly and are not re-checked against
+    // these same security rules, so this does not recurse.
+    function currentUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && currentUserData().get('role', 'customer') == 'admin';
+    }
+
+    function isPremiumUser() {
+      return isSignedIn() && currentUserData().get('isPremium', false) == true;
+    }
+
+    function isContentPremium(data) {
+      // The app has historically written either field name; treat either as premium.
+      return data.get('isPremium', false) == true || data.get('premiumOnly', false) == true;
+    }
+
+    // -----------------------------------------------------------------
+    // USERS  users/{userId}
+    // -----------------------------------------------------------------
+
+    match /users/{userId} {
+      // Own profile, or an admin, may fetch a single profile document.
+      allow get: if isOwner(userId) || isAdmin();
+
+      // Only admins may list/query across the users collection
+      // (admin dashboard, user management, premium management screens).
+      allow list: if isAdmin();
+
+      // A signed-in user may create only their OWN profile document, and it
+      // must start as an unprivileged, active, free customer account.
+      // Admins may create user documents directly (e.g. future admin tooling).
+      allow create: if isAdmin()
+        || (
+          isOwner(userId) &&
+          request.resource.data.role == 'customer' &&
+          request.resource.data.isActive == true &&
+          request.resource.data.isPremium == false
+        );
+
+      // Admins can update anything. Customers may update their own profile
+      // but may never change role, isActive, isPremium or email themselves.
+      // (The document id itself is the uid, so uid can never be changed by
+      // an update.) Comparisons use get(field, default) rather than plain
+      // dot access: Firestore rules throw (not just return false) when a
+      // map key is missing, and a thrown error here would surface to the
+      // client as a permission-denied on every field, including ones the
+      // update never touched. The defaults mirror UserModel.fromFirestore's
+      // Dart-side defaults, so behaviour matches the app either way.
+      allow update: if isAdmin()
+        || (
+          isOwner(userId) &&
+          request.resource.data.get('role', 'customer') == resource.data.get('role', 'customer') &&
+          request.resource.data.get('isActive', true) == resource.data.get('isActive', true) &&
+          request.resource.data.get('isPremium', false) == resource.data.get('isPremium', false) &&
+          request.resource.data.get('email', '') == resource.data.get('email', '')
+        );
+
+      // Only admins may delete a user profile.
+      allow delete: if isAdmin();
+
+      // ---------------------------------------------------------------
+      // ANALYSIS  users/{userId}/analysis/{analysisId}
+      // ---------------------------------------------------------------
+      match /analysis/{analysisId} {
+        // Owner or admin may read (covers both get() and the owner-scoped
+        // list queries used by Analysis History / Customer Detail).
+        allow read: if isOwner(userId) || isAdmin();
+
+        // A customer may only create analysis records under their own uid.
+        allow create: if isOwner(userId);
+
+        // The app never edits an existing analysis result once saved —
+        // only admins may modify or remove analysis records.
+        allow update, delete: if isAdmin();
+      }
+
+      // ---------------------------------------------------------------
+      // WARDROBE  users/{userId}/wardrobe/{itemId}
+      // ---------------------------------------------------------------
+      match /wardrobe/{itemId} {
+        allow read: if isOwner(userId) || isAdmin();
+
+        // Wardrobe items are always written with userId == the owning uid.
+        allow create: if isOwner(userId) && request.resource.data.userId == userId;
+
+        allow update, delete: if isOwner(userId) || isAdmin();
+      }
+
+      // ---------------------------------------------------------------
+      // STYLE PREFERENCES  users/{userId}/preferences/{prefId}
+      // ---------------------------------------------------------------
+      match /preferences/{prefId} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+    }
+
+    // -----------------------------------------------------------------
+    // Collection-group rule so the admin dashboard / analysis management
+    // screens' collectionGroup('analysis') queries are covered explicitly,
+    // in addition to the nested rule above.
+    // -----------------------------------------------------------------
+    match /{path=**}/analysis/{analysisId} {
+      allow read: if isAdmin();
+    }
+
+    // -----------------------------------------------------------------
+    // CONTENT  content/{contentId}
+    // -----------------------------------------------------------------
+    match /content/{contentId} {
+      // Only admins may write learning content.
+      allow create, update, delete: if isAdmin();
+
+      // Direct single-document reads: published + free content is open to
+      // any signed-in customer; published + Premium content additionally
+      // requires isPremium == true on the reader's own profile. Admins can
+      // always read (including unpublished drafts).
+      allow get: if isAdmin()
+        || (
+          isSignedIn() &&
+          resource.data.isPublished == true &&
+          (!isContentPremium(resource.data) || isPremiumUser())
+        );
+
+      // List/query access mirrors the query the app actually issues
+      // (.where('isPublished', '==', true)). Firestore evaluates a query
+      // against its full potential result set, so a list rule cannot
+      // itself vary per document by isPremium without rejecting the whole
+      // query for free users. Premium body content is therefore protected
+      // by the `get` rule above (blocks direct/guessed-id fetches and any
+      // future single-document reads) and by the client UI gate; unpublished
+      // drafts remain admin-only either way.
+      allow list: if isAdmin() || (isSignedIn() && resource.data.isPublished == true);
+    }
+
+    // -----------------------------------------------------------------
+    // Default deny for anything not explicitly matched above.
+    // -----------------------------------------------------------------
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

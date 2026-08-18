@@ -1,14 +1,16 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_spacing.dart';
+import '../../models/colour_analysis_result.dart';
+import '../../providers/analysis_provider.dart';
 
 import '../analysis/history/analysis_history_screen.dart';
 
 import '/screens/dashboard/feature_card.dart';
-import '/screens/dashboard/style_score_card.dart';
 import '/screens/dashboard/tip_card.dart';
 import '/widgets/todays_colour_card.dart';
 import '/screens/dashboard/hero_card.dart';
@@ -17,23 +19,16 @@ import '../ai/ai_stylist_screen.dart';
 import '../learning/learning_screen.dart';
 import '../wardrobe/wardrobe_screen.dart';
 
-
 class _PremiumChip extends StatelessWidget {
   final IconData icon;
   final String label;
 
-  const _PremiumChip({
-    required this.icon,
-    required this.label,
-  });
+  const _PremiumChip({required this.icon, required this.label});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 10,
-        vertical: 8,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.18),
         borderRadius: BorderRadius.circular(20),
@@ -41,11 +36,7 @@ class _PremiumChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            icon,
-            color: Colors.white,
-            size: 15,
-          ),
+          Icon(icon, color: Colors.white, size: 15),
           const SizedBox(width: 5),
           Text(
             label,
@@ -114,7 +105,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-
   Widget _buildPremiumDashboardCard() {
     final isPremium = _premiumLoaded && _isPremium;
 
@@ -124,14 +114,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: isPremium
-              ? const [
-                  Color(0xFFC58F73),
-                  Color(0xFFE7B9A3),
-                ]
-              : const [
-                  Color(0xFFB78E7A),
-                  Color(0xFFD9B5A2),
-                ],
+              ? const [Color(0xFFC58F73), Color(0xFFE7B9A3)]
+              : const [Color(0xFFB78E7A), Color(0xFFD9B5A2)],
         ),
         borderRadius: BorderRadius.circular(22),
       ),
@@ -148,9 +132,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  isPremium
-                      ? 'Premium Membership'
-                      : 'TiB AI Premium',
+                  isPremium ? 'Premium Membership' : 'TiB AI Premium',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 20,
@@ -184,10 +166,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             isPremium
                 ? 'Your Premium access is active. Enjoy the full TiB AI styling experience.'
                 : 'Unlock advanced colour insights, smart wardrobe tools, Premium learning and personalised AI styling.',
-            style: const TextStyle(
-              color: Colors.white,
-              height: 1.5,
-            ),
+            style: const TextStyle(color: Colors.white, height: 1.5),
           ),
           const SizedBox(height: 18),
           if (isPremium)
@@ -203,10 +182,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   icon: Icons.checkroom_outlined,
                   label: 'Smart Wardrobe',
                 ),
-                _PremiumChip(
-                  icon: Icons.auto_awesome,
-                  label: 'AI Stylist',
-                ),
+                _PremiumChip(icon: Icons.auto_awesome, label: 'AI Stylist'),
                 _PremiumChip(
                   icon: Icons.school_outlined,
                   label: 'Premium Learning',
@@ -220,9 +196,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 onPressed: () {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text(
-                        'Premium plans will be available soon.',
-                      ),
+                      content: Text('Premium plans will be available soon.'),
                     ),
                   );
                 },
@@ -238,8 +212,152 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  // There is no numeric "style score" anywhere in the analysis model or
+  // pipeline (verified: colour_analysis_service.dart's internal warm/cool
+  // scores are discarded after classifying undertone, and AI Stylist's
+  // _itemScore is a private wardrobe-ranking heuristic, not a user-facing
+  // score). Rather than inventing a percentage, this shows the real
+  // analysis fields the app actually has.
+  Widget _buildColourProfileCard(
+    BuildContext context,
+    ColourAnalysisResult result,
+  ) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 15,
+            offset: Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Your Colour Profile',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+
+          const SizedBox(height: 6),
+
+          Text(
+            result.season,
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+          ),
+
+          const SizedBox(height: 16),
+
+          Row(
+            children: [
+              Expanded(
+                child: _colourProfileStat(
+                  icon: Icons.thermostat_outlined,
+                  label: 'Undertone',
+                  value: result.undertone,
+                ),
+              ),
+              Expanded(
+                child: _colourProfileStat(
+                  icon: Icons.wb_sunny_outlined,
+                  label: 'Brightness',
+                  value: result.brightness,
+                ),
+              ),
+              Expanded(
+                child: _colourProfileStat(
+                  icon: Icons.contrast,
+                  label: 'Contrast',
+                  value: result.contrast,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _colourProfileStat({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    return Column(
+      children: [
+        Icon(icon, size: 20, color: AppColors.primary),
+        const SizedBox(height: 6),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 11, color: Colors.black54),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildNoAnalysisCard(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 15,
+            offset: Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: const BoxDecoration(
+              color: Color(0xFFF5D8C7),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.palette_outlined, color: Color(0xFFC58F73)),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'No colour analysis yet',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Complete your colour analysis to see your colour profile and today\'s colours here.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final analysisResult = context.watch<AnalysisProvider>().result;
+
     return Scaffold(
       backgroundColor: AppColors.background,
 
@@ -269,8 +387,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             final greeting = hour < 12
                                 ? 'Good Morning 👋'
                                 : hour < 18
-                                    ? 'Good Afternoon 👋'
-                                    : 'Good Evening 👋';
+                                ? 'Good Afternoon 👋'
+                                : 'Good Evening 👋';
 
                             return Text(
                               greeting,
@@ -318,9 +436,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 onTap: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(
-                      builder: (_) => const AnalysisScreen(),
-                    ),
+                    MaterialPageRoute(builder: (_) => const AnalysisScreen()),
                   );
                 },
                 child: const HeroCard(),
@@ -346,11 +462,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
               const SizedBox(height: 25),
 
-              const StyleScoreCard(score: 98, season: "Warm Spring"),
+              if (analysisResult == null)
+                _buildNoAnalysisCard(context)
+              else ...[
+                _buildColourProfileCard(context, analysisResult),
 
-              const SizedBox(height: 25),
+                const SizedBox(height: 25),
 
-              const TodaysColourCard(),
+                TodaysColourCard(
+                  season: analysisResult.season,
+                  colours: analysisResult.colours,
+                ),
+              ],
 
               const SizedBox(height: 30),
 

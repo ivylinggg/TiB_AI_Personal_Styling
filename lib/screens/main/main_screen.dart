@@ -1,5 +1,8 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../../providers/analysis_provider.dart';
 import '../dashboard/dashboard_screen.dart';
 import '../analysis/analysis_screen.dart';
 import '../ai/ai_stylist_screen.dart';
@@ -23,6 +26,25 @@ class _MainScreenState extends State<MainScreen> {
     WardrobeScreen(),
     ProfileScreen(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+
+    // Load the customer's most recently saved colour analysis (if any)
+    // once per session, so Dashboard and AI Stylist reflect it without
+    // requiring a fresh analysis to be run in this session.
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+
+    if (uid != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        context.read<AnalysisProvider>().loadLatestResult(uid);
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

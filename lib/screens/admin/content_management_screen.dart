@@ -79,9 +79,7 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'We couldn’t load the content. Please try again.',
-          ),
+          content: Text('We couldn’t load the content. Please try again.'),
         ),
       );
     }
@@ -95,8 +93,8 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
     final query = searchController.text.trim().toLowerCase();
 
     if (!mounted) {
-        return;
-      }
+      return;
+    }
 
     setState(() {
       filteredContents = contents.where((document) {
@@ -155,6 +153,7 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
         initialType: data['type'] as String? ?? 'Learning',
         initialPublished: data['isPublished'] as bool? ?? false,
         initialFeatured: data['isFeatured'] as bool? ?? false,
+        initialPremium: data['isPremium'] as bool? ?? false,
       ),
     );
 
@@ -234,9 +233,7 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'Could not update this content. Please try again.',
-          ),
+          content: Text('Could not update this content. Please try again.'),
         ),
       );
     }
@@ -305,9 +302,7 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'Could not delete this content. Please try again.',
-          ),
+          content: Text('Could not delete this content. Please try again.'),
         ),
       );
     }
@@ -337,6 +332,8 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
           isPublished: data['isPublished'] as bool? ?? false,
 
           isFeatured: data['isFeatured'] as bool? ?? false,
+
+          isPremium: data['isPremium'] as bool? ?? false,
 
           createdAt: createdAt?.toDate(),
 
@@ -522,9 +519,7 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
                                     ? 'Create your first learning resource to show it here.'
                                     : 'Try a different search or content type.',
                                 textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color: Colors.grey.shade600,
-                                ),
+                                style: TextStyle(color: Colors.grey.shade600),
                               ),
                             ],
                           ),
@@ -558,13 +553,14 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
 
                         final isFeatured = data['isFeatured'] as bool? ?? false;
 
+                        final isPremiumContent =
+                            data['isPremium'] as bool? ?? false;
+
                         return Card(
                           elevation: 0,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(18),
-                            side: const BorderSide(
-                              color: Color(0xFFF0DDD2),
-                            ),
+                            side: const BorderSide(color: Color(0xFFF0DDD2)),
                           ),
                           child: ListTile(
                             onTap: () {
@@ -630,6 +626,9 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
 
                                     if (isFeatured)
                                       buildStatusChip('FEATURED', true),
+
+                                    if (isPremiumContent)
+                                      buildStatusChip('PREMIUM', true),
                                   ],
                                 ),
                               ],
@@ -711,6 +710,8 @@ class _ContentFormDialog extends StatefulWidget {
 
   final bool initialFeatured;
 
+  final bool initialPremium;
+
   const _ContentFormDialog({
     this.documentId,
     this.initialTitle = '',
@@ -719,6 +720,7 @@ class _ContentFormDialog extends StatefulWidget {
     this.initialType = 'Learning',
     this.initialPublished = false,
     this.initialFeatured = false,
+    this.initialPremium = false,
   });
 
   @override
@@ -737,6 +739,8 @@ class _ContentFormDialogState extends State<_ContentFormDialog> {
   late bool isPublished;
 
   late bool isFeatured;
+
+  late bool isPremium;
 
   bool isSaving = false;
 
@@ -764,6 +768,8 @@ class _ContentFormDialogState extends State<_ContentFormDialog> {
     isPublished = widget.initialPublished;
 
     isFeatured = widget.initialFeatured;
+
+    isPremium = widget.initialPremium;
   }
 
   @override
@@ -816,6 +822,7 @@ class _ContentFormDialogState extends State<_ContentFormDialog> {
           'type': selectedType,
           'isPublished': isPublished,
           'isFeatured': isFeatured,
+          'isPremium': isPremium,
           'createdAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
         });
@@ -827,6 +834,7 @@ class _ContentFormDialogState extends State<_ContentFormDialog> {
           'type': selectedType,
           'isPublished': isPublished,
           'isFeatured': isFeatured,
+          'isPremium': isPremium,
           'updatedAt': FieldValue.serverTimestamp(),
         });
       }
@@ -847,9 +855,7 @@ class _ContentFormDialogState extends State<_ContentFormDialog> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'Could not save this content. Please try again.',
-          ),
+          content: Text('Could not save this content. Please try again.'),
         ),
       );
     }
@@ -973,6 +979,24 @@ class _ContentFormDialogState extends State<_ContentFormDialog> {
                 onChanged: (value) {
                   setState(() {
                     isFeatured = value;
+                  });
+                },
+              ),
+
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+
+                title: const Text('Premium Content'),
+
+                subtitle: const Text(
+                  'Only Premium members can open this content. Free members see a Premium access message.',
+                ),
+
+                value: isPremium,
+
+                onChanged: (value) {
+                  setState(() {
+                    isPremium = value;
                   });
                 },
               ),
