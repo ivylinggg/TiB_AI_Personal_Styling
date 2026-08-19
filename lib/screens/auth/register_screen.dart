@@ -6,6 +6,7 @@ import '../../core/constants/app_gradients.dart';
 import '../../models/user_model.dart';
 import '../../services/firestore_service.dart';
 import '../../widgets/primary_button.dart';
+import '../onboarding/style_setup_flow.dart';
 import 'auth_service.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -92,8 +93,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
       }
 
       if (!mounted) return;
-      _message('Welcome to TiB. Your style journey starts now.');
-      Navigator.pop(context);
+      await Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const StyleSetupFlow()),
+      );
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
       switch (e.code) {
