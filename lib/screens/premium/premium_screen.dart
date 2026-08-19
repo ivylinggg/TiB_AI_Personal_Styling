@@ -12,7 +12,8 @@ class PremiumScreen extends StatefulWidget {
   State<PremiumScreen> createState() => _PremiumScreenState();
 }
 
-class _PremiumScreenState extends State<PremiumScreen> {
+class _PremiumScreenState extends State<PremiumScreen>
+    with SingleTickerProviderStateMixin {
   static const Color _brown = AppColors.primary;
   static const Color _cream = AppColors.background;
   static const Color _soft = AppColors.secondary;
@@ -21,22 +22,74 @@ class _PremiumScreenState extends State<PremiumScreen> {
 
   bool _loading = true;
   bool _isPremium = false;
+  String? _loadError;
+
+  late final AnimationController _revealController;
+  late final Animation<double> _heroReveal;
+  late final Animation<double> _contentReveal;
+  late final Animation<double> _statusReveal;
 
   @override
   void initState() {
     super.initState();
+    _revealController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 850),
+    );
+    _heroReveal = _stage(0.0, 0.42);
+    _contentReveal = _stage(0.18, 0.72);
+    _statusReveal = _stage(0.45, 1.0);
+    _revealController.forward();
     _loadStatus();
+  }
+
+  Animation<double> _stage(double begin, double end) {
+    return CurvedAnimation(
+      parent: _revealController,
+      curve: Interval(begin, end, curve: Curves.easeOut),
+    );
+  }
+
+  Widget _reveal(Animation<double> animation, Widget child) {
+    return AnimatedBuilder(
+      animation: animation,
+      builder: (context, animatedChild) {
+        final value = animation.value.clamp(0.0, 1.0);
+        return Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(0, (1 - value) * 14),
+            child: animatedChild,
+          ),
+        );
+      },
+      child: child,
+    );
+  }
+
+  @override
+  void dispose() {
+    _revealController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadStatus() async {
     final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
-      if (!mounted) {
-        return;
-      }
-      setState(() => _loading = false);
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _loadError = 'Please sign in to view your Premium status.';
+      });
       return;
+    }
+
+    if (mounted) {
+      setState(() {
+        _loading = true;
+        _loadError = null;
+      });
     }
 
     try {
@@ -45,24 +98,19 @@ class _PremiumScreenState extends State<PremiumScreen> {
           .doc(user.uid)
           .get();
 
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
 
       setState(() {
-        _isPremium = snapshot.data()?['isPremium'] as bool? ?? false;
+        _isPremium = snapshot.data()?['isPremium'] == true;
         _loading = false;
+        _loadError = null;
       });
     } catch (_) {
-      if (!mounted) {
-        return;
-      }
-      setState(() => _loading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not load your Premium status.'),
-        ),
-      );
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _loadError = 'We could not load your Premium status right now.';
+      });
     }
   }
 
@@ -73,19 +121,17 @@ class _PremiumScreenState extends State<PremiumScreen> {
       appBar: AppBar(
         backgroundColor: _cream,
         elevation: 0,
+        scrolledUnderElevation: 0,
         iconTheme: const IconThemeData(color: _text),
         title: const Text(
           'Premium',
-          style: TextStyle(
-            color: _text,
-            fontWeight: FontWeight.w700,
-          ),
+          style: TextStyle(color: _text, fontWeight: FontWeight.w700),
         ),
         actions: [
           IconButton(
-            tooltip: 'Refresh',
+            tooltip: 'Refresh Premium status',
             onPressed: _loading ? null : _loadStatus,
-            icon: const Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh_rounded),
           ),
         ],
       ),
@@ -95,15 +141,21 @@ class _PremiumScreenState extends State<PremiumScreen> {
               onRefresh: _loadStatus,
               child: ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(20, 10, 20, 32),
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
                 children: [
-                  _buildHero(),
+                  _reveal(_heroReveal, _buildHero()),
+                  const SizedBox(height: 24),
+                  if (_loadError != null) ...[
+                    _buildErrorCard(),
+                    const SizedBox(height: 18),
+                  ],
+                  _reveal(_contentReveal, _buildIntro()),
+                  const SizedBox(height: 14),
+                  _reveal(_contentReveal, _buildBenefits()),
                   const SizedBox(height: 20),
-                  _buildBenefits(),
-                  const SizedBox(height: 20),
-                  _buildAccessInfo(),
-                  const SizedBox(height: 20),
-                  _buildStatusCard(),
+                  _reveal(_statusReveal, _buildAccessInfo()),
+                  const SizedBox(height: 14),
+                  _reveal(_statusReveal, _buildStatusCard()),
                 ],
               ),
             ),
@@ -112,48 +164,94 @@ class _PremiumScreenState extends State<PremiumScreen> {
 
   Widget _buildHero() {
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.fromLTRB(22, 26, 22, 22),
       decoration: BoxDecoration(
         gradient: AppGradients.premium,
-        borderRadius: BorderRadius.circular(26),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
         children: [
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              Container(
+                width: 92,
+                height: 92,
+                decoration: BoxDecoration(
+                  color: _cream.withValues(alpha: 0.55),
+                  shape: BoxShape.circle,
+                ),
+              ),
+              Container(
+                width: 68,
+                height: 68,
+                decoration: const BoxDecoration(
+                  color: _cream,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.workspace_premium_rounded,
+                  color: AppColors.premiumAccentDark,
+                  size: 38,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
           Container(
-            width: 70,
-            height: 70,
-            decoration: const BoxDecoration(
-              color: _cream,
-              shape: BoxShape.circle,
+            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+            decoration: BoxDecoration(
+              color: _cream.withValues(alpha: 0.7),
+              borderRadius: BorderRadius.circular(999),
             ),
-            child: const Icon(
-              Icons.workspace_premium_rounded,
-              color: AppColors.premiumAccentDark,
-              size: 38,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  _isPremium
+                      ? Icons.check_circle_rounded
+                      : Icons.auto_awesome_rounded,
+                  size: 15,
+                  color: _isPremium ? AppColors.success : _brown,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  _isPremium ? 'PREMIUM ACTIVE' : 'TIb PREMIUM',
+                  style: const TextStyle(
+                    color: _brown,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1,
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
           Text(
             _isPremium
-                ? 'You’re a Premium Member'
-                : 'Make your styling experience more personal',
+                ? 'Your style, elevated.'
+                : 'Make your style more personal.',
             textAlign: TextAlign.center,
             style: const TextStyle(
               color: _text,
-              fontSize: 22,
+              fontSize: 25,
+              height: 1.12,
               fontWeight: FontWeight.w800,
+              letterSpacing: -0.5,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 9),
           Text(
             _isPremium
-                ? 'Your Premium access is active. Keep exploring your personalised styling tools.'
-                : 'Premium access is currently managed by your administrator. Contact your administrator if you need access.',
+                ? 'Your Premium access is active. Explore the styling tools designed around you.'
+                : 'Unlock a more connected styling experience built around your wardrobe, colours and preferences.',
             textAlign: TextAlign.center,
             style: const TextStyle(
               color: _muted,
-              height: 1.45,
-              fontSize: 14,
+              height: 1.5,
+              fontSize: 13,
             ),
           ),
         ],
@@ -161,127 +259,174 @@ class _PremiumScreenState extends State<PremiumScreen> {
     );
   }
 
-  Widget _buildBenefits() {
-    const benefits = [
-      (
-        Icons.auto_awesome_rounded,
-        'More personalised styling',
-        'Get styling suggestions built around your wardrobe and preferences.',
-      ),
-      (
-        Icons.checkroom_rounded,
-        'Wardrobe-based ideas',
-        'Use the pieces you already own as the starting point for your looks.',
-      ),
-      (
-        Icons.palette_outlined,
-        'Colour-aware suggestions',
-        'Keep your personal colour direction in mind when building outfits.',
-      ),
-    ];
-
-    return Column(
+  Widget _buildIntro() {
+    return const Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'What Premium is for',
+        Text(
+          'A smarter way to style',
           style: TextStyle(
             color: _text,
-            fontSize: 19,
-            fontWeight: FontWeight.w700,
+            fontSize: 20,
+            fontWeight: FontWeight.w800,
           ),
         ),
-        const SizedBox(height: 12),
-        ...benefits.map(
-          (benefit) => Container(
-            margin: const EdgeInsets.only(bottom: 10),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: _cream,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(
-                color: AppColors.border,
-              ),
-            ),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  backgroundColor: _soft,
-                  child: Icon(
-                    benefit.$1,
-                    color: _brown,
-                  ),
-                ),
-                const SizedBox(width: 13),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        benefit.$2,
-                        style: const TextStyle(
-                          color: _text,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        benefit.$3,
-                        style: const TextStyle(
-                          color: _muted,
-                          height: 1.35,
-                          fontSize: 12.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
+        SizedBox(height: 5),
+        Text(
+          'TiB connects the things you already told us about your style with the clothes you actually own.',
+          style: TextStyle(color: _muted, height: 1.45, fontSize: 13),
         ),
       ],
     );
   }
 
-  Widget _buildAccessInfo() {
+  Widget _buildBenefits() {
+    const benefits = [
+      (
+        Icons.auto_awesome_rounded,
+        'Personalised styling',
+        'Get outfit ideas that consider your personal colour direction and style profile.',
+      ),
+      (
+        Icons.checkroom_rounded,
+        'Your wardrobe first',
+        'Build looks from pieces already saved in your own wardrobe instead of generic items.',
+      ),
+      (
+        Icons.palette_outlined,
+        'Colour-aware choices',
+        'Keep your colour palette in the conversation when you plan your next look.',
+      ),
+    ];
+
+    return Column(
+      children: [
+        for (var i = 0; i < benefits.length; i++) ...[
+          _benefitCard(
+            icon: benefits[i].$1,
+            title: benefits[i].$2,
+            description: benefits[i].$3,
+            index: i + 1,
+          ),
+          if (i != benefits.length - 1) const SizedBox(height: 10),
+        ],
+      ],
+    );
+  }
+
+  Widget _benefitCard({
+    required IconData icon,
+    required String title,
+    required String description,
+    required int index,
+  }) {
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surfaceMuted,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: AppColors.border,
-        ),
+        border: Border.all(color: AppColors.border),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(
-            Icons.admin_panel_settings_outlined,
-            color: _brown,
-            size: 24,
+          Container(
+            width: 48,
+            height: 48,
+            decoration: const BoxDecoration(
+              color: _soft,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: _brown, size: 22),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 13),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: const TextStyle(
+                          color: _text,
+                          fontWeight: FontWeight.w750,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      '0$index',
+                      style: TextStyle(
+                        color: _brown.withValues(alpha: 0.35),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  description,
+                  style: const TextStyle(
+                    color: _muted,
+                    height: 1.4,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAccessInfo() {
+    return Container(
+      padding: const EdgeInsets.all(17),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceMuted,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: const BoxDecoration(
+              color: _soft,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.admin_panel_settings_outlined,
+              color: _brown,
+              size: 21,
+            ),
+          ),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
                   'How Premium access works',
                   style: TextStyle(
                     color: _text,
                     fontWeight: FontWeight.w700,
+                    fontSize: 14,
                   ),
                 ),
-                const SizedBox(height: 5),
+                SizedBox(height: 5),
                 Text(
-                  'Premium access is assigned by the administrator. '
-                  'There is currently no in-app payment or subscription checkout.',
+                  'Premium access is assigned by the administrator. There is currently no in-app payment or subscription checkout.',
                   style: TextStyle(
                     color: _muted,
                     height: 1.45,
-                    fontSize: 12.5,
+                    fontSize: 12,
                   ),
                 ),
               ],
@@ -293,36 +438,100 @@ class _PremiumScreenState extends State<PremiumScreen> {
   }
 
   Widget _buildStatusCard() {
+    final active = _isPremium;
+
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: _cream,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: AppColors.border,
+          color: active
+              ? AppColors.success.withValues(alpha: 0.35)
+              : AppColors.border,
         ),
       ),
       child: Row(
         children: [
-          Icon(
-            _isPremium
-                ? Icons.check_circle_rounded
-                : Icons.info_outline_rounded,
-            color: _isPremium ? AppColors.success : _brown,
-            size: 28,
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: active
+                  ? AppColors.success.withValues(alpha: 0.10)
+                  : _soft,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              active
+                  ? Icons.check_circle_rounded
+                  : Icons.lock_outline_rounded,
+              color: active ? AppColors.success : _brown,
+              size: 23,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  active ? 'Premium is active' : 'Free account',
+                  style: const TextStyle(
+                    color: _text,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  active
+                      ? 'Premium access is currently enabled for your account.'
+                      : 'Premium access is currently managed by your administrator.',
+                  style: const TextStyle(
+                    color: _muted,
+                    height: 1.4,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Icon(
+            Icons.chevron_right_rounded,
+            color: active ? AppColors.success : AppColors.textMuted,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorCard() {
+    return Container(
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: AppColors.error.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.error.withValues(alpha: 0.18)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.cloud_off_rounded, color: AppColors.error),
+          const SizedBox(width: 10),
+          Expanded(
             child: Text(
-              _isPremium
-                  ? 'Premium is currently active on your account.'
-                  : 'Premium access is currently managed by your administrator.',
+              _loadError!,
               style: const TextStyle(
                 color: _text,
+                fontSize: 12,
                 height: 1.4,
-                fontWeight: FontWeight.w600,
               ),
             ),
+          ),
+          TextButton(
+            onPressed: _loadStatus,
+            child: const Text('Retry'),
           ),
         ],
       ),
