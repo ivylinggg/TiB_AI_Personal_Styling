@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_gradients.dart';
 import '../../models/user_model.dart';
 import '../../services/firestore_service.dart';
 import '../../widgets/primary_button.dart';
@@ -15,543 +16,156 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
-  // ============================================================
-  // Controllers
-  // ============================================================
-
-  final TextEditingController nameController = TextEditingController();
-
-  final TextEditingController emailController = TextEditingController();
-
-  final TextEditingController passwordController = TextEditingController();
-
-  final TextEditingController confirmPasswordController =
-      TextEditingController();
-
-  // ============================================================
-  // UI States
-  // ============================================================
+  final nameController = TextEditingController();
+  final emailController = TextEditingController();
+  final passwordController = TextEditingController();
+  final confirmPasswordController = TextEditingController();
 
   bool obscurePassword = true;
   bool obscureConfirmPassword = true;
   bool isLoading = false;
-
-  // ============================================================
-  // Password Requirements
-  // ============================================================
-
   bool hasMinLength = false;
   bool hasUppercase = false;
   bool hasLowercase = false;
   bool hasNumber = false;
   bool hasSpecial = false;
 
-  // ============================================================
-  // Init
-  // ============================================================
-
   @override
   void initState() {
     super.initState();
-
     passwordController.addListener(_checkPassword);
   }
-
-  // ============================================================
-  // Dispose
-  // ============================================================
 
   @override
   void dispose() {
     passwordController.removeListener(_checkPassword);
-
     nameController.dispose();
     emailController.dispose();
     passwordController.dispose();
     confirmPasswordController.dispose();
-
     super.dispose();
   }
 
-  // ============================================================
-  // Password Validation
-  // ============================================================
-
   void _checkPassword() {
     final password = passwordController.text;
-
-    if (!mounted) {
-      return;
-    }
-
+    if (!mounted) return;
     setState(() {
       hasMinLength = password.length >= 8;
-
       hasUppercase = RegExp(r'[A-Z]').hasMatch(password);
-
       hasLowercase = RegExp(r'[a-z]').hasMatch(password);
-
       hasNumber = RegExp(r'[0-9]').hasMatch(password);
-
       hasSpecial = RegExp(r'[!@#\$%^&*(),.?":{}|<>]').hasMatch(password);
     });
   }
 
-  bool get isPasswordValid {
-    return hasMinLength &&
-        hasUppercase &&
-        hasLowercase &&
-        hasNumber &&
-        hasSpecial;
-  }
-
-  // ============================================================
-  // Register
-  // ============================================================
+  bool get isPasswordValid => hasMinLength && hasUppercase && hasLowercase && hasNumber && hasSpecial;
 
   Future<void> register() async {
     FocusScope.of(context).unfocus();
-
-    // ----------------------------------------------------------
-    // Check empty fields
-    // ----------------------------------------------------------
-
-    if (nameController.text.trim().isEmpty ||
-        emailController.text.trim().isEmpty ||
-        passwordController.text.isEmpty ||
-        confirmPasswordController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please fill in all fields.')),
-      );
-
+    if (nameController.text.trim().isEmpty || emailController.text.trim().isEmpty || passwordController.text.isEmpty || confirmPasswordController.text.isEmpty) {
+      _message('Tell us your name, email and password to get started.');
       return;
     }
-
-    // ----------------------------------------------------------
-    // Check password requirements
-    // ----------------------------------------------------------
-
     if (!isPasswordValid) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Please make sure your password meets all requirements.',
-          ),
-        ),
-      );
-
+      _message('Please complete the password requirements.');
       return;
     }
-
-    // ----------------------------------------------------------
-    // Check confirm password
-    // ----------------------------------------------------------
-
     if (passwordController.text != confirmPasswordController.text) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Passwords do not match.')));
-
+      _message('Your passwords do not match.');
       return;
     }
 
-    // ----------------------------------------------------------
-    // Start loading
-    // ----------------------------------------------------------
-
-    setState(() {
-      isLoading = true;
-    });
-
+    setState(() => isLoading = true);
     try {
-      // --------------------------------------------------------
-      // Firebase Authentication
-      // --------------------------------------------------------
-
-      final credential = await AuthService.register(
-        email: emailController.text.trim(),
-        password: passwordController.text,
-      );
-
-      // --------------------------------------------------------
-      // Make sure Firebase user exists
-      // --------------------------------------------------------
-
+      final credential = await AuthService.register(email: emailController.text.trim(), password: passwordController.text);
       final firebaseUser = credential.user;
+      if (firebaseUser == null) throw Exception('User registration failed.');
 
-      if (firebaseUser == null) {
-        throw Exception('User registration failed.');
-      }
-
-      // --------------------------------------------------------
-      // Create Firestore User Model
-      //
-      // UserModel.toMap() will automatically
-      // assign:
-      //
-      // role = customer
-      // isActive = true
-      //
-      // --------------------------------------------------------
-
-      final user = UserModel(
-        uid: firebaseUser.uid,
-        name: nameController.text.trim(),
-        email: emailController.text.trim(),
-      );
-
-      // --------------------------------------------------------
-      // Save user to Firestore
-      //
-      // If the profile cannot be created, remove the Firebase
-      // Authentication account so we never leave a half-created
-      // account behind.
-      // --------------------------------------------------------
-
+      final user = UserModel(uid: firebaseUser.uid, name: nameController.text.trim(), email: emailController.text.trim());
       try {
         await FirestoreService.createUser(user);
-      } catch (firestoreError) {
+      } catch (_) {
         try {
           await firebaseUser.delete();
-        } catch (_) {
-          // Keep the original Firestore error as the primary failure.
-        }
-
-        throw Exception(
-          'Could not create your user profile. Please try again.',
-        );
+        } catch (_) {}
+        throw Exception('Could not create your style profile. Please try again.');
       }
 
       if (!mounted) return;
-
-      // --------------------------------------------------------
-      // Success
-      // --------------------------------------------------------
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Account created successfully.')),
-      );
-
-      // --------------------------------------------------------
-      // Return to Login
-      // --------------------------------------------------------
-
+      _message('Welcome to TiB. Your style journey starts now.');
       Navigator.pop(context);
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
-
-      String message;
-
       switch (e.code) {
-        case 'email-already-in-use':
-          message = 'This email is already registered.';
-          break;
-
-        case 'invalid-email':
-          message = 'Please enter a valid email address.';
-          break;
-
-        case 'weak-password':
-          message = 'The password is too weak.';
-          break;
-
-        case 'operation-not-allowed':
-          message = 'Email/password registration is not enabled in Firebase.';
-          break;
-
-        case 'network-request-failed':
-          message = 'Network error. Please check your internet connection.';
-          break;
-
-        default:
-          message = e.message ?? 'Registration failed.';
+        case 'email-already-in-use': _message('This email is already registered.'); break;
+        case 'invalid-email': _message('Please enter a valid email address.'); break;
+        case 'weak-password': _message('The password is too weak.'); break;
+        case 'operation-not-allowed': _message('Email/password registration is not enabled.'); break;
+        case 'network-request-failed': _message('Network error. Please check your connection.'); break;
+        default: _message(e.message ?? 'Registration failed.');
       }
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
     } catch (e) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Registration failed: $e')));
+      if (mounted) _message('Registration failed: $e');
     } finally {
-      if (mounted) {
-        setState(() {
-          isLoading = false;
-        });
-      }
+      if (mounted) setState(() => isLoading = false);
     }
   }
 
-  // ============================================================
-  // Password Requirement Widget
-  // ============================================================
-
-  Widget _buildRequirement(bool passed, String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 7),
-      child: Row(
-        children: [
-          Icon(
-            passed ? Icons.check_circle : Icons.cancel_outlined,
-            color: passed ? AppColors.success : AppColors.textMuted,
-            size: 18,
-          ),
-
-          const SizedBox(width: 8),
-
-          Expanded(
-            child: Text(
-              text,
-              style: TextStyle(
-                color: passed ? AppColors.success : AppColors.textSecondary,
-                fontSize: 14,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+  void _message(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message), behavior: SnackBarBehavior.floating));
   }
 
-  // ============================================================
-  // Build
-  // ============================================================
+  Widget _requirement(bool passed, String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 7),
+      child: Row(children: [Icon(passed ? Icons.check_circle : Icons.circle_outlined, color: passed ? AppColors.success : AppColors.textMuted, size: 17), const SizedBox(width: 8), Expanded(child: Text(text, style: TextStyle(color: passed ? AppColors.success : AppColors.textSecondary, fontSize: 12)))]),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-
-      appBar: AppBar(title: const Text('Create Account')),
-
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-
-            children: [
-              // ==================================================
-              // Header
-              // ==================================================
-              Center(
-                child: Container(
-                  width: 85,
-                  height: 85,
-                  decoration: const BoxDecoration(
-                    color: AppColors.primary,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.person_add_alt_1,
-                    color: AppColors.background,
-                    size: 40,
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 28),
-
-              Text(
-                'Create Your Account',
-                style: Theme.of(context).textTheme.headlineMedium,
-              ),
-
-              const SizedBox(height: 8),
-
-              Text(
-                'Join TiB AI and start your personal styling journey.',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-
-              const SizedBox(height: 32),
-
-              // ==================================================
-              // Full Name
-              // ==================================================
-              TextField(
-                controller: nameController,
-                textInputAction: TextInputAction.next,
-                decoration: const InputDecoration(
-                  labelText: 'Full Name',
-                  hintText: 'Enter your full name',
-                  prefixIcon: Icon(Icons.person_outline),
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              // ==================================================
-              // Email
-              // ==================================================
-              TextField(
-                controller: emailController,
-                keyboardType: TextInputType.emailAddress,
-                textInputAction: TextInputAction.next,
-                decoration: const InputDecoration(
-                  labelText: 'Email',
-                  hintText: 'example@email.com',
-                  prefixIcon: Icon(Icons.email_outlined),
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              // ==================================================
-              // Password
-              // ==================================================
-              TextField(
-                controller: passwordController,
-                obscureText: obscurePassword,
-                textInputAction: TextInputAction.next,
-                decoration: InputDecoration(
-                  labelText: 'Password',
-                  hintText: 'Create a strong password',
-                  prefixIcon: const Icon(Icons.lock_outline),
-                  suffixIcon: IconButton(
-                    onPressed: () {
-                      setState(() {
-                        obscurePassword = !obscurePassword;
-                      });
-                    },
-                    icon: Icon(
-                      obscurePassword ? Icons.visibility_off : Icons.visibility,
-                    ),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 14),
-
-              // ==================================================
-              // Password Requirements
-              // ==================================================
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.border),
-                ),
-
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-
-                  children: [
-                    const Text(
-                      'Password Requirements',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
-                      ),
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    _buildRequirement(hasMinLength, 'At least 8 characters'),
-
-                    _buildRequirement(
-                      hasUppercase,
-                      'At least 1 uppercase letter (A-Z)',
-                    ),
-
-                    _buildRequirement(
-                      hasLowercase,
-                      'At least 1 lowercase letter (a-z)',
-                    ),
-
-                    _buildRequirement(hasNumber, 'At least 1 number (0-9)'),
-
-                    _buildRequirement(
-                      hasSpecial,
-                      'At least 1 special character (!@#\$%^&*)',
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              // ==================================================
-              // Confirm Password
-              // ==================================================
-              TextField(
-                controller: confirmPasswordController,
-                obscureText: obscureConfirmPassword,
-                textInputAction: TextInputAction.done,
-
-                onSubmitted: (_) {
-                  if (!isLoading) {
-                    register();
-                  }
-                },
-
-                decoration: InputDecoration(
-                  labelText: 'Confirm Password',
-                  hintText: 'Re-enter your password',
-                  prefixIcon: const Icon(Icons.lock_outline),
-                  suffixIcon: IconButton(
-                    onPressed: () {
-                      setState(() {
-                        obscureConfirmPassword = !obscureConfirmPassword;
-                      });
-                    },
-                    icon: Icon(
-                      obscureConfirmPassword
-                          ? Icons.visibility_off
-                          : Icons.visibility,
-                    ),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 30),
-
-              // ==================================================
-              // Register Button
-              // ==================================================
-              SizedBox(
-                width: double.infinity,
-
-                child: PrimaryButton(
-                  text: isLoading ? 'Creating Account...' : 'Create Account',
-
-                  icon: Icons.person_add,
-
-                  onPressed: isLoading ? null : register,
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
-              // ==================================================
-              // Login Link
-              // ==================================================
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-
-                children: [
-                  const Text('Already have an account?'),
-
-                  TextButton(
-                    onPressed: isLoading
-                        ? null
-                        : () {
-                            Navigator.pop(context);
-                          },
-                    child: const Text('Sign In'),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 20),
-            ],
-          ),
+          padding: const EdgeInsets.fromLTRB(24, 16, 24, 30),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18)), const Spacer(), const Text('CREATE PROFILE', style: TextStyle(fontSize: 9, letterSpacing: 1.2, fontWeight: FontWeight.w800, color: AppColors.textMuted)), const SizedBox(width: 8)]),
+            const SizedBox(height: 13),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(22, 23, 22, 22),
+              decoration: BoxDecoration(gradient: AppGradients.soft, borderRadius: BorderRadius.circular(27)),
+              child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('A little about you.', style: TextStyle(fontSize: 27, fontWeight: FontWeight.w800, letterSpacing: -.6)),
+                SizedBox(height: 8),
+                Text('Create your account first. Then TiB will help you discover your colours, style personality and wardrobe.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5, height: 1.45)),
+              ]),
+            ),
+            const SizedBox(height: 25),
+            const Text('YOUR NAME', style: TextStyle(fontSize: 9.5, letterSpacing: 1, fontWeight: FontWeight.w800, color: AppColors.textMuted)),
+            const SizedBox(height: 7),
+            TextField(controller: nameController, textInputAction: TextInputAction.next, decoration: const InputDecoration(hintText: 'What should TiB call you?', prefixIcon: Icon(Icons.person_outline_rounded))),
+            const SizedBox(height: 17),
+            const Text('EMAIL', style: TextStyle(fontSize: 9.5, letterSpacing: 1, fontWeight: FontWeight.w800, color: AppColors.textMuted)),
+            const SizedBox(height: 7),
+            TextField(controller: emailController, keyboardType: TextInputType.emailAddress, textInputAction: TextInputAction.next, decoration: const InputDecoration(hintText: 'you@example.com', prefixIcon: Icon(Icons.mail_outline_rounded))),
+            const SizedBox(height: 17),
+            const Text('PASSWORD', style: TextStyle(fontSize: 9.5, letterSpacing: 1, fontWeight: FontWeight.w800, color: AppColors.textMuted)),
+            const SizedBox(height: 7),
+            TextField(controller: passwordController, obscureText: obscurePassword, textInputAction: TextInputAction.next, decoration: InputDecoration(hintText: 'Create a secure password', prefixIcon: const Icon(Icons.lock_outline_rounded), suffixIcon: IconButton(onPressed: () => setState(() => obscurePassword = !obscurePassword), icon: Icon(obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined)))),
+            const SizedBox(height: 12),
+            Container(padding: const EdgeInsets.fromLTRB(14, 13, 14, 8), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(17), border: Border.all(color: AppColors.border)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('Make it secure', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12)), const SizedBox(height: 10), _requirement(hasMinLength, 'At least 8 characters'), _requirement(hasUppercase, 'One uppercase letter'), _requirement(hasLowercase, 'One lowercase letter'), _requirement(hasNumber, 'One number'), _requirement(hasSpecial, 'One special character')])) ,
+            const SizedBox(height: 17),
+            TextField(controller: confirmPasswordController, obscureText: obscureConfirmPassword, textInputAction: TextInputAction.done, onSubmitted: (_) { if (!isLoading) register(); }, decoration: InputDecoration(hintText: 'Confirm your password', prefixIcon: const Icon(Icons.lock_outline_rounded), suffixIcon: IconButton(onPressed: () => setState(() => obscureConfirmPassword = !obscureConfirmPassword), icon: Icon(obscureConfirmPassword ? Icons.visibility_off_outlined : Icons.visibility_outlined)))),
+            const SizedBox(height: 25),
+            SizedBox(width: double.infinity, child: PrimaryButton(text: isLoading ? 'Creating your profile…' : 'Create My Profile', icon: Icons.arrow_forward_rounded, onPressed: isLoading ? null : register)),
+            const SizedBox(height: 15),
+            Center(child: TextButton(onPressed: isLoading ? null : () => Navigator.pop(context), child: const Text('Already have an account? Sign In'))),
+          ]),
         ),
       ),
     );
