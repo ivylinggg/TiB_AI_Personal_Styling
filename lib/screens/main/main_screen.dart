@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../providers/analysis_provider.dart';
@@ -57,6 +58,7 @@ class _MainScreenState extends State<MainScreen> {
           if (index == _selectedIndex) {
             return;
           }
+          HapticFeedback.selectionClick();
           setState(() {
             _selectedIndex = index;
           });

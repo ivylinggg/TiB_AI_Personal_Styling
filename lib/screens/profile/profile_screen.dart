@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -8,12 +9,24 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_gradients.dart';
+import '../../core/constants/app_radius.dart';
+import '../../models/colour_analysis_result.dart';
 import '../../models/user_model.dart';
 import '../../providers/analysis_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../services/storage_service.dart';
+import '../../services/style_preference_service.dart';
+import '../../widgets/colour_swatch.dart';
+import '../../widgets/empty_state.dart';
+import '../../widgets/gradient_card.dart';
+import '../../widgets/premium_badge.dart';
+import '../../widgets/section_header.dart';
+import '../../widgets/style_chip.dart';
 import '../ai/ai_stylist_screen.dart';
 import '../ai/style_preferences_screen.dart';
+import '../analysis/analysis_result_screen.dart';
+import '../analysis/analysis_screen.dart';
 import '../auth/login_screen.dart';
 import '../wardrobe/wardrobe_screen.dart';
 
@@ -26,19 +39,82 @@ class ProfileScreen extends StatefulWidget {
 
 enum _PhotoAction { camera, gallery, remove }
 
-class _ProfileScreenState extends State<ProfileScreen> {
+class _ProfileScreenState extends State<ProfileScreen>
+    with SingleTickerProviderStateMixin {
   UserModel? user;
   bool isLoading = true;
   bool isLoggingOut = false;
   bool isUploadingPhoto = false;
   bool isPremium = false;
+  String? loadError;
+
+  // Saved Style Preferences (users/{uid}/preferences/style), loaded the
+  // same way ai_stylist_screen.dart already loads them -- no new field,
+  // no new service.
+  List<String> styles = const [];
+  List<String> preferences = const [];
+
+  // Real wardrobe counts, read the same way ai_stylist_screen.dart and
+  // dashboard_screen.dart already read the wardrobe -- no new service,
+  // just the existing FirestoreService.getWardrobeItems used here too.
+  int wardrobeCount = 0;
+  int wardrobeFavouriteCount = 0;
 
   final ImagePicker _imagePicker = ImagePicker();
+
+  // One-time entrance reveal (fade + gentle slide-up, no bounce), the
+  // same recipe already used on Colour Analysis/Dashboard/AI Stylist/
+  // Wardrobe. Plays once on first mount only.
+  late final AnimationController _revealController;
+  late final Animation<double> _heroReveal;
+  late final Animation<double> _styleReveal;
+  late final Animation<double> _connectionsReveal;
+  late final Animation<double> _preferencesReveal;
 
   @override
   void initState() {
     super.initState();
     loadUser();
+
+    _revealController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
+    _heroReveal = _stage(0.00, 0.35);
+    _styleReveal = _stage(0.15, 0.60);
+    _connectionsReveal = _stage(0.35, 0.80);
+    _preferencesReveal = _stage(0.55, 1.00);
+    _revealController.forward();
+  }
+
+  Animation<double> _stage(double begin, double end) {
+    return CurvedAnimation(
+      parent: _revealController,
+      curve: Interval(begin, end, curve: Curves.easeOut),
+    );
+  }
+
+  Widget _reveal(Animation<double> animation, Widget child) {
+    return AnimatedBuilder(
+      animation: animation,
+      builder: (context, animatedChild) {
+        final value = animation.value.clamp(0.0, 1.0);
+        return Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(0, (1 - value) * 14),
+            child: animatedChild,
+          ),
+        );
+      },
+      child: child,
+    );
+  }
+
+  @override
+  void dispose() {
+    _revealController.dispose();
+    super.dispose();
   }
 
   Future<void> loadUser() async {
@@ -58,6 +134,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
           .collection('users')
           .doc(firebaseUser.uid)
           .get();
+      final stylePreferences =
+          await StylePreferenceService.getStylePreferences(firebaseUser.uid);
+      final wardrobeItems =
+          await FirestoreService.getWardrobeItems(firebaseUser.uid);
 
       if (!mounted) {
         return;
@@ -65,16 +145,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
       setState(() {
         user = result;
         isPremium = userDoc.data()?['isPremium'] as bool? ?? false;
+        styles = List<String>.from(stylePreferences?['styles'] ?? const []);
+        preferences =
+            List<String>.from(stylePreferences?['preferences'] ?? const []);
+        wardrobeCount = wardrobeItems.length;
+        wardrobeFavouriteCount =
+            wardrobeItems.where((item) => item.isFavourite).length;
+        loadError = null;
         isLoading = false;
       });
     } catch (e) {
       if (!mounted) {
         return;
       }
-      setState(() => isLoading = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Unable to load profile: $e')));
+      setState(() {
+        isLoading = false;
+        // Only switch to a full retry state if we don't already have a
+        // real profile on screen -- a failed background refresh should
+        // never replace a working profile with an error screen.
+        loadError = user == null ? 'Unable to load profile: $e' : null;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Unable to load profile: $e')),
+      );
     }
   }
 
@@ -140,28 +233,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
               ListTile(
-                leading: const CircleAvatar(
-                  child: Icon(Icons.camera_alt_outlined),
-                ),
+                leading: const CircleAvatar(child: Icon(Icons.camera_alt_outlined)),
                 title: const Text('Take a photo'),
                 onTap: () => Navigator.pop(sheetContext, _PhotoAction.camera),
               ),
               ListTile(
-                leading: const CircleAvatar(
-                  child: Icon(Icons.photo_library_outlined),
-                ),
+                leading: const CircleAvatar(child: Icon(Icons.photo_library_outlined)),
                 title: const Text('Choose from gallery'),
                 onTap: () => Navigator.pop(sheetContext, _PhotoAction.gallery),
               ),
               if (hasPhoto)
                 ListTile(
-                  leading: const CircleAvatar(
-                    backgroundColor: Color(0xFFFBE7E7),
-                    child: Icon(Icons.delete_outline, color: Colors.red),
+                  leading: CircleAvatar(
+                    backgroundColor: AppColors.error.withValues(alpha: 0.1),
+                    child: const Icon(Icons.delete_outline, color: AppColors.error),
                   ),
                   title: const Text(
                     'Remove photo',
-                    style: TextStyle(color: Colors.red),
+                    style: TextStyle(color: AppColors.error),
                   ),
                   onTap: () => Navigator.pop(sheetContext, _PhotoAction.remove),
                 ),
@@ -191,7 +280,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: const Text('Cancel'),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
             onPressed: () => Navigator.pop(dialogContext, true),
             child: const Text('Remove'),
           ),
@@ -227,9 +316,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Profile photo removed.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Profile photo removed.')),
+      );
 
       // Best-effort cleanup of the old file in Google Drive. This never
       // throws (see StorageService.removeProfileImage) and never affects
@@ -276,7 +365,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   alignment: Alignment.centerLeft,
                   child: Text(
                     'This will be visible on your profile.',
-                    style: TextStyle(color: Colors.black54),
+                    style: TextStyle(color: AppColors.textSecondary),
                   ),
                 ),
                 const SizedBox(height: 18),
@@ -298,8 +387,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 const SizedBox(height: 10),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFC58F73),
-                    foregroundColor: Colors.white,
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: AppColors.background,
                   ),
                   onPressed: () => Navigator.pop(sheetContext, true),
                   child: const Text('Use This Photo'),
@@ -342,9 +431,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Profile photo updated.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Profile photo updated.')),
+      );
     } catch (e) {
       if (!mounted) {
         return;
@@ -383,9 +472,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         return;
       }
       setState(() => isLoggingOut = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Logout failed: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Logout failed: $e')),
+      );
     }
   }
 
@@ -435,9 +524,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: TextFormField(
                 controller: nameController,
                 textInputAction: TextInputAction.done,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Full Name',
-                  prefixIcon: Icon(Icons.person_outline),
+                  prefixIcon: const Icon(Icons.person_outline),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                  ),
                 ),
                 validator: (value) => value == null || value.trim().isEmpty
                     ? 'Please enter your name.'
@@ -446,9 +538,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             actions: [
               TextButton(
-                onPressed: saving
-                    ? null
-                    : () => Navigator.pop(dialogContext, false),
+                onPressed: saving ? null : () => Navigator.pop(dialogContext, false),
                 child: const Text('Cancel'),
               ),
               ElevatedButton(
@@ -467,9 +557,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           if (!dialogContext.mounted) return;
                           setDialogState(() => saving = false);
                           ScaffoldMessenger.of(dialogContext).showSnackBar(
-                            SnackBar(
-                              content: Text('Unable to update profile: $e'),
-                            ),
+                            SnackBar(content: Text('Unable to update profile: $e')),
                           );
                         }
                       },
@@ -529,18 +617,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Password reset email sent. Please check your inbox.'),
-        ),
+        const SnackBar(content: Text('Password reset email sent. Please check your inbox.')),
       );
     } on FirebaseAuthException catch (e) {
       if (!mounted) {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.message ?? 'Unable to send password reset email.'),
-        ),
+        SnackBar(content: Text(e.message ?? 'Unable to send password reset email.')),
       );
     }
   }
@@ -559,24 +643,55 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  void openColourAnalysis() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const AnalysisScreen()),
+    );
+  }
+
+  void openAnalysisResult(ColourAnalysisResult result) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => AnalysisResultScreen(result: result)),
+    );
+  }
+
   Future<void> openStylePreferences() async {
     final updated = await Navigator.push<bool>(
       context,
-      MaterialPageRoute(builder: (_) => const StylePreferencesScreen()),
+      MaterialPageRoute(
+        builder: (_) => const StylePreferencesScreen(),
+      ),
     );
 
     if (updated == true && mounted) {
+      await loadUser();
+
+      if (!mounted) {
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Your style profile is up to date.')),
+        const SnackBar(
+          content: Text('Your style profile is up to date.'),
+        ),
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    // Watching AnalysisProvider means this section updates the moment a
+    // new Colour Analysis is saved elsewhere in the same session (Profile
+    // is a persistent IndexedStack tab, so it would otherwise keep
+    // showing whatever it had at first load).
+    final analysisResult = context.watch<AnalysisProvider>().result;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
+        backgroundColor: AppColors.background,
+        elevation: 0,
         title: const Text('My Profile'),
         actions: [
           IconButton(
@@ -586,232 +701,577 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ],
       ),
-      body: isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: loadUser,
-              child: ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+      body: _buildBody(analysisResult),
+    );
+  }
+
+  Widget _buildBody(ColourAnalysisResult? analysisResult) {
+    if (isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (FirebaseAuth.instance.currentUser == null) {
+      return const Center(child: Text('Please login to view your profile.'));
+    }
+
+    if (user == null && loadError != null) {
+      return Padding(
+        padding: const EdgeInsets.all(24),
+        child: Center(
+          child: EmptyState(
+            icon: Icons.cloud_off_rounded,
+            title: 'Could not load your profile',
+            description: loadError!,
+            ctaLabel: 'Try Again',
+            onCta: loadUser,
+          ),
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: loadUser,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+        children: [
+          _reveal(_heroReveal, _buildHero()),
+          const SizedBox(height: 28),
+          _reveal(
+            _styleReveal,
+            const SectionHeader(
+              title: 'Your Personal Style',
+              subtitle: 'Your colour season, palette and style direction.',
+            ),
+          ),
+          const SizedBox(height: 14),
+          _reveal(_styleReveal, _buildStyleSummary(analysisResult)),
+          if (analysisResult != null && analysisResult.colours.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            _reveal(_styleReveal, _buildPaletteCard(analysisResult)),
+          ],
+          const SizedBox(height: 28),
+          _reveal(
+            _connectionsReveal,
+            const SectionHeader(title: 'Your Style Tools'),
+          ),
+          const SizedBox(height: 14),
+          _reveal(_connectionsReveal, _buildWardrobeConnectionCard()),
+          const SizedBox(height: 10),
+          _reveal(_connectionsReveal, _buildAiStylistConnectionCard()),
+          const SizedBox(height: 28),
+          _reveal(
+            _preferencesReveal,
+            SectionHeader(
+              title: 'My Preferences',
+              trailing: TextButton(
+                onPressed: openStylePreferences,
+                child: const Text('Edit'),
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          _reveal(_preferencesReveal, _buildPreferencesCard()),
+          const SizedBox(height: 28),
+          _reveal(
+            _preferencesReveal,
+            const SectionHeader(title: 'Account & Security'),
+          ),
+          const SizedBox(height: 14),
+          _reveal(_preferencesReveal, _buildAccountSection()),
+          const SizedBox(height: 30),
+          _reveal(_preferencesReveal, _buildLogoutButton()),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================
+  // PROFILE HERO -- real photo, real name, real email, real Premium
+  // status, and a clear Edit Profile action.
+  // ============================================================
+
+  Widget _buildHero() {
+    final name = user?.name.trim();
+    final email = user?.email.trim();
+    final displayName = name?.isNotEmpty == true ? name! : 'TiB AI User';
+    final displayEmail = email?.isNotEmpty == true
+        ? email!
+        : (FirebaseAuth.instance.currentUser?.email ?? '');
+    final hasPhoto = user?.photoUrl != null && user!.photoUrl!.isNotEmpty;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.xl),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        children: [
+          GestureDetector(
+            onTap: isUploadingPhoto ? null : changeProfilePhoto,
+            child: Stack(
+              alignment: Alignment.bottomRight,
+              children: [
+                CircleAvatar(
+                  radius: 52,
+                  backgroundColor: AppColors.secondary,
+                  backgroundImage: hasPhoto
+                      ? CachedNetworkImageProvider(user!.photoUrl!)
+                      : null,
+                  child: hasPhoto
+                      ? null
+                      : const Icon(Icons.person, size: 52, color: AppColors.background),
+                ),
+                Material(
+                  color: AppColors.primary,
+                  shape: const CircleBorder(),
+                  child: InkWell(
+                    onTap: isUploadingPhoto ? null : changeProfilePhoto,
+                    customBorder: const CircleBorder(),
+                    child: Padding(
+                      padding: const EdgeInsets.all(9),
+                      child: isUploadingPhoto
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: AppColors.background,
+                              ),
+                            )
+                          : const Icon(
+                              Icons.camera_alt_outlined,
+                              size: 16,
+                              color: AppColors.background,
+                            ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            displayName,
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            displayEmail,
+            style: Theme.of(context).textTheme.bodyMedium,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 14),
+          if (isPremium)
+            const PremiumBadge()
+          else
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceMuted,
+                borderRadius: BorderRadius.circular(AppRadius.full),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  _buildProfileHeader(),
-                  const SizedBox(height: 28),
-                  _buildPersonalSection(),
-                  const SizedBox(height: 28),
-                  _buildStyleSection(),
-                  const SizedBox(height: 28),
-                  _buildAccountSection(),
-                  const SizedBox(height: 30),
-                  _buildLogoutButton(),
+                  Icon(
+                    Icons.person_outline,
+                    size: 16,
+                    color: AppColors.textSecondary,
+                  ),
+                  const SizedBox(width: 7),
+                  Text(
+                    'Free Member',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
                 ],
               ),
             ),
-    );
-  }
-
-  Widget _buildProfileHeader() {
-    final name = user?.name.trim();
-    final email = user?.email.trim();
-
-    return Column(
-      children: [
-        GestureDetector(
-          onTap: isUploadingPhoto ? null : changeProfilePhoto,
-          child: Stack(
-            alignment: Alignment.bottomRight,
-            children: [
-              CircleAvatar(
-                radius: 58,
-                backgroundColor: const Color(0xFFF5D8C7),
-                backgroundImage:
-                    user?.photoUrl != null && user!.photoUrl!.isNotEmpty
-                    ? NetworkImage(user!.photoUrl!)
-                    : null,
-                child: user?.photoUrl == null || user!.photoUrl!.isEmpty
-                    ? const Icon(Icons.person, size: 58, color: Colors.white)
-                    : null,
-              ),
-              Material(
-                color: const Color(0xFFC58F73),
-                shape: const CircleBorder(),
-                child: InkWell(
-                  onTap: isUploadingPhoto ? null : changeProfilePhoto,
-                  customBorder: const CircleBorder(),
-                  child: Padding(
-                    padding: const EdgeInsets.all(10),
-                    child: isUploadingPhoto
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Icon(
-                            Icons.camera_alt_outlined,
-                            size: 18,
-                            color: Colors.white,
-                          ),
-                  ),
+          const SizedBox(height: 18),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: openEditProfile,
+              icon: const Icon(Icons.edit_outlined, size: 18),
+              label: const Text('Edit Profile'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primaryDark,
+                side: BorderSide(color: AppColors.border),
+                minimumSize: const Size.fromHeight(46),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppRadius.md),
                 ),
               ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 8),
-        TextButton.icon(
-          onPressed: isUploadingPhoto ? null : changeProfilePhoto,
-          icon: const Icon(
-            Icons.camera_alt_outlined,
-            size: 18,
-            color: Color(0xFFC58F73),
-          ),
-          label: Text(
-            isUploadingPhoto ? 'Uploading photo...' : 'Change Photo',
-            style: const TextStyle(
-              color: Color(0xFFC58F73),
-              fontWeight: FontWeight.w600,
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================
+  // YOUR PERSONAL STYLE -- real Season/Undertone/Brightness/Contrast
+  // and a real style-direction line from the user's own saved data, or
+  // a real onboarding invitation into the existing Colour Analysis flow.
+  // ============================================================
+
+  Widget _buildStyleSummary(ColourAnalysisResult? result) {
+    if (result == null) {
+      return GradientCard(
+        gradient: AppGradients.primary,
+        icon: Icons.palette_outlined,
+        onTap: openColourAnalysis,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Discover Your Colours',
+              style: TextStyle(
+                color: AppColors.background,
+                fontSize: 19,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Find the colours that work best with your personal palette '
+              'and unlock more personalised styling.',
+              style: TextStyle(
+                color: AppColors.background.withValues(alpha: 0.7),
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: openColourAnalysis,
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.background,
+                  foregroundColor: AppColors.primaryDark,
+                ),
+                child: const Text('Start Colour Analysis'),
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 8),
-        Text(
-          name?.isNotEmpty == true ? name! : 'TiB AI User',
-          style: Theme.of(
-            context,
-          ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 5),
-        Text(
-          email?.isNotEmpty == true
-              ? email!
-              : FirebaseAuth.instance.currentUser?.email ?? '',
-          style: Theme.of(context).textTheme.bodyMedium,
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 14),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
+      );
+    }
+
+    return GradientCard(
+      gradient: AppGradients.season(result.season),
+      onTap: () => openAnalysisResult(result),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'YOUR COLOUR SEASON',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.2,
+              color: Colors.white70,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            result.season,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 26,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '${result.undertone} • ${result.brightness} • ${result.contrast}',
+            style: const TextStyle(color: Colors.white70, fontSize: 13.5),
+          ),
+          if (styles.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Text(
+              'Style direction · ${styles.take(2).join(' · ')}',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // ============================================================
+  // YOUR PALETTE -- real recommended colours, using the same shared
+  // ColourNameMapper/ColourSwatch used across the rest of the app.
+  // ============================================================
+
+  Widget _buildPaletteCard(ColourAnalysisResult result) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'YOUR PALETTE',
+            style: TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.6,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 16,
+            runSpacing: 14,
+            children: result.colours
+                .map((c) => ColourSwatch(name: c, size: 48, showLabel: true))
+                .toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================
+  // YOUR STYLE TOOLS -- real wardrobe count/favourites and a real
+  // connection into the existing AI Stylist. No new architecture.
+  // ============================================================
+
+  Widget _connectionCard({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+    Widget? trailingBadge,
+  }) {
+    return Material(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(AppRadius.lg),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: isPremium
-                ? const Color(0xFFFFF1D8)
-                : const Color(0xFFF4F1EF),
-            borderRadius: BorderRadius.circular(30),
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+            border: Border.all(color: AppColors.border),
           ),
           child: Row(
-            mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                isPremium ? Icons.workspace_premium : Icons.person_outline,
-                size: 17,
-                color: isPremium
-                    ? const Color(0xFFB27B27)
-                    : Colors.grey.shade700,
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: AppColors.secondary,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: AppColors.primaryDark),
               ),
-              const SizedBox(width: 7),
-              Text(
-                isPremium ? 'Premium Member' : 'Free Member',
-                style: const TextStyle(fontWeight: FontWeight.w600),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          title,
+                          style: const TextStyle(
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        if (trailingBadge != null) ...[
+                          const SizedBox(width: 8),
+                          trailingBadge,
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12.5,
+                      ),
+                    ),
+                  ],
+                ),
               ),
+              const SizedBox(width: 8),
+              Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildWardrobeConnectionCard() {
+    return _connectionCard(
+      icon: Icons.checkroom_outlined,
+      title: 'My Wardrobe',
+      subtitle: wardrobeCount == 0
+          ? 'Add a few pieces to start building outfits.'
+          : '$wardrobeCount pieces · $wardrobeFavouriteCount favourites',
+      onTap: openWardrobe,
+    );
+  }
+
+  Widget _buildAiStylistConnectionCard() {
+    return _connectionCard(
+      icon: Icons.auto_awesome_rounded,
+      title: 'AI Stylist',
+      subtitle: 'Style your wardrobe around your personal colours.',
+      onTap: openAIStylist,
+      trailingBadge: isPremium ? const PremiumBadge(compact: true) : null,
+    );
+  }
+
+  // ============================================================
+  // MY PREFERENCES -- the user's real saved Style Preferences.
+  // ============================================================
+
+  Widget _buildPreferencesCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _preferenceGroup('Styles', styles),
+          const SizedBox(height: 16),
+          _preferenceGroup('Preferences', preferences),
+        ],
+      ),
+    );
+  }
+
+  Widget _preferenceGroup(String label, List<String> values) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label.toUpperCase(),
+          style: TextStyle(
+            color: AppColors.textSecondary,
+            fontSize: 10.5,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.6,
+          ),
+        ),
+        const SizedBox(height: 10),
+        values.isEmpty
+            ? Text(
+                'Not set yet',
+                style: TextStyle(color: AppColors.textMuted),
+              )
+            : Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: values
+                    .map((value) => StyleChip(label: value, selected: true))
+                    .toList(),
+              ),
       ],
     );
   }
 
-  Widget _buildPersonalSection() {
-    return _section(
-      title: 'Personal Information',
-      children: [
-        _buildInfoCard(
-          icon: Icons.person_outline,
-          title: 'Full Name',
-          value: user?.name.isNotEmpty == true ? user!.name : 'Not set',
-        ),
-        const SizedBox(height: 10),
-        _buildInfoCard(
-          icon: Icons.email_outlined,
-          title: 'Email',
-          value: user?.email.isNotEmpty == true ? user!.email : 'Not available',
-        ),
-        const SizedBox(height: 10),
-        _buildInfoCard(
-          icon: Icons.palette_outlined,
-          title: 'Colour Season',
-          value: user?.colourSeason?.isNotEmpty == true
-              ? user!.colourSeason!
-              : 'Not analysed yet',
-        ),
-        const SizedBox(height: 10),
-        _buildInfoCard(
-          icon: Icons.face_outlined,
-          title: 'Skin Tone',
-          value: user?.skinTone?.isNotEmpty == true
-              ? user!.skinTone!
-              : 'Not analysed yet',
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStyleSection() {
-    return _section(
-      title: 'My Style',
-      children: [
-        _actionCard(
-          icon: Icons.auto_awesome_outlined,
-          title: 'AI Stylist',
-          subtitle: 'Get outfit ideas based on your profile and preferences',
-          onTap: openAIStylist,
-        ),
-        const SizedBox(height: 10),
-        _actionCard(
-          icon: Icons.checkroom_outlined,
-          title: 'My Wardrobe',
-          subtitle: 'Manage the clothes you already own',
-          onTap: openWardrobe,
-        ),
-        const SizedBox(height: 10),
-        _actionCard(
-          icon: Icons.tune_rounded,
-          title: 'My Style Preferences',
-          subtitle: 'Tell your stylist what feels most like you',
-          onTap: openStylePreferences,
-        ),
-        const SizedBox(height: 10),
-        _actionCard(
-          icon: Icons.edit_outlined,
-          title: 'Edit Profile',
-          subtitle: 'Update your personal information',
-          onTap: openEditProfile,
-        ),
-      ],
-    );
-  }
+  // ============================================================
+  // ACCOUNT & SECURITY -- only real, already-existing actions.
+  // ============================================================
 
   Widget _buildAccountSection() {
-    return _section(
-      title: 'Account & Security',
+    return Column(
       children: [
-        _actionCard(
+        _connectionCard(
           icon: Icons.lock_outline,
           title: 'Change Password',
           subtitle: 'Send a secure password reset email',
           onTap: changePassword,
         ),
         const SizedBox(height: 10),
-        _actionCard(
-          icon: Icons.verified_user_outlined,
-          title: 'Account Status',
-          subtitle: user?.isActive == true
-              ? 'Your account is active and ready to use'
-              : 'Your account is currently inactive',
-          trailing: Icon(
-            user?.isActive == true ? Icons.check_circle : Icons.error_outline,
-            color: user?.isActive == true ? Colors.green : Colors.red,
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: AppColors.secondary,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.verified_user_outlined,
+                  color: AppColors.primaryDark,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Account Status',
+                      style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      user?.isActive == true
+                          ? 'Your account is active and ready to use'
+                          : 'Your account is currently inactive',
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                user?.isActive == true
+                    ? Icons.check_circle
+                    : Icons.error_outline,
+                color: user?.isActive == true
+                    ? AppColors.success
+                    : AppColors.error,
+              ),
+            ],
           ),
         ),
       ],
@@ -832,73 +1292,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
             : const Icon(Icons.logout),
         label: Text(isLoggingOut ? 'Logging Out...' : 'Logout'),
         style: OutlinedButton.styleFrom(
-          minimumSize: const Size(double.infinity, 52),
-          foregroundColor: Colors.red,
-          side: const BorderSide(color: Colors.red),
-        ),
-      ),
-    );
-  }
-
-  Widget _section({required String title, required List<Widget> children}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: Theme.of(
-            context,
-          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 13),
-        ...children,
-      ],
-    );
-  }
-
-  Widget _actionCard({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    VoidCallback? onTap,
-    Widget? trailing,
-  }) {
-    return Card(
-      elevation: 0,
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
-        leading: CircleAvatar(
-          backgroundColor: const Color(0xFFF5D8C7),
-          child: Icon(icon, color: const Color(0xFFC58F73)),
-        ),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 4),
-          child: Text(subtitle),
-        ),
-        trailing: trailing ?? const Icon(Icons.arrow_forward_ios, size: 16),
-        onTap: onTap,
-      ),
-    );
-  }
-
-  Widget _buildInfoCard({
-    required IconData icon,
-    required String title,
-    required String value,
-  }) {
-    return Card(
-      elevation: 0,
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        leading: CircleAvatar(
-          backgroundColor: const Color(0xFFF5D8C7),
-          child: Icon(icon, color: const Color(0xFFC58F73)),
-        ),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 4),
-          child: Text(value),
+          minimumSize: const Size.fromHeight(52),
+          foregroundColor: AppColors.error,
+          side: BorderSide(color: AppColors.error),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadius.md),
+          ),
         ),
       ),
     );

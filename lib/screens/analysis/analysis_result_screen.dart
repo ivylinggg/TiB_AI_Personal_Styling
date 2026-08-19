@@ -1,8 +1,17 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_gradients.dart';
+import '../../core/constants/app_radius.dart';
 import '../../models/colour_analysis_result.dart';
+import '../../widgets/colour_swatch.dart';
+import '../../widgets/empty_state.dart';
+import '../../widgets/gradient_card.dart';
+import '../../widgets/premium_badge.dart';
+import '../../widgets/section_header.dart';
 
 class AnalysisResultScreen extends StatefulWidget {
   final ColourAnalysisResult result;
@@ -13,16 +22,56 @@ class AnalysisResultScreen extends StatefulWidget {
   State<AnalysisResultScreen> createState() => _AnalysisResultScreenState();
 }
 
-class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
+class _AnalysisResultScreenState extends State<AnalysisResultScreen>
+    with SingleTickerProviderStateMixin {
   bool _isPremium = false;
   bool _premiumLoaded = false;
 
   ColourAnalysisResult get result => widget.result;
 
+  // Staged reveal -- fast (1s total), fade + gentle slide-up, no bounce.
+  // Timings follow the approved sequence: 0.0s intro, 0.15s season hero,
+  // 0.30s attributes, 0.45s palette, 0.60s supporting content, 0.75s
+  // premium insights / actions.
+  late final AnimationController _revealController;
+  late final Animation<double> _introReveal;
+  late final Animation<double> _heroReveal;
+  late final Animation<double> _attributesReveal;
+  late final Animation<double> _paletteReveal;
+  late final Animation<double> _supportingReveal;
+  late final Animation<double> _premiumAndActionsReveal;
+
   @override
   void initState() {
     super.initState();
     _loadPremiumStatus();
+
+    _revealController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    );
+
+    _introReveal = _stage(0.00, 0.30);
+    _heroReveal = _stage(0.15, 0.45);
+    _attributesReveal = _stage(0.30, 0.60);
+    _paletteReveal = _stage(0.45, 0.75);
+    _supportingReveal = _stage(0.60, 0.90);
+    _premiumAndActionsReveal = _stage(0.75, 1.00);
+
+    _revealController.forward();
+  }
+
+  Animation<double> _stage(double begin, double end) {
+    return CurvedAnimation(
+      parent: _revealController,
+      curve: Interval(begin, end, curve: Curves.easeOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _revealController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadPremiumStatus() async {
@@ -63,10 +112,31 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
     }
   }
 
+  /// Fade + gentle slide-up reveal for one stage of the animation.
+  Widget _reveal(Animation<double> animation, Widget child) {
+    return AnimatedBuilder(
+      animation: animation,
+      builder: (context, animatedChild) {
+        final value = animation.value.clamp(0.0, 1.0);
+        return Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(0, (1 - value) * 14),
+            child: animatedChild,
+          ),
+        );
+      },
+      child: child,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final seasonAccent = AppColors.seasonAccent(result.season);
+
     return Scaffold(
-      backgroundColor: const Color(0xFFFDF9F6),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Your Colour Result'),
         backgroundColor: Colors.transparent,
@@ -79,329 +149,335 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 10, 20, 30),
-        children: [
-          // ========================================================
-          // HEADER
-          // ========================================================
-          Container(
-            width: 72,
-            height: 72,
-            decoration: BoxDecoration(
-              color: const Color(0xFFF5D8C7),
-              shape: BoxShape.circle,
-              border: Border.all(color: const Color(0xFFE7B9A3), width: 1.5),
-            ),
-            child: const Icon(
-              Icons.auto_awesome,
-              size: 34,
-              color: Color(0xFFC58F73),
-            ),
-          ),
-
-          const SizedBox(height: 12),
-
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Flexible(
-                child: Text(
-                  'Here’s what suits you',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              if (_premiumLoaded && _isPremium) ...[
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF5D8C7),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: const Icon(
-                    Icons.workspace_premium,
-                    size: 16,
-                    color: Color(0xFFC58F73),
-                  ),
-                ),
-              ],
-            ],
-          ),
-
-          const SizedBox(height: 6),
-
-          Text(
-            'Your result gives you a simple starting point for choosing clothes, accessories and everyday colours.',
-            textAlign: TextAlign.center,
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(color: Colors.grey.shade700),
-          ),
-
-          const SizedBox(height: 24),
-
-          // ========================================================
-          // MAIN SEASON CARD
-          // ========================================================
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF5D8C7),
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: Column(
-              children: [
-                const Text(
-                  'YOUR COLOUR SEASON',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.2,
-                    color: Color(0xFF8B5E4B),
-                  ),
-                ),
-
-                const SizedBox(height: 10),
-
-                Text(
-                  result.season,
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-
-                const SizedBox(height: 8),
-
-                Text(
-                  'Your personalised colour direction',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: const Color(0xFF8B5E4B),
-                  ),
-                ),
-
-                const SizedBox(height: 14),
-
-                const Divider(color: Color(0xFFC58F73)),
-
-                const SizedBox(height: 14),
-
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildSummaryItem(
-                        icon: Icons.thermostat_outlined,
-                        title: 'Undertone',
-                        value: result.undertone,
-                      ),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(20, 6, 20, 30),
+          children: [
+            // ========================================================
+            // INTRO
+            // ========================================================
+            _reveal(
+              _introReveal,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Flexible(
+                    child: Text(
+                      'Here’s what suits you',
+                      textAlign: TextAlign.center,
+                      style: textTheme.titleLarge,
                     ),
-                    Expanded(
-                      child: _buildSummaryItem(
-                        icon: Icons.wb_sunny_outlined,
-                        title: 'Brightness',
-                        value: result.brightness,
-                      ),
-                    ),
-                    Expanded(
-                      child: _buildSummaryItem(
-                        icon: Icons.contrast,
-                        title: 'Contrast',
-                        value: result.contrast,
-                      ),
-                    ),
+                  ),
+                  if (_premiumLoaded && _isPremium) ...[
+                    const SizedBox(width: 8),
+                    const PremiumBadge(compact: true),
                   ],
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 28),
-
-          // ========================================================
-          // ANALYSIS DETAILS
-          // ========================================================
-          Text(
-            'What we found',
-            style: Theme.of(
-              context,
-            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-          ),
-
-          const SizedBox(height: 14),
-
-          _buildDetailCard(
-            icon: Icons.thermostat_outlined,
-            title: 'Skin Undertone',
-            value: result.undertone,
-          ),
-
-          _buildDetailCard(
-            icon: Icons.wb_sunny_outlined,
-            title: 'Brightness',
-            value: result.brightness,
-          ),
-
-          _buildDetailCard(
-            icon: Icons.contrast,
-            title: 'Contrast Level',
-            value: result.contrast,
-          ),
-
-          const SizedBox(height: 18),
-
-          if (_premiumLoaded && _isPremium) _buildPremiumInsights(),
-
-          const SizedBox(height: 18),
-
-          // ========================================================
-          // BEST COLOURS
-          // ========================================================
-          Text(
-            'Colours to Try',
-            style: Theme.of(
-              context,
-            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-          ),
-
-          const SizedBox(height: 8),
-
-          Text(
-            'Start with these shades when choosing your next outfit.',
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(color: Colors.grey.shade700),
-          ),
-
-          const SizedBox(height: 16),
-
-          if (result.colours.isEmpty)
-            _buildEmptyColours()
-          else
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: result.colours
-                  .map((colour) => _buildColourChip(colour))
-                  .toList(),
+                ],
+              ),
             ),
 
-          const SizedBox(height: 24),
+            const SizedBox(height: 6),
 
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: const Color(0xFFF0DDD2)),
+            _reveal(
+              _introReveal,
+              Text(
+                'Your result gives you a simple starting point for choosing '
+                'clothes, accessories and everyday colours.',
+                textAlign: TextAlign.center,
+                style: textTheme.bodyMedium,
+              ),
             ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const CircleAvatar(
-                  radius: 21,
-                  backgroundColor: Color(0xFFF5D8C7),
-                  child: Icon(
-                    Icons.lightbulb_outline,
-                    color: Color(0xFFC58F73),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
+
+            const SizedBox(height: 22),
+
+            // ========================================================
+            // SEASON HERO
+            // ========================================================
+            _reveal(
+              _heroReveal,
+              GradientCard(
+                gradient: AppGradients.season(result.season),
+                padding: const EdgeInsets.fromLTRB(24, 26, 24, 24),
+                child: SizedBox(
+                  width: double.infinity,
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       Text(
-                        'A little tip for you',
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w700),
-                      ),
-                      const SizedBox(height: 5),
-                      Text(
-                        'Use your recommended colours as a guide, not a rule. The best outfit is one that also feels comfortable and like you.',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Colors.grey.shade700,
-                          height: 1.45,
+                        'YOUR COLOUR PROFILE',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1.4,
+                          color: Colors.white.withValues(alpha: 0.85),
                         ),
                       ),
+                      const SizedBox(height: 10),
+                      Text(
+                        result.season.toUpperCase(),
+                        textAlign: TextAlign.center,
+                        style: textTheme.displaySmall?.copyWith(
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'A personalised colour palette selected for you.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.92),
+                          height: 1.4,
+                        ),
+                      ),
+                      if (result.colours.isNotEmpty) ...[
+                        const SizedBox(height: 20),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: result.colours
+                              .take(5)
+                              .map(
+                                (colour) => Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 4,
+                                  ),
+                                  child: ColourSwatch(name: colour, size: 34),
+                                ),
+                              )
+                              .toList(),
+                        ),
+                      ],
                     ],
                   ),
                 ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 30),
-
-          // ========================================================
-          // IMAGE REFERENCE
-          // ========================================================
-          if (result.imageUrl.isNotEmpty) ...[
-            Text(
-              'Your Analysis Photo',
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+              ),
             ),
 
-            const SizedBox(height: 14),
+            const SizedBox(height: 24),
 
-            ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: Image.network(
-                result.imageUrl,
-                height: 240,
-                width: double.infinity,
-                fit: BoxFit.cover,
-                loadingBuilder: (context, child, loadingProgress) {
-                  if (loadingProgress == null) {
-                    return child;
-                  }
+            // ========================================================
+            // PERSONAL COLOUR ATTRIBUTES
+            // ========================================================
+            _reveal(
+              _attributesReveal,
+              Row(
+                children: [
+                  _attributeCard(
+                    icon: Icons.thermostat_outlined,
+                    label: 'Undertone',
+                    value: result.undertone,
+                    accent: seasonAccent,
+                  ),
+                  _attributeCard(
+                    icon: Icons.wb_sunny_outlined,
+                    label: 'Brightness',
+                    value: result.brightness,
+                    accent: seasonAccent,
+                  ),
+                  _attributeCard(
+                    icon: Icons.contrast_rounded,
+                    label: 'Contrast',
+                    value: result.contrast,
+                    accent: seasonAccent,
+                  ),
+                ],
+              ),
+            ),
 
-                  return Container(
-                    height: 240,
-                    color: const Color(0xFFF5D8C7),
-                    child: const Center(child: CircularProgressIndicator()),
-                  );
-                },
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    height: 240,
-                    color: const Color(0xFFF5D8C7),
-                    child: const Center(
-                      child: Icon(Icons.image_not_supported_outlined, size: 50),
+            const SizedBox(height: 28),
+
+            // ========================================================
+            // RECOMMENDED COLOUR PALETTE
+            // ========================================================
+            _reveal(
+              _paletteReveal,
+              const SectionHeader(
+                title: 'Your Best Colours',
+                subtitle:
+                    'Start with these shades when choosing your next outfit.',
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            _reveal(
+              _paletteReveal,
+              result.colours.isEmpty
+                  ? EmptyState(
+                      icon: Icons.palette_outlined,
+                      title: 'No colours yet',
+                      description:
+                          'This result did not include a saved colour '
+                          'palette.',
+                      accent: AppGradients.season(result.season),
+                    )
+                  : Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 18,
+                      runSpacing: 18,
+                      children: result.colours
+                          .map(
+                            (colour) => ColourSwatch(
+                              name: colour,
+                              size: 56,
+                              showLabel: true,
+                            ),
+                          )
+                          .toList(),
                     ),
-                  );
-                },
-              ),
             ),
 
-            const SizedBox(height: 30),
-          ],
+            const SizedBox(height: 28),
 
-          // ========================================================
-          // ACTION
-          // ========================================================
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              icon: const Icon(Icons.refresh),
-              label: const Text('Analyse Another Photo'),
-              style: FilledButton.styleFrom(
-                minimumSize: const Size(double.infinity, 52),
+            // ========================================================
+            // SUPPORTING CONTENT -- styling tip + analysis photo
+            // ========================================================
+            _reveal(_supportingReveal, _buildTipCard()),
+
+            if (result.imageUrl.isNotEmpty) ...[
+              const SizedBox(height: 26),
+              _reveal(
+                _supportingReveal,
+                const SectionHeader(title: 'Your Analysis Photo'),
               ),
+              const SizedBox(height: 14),
+              _reveal(_supportingReveal, _buildAnalysisPhoto()),
+            ],
+
+            const SizedBox(height: 26),
+
+            // ========================================================
+            // WHY THESE COLOURS SUIT YOU -- real Premium insights only.
+            // Nothing is shown here for non-Premium accounts: there is no
+            // real explanatory data to present without Premium, and this
+            // screen never invents one.
+            // ========================================================
+            if (_premiumLoaded && _isPremium) ...[
+              _reveal(_premiumAndActionsReveal, _buildPremiumInsights()),
+              const SizedBox(height: 24),
+            ],
+
+            // ========================================================
+            // ACTION
+            // ========================================================
+            _reveal(
+              _premiumAndActionsReveal,
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Analyse Another Photo'),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(double.infinity, 52),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // ATTRIBUTE CARD
+  // ============================================================
+
+  Widget _attributeCard({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color accent,
+  }) {
+    return Expanded(
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 4),
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Column(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.14),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, size: 19, color: accent),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              label.toUpperCase(),
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.6,
+                color: AppColors.textMuted,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              value,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // TIP CARD
+  // ============================================================
+
+  Widget _buildTipCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const CircleAvatar(
+            radius: 21,
+            backgroundColor: AppColors.secondary,
+            child: Icon(Icons.lightbulb_outline, color: AppColors.primary),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'A little tip for you',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  'Use your recommended colours as a guide, not a rule. '
+                  'The best outfit is one that also feels comfortable and '
+                  'like you.',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(height: 1.45),
+                ),
+              ],
             ),
           ),
         ],
@@ -410,7 +486,41 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
   }
 
   // ============================================================
-  // SUMMARY ITEM
+  // ANALYSIS PHOTO
+  // ============================================================
+
+  Widget _buildAnalysisPhoto() {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(AppRadius.lg),
+      child: CachedNetworkImage(
+        imageUrl: result.imageUrl,
+        height: 240,
+        width: double.infinity,
+        fit: BoxFit.cover,
+        placeholder: (context, url) => Container(
+          height: 240,
+          color: AppColors.secondary,
+          child: const Center(child: CircularProgressIndicator()),
+        ),
+        errorWidget: (context, url, error) => Container(
+          height: 240,
+          color: AppColors.secondary,
+          child: const Center(
+            child: Icon(Icons.image_not_supported_outlined, size: 50),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // PREMIUM INSIGHTS
+  //
+  // Same tip-generation logic as before -- only the visual presentation
+  // changed, using the restrained Premium accent instead of the AI accent
+  // (this content is deterministic guidance derived from the real saved
+  // result, not Claude output, so it is deliberately NOT wrapped in the
+  // AI-insight visual language).
   // ============================================================
 
   Widget _buildPremiumInsights() {
@@ -421,74 +531,77 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
 
     String stylingDirection() {
       if (season.isEmpty) {
-        return 'Build outfits around your recommended colours and keep your palette consistent across clothing and accessories.';
+        return 'Build outfits around your recommended colours and keep '
+            'your palette consistent across clothing and accessories.';
       }
 
-      return 'Use your $season palette as the main colour direction, then balance it with your recorded undertone and contrast level.';
+      return 'Use your $season palette as the main colour direction, then '
+          'balance it with your recorded undertone and contrast level.';
     }
 
     String contrastTip() {
       final value = contrast.toLowerCase();
 
       if (value.contains('high')) {
-        return 'Your contrast level can support clearer separation between outfit colours. Try pairing a stronger colour with a lighter or darker supporting shade.';
+        return 'Your contrast level can support clearer separation between '
+            'outfit colours. Try pairing a stronger colour with a lighter '
+            'or darker supporting shade.';
       }
 
       if (value.contains('low')) {
-        return 'A softer tonal outfit can work well with your contrast level. Try keeping neighbouring shades close in depth for a more blended look.';
+        return 'A softer tonal outfit can work well with your contrast '
+            'level. Try keeping neighbouring shades close in depth for a '
+            'more blended look.';
       }
 
-      return 'Your contrast level gives you flexibility. Start with one main colour and add a supporting shade without making the outfit feel too busy.';
+      return 'Your contrast level gives you flexibility. Start with one '
+          'main colour and add a supporting shade without making the '
+          'outfit feel too busy.';
     }
 
     String undertoneTip() {
       final value = undertone.toLowerCase();
 
       if (value.contains('warm')) {
-        return 'For everyday styling, explore warmer versions of your recommended colours and repeat warm accents in accessories.';
+        return 'For everyday styling, explore warmer versions of your '
+            'recommended colours and repeat warm accents in accessories.';
       }
 
       if (value.contains('cool')) {
-        return 'For everyday styling, explore cooler versions of your recommended colours and repeat cool accents in accessories.';
+        return 'For everyday styling, explore cooler versions of your '
+            'recommended colours and repeat cool accents in accessories.';
       }
 
-      return 'Your undertone can work with a broad range of shades. Compare warmer and cooler versions of a colour to find the most flattering balance.';
+      return 'Your undertone can work with a broad range of shades. '
+          'Compare warmer and cooler versions of a colour to find the most '
+          'flattering balance.';
     }
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: const Color(0xFFFDF1EA),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE7B9A3)),
+        color: AppColors.premiumAccentLight,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(
+          color: AppColors.premiumAccent.withValues(alpha: 0.35),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(
-                Icons.workspace_premium_outlined,
-                color: Color(0xFFC58F73),
-                size: 22,
-              ),
-              SizedBox(width: 8),
-              Text(
-                'Premium Colour Insights',
-                style: TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF5D4037),
-                ),
-              ),
+              const PremiumBadge(label: 'PREMIUM INSIGHTS'),
+              const Spacer(),
             ],
           ),
-          const SizedBox(height: 6),
-          const Text(
-            'Personalised styling guidance based on your recorded analysis.',
+          const SizedBox(height: 10),
+          Text(
+            'Personalised styling guidance based on your recorded '
+            'analysis.',
             style: TextStyle(
-              color: Color(0xFF7A6258),
+              color: AppColors.premiumAccentDark.withValues(alpha: 0.85),
               fontSize: 12.5,
               height: 1.4,
             ),
@@ -512,8 +625,8 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
           const SizedBox(height: 4),
           Text(
             'Profile: $undertone • $brightness • $contrast',
-            style: TextStyle(
-              color: Colors.brown.shade700,
+            style: const TextStyle(
+              color: AppColors.premiumAccentDark,
               fontSize: 11.5,
               fontWeight: FontWeight.w600,
             ),
@@ -536,11 +649,11 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
           Container(
             width: 34,
             height: 34,
-            decoration: const BoxDecoration(
-              color: Color(0xFFF5D8C7),
+            decoration: BoxDecoration(
+              color: AppColors.premiumAccent.withValues(alpha: 0.18),
               shape: BoxShape.circle,
             ),
-            child: Icon(icon, size: 18, color: Color(0xFFC58F73)),
+            child: Icon(icon, size: 18, color: AppColors.premiumAccentDark),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -551,128 +664,20 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
                   title,
                   style: const TextStyle(
                     fontWeight: FontWeight.w700,
-                    color: Color(0xFF5D4037),
+                    color: AppColors.premiumAccentDark,
                   ),
                 ),
                 const SizedBox(height: 3),
                 Text(
                   description,
                   style: TextStyle(
-                    color: Colors.brown.shade700,
+                    color: AppColors.premiumAccentDark.withValues(alpha: 0.85),
                     fontSize: 12,
                     height: 1.4,
                   ),
                 ),
               ],
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSummaryItem({
-    required IconData icon,
-    required String title,
-    required String value,
-  }) {
-    return Column(
-      children: [
-        Icon(icon, size: 22, color: const Color(0xFF8B5E4B)),
-
-        const SizedBox(height: 6),
-
-        Text(
-          title,
-          textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
-        ),
-
-        const SizedBox(height: 3),
-
-        Text(
-          value,
-          textAlign: TextAlign.center,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
-        ),
-      ],
-    );
-  }
-
-  // ============================================================
-  // DETAIL CARD
-  // ============================================================
-
-  Widget _buildDetailCard({
-    required IconData icon,
-    required String title,
-    required String value,
-  }) {
-    return Card(
-      elevation: 0,
-      margin: const EdgeInsets.only(bottom: 10),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        leading: CircleAvatar(
-          backgroundColor: const Color(0xFFF5D8C7),
-          child: Icon(icon, color: const Color(0xFFC58F73)),
-        ),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-        trailing: Text(
-          value,
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-      ),
-    );
-  }
-
-  // ============================================================
-  // COLOUR CHIP
-  // ============================================================
-
-  Widget _buildColourChip(String colour) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF5D8C7),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(
-            Icons.palette_outlined,
-            size: 17,
-            color: Color(0xFFC58F73),
-          ),
-          const SizedBox(width: 7),
-          Text(colour, style: const TextStyle(fontWeight: FontWeight.w600)),
-        ],
-      ),
-    );
-  }
-
-  // ============================================================
-  // EMPTY COLOURS
-  // ============================================================
-
-  Widget _buildEmptyColours() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        children: [
-          Icon(Icons.palette_outlined, size: 32, color: Colors.grey),
-          const SizedBox(height: 8),
-          const Text(
-            'No recommended colours are available for this result yet.',
-            textAlign: TextAlign.center,
           ),
         ],
       ),

@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
+import '../../core/constants/app_colors.dart';
+
 class AdminDashboardScreen extends StatefulWidget {
   final ValueChanged<int>? onNavigate;
 
@@ -121,7 +123,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F6F4),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Admin Dashboard'),
         elevation: 0,
@@ -153,7 +155,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     const SizedBox(height: 6),
                     Text(
                       'Here’s a quick overview of your TiB AI system.',
-                      style: TextStyle(color: Colors.grey.shade600),
+                      style: TextStyle(color: AppColors.textSecondary),
                     ),
                     const SizedBox(height: 24),
                     const Text(
@@ -185,7 +187,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     const SizedBox(height: 6),
                     Text(
                       'Distribution of customer colour seasons.',
-                      style: TextStyle(color: Colors.grey.shade600),
+                      style: TextStyle(color: AppColors.textSecondary),
                     ),
                     const SizedBox(height: 14),
                     _buildSeasonOverview(),
@@ -233,7 +235,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: Color(0xFFF0DDD2)),
+        side: const BorderSide(color: AppColors.border),
       ),
       child: InkWell(
         onTap: onTap,
@@ -248,15 +250,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 width: 42,
                 height: 42,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF5D8C7),
+                  color: AppColors.secondary,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(icon, color: const Color(0xFFC58F73)),
+                child: Icon(icon, color: AppColors.primary),
               ),
               Text(value, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
               Row(
                 children: [
-                  Expanded(child: Text(title, style: TextStyle(fontSize: 13, color: Colors.grey.shade700))),
+                  Expanded(child: Text(title, style: TextStyle(fontSize: 13, color: AppColors.textSecondary))),
                   const Icon(Icons.arrow_forward_ios, size: 11),
                 ],
               ),
@@ -289,7 +291,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: Color(0xFFF0DDD2)),
+        side: const BorderSide(color: AppColors.border),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -299,10 +301,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: const Color(0xFFFDF1EA),
+                color: AppColors.surfaceMuted,
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(icon, color: const Color(0xFFC58F73)),
+              child: Icon(icon, color: AppColors.primary),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -339,7 +341,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           child: Center(
             child: Text(
               'No analysis records available.',
-              style: TextStyle(color: Colors.grey.shade600),
+              style: TextStyle(color: AppColors.textSecondary),
             ),
           ),
         ),
@@ -358,13 +360,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           margin: const EdgeInsets.only(bottom: 10),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
-            side: const BorderSide(color: Color(0xFFF0DDD2)),
+            side: const BorderSide(color: AppColors.border),
           ),
           child: ListTile(
             onTap: () => _goTo(2),
             leading: const CircleAvatar(
-              backgroundColor: Color(0xFFF5D8C7),
-              child: Icon(Icons.analytics_outlined, color: Color(0xFFC58F73)),
+              backgroundColor: AppColors.secondary,
+              child: Icon(Icons.analytics_outlined, color: AppColors.primary),
             ),
             title: Text(season, style: const TextStyle(fontWeight: FontWeight.w600)),
             subtitle: Text(undertone),
@@ -373,7 +375,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               children: [
                 Text(
                   createdAt == null ? '--' : _formatDate(createdAt.toDate()),
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                  style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
                 ),
                 const SizedBox(width: 8),
                 const Icon(Icons.chevron_right, size: 18),
@@ -391,14 +393,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: Color(0xFFF0DDD2)),
+        side: const BorderSide(color: AppColors.border),
       ),
       child: ListTile(
         onTap: onTap,
         contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
         leading: CircleAvatar(
-          backgroundColor: const Color(0xFFF5D8C7),
-          child: Icon(icon, color: const Color(0xFFC58F73)),
+          backgroundColor: AppColors.secondary,
+          child: Icon(icon, color: AppColors.primary),
         ),
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
         subtitle: Padding(
@@ -421,10 +423,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               width: 48,
               height: 48,
               decoration: BoxDecoration(
-                color: Colors.green.shade50,
+                color: AppColors.success.withValues(alpha: 0.12),
                 shape: BoxShape.circle,
               ),
-              child: Icon(Icons.check_circle, color: Colors.green.shade700),
+              child: Icon(Icons.check_circle, color: AppColors.success),
             ),
             const SizedBox(width: 16),
             const Expanded(

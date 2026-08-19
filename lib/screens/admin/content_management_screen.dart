@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
+import '../../core/constants/app_colors.dart';
 import 'content_detail_screen.dart';
 
 class ContentManagementScreen extends StatefulWidget {
@@ -79,7 +80,9 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('We couldn’t load the content. Please try again.'),
+          content: Text(
+            'We couldn’t load the content. Please try again.',
+          ),
         ),
       );
     }
@@ -93,8 +96,8 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
     final query = searchController.text.trim().toLowerCase();
 
     if (!mounted) {
-      return;
-    }
+        return;
+      }
 
     setState(() {
       filteredContents = contents.where((document) {
@@ -233,7 +236,9 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Could not update this content. Please try again.'),
+          content: Text(
+            'Could not update this content. Please try again.',
+          ),
         ),
       );
     }
@@ -302,7 +307,9 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Could not delete this content. Please try again.'),
+          content: Text(
+            'Could not delete this content. Please try again.',
+          ),
         ),
       );
     }
@@ -351,13 +358,13 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: active ? Colors.green.shade50 : Colors.grey.shade200,
+        color: active ? AppColors.success.withValues(alpha: 0.12) : AppColors.surfaceMuted,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
         text,
         style: TextStyle(
-          color: active ? Colors.green.shade700 : Colors.grey.shade700,
+          color: active ? AppColors.success : AppColors.textSecondary,
           fontSize: 11,
           fontWeight: FontWeight.bold,
         ),
@@ -474,7 +481,7 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
                 child: Text(
                   '${filteredContents.length} content item${filteredContents.length == 1 ? '' : 's'}',
                   style: TextStyle(
-                    color: Colors.grey.shade600,
+                    color: AppColors.textSecondary,
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                   ),
@@ -502,7 +509,7 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
                               const Icon(
                                 Icons.library_books_outlined,
                                 size: 64,
-                                color: Color(0xFFC58F73),
+                                color: AppColors.primary,
                               ),
                               const SizedBox(height: 16),
                               const Text(
@@ -519,7 +526,9 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
                                     ? 'Create your first learning resource to show it here.'
                                     : 'Try a different search or content type.',
                                 textAlign: TextAlign.center,
-                                style: TextStyle(color: Colors.grey.shade600),
+                                style: TextStyle(
+                                  color: AppColors.textSecondary,
+                                ),
                               ),
                             ],
                           ),
@@ -560,7 +569,9 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
                           elevation: 0,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(18),
-                            side: const BorderSide(color: Color(0xFFF0DDD2)),
+                            side: const BorderSide(
+                              color: AppColors.border,
+                            ),
                           ),
                           child: ListTile(
                             onTap: () {
@@ -573,11 +584,11 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
                             ),
 
                             leading: CircleAvatar(
-                              backgroundColor: const Color(0xFFF5D8C7),
+                              backgroundColor: AppColors.secondary,
 
                               child: const Icon(
                                 Icons.library_books_outlined,
-                                color: Color(0xFFC58F73),
+                                color: AppColors.primary,
                               ),
                             ),
 
@@ -855,7 +866,9 @@ class _ContentFormDialogState extends State<_ContentFormDialog> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Could not save this content. Please try again.'),
+          content: Text(
+            'Could not save this content. Please try again.',
+          ),
         ),
       );
     }
@@ -1024,7 +1037,7 @@ class _ContentFormDialogState extends State<_ContentFormDialog> {
                   height: 18,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: Colors.white,
+                    color: AppColors.background,
                   ),
                 )
               : const Icon(Icons.save),

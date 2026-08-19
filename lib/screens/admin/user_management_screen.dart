@@ -2,6 +2,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../../core/constants/app_colors.dart';
+import '../../services/firestore_service.dart';
+import '../../services/storage_service.dart';
 import 'customer_detail_screen.dart';
 
 class UserManagementScreen extends StatefulWidget {
@@ -223,6 +226,12 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   Future<void> deleteCustomer(
     QueryDocumentSnapshot<Map<String, dynamic>> document,
   ) async {
+    // Guard against a second delete being triggered while one is
+    // already running (e.g. a fast double-tap on the delete icon).
+    if (isDeleting) {
+      return;
+    }
+
     final data = document.data();
 
     final name = data['name'] as String? ?? 'Unknown User';
@@ -259,6 +268,12 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     // ------------------------------------------------------------
     // Confirmation dialog
     // ------------------------------------------------------------
+    //
+    // Wording is deliberately specific about what this permanently
+    // removes (their profile, wardrobe, preferences and analysis
+    // records) and does not claim their Firebase Auth login credential
+    // is removed, since this action cannot do that — see the
+    // "Delete Permanently" flow below.
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -266,8 +281,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         return AlertDialog(
           title: const Text('Delete Customer?'),
           content: Text(
-            'This will permanently delete the Firestore '
-            'profile and all stored analysis records for:\n\n'
+            'This permanently removes this customer\'s account data — '
+            'their profile, wardrobe, style preferences, analysis '
+            'records, and any stored photos — for:\n\n'
             '$name\n$email\n\n'
             'This action cannot be undone.',
           ),
@@ -279,11 +295,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               child: const Text('Cancel'),
             ),
             FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: Colors.red),
+              style: FilledButton.styleFrom(backgroundColor: AppColors.error),
               onPressed: () {
                 Navigator.pop(dialogContext, true);
               },
-              child: const Text('Delete'),
+              child: const Text('Delete Permanently'),
             ),
           ],
         );
@@ -302,64 +318,110 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       isDeleting = true;
     });
 
+    // ------------------------------------------------------------
+    // Loading state: a non-dismissible dialog so the admin can see
+    // deletion is in progress and cannot trigger it again while it
+    // runs (the delete/disable buttons are also already disabled via
+    // `isDeleting` above, but this adds a visible, explicit state).
+    // ------------------------------------------------------------
+
+    if (mounted) {
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const AlertDialog(
+          content: Row(
+            children: [
+              SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2.5),
+              ),
+              SizedBox(width: 20),
+              Expanded(child: Text('Deleting customer...')),
+            ],
+          ),
+        ),
+      );
+    }
+
+    CustomerDeletionResult? result;
+    Object? deletionError;
+
     try {
       // ----------------------------------------------------------
-      // Delete all analysis documents first.
+      // Delete every Firestore document this customer owns —
+      // wardrobe, preferences, analysis, then their profile itself.
+      // This is the step that must succeed for the customer to be
+      // considered deleted.
       // ----------------------------------------------------------
-
-      final analysisSnapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
-          .collection('analysis')
-          .get();
-
-      final batch = FirebaseFirestore.instance.batch();
-
-      for (final analysis in analysisSnapshot.docs) {
-        batch.delete(analysis.reference);
-      }
-
-      // ----------------------------------------------------------
-      // Delete user profile.
-      // ----------------------------------------------------------
-
-      batch.delete(FirebaseFirestore.instance.collection('users').doc(userId));
-
-      await batch.commit();
-
-      if (!mounted) {
-      return;
+      result = await FirestoreService.deleteCustomerData(userId);
+    } catch (e) {
+      deletionError = e;
     }
+
+    // ----------------------------------------------------------
+    // Best-effort Google Drive cleanup. This runs only if the
+    // Firestore deletion above actually succeeded, and never blocks
+    // or overrides the Firestore outcome: a Drive failure here does
+    // not mean the customer's account data still exists.
+    // ----------------------------------------------------------
+    if (result != null && result.imageUrls.isNotEmpty) {
+      await Future.wait(
+        result.imageUrls.map(StorageService.deleteImageByUrl),
+      );
+    }
+
+    if (mounted) {
+      // Dismiss the "Deleting customer..." dialog.
+      Navigator.of(context, rootNavigator: true).pop();
+    }
+
+    if (result != null) {
+      if (!mounted) {
+        return;
+      }
 
       await loadUsers();
 
       if (!mounted) {
-      return;
-    }
+        return;
+      }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Customer data deleted successfully.'),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) {
-      return;
-    }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text(
-            'Could not delete this customer data. Please try again.',
+            'Customer deleted: ${result.wardrobeItemsDeleted} wardrobe '
+            'item(s), ${result.preferencesDeleted} preference record(s) '
+            'and ${result.analysisRecordsDeleted} analysis record(s) '
+            'removed.',
           ),
         ),
       );
-    } finally {
-      if (mounted) {
-        setState(() {
-          isDeleting = false;
-        });
+    } else {
+      if (!mounted) {
+        return;
       }
+
+      // Never claim success when the Firestore deletion failed or only
+      // partially completed. `deleteCustomerData` deletes in chunked
+      // batches, so on failure some chunks may already be committed —
+      // report this honestly rather than silently swallowing it.
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Could not fully delete this customer. Some data may have '
+            'already been removed — please refresh and try again. '
+            '(${deletionError ?? 'Unknown error'})',
+          ),
+        ),
+      );
+    }
+
+    if (mounted) {
+      setState(() {
+        isDeleting = false;
+      });
     }
   }
 
@@ -367,17 +429,17 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   // STATUS CHIP
   // ============================================================
 
-  Widget _statusChip(String text, MaterialColor color) {
+  Widget _statusChip(String text, Color background, Color foreground) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
-        color: color.shade50,
+        color: background,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
         text,
         style: TextStyle(
-          color: color.shade700,
+          color: foreground,
           fontSize: 10,
           fontWeight: FontWeight.bold,
         ),
@@ -428,7 +490,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(18),
         side: const BorderSide(
-          color: Color(0xFFF0DDD2),
+          color: AppColors.border,
         ),
       ),
       child: InkWell(
@@ -447,10 +509,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   // ==================================================
                   CircleAvatar(
                     radius: 28,
-                    backgroundColor: const Color(0xFFF5D8C7),
+                    backgroundColor: AppColors.secondary,
                     child: const Icon(
                       Icons.person,
-                      color: Color(0xFFC58F73),
+                      color: AppColors.primary,
                       size: 28,
                     ),
                   ),
@@ -481,7 +543,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            color: Colors.grey.shade600,
+                            color: AppColors.textSecondary,
                             fontSize: 13,
                           ),
                         ),
@@ -492,15 +554,23 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                           spacing: 6,
                           runSpacing: 5,
                           children: [
-                            _statusChip(role.toUpperCase(), Colors.blue),
+                            _statusChip(
+                              role.toUpperCase(),
+                              AppColors.surfaceMuted,
+                              AppColors.primaryDark,
+                            ),
                             _statusChip(
                               isActive ? 'ACTIVE' : 'INACTIVE',
-                              isActive ? Colors.green : Colors.red,
+                              isActive
+                                  ? AppColors.success.withValues(alpha: 0.12)
+                                  : AppColors.error.withValues(alpha: 0.12),
+                              isActive ? AppColors.success : AppColors.error,
                             ),
                             if (isPremium)
                               _statusChip(
                                 'PREMIUM',
-                                Colors.amber,
+                                AppColors.premiumAccentLight,
+                                AppColors.premiumAccentDark,
                               ),
                           ],
                         ),
@@ -586,7 +656,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                         : () {
                             deleteCustomer(document);
                           },
-                    icon: const Icon(Icons.delete_outline, color: Colors.red),
+                    icon: const Icon(Icons.delete_outline, color: AppColors.error),
                   ),
                 ],
               ),
@@ -605,12 +675,12 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: const Color(0xFFF9F3EF),
+        color: AppColors.surfaceMuted,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         children: [
-          Icon(icon, size: 19, color: const Color(0xFFC58F73)),
+          Icon(icon, size: 19, color: AppColors.primary),
 
           const SizedBox(width: 8),
 
@@ -622,7 +692,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+                  style: TextStyle(fontSize: 10, color: AppColors.textSecondary),
                 ),
 
                 const SizedBox(height: 2),
@@ -729,7 +799,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     '${filteredUsers.length == 1 ? 'user' : 'users'}',
 
                     style: TextStyle(
-                      color: Colors.grey.shade700,
+                      color: AppColors.textSecondary,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -738,7 +808,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
                   Text(
                     'Total: ${users.length}',
-                    style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
                   ),
                 ],
               ),
@@ -777,7 +847,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                     : 'Try a different name, email or role.',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
-                                  color: Colors.grey.shade600,
+                                  color: AppColors.textSecondary,
                                 ),
                               ),
                             ],

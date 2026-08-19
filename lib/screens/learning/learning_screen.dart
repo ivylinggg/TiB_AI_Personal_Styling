@@ -2,6 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../../core/constants/app_colors.dart';
+
 class LearningScreen extends StatefulWidget {
   const LearningScreen({super.key});
 
@@ -40,7 +42,7 @@ class _LearningScreenState extends State<LearningScreen> {
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFDF9F6),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Learning'),
         backgroundColor: Colors.transparent,
@@ -86,7 +88,7 @@ class _LearningScreenState extends State<LearningScreen> {
             'Explore colour, styling and personal fashion tips.',
             style: Theme.of(
               context,
-            ).textTheme.bodyMedium?.copyWith(color: Colors.grey.shade700),
+            ).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
           ),
           const SizedBox(height: 12),
           _buildPremiumStatusBanner(),
@@ -164,12 +166,10 @@ class _LearningScreenState extends State<LearningScreen> {
         vertical: 11,
       ),
       decoration: BoxDecoration(
-        color: _isPremium
-            ? const Color(0xFFF5D8C7)
-            : const Color(0xFFF7F1ED),
+        color: _isPremium ? AppColors.secondary : AppColors.surfaceMuted,
         borderRadius: BorderRadius.circular(15),
         border: Border.all(
-          color: const Color(0xFFF0DDD2),
+          color: AppColors.border,
         ),
       ),
       child: Row(
@@ -179,7 +179,7 @@ class _LearningScreenState extends State<LearningScreen> {
                 ? Icons.workspace_premium
                 : Icons.menu_book_outlined,
             size: 20,
-            color: const Color(0xFFC58F73),
+            color: AppColors.primary,
           ),
           const SizedBox(width: 9),
           Expanded(
@@ -188,7 +188,7 @@ class _LearningScreenState extends State<LearningScreen> {
                   ? 'Premium access is active — enjoy all learning content.'
                   : 'Free access — Premium guides are marked with a lock.',
               style: const TextStyle(
-                color: Color(0xFF6F5144),
+                color: AppColors.textPrimary,
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
               ),
@@ -207,7 +207,7 @@ class _LearningScreenState extends State<LearningScreen> {
           children: [
             Icon(
               Icons.workspace_premium_outlined,
-              color: Color(0xFFC58F73),
+              color: AppColors.primary,
             ),
             SizedBox(width: 8),
             Expanded(
@@ -305,12 +305,12 @@ class _LearningScreenState extends State<LearningScreen> {
     return Card(
       elevation: 0,
       margin: EdgeInsets.zero,
-      color: Colors.white,
+      color: AppColors.surface,
       clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
         side: const BorderSide(
-          color: Color(0xFFF0DDD2),
+          color: AppColors.border,
         ),
       ),
       child: InkWell(
@@ -350,14 +350,14 @@ class _LearningScreenState extends State<LearningScreen> {
                       if (isFeatured)
                         const Icon(
                           Icons.star,
-                          color: Colors.amber,
+                          color: AppColors.primary,
                           size: 20,
                         ),
                       if (isPremiumContent) ...[
                         const SizedBox(width: 7),
                         const Icon(
                           Icons.workspace_premium_outlined,
-                          color: Color(0xFFC58F73),
+                          color: AppColors.primary,
                           size: 19,
                         ),
                       ],
@@ -424,7 +424,7 @@ class _LearningScreenState extends State<LearningScreen> {
         fit: BoxFit.cover,
         errorBuilder: (context, error, stackTrace) {
           return Container(
-            color: const Color(0xFFF5D8C7),
+            color: AppColors.secondary,
             child: const Center(
               child: Icon(Icons.image_not_supported_outlined, size: 45),
             ),
@@ -436,7 +436,7 @@ class _LearningScreenState extends State<LearningScreen> {
           }
 
           return Container(
-            color: const Color(0xFFF5D8C7),
+            color: AppColors.secondary,
             child: const Center(
               child: CircularProgressIndicator(
                 strokeWidth: 2,
@@ -456,7 +456,7 @@ class _LearningScreenState extends State<LearningScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: const Color(0xFFF5D8C7),
+        color: AppColors.secondary,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
@@ -464,7 +464,7 @@ class _LearningScreenState extends State<LearningScreen> {
         style: const TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w600,
-          color: Color(0xFF8B5E4B),
+          color: AppColors.primaryDark,
         ),
       ),
     );
@@ -516,10 +516,10 @@ class _LearningScreenState extends State<LearningScreen> {
         Center(
           child: Column(
             children: [
-              Icon(
+              const Icon(
                 Icons.menu_book_outlined,
                 size: 70,
-                color: Colors.grey.shade400,
+                color: AppColors.textMuted,
               ),
               const SizedBox(height: 16),
               Text(
@@ -534,7 +534,7 @@ class _LearningScreenState extends State<LearningScreen> {
                 child: Text(
                   'New colour guides, styling tips and fashion lessons will appear here when they’re published.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey.shade600),
+                  style: const TextStyle(color: AppColors.textSecondary),
                 ),
               ),
             ],
@@ -563,10 +563,10 @@ class _LearningScreenState extends State<LearningScreen> {
               style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            Text(
+            const Text(
               'Please check your connection and try again.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey.shade600),
+              style: TextStyle(color: AppColors.textSecondary),
             ),
             const SizedBox(height: 20),
             FilledButton(
@@ -639,14 +639,14 @@ class _ContentDetailScreen extends StatelessWidget {
                   const SizedBox(width: 8),
                   const Icon(
                     Icons.star,
-                    color: Colors.amber,
+                    color: AppColors.primary,
                   ),
                 ],
                 if (isPremiumContent) ...[
                   const SizedBox(width: 8),
                   const Icon(
                     Icons.workspace_premium_outlined,
-                    color: Color(0xFFC58F73),
+                    color: AppColors.primary,
                   ),
                 ],
               ],
@@ -662,13 +662,13 @@ class _ContentDetailScreen extends StatelessWidget {
                     const Icon(
                       Icons.auto_awesome,
                       size: 16,
-                      color: Color(0xFFC58F73),
+                      color: AppColors.primary,
                     ),
                     const SizedBox(width: 6),
                     Text(
                       'Featured guide',
                       style: TextStyle(
-                        color: Colors.brown.shade600,
+                        color: AppColors.primaryDark,
                         fontWeight: FontWeight.w600,
                         fontSize: 12,
                       ),
@@ -713,7 +713,7 @@ class _ContentDetailScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: const Color(0xFFF5D8C7),
+        color: AppColors.secondary,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
@@ -721,7 +721,7 @@ class _ContentDetailScreen extends StatelessWidget {
         style: const TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w600,
-          color: Color(0xFF8B5E4B),
+          color: AppColors.primaryDark,
         ),
       ),
     );

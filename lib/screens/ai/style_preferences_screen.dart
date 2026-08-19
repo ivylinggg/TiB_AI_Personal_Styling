@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
+import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_gradients.dart';
 import '../../screens/auth/auth_service.dart';
 import '../../services/style_preference_service.dart';
 
@@ -12,11 +14,11 @@ class StylePreferencesScreen extends StatefulWidget {
 }
 
 class _StylePreferencesScreenState extends State<StylePreferencesScreen> {
-  static const Color _brown = Color(0xFF8E5E46);
-  static const Color _softPink = Color(0xFFF8E3DC);
-  static const Color _cream = Color(0xFFFFFAF7);
-  static const Color _text = Color(0xFF302A27);
-  static const Color _muted = Color(0xFF756B67);
+  static const Color _brown = AppColors.primary;
+  static const Color _softPink = AppColors.secondary;
+  static const Color _cream = AppColors.background;
+  static const Color _text = AppColors.textPrimary;
+  static const Color _muted = AppColors.textSecondary;
 
   final Set<String> _styles = <String>{};
   final Set<String> _preferences = <String>{};
@@ -241,7 +243,7 @@ class _StylePreferencesScreenState extends State<StylePreferencesScreen> {
                                 height: 18,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
-                                  color: Colors.white,
+                                  color: _cream,
                                 ),
                               )
                             : const Icon(Icons.favorite_border_rounded),
@@ -250,7 +252,7 @@ class _StylePreferencesScreenState extends State<StylePreferencesScreen> {
                         ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: _brown,
-                          foregroundColor: Colors.white,
+                          foregroundColor: _cream,
                           minimumSize: const Size.fromHeight(52),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16),
@@ -273,12 +275,10 @@ class _StylePreferencesScreenState extends State<StylePreferencesScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
-        color: isPremium
-            ? const Color(0xFFF5D8C7)
-            : const Color(0xFFF7F1ED),
+        color: isPremium ? AppColors.secondary : AppColors.surfaceMuted,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: const Color(0xFFF0DDD2),
+          color: AppColors.border,
         ),
       ),
       child: Row(
@@ -317,10 +317,10 @@ class _StylePreferencesScreenState extends State<StylePreferencesScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: const Color(0xFFFDF1EA),
+        color: AppColors.surfaceMuted,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: const Color(0xFFE7B9A3),
+          color: AppColors.secondary,
         ),
       ),
       child: Column(
@@ -439,9 +439,7 @@ class _StylePreferencesScreenState extends State<StylePreferencesScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFFF4D5C8), Color(0xFFF9EAE5)],
-        ),
+        gradient: AppGradients.premium,
         borderRadius: BorderRadius.circular(24),
       ),
       child: const Row(
@@ -472,9 +470,9 @@ class _StylePreferencesScreenState extends State<StylePreferencesScreen> {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _cream,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFF0DDD2)),
+        border: Border.all(color: AppColors.border),
       ),
       child: Row(
         children: [
@@ -531,7 +529,7 @@ class _StylePreferencesScreenState extends State<StylePreferencesScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       child: Material(
-        color: Colors.white,
+        color: _cream,
         borderRadius: BorderRadius.circular(18),
         child: InkWell(
           onTap: onTap,
@@ -550,7 +548,7 @@ class _StylePreferencesScreenState extends State<StylePreferencesScreen> {
                   ),
                   child: Icon(
                     selected ? Icons.check_rounded : Icons.add_rounded,
-                    color: selected ? Colors.white : _brown,
+                    color: selected ? _cream : _brown,
                   ),
                 ),
                 const SizedBox(width: 13),

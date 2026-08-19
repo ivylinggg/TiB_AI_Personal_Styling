@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
+import '../../core/constants/app_colors.dart';
+
 class PremiumManagementScreen extends StatefulWidget {
   const PremiumManagementScreen({super.key});
 
@@ -126,7 +128,7 @@ class _PremiumManagementScreenState extends State<PremiumManagementScreen> {
                     Text(
                       'Please check your connection and try again.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.grey.shade600),
+                      style: TextStyle(color: AppColors.textSecondary),
                     ),
                   ],
                 ),
@@ -158,7 +160,7 @@ class _PremiumManagementScreenState extends State<PremiumManagementScreen> {
                 child: Text(
                   'Manage premium access for individual user accounts.',
                   style: TextStyle(
-                    color: Colors.grey.shade600,
+                    color: AppColors.textSecondary,
                     fontSize: 13,
                   ),
                 ),
@@ -215,7 +217,7 @@ class _PremiumManagementScreenState extends State<PremiumManagementScreen> {
                                     : 'Try a different name or email.',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
-                                  color: Colors.grey.shade600,
+                                  color: AppColors.textSecondary,
                                 ),
                               ),
                             ],
@@ -237,8 +239,8 @@ class _PremiumManagementScreenState extends State<PremiumManagementScreen> {
                             child: ListTile(
                               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                               leading: CircleAvatar(
-                                backgroundColor: isPremium ? const Color(0xFFF5D8C7) : const Color(0xFFF2F2F2),
-                                child: Icon(isPremium ? Icons.workspace_premium : Icons.person_outline, color: isPremium ? const Color(0xFFC58F73) : Colors.grey),
+                                backgroundColor: isPremium ? AppColors.secondary : AppColors.surfaceMuted,
+                                child: Icon(isPremium ? Icons.workspace_premium : Icons.person_outline, color: isPremium ? AppColors.primary : AppColors.textMuted),
                               ),
                               title: Text(name, style: const TextStyle(fontWeight: FontWeight.w600)),
                               subtitle: Text(email, maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -258,14 +260,14 @@ class _PremiumManagementScreenState extends State<PremiumManagementScreen> {
   Widget _stat(String title, int value, IconData icon) {
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: const Color(0xFFFDF9F6), borderRadius: BorderRadius.circular(14)),
+      decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(14)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: const Color(0xFFC58F73), size: 20),
+          Icon(icon, color: AppColors.primary, size: 20),
           const SizedBox(height: 8),
           Text('$value', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-          Text(title, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+          Text(title, style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
         ],
       ),
     );

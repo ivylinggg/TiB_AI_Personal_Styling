@@ -2,6 +2,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_gradients.dart';
+
 class PremiumScreen extends StatefulWidget {
   const PremiumScreen({super.key});
 
@@ -10,11 +13,11 @@ class PremiumScreen extends StatefulWidget {
 }
 
 class _PremiumScreenState extends State<PremiumScreen> {
-  static const Color _brown = Color(0xFF8E5E46);
-  static const Color _cream = Color(0xFFFFFAF7);
-  static const Color _soft = Color(0xFFF8E3DC);
-  static const Color _text = Color(0xFF302A27);
-  static const Color _muted = Color(0xFF756B67);
+  static const Color _brown = AppColors.primary;
+  static const Color _cream = AppColors.background;
+  static const Color _soft = AppColors.secondary;
+  static const Color _text = AppColors.textPrimary;
+  static const Color _muted = AppColors.textSecondary;
 
   bool _loading = true;
   bool _isPremium = false;
@@ -111,12 +114,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [
-            Color(0xFFF4D5C8),
-            Color(0xFFF9EAE5),
-          ],
-        ),
+        gradient: AppGradients.premium,
         borderRadius: BorderRadius.circular(26),
       ),
       child: Column(
@@ -125,12 +123,12 @@ class _PremiumScreenState extends State<PremiumScreen> {
             width: 70,
             height: 70,
             decoration: const BoxDecoration(
-              color: Colors.white,
+              color: _cream,
               shape: BoxShape.circle,
             ),
             child: const Icon(
               Icons.workspace_premium_rounded,
-              color: Color(0xFFB27B27),
+              color: AppColors.premiumAccentDark,
               size: 38,
             ),
           ),
@@ -199,10 +197,10 @@ class _PremiumScreenState extends State<PremiumScreen> {
             margin: const EdgeInsets.only(bottom: 10),
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: _cream,
               borderRadius: BorderRadius.circular(18),
               border: Border.all(
-                color: const Color(0xFFF0DDD2),
+                color: AppColors.border,
               ),
             ),
             child: Row(
@@ -250,10 +248,10 @@ class _PremiumScreenState extends State<PremiumScreen> {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: const Color(0xFFFDF1EA),
+        color: AppColors.surfaceMuted,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: const Color(0xFFF0DDD2),
+          color: AppColors.border,
         ),
       ),
       child: Row(
@@ -298,10 +296,10 @@ class _PremiumScreenState extends State<PremiumScreen> {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _cream,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: const Color(0xFFF0DDD2),
+          color: AppColors.border,
         ),
       ),
       child: Row(
@@ -310,7 +308,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
             _isPremium
                 ? Icons.check_circle_rounded
                 : Icons.info_outline_rounded,
-            color: _isPremium ? Colors.green : _brown,
+            color: _isPremium ? AppColors.success : _brown,
             size: 28,
           ),
           const SizedBox(width: 12),

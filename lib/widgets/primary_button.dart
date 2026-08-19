@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/constants/app_colors.dart';
 import '../core/constants/app_gradients.dart';
 import '../core/constants/app_radius.dart';
 
@@ -28,7 +29,7 @@ class PrimaryButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(AppRadius.lg),
           boxShadow: [
             BoxShadow(
-              color: Colors.pink.withValues(alpha: 0.25),
+              color: AppColors.primaryDark.withValues(alpha: 0.25),
               blurRadius: 18,
               offset: const Offset(0, 8),
             ),
@@ -38,7 +39,7 @@ class PrimaryButton extends StatelessWidget {
           onPressed: onPressed,
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.transparent,
-            foregroundColor: Colors.white,
+            foregroundColor: AppColors.background,
             shadowColor: Colors.transparent,
             elevation: 0,
             shape: RoundedRectangleBorder(

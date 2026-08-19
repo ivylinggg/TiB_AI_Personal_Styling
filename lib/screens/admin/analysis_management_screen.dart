@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
+import '../../core/constants/app_colors.dart';
 import 'analysis_result_detail_screen.dart';
 
 class AnalysisManagementScreen extends StatefulWidget {
@@ -198,7 +199,7 @@ class _AnalysisManagementScreenState extends State<AnalysisManagementScreen> {
 
                 Text(
                   'Monitor customer colour analysis activity.',
-                  style: TextStyle(color: Colors.grey.shade600),
+                  style: TextStyle(color: AppColors.textSecondary),
                 ),
 
                 const SizedBox(height: 18),
@@ -326,7 +327,7 @@ class _AnalysisManagementScreenState extends State<AnalysisManagementScreen> {
                       ),
 
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF5D8C7),
+                        color: AppColors.secondary,
 
                         borderRadius: BorderRadius.circular(20),
                       ),
@@ -336,7 +337,7 @@ class _AnalysisManagementScreenState extends State<AnalysisManagementScreen> {
 
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFFC58F73),
+                          color: AppColors.primary,
                         ),
                       ),
                     ),
@@ -371,11 +372,11 @@ class _AnalysisManagementScreenState extends State<AnalysisManagementScreen> {
       padding: const EdgeInsets.all(20),
 
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
 
         borderRadius: BorderRadius.circular(20),
 
-        border: Border.all(color: const Color(0xFFF0DDD2)),
+        border: Border.all(color: AppColors.border),
       ),
 
       child: Row(
@@ -385,14 +386,14 @@ class _AnalysisManagementScreenState extends State<AnalysisManagementScreen> {
             height: 58,
 
             decoration: BoxDecoration(
-              color: const Color(0xFFF5D8C7),
+              color: AppColors.secondary,
 
               borderRadius: BorderRadius.circular(17),
             ),
 
             child: const Icon(
               Icons.analytics_outlined,
-              color: Color(0xFFC58F73),
+              color: AppColors.primary,
               size: 30,
             ),
           ),
@@ -407,7 +408,7 @@ class _AnalysisManagementScreenState extends State<AnalysisManagementScreen> {
                 Text(
                   'Total Analysis Records',
 
-                  style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                  style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
                 ),
 
                 const SizedBox(height: 4),
@@ -424,7 +425,7 @@ class _AnalysisManagementScreenState extends State<AnalysisManagementScreen> {
             ),
           ),
 
-          const Icon(Icons.trending_up, color: Color(0xFFC58F73)),
+          const Icon(Icons.trending_up, color: AppColors.primary),
         ],
       ),
     );
@@ -443,11 +444,11 @@ class _AnalysisManagementScreenState extends State<AnalysisManagementScreen> {
       padding: const EdgeInsets.all(16),
 
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
 
         borderRadius: BorderRadius.circular(18),
 
-        border: Border.all(color: const Color(0xFFF0DDD2)),
+        border: Border.all(color: AppColors.border),
       ),
 
       child: Row(
@@ -457,12 +458,12 @@ class _AnalysisManagementScreenState extends State<AnalysisManagementScreen> {
             height: 42,
 
             decoration: BoxDecoration(
-              color: const Color(0xFFFDF1EA),
+              color: AppColors.surfaceMuted,
 
               borderRadius: BorderRadius.circular(12),
             ),
 
-            child: Icon(icon, color: const Color(0xFFC58F73), size: 22),
+            child: Icon(icon, color: AppColors.primary, size: 22),
           ),
 
           const SizedBox(width: 10),
@@ -475,7 +476,7 @@ class _AnalysisManagementScreenState extends State<AnalysisManagementScreen> {
                 Text(
                   title,
 
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
                 ),
 
                 const SizedBox(height: 3),
@@ -556,7 +557,7 @@ class _AnalysisManagementScreenState extends State<AnalysisManagementScreen> {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(18),
         side: const BorderSide(
-          color: Color(0xFFF0DDD2),
+          color: AppColors.border,
         ),
       ),
       clipBehavior: Clip.antiAlias,
@@ -600,7 +601,7 @@ class _AnalysisManagementScreenState extends State<AnalysisManagementScreen> {
 
                       overflow: TextOverflow.ellipsis,
 
-                      style: TextStyle(color: Colors.grey.shade700),
+                      style: TextStyle(color: AppColors.textSecondary),
                     ),
 
                     const SizedBox(height: 6),
@@ -612,7 +613,7 @@ class _AnalysisManagementScreenState extends State<AnalysisManagementScreen> {
 
                       style: TextStyle(
                         fontSize: 12,
-                        color: Colors.grey.shade600,
+                        color: AppColors.textSecondary,
                       ),
                     ),
                   ],
@@ -638,14 +639,14 @@ class _AnalysisManagementScreenState extends State<AnalysisManagementScreen> {
         height: 70,
 
         decoration: BoxDecoration(
-          color: const Color(0xFFF5D8C7),
+          color: AppColors.secondary,
 
           borderRadius: BorderRadius.circular(14),
         ),
 
         child: const Icon(
         Icons.auto_awesome,
-        color: Color(0xFFC58F73),
+        color: AppColors.primary,
         size: 30,
       ),
       );
@@ -667,11 +668,11 @@ class _AnalysisManagementScreenState extends State<AnalysisManagementScreen> {
             width: 70,
             height: 70,
 
-            color: const Color(0xFFF5D8C7),
+            color: AppColors.secondary,
 
             child: const Icon(
               Icons.image_not_supported_outlined,
-              color: Color(0xFFC58F73),
+              color: AppColors.primary,
             ),
           );
         },
@@ -688,14 +689,14 @@ class _AnalysisManagementScreenState extends State<AnalysisManagementScreen> {
       padding: const EdgeInsets.all(30),
 
       decoration: BoxDecoration(
-        color: Colors.grey.shade100,
+        color: AppColors.surfaceMuted,
 
         borderRadius: BorderRadius.circular(18),
       ),
 
       child: Column(
         children: [
-          Icon(Icons.analytics_outlined, size: 60, color: Colors.grey.shade500),
+          Icon(Icons.analytics_outlined, size: 60, color: AppColors.textMuted),
 
           const SizedBox(height: 12),
 
@@ -716,7 +717,7 @@ class _AnalysisManagementScreenState extends State<AnalysisManagementScreen> {
                 : 'Try changing your search or season filter.',
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: Colors.grey.shade600,
+              color: AppColors.textSecondary,
             ),
           ),
         ],
@@ -756,7 +757,7 @@ class _AnalysisManagementScreenState extends State<AnalysisManagementScreen> {
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 13,
-                color: Colors.grey.shade600,
+                color: AppColors.textSecondary,
               ),
             ),
 

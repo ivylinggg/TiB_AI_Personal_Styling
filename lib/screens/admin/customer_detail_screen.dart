@@ -2,6 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../../core/constants/app_colors.dart';
+
 class CustomerDetailScreen extends StatelessWidget {
   final QueryDocumentSnapshot<Map<String, dynamic>> userDocument;
 
@@ -51,7 +53,7 @@ class CustomerDetailScreen extends StatelessWidget {
     final isPremium = _boolValue('isPremium', false);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFDF9F6),
+      backgroundColor: AppColors.background,
 
       appBar: AppBar(
         title: const Text('Customer Detail'),
@@ -231,18 +233,18 @@ class CustomerDetailScreen extends StatelessWidget {
       padding: const EdgeInsets.all(20),
 
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFF0DDD2)),
+        border: Border.all(color: AppColors.border),
       ),
 
       child: Row(
         children: [
           CircleAvatar(
             radius: 38,
-            backgroundColor: const Color(0xFFF5D8C7),
+            backgroundColor: AppColors.secondary,
 
-            child: const Icon(Icons.person, size: 42, color: Color(0xFFC58F73)),
+            child: const Icon(Icons.person, size: 42, color: AppColors.primary),
           ),
 
           const SizedBox(width: 16),
@@ -270,7 +272,7 @@ class CustomerDetailScreen extends StatelessWidget {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
 
-                  style: TextStyle(color: Colors.grey.shade700),
+                  style: TextStyle(color: AppColors.textSecondary),
                 ),
 
                 const SizedBox(height: 10),
@@ -280,16 +282,24 @@ class CustomerDetailScreen extends StatelessWidget {
                   runSpacing: 6,
 
                   children: [
-                    _statusChip(role.toUpperCase(), Colors.blue),
+                    _statusChip(
+                      role.toUpperCase(),
+                      AppColors.surfaceMuted,
+                      AppColors.primaryDark,
+                    ),
 
                     _statusChip(
                       isActive ? 'ACTIVE' : 'INACTIVE',
-                      isActive ? Colors.green : Colors.red,
+                      isActive
+                          ? AppColors.success.withValues(alpha: 0.12)
+                          : AppColors.error.withValues(alpha: 0.12),
+                      isActive ? AppColors.success : AppColors.error,
                     ),
                     if (isPremium)
                       _statusChip(
                         'PREMIUM',
-                        Colors.amber,
+                        AppColors.premiumAccentLight,
+                        AppColors.premiumAccentDark,
                       ),
                   ],
                 ),
@@ -451,7 +461,7 @@ class CustomerDetailScreen extends StatelessWidget {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(18),
         side: const BorderSide(
-          color: Color(0xFFF0DDD2),
+          color: AppColors.border,
         ),
       ),
       clipBehavior: Clip.antiAlias,
@@ -504,7 +514,7 @@ class CustomerDetailScreen extends StatelessWidget {
 
                       overflow: TextOverflow.ellipsis,
 
-                      style: TextStyle(color: Colors.grey.shade700),
+                      style: TextStyle(color: AppColors.textSecondary),
                     ),
 
                     const SizedBox(height: 6),
@@ -516,7 +526,7 @@ class CustomerDetailScreen extends StatelessWidget {
 
                       style: TextStyle(
                         fontSize: 12,
-                        color: Colors.grey.shade600,
+                        color: AppColors.textSecondary,
                       ),
                     ),
                   ],
@@ -562,7 +572,7 @@ class CustomerDetailScreen extends StatelessWidget {
           builder: (context, scrollController) {
             return Container(
               decoration: const BoxDecoration(
-                color: Colors.white,
+                color: AppColors.surface,
 
                 borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
               ),
@@ -579,7 +589,7 @@ class CustomerDetailScreen extends StatelessWidget {
                       height: 5,
 
                       decoration: BoxDecoration(
-                        color: Colors.grey.shade300,
+                        color: AppColors.border,
 
                         borderRadius: BorderRadius.circular(20),
                       ),
@@ -600,7 +610,7 @@ class CustomerDetailScreen extends StatelessWidget {
                     Text(
                       _formatDate(createdAt.toDate()),
 
-                      style: TextStyle(color: Colors.grey.shade600),
+                      style: TextStyle(color: AppColors.textSecondary),
                     ),
 
                   const SizedBox(height: 20),
@@ -757,14 +767,14 @@ class CustomerDetailScreen extends StatelessWidget {
       padding: const EdgeInsets.all(24),
 
       decoration: BoxDecoration(
-        color: Colors.grey.shade100,
+        color: AppColors.surfaceMuted,
 
         borderRadius: BorderRadius.circular(18),
       ),
 
       child: Column(
         children: [
-          Icon(Icons.history_outlined, size: 50, color: Colors.grey.shade500),
+          Icon(Icons.history_outlined, size: 50, color: AppColors.textMuted),
 
           const SizedBox(height: 10),
 
@@ -792,7 +802,7 @@ class CustomerDetailScreen extends StatelessWidget {
       padding: const EdgeInsets.all(18),
 
       decoration: BoxDecoration(
-        color: Colors.red.shade50,
+        color: AppColors.error.withValues(alpha: 0.12),
 
         borderRadius: BorderRadius.circular(16),
       ),
@@ -801,7 +811,7 @@ class CustomerDetailScreen extends StatelessWidget {
         message,
 
         style: TextStyle(
-          color: Colors.red.shade700,
+          color: AppColors.error,
 
           fontWeight: FontWeight.w600,
         ),
@@ -820,14 +830,14 @@ class CustomerDetailScreen extends StatelessWidget {
         height: 70,
 
         decoration: BoxDecoration(
-          color: const Color(0xFFF5D8C7),
+          color: AppColors.secondary,
 
           borderRadius: BorderRadius.circular(14),
         ),
 
         child: const Icon(
           Icons.auto_awesome,
-          color: Color(0xFFC58F73),
+          color: AppColors.primary,
           size: 30,
         ),
       );
@@ -856,11 +866,11 @@ class CustomerDetailScreen extends StatelessWidget {
       width: double.infinity,
       height: size,
 
-      color: const Color(0xFFF5D8C7),
+      color: AppColors.secondary,
 
       child: const Icon(
         Icons.image_not_supported_outlined,
-        color: Color(0xFFC58F73),
+        color: AppColors.primary,
         size: 40,
       ),
     );
@@ -877,7 +887,7 @@ class CustomerDetailScreen extends StatelessWidget {
       padding: const EdgeInsets.all(16),
 
       decoration: BoxDecoration(
-        color: const Color(0xFFFDF9F6),
+        color: AppColors.background,
 
         borderRadius: BorderRadius.circular(14),
       ),
@@ -885,7 +895,7 @@ class CustomerDetailScreen extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: Text(title, style: TextStyle(color: Colors.grey.shade700)),
+            child: Text(title, style: TextStyle(color: AppColors.textSecondary)),
           ),
 
           const SizedBox(width: 15),
@@ -934,9 +944,9 @@ class CustomerDetailScreen extends StatelessWidget {
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
 
         leading: CircleAvatar(
-          backgroundColor: const Color(0xFFF5D8C7),
+          backgroundColor: AppColors.secondary,
 
-          child: Icon(icon, color: const Color(0xFFC58F73), size: 20),
+          child: Icon(icon, color: AppColors.primary, size: 20),
         ),
 
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
@@ -971,25 +981,25 @@ class CustomerDetailScreen extends StatelessWidget {
       padding: const EdgeInsets.all(16),
 
       decoration: BoxDecoration(
-        color: const Color(0xFFFDF9F6),
+        color: AppColors.background,
 
         borderRadius: BorderRadius.circular(16),
 
-        border: Border.all(color: const Color(0xFFF0DDD2)),
+        border: Border.all(color: AppColors.border),
       ),
 
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
 
         children: [
-          Icon(icon, color: const Color(0xFFC58F73)),
+          Icon(icon, color: AppColors.primary),
 
           const SizedBox(height: 10),
 
           Text(
             title,
 
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
           ),
 
           const SizedBox(height: 5),
@@ -1023,18 +1033,18 @@ class CustomerDetailScreen extends StatelessWidget {
       padding: const EdgeInsets.all(14),
 
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
 
         borderRadius: BorderRadius.circular(16),
 
-        border: Border.all(color: const Color(0xFFF0DDD2)),
+        border: Border.all(color: AppColors.border),
       ),
 
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
 
         children: [
-          Icon(icon, color: const Color(0xFFC58F73), size: 22),
+          Icon(icon, color: AppColors.primary, size: 22),
 
           const Spacer(),
 
@@ -1045,7 +1055,7 @@ class CustomerDetailScreen extends StatelessWidget {
 
             overflow: TextOverflow.ellipsis,
 
-            style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+            style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
           ),
 
           const SizedBox(height: 5),
@@ -1068,12 +1078,12 @@ class CustomerDetailScreen extends StatelessWidget {
   // STATUS CHIP
   // ============================================================
 
-  Widget _statusChip(String text, MaterialColor color) {
+  Widget _statusChip(String text, Color background, Color foreground) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
 
       decoration: BoxDecoration(
-        color: color.shade50,
+        color: background,
 
         borderRadius: BorderRadius.circular(20),
       ),
@@ -1082,7 +1092,7 @@ class CustomerDetailScreen extends StatelessWidget {
         text,
 
         style: TextStyle(
-          color: color.shade700,
+          color: foreground,
 
           fontSize: 10,
 

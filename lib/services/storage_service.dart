@@ -70,7 +70,22 @@ class StorageService {
   /// failure here (network issue, file already removed, etc.) should not
   /// block or fail the remove-photo action the user already confirmed.
   static Future<void> removeProfileImage({required String? photoUrl}) async {
-    final fileId = _driveFileIdFromUrl(photoUrl);
+    await deleteImageByUrl(photoUrl);
+  }
+
+  /// Best-effort removal of any previously uploaded Google Drive image —
+  /// profile, wardrobe, or analysis — given the stored Firestore image
+  /// URL. This never throws: it is used for cleanup during account/data
+  /// deletion, where a Drive failure (network issue, file already
+  /// removed, etc.) should not block or fail a deletion the caller has
+  /// already confirmed and completed on Firestore.
+  ///
+  /// Deletion on Google Drive is generic and keyed only by the file's
+  /// `id` query parameter — the same operation already used for profile
+  /// photo removal works unchanged for wardrobe and analysis images,
+  /// since the backend does not distinguish by image type when deleting.
+  static Future<void> deleteImageByUrl(String? imageUrl) async {
+    final fileId = _driveFileIdFromUrl(imageUrl);
 
     if (fileId == null) {
       return;
@@ -97,3 +112,4 @@ class StorageService {
     }
   }
 }
+

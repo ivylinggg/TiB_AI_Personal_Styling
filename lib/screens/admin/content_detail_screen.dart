@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../core/constants/app_colors.dart';
+
 class ContentDetailScreen extends StatelessWidget {
   final String title;
   final String description;
@@ -28,7 +30,7 @@ class ContentDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFDF9F6),
+      backgroundColor: AppColors.background,
 
       appBar: AppBar(
         title: const Text('Content Preview'),
@@ -44,14 +46,18 @@ class ContentDetailScreen extends StatelessWidget {
                 body,
               ].where((value) => value.trim().isNotEmpty).join('\n\n');
 
-              await Clipboard.setData(ClipboardData(text: textToCopy));
+              await Clipboard.setData(
+                ClipboardData(text: textToCopy),
+              );
 
               if (!context.mounted) {
                 return;
               }
 
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Content copied to clipboard.')),
+                const SnackBar(
+                  content: Text('Content copied to clipboard.'),
+                ),
               );
             },
             icon: const Icon(Icons.copy_outlined),
@@ -79,7 +85,7 @@ class ContentDetailScreen extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 15,
                       height: 1.6,
-                      color: Colors.grey.shade700,
+                      color: AppColors.textSecondary,
                     ),
                   ),
           ),
@@ -90,7 +96,13 @@ class ContentDetailScreen extends StatelessWidget {
             title: 'Content',
             child: body.isEmpty
                 ? _emptyContentMessage('No content available.')
-                : Text(body, style: const TextStyle(fontSize: 15, height: 1.7)),
+                : Text(
+                    body,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      height: 1.7,
+                    ),
+                  ),
           ),
 
           const SizedBox(height: 24),
@@ -119,9 +131,9 @@ class ContentDetailScreen extends StatelessWidget {
       padding: const EdgeInsets.all(20),
 
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFF0DDD2)),
+        border: Border.all(color: AppColors.border),
       ),
 
       child: Column(
@@ -136,13 +148,13 @@ class ContentDetailScreen extends StatelessWidget {
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF5D8C7),
+                  color: AppColors.secondary,
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
                   type,
                   style: const TextStyle(
-                    color: Color(0xFFC58F73),
+                    color: AppColors.primary,
                     fontWeight: FontWeight.bold,
                     fontSize: 12,
                   ),
@@ -156,18 +168,22 @@ class ContentDetailScreen extends StatelessWidget {
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFFF3D6),
+                    color: AppColors.premiumAccentLight,
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.star, size: 14, color: Color(0xFFC58F73)),
+                      Icon(
+                        Icons.star,
+                        size: 14,
+                        color: AppColors.primary,
+                      ),
                       SizedBox(width: 4),
                       Text(
                         'FEATURED',
                         style: TextStyle(
-                          color: Color(0xFFC58F73),
+                          color: AppColors.primary,
                           fontWeight: FontWeight.bold,
                           fontSize: 11,
                         ),
@@ -184,7 +200,7 @@ class ContentDetailScreen extends StatelessWidget {
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF5D8C7),
+                    color: AppColors.secondary,
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: const Row(
@@ -193,13 +209,13 @@ class ContentDetailScreen extends StatelessWidget {
                       Icon(
                         Icons.workspace_premium,
                         size: 14,
-                        color: Color(0xFFC58F73),
+                        color: AppColors.primary,
                       ),
                       SizedBox(width: 4),
                       Text(
                         'PREMIUM',
                         style: TextStyle(
-                          color: Color(0xFFC58F73),
+                          color: AppColors.primary,
                           fontWeight: FontWeight.bold,
                           fontSize: 11,
                         ),
@@ -271,22 +287,22 @@ class ContentDetailScreen extends StatelessWidget {
       padding: const EdgeInsets.all(16),
 
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFF0DDD2)),
+        border: Border.all(color: AppColors.border),
       ),
 
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
 
         children: [
-          Icon(icon, color: active ? const Color(0xFFC58F73) : Colors.grey),
+          Icon(icon, color: active ? AppColors.primary : AppColors.textMuted),
 
           const SizedBox(height: 10),
 
           Text(
             title,
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
           ),
 
           const SizedBox(height: 4),
@@ -302,9 +318,9 @@ class ContentDetailScreen extends StatelessWidget {
       padding: const EdgeInsets.all(20),
 
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFF0DDD2)),
+        border: Border.all(color: AppColors.border),
       ),
 
       child: Column(
@@ -329,18 +345,25 @@ class ContentDetailScreen extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFFFDF9F6),
+        color: AppColors.background,
         borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.info_outline, size: 20, color: Color(0xFFC58F73)),
+          const Icon(
+            Icons.info_outline,
+            size: 20,
+            color: AppColors.primary,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               message,
-              style: TextStyle(color: Colors.grey.shade700, height: 1.5),
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                height: 1.5,
+              ),
             ),
           ),
         ],
@@ -353,9 +376,9 @@ class ContentDetailScreen extends StatelessWidget {
       padding: const EdgeInsets.all(20),
 
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFF0DDD2)),
+        border: Border.all(color: AppColors.border),
       ),
 
       child: Column(
@@ -384,7 +407,7 @@ class ContentDetailScreen extends StatelessWidget {
     return Row(
       children: [
         Expanded(
-          child: Text(label, style: TextStyle(color: Colors.grey.shade600)),
+          child: Text(label, style: TextStyle(color: AppColors.textSecondary)),
         ),
 
         const SizedBox(width: 16),

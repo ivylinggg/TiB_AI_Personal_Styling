@@ -1,7 +1,11 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
+import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/app_radius.dart';
 import '../../../models/colour_analysis_result.dart';
 import '../../../services/firestore_service.dart';
+import '../../../widgets/empty_state.dart';
 import '../../auth/auth_service.dart';
 import '../analysis_result_screen.dart';
 
@@ -48,17 +52,16 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFDF9F6),
-
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Your Analysis History'),
-        backgroundColor: Colors.transparent,
+        backgroundColor: AppColors.background,
         elevation: 0,
         actions: [
           IconButton(
             tooltip: 'Refresh history',
             onPressed: refreshHistory,
-            icon: const Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh_rounded),
           ),
         ],
       ),
@@ -79,7 +82,7 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
           // ======================================================
 
           if (snapshot.hasError) {
-            return _buildErrorState(snapshot.error.toString());
+            return _buildErrorState();
           }
 
           final history = snapshot.data ?? <ColourAnalysisResult>[];
@@ -109,8 +112,8 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
                     padding: const EdgeInsets.only(bottom: 2),
                     child: Text(
                       'Look back at your colour journey and tap any result to explore it again.',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Colors.grey.shade700,
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
                         height: 1.4,
                       ),
                     ),
@@ -136,14 +139,10 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
     ColourAnalysisResult item,
     int index,
   ) {
-    return Card(
-      elevation: 0,
-      margin: EdgeInsets.zero,
+    return Material(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(AppRadius.lg),
       clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
-        side: const BorderSide(color: Color(0xFFF0DDD2)),
-      ),
       child: InkWell(
         onTap: () {
           Navigator.push(
@@ -153,8 +152,12 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
             ),
           );
         },
-        child: Padding(
+        child: Container(
           padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+            border: Border.all(color: AppColors.border),
+          ),
           child: Row(
             children: [
               // ==================================================
@@ -176,6 +179,7 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
+                        color: AppColors.textPrimary,
                         fontSize: 17,
                         fontWeight: FontWeight.bold,
                       ),
@@ -189,7 +193,7 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
                       '${item.contrast}',
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: Colors.grey.shade700),
+                      style: TextStyle(color: AppColors.textSecondary),
                     ),
 
                     const SizedBox(height: 10),
@@ -200,15 +204,15 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
                         vertical: 5,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF5D8C7),
-                        borderRadius: BorderRadius.circular(20),
+                        color: AppColors.secondary,
+                        borderRadius: BorderRadius.circular(AppRadius.full),
                       ),
                       child: Text(
                         'Analysis ${index + 1}',
                         style: const TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
-                          color: Color(0xFF8B5E4B),
+                          color: AppColors.primaryDark,
                         ),
                       ),
                     ),
@@ -218,10 +222,10 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
 
               const SizedBox(width: 8),
 
-              const Icon(
+              Icon(
                 Icons.chevron_right_rounded,
                 size: 24,
-                color: Color(0xFFC58F73),
+                color: AppColors.primary,
               ),
             ],
           ),
@@ -236,49 +240,45 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
 
   Widget _buildHistoryImage(ColourAnalysisResult item) {
     if (item.imageUrl.isEmpty) {
-      return const CircleAvatar(
-        radius: 34,
-        backgroundColor: Color(0xFFF5D8C7),
-        child: Icon(Icons.auto_awesome, color: Color(0xFFC58F73), size: 30),
+      return Container(
+        width: 68,
+        height: 68,
+        decoration: BoxDecoration(
+          color: AppColors.secondary,
+          shape: BoxShape.circle,
+        ),
+        child: Icon(Icons.auto_awesome, color: AppColors.primary, size: 30),
       );
     }
 
     return ClipRRect(
-      borderRadius: BorderRadius.circular(14),
-      child: Image.network(
-        item.imageUrl,
+      borderRadius: BorderRadius.circular(AppRadius.md),
+      child: CachedNetworkImage(
+        imageUrl: item.imageUrl,
         width: 68,
         height: 68,
         fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) {
-          return Container(
-            width: 68,
-            height: 68,
-            color: const Color(0xFFF5D8C7),
-            child: const Icon(
-              Icons.image_not_supported_outlined,
-              color: Color(0xFFC58F73),
+        placeholder: (context, url) => Container(
+          width: 68,
+          height: 68,
+          color: AppColors.secondary,
+          child: const Center(
+            child: SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
             ),
-          );
-        },
-        loadingBuilder: (context, child, loadingProgress) {
-          if (loadingProgress == null) {
-            return child;
-          }
-
-          return Container(
-            width: 68,
-            height: 68,
-            color: const Color(0xFFF5D8C7),
-            child: const Center(
-              child: SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-            ),
-          );
-        },
+          ),
+        ),
+        errorWidget: (context, url, error) => Container(
+          width: 68,
+          height: 68,
+          color: AppColors.secondary,
+          child: Icon(
+            Icons.image_not_supported_outlined,
+            color: AppColors.primary,
+          ),
+        ),
       ),
     );
   }
@@ -293,47 +293,18 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         children: [
-          const SizedBox(height: 130),
-
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 35),
-              child: Column(
-                children: [
-                  Icon(
-                    Icons.history_outlined,
-                    size: 80,
-                    color: Colors.grey.shade400,
-                  ),
-
-                  const SizedBox(height: 18),
-
-                  Text(
-                    'Your colour journey starts here',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  Text(
-                    'Complete your first colour analysis and your personalised results will be saved here for easy reference.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.grey.shade600),
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  FilledButton.icon(
-                    onPressed: () {
-                      Navigator.pop(context);
-                    },
-                    icon: const Icon(Icons.auto_awesome),
-                    label: const Text('Start Analysis'),
-                  ),
-                ],
-              ),
+          const SizedBox(height: 90),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: EmptyState(
+              icon: Icons.history_rounded,
+              title: 'Your colour journey starts here',
+              description:
+                  'Complete your first colour analysis and your '
+                  'personalised results will be saved here for easy '
+                  'reference.',
+              ctaLabel: 'Start Analysis',
+              onCta: () => Navigator.pop(context),
             ),
           ),
         ],
@@ -345,38 +316,16 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
   // ERROR STATE
   // ============================================================
 
-  Widget _buildErrorState(String error) {
+  Widget _buildErrorState() {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline, size: 65),
-
-            const SizedBox(height: 16),
-
-            const Text(
-              'We couldn’t load your colour history.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-            ),
-
-            const SizedBox(height: 8),
-
-            Text(
-              'Please check your internet connection, then try again.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey.shade600),
-            ),
-
-            const SizedBox(height: 20),
-
-            FilledButton(
-              onPressed: refreshHistory,
-              child: const Text('Try Again'),
-            ),
-          ],
+        child: EmptyState(
+          icon: Icons.cloud_off_rounded,
+          title: 'We couldn’t load your colour history',
+          description: 'Please check your internet connection, then try again.',
+          ctaLabel: 'Try Again',
+          onCta: refreshHistory,
         ),
       ),
     );

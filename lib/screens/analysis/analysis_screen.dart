@@ -1,8 +1,13 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_radius.dart';
 import '../../providers/analysis_provider.dart';
 import '../../services/image_picker_service.dart';
+import '../../widgets/premium_badge.dart';
 import '../../widgets/primary_button.dart';
 import '../auth/auth_service.dart';
 import 'analysis_result_screen.dart';
@@ -15,7 +20,64 @@ class AnalysisScreen extends StatefulWidget {
   State<AnalysisScreen> createState() => _AnalysisScreenState();
 }
 
-class _AnalysisScreenState extends State<AnalysisScreen> {
+class _AnalysisScreenState extends State<AnalysisScreen>
+    with SingleTickerProviderStateMixin {
+  static const _brown = AppColors.primary;
+  static const _soft = AppColors.secondary;
+  static const _text = AppColors.textPrimary;
+  static const _muted = AppColors.textSecondary;
+
+  // One-time entrance reveal (fade + gentle slide-up, no bounce), the
+  // same recipe already used across Colour Analysis Result/Dashboard/
+  // AI Stylist/Wardrobe/Profile. Plays once on first mount only.
+  late final AnimationController _revealController;
+  late final Animation<double> _headerReveal;
+  late final Animation<double> _imageReveal;
+  late final Animation<double> _actionsReveal;
+
+  @override
+  void initState() {
+    super.initState();
+    _revealController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+    _headerReveal = _stage(0.00, 0.40);
+    _imageReveal = _stage(0.15, 0.70);
+    _actionsReveal = _stage(0.40, 1.00);
+    _revealController.forward();
+  }
+
+  Animation<double> _stage(double begin, double end) {
+    return CurvedAnimation(
+      parent: _revealController,
+      curve: Interval(begin, end, curve: Curves.easeOut),
+    );
+  }
+
+  Widget _reveal(Animation<double> animation, Widget child) {
+    return AnimatedBuilder(
+      animation: animation,
+      builder: (context, animatedChild) {
+        final value = animation.value.clamp(0.0, 1.0);
+        return Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(0, (1 - value) * 14),
+            child: animatedChild,
+          ),
+        );
+      },
+      child: child,
+    );
+  }
+
+  @override
+  void dispose() {
+    _revealController.dispose();
+    super.dispose();
+  }
+
   // ============================================================
   // CAMERA
   // ============================================================
@@ -126,27 +188,61 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
   // BUILD
   // ============================================================
 
+  Widget _buildHeader() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 52,
+          height: 52,
+          decoration: const BoxDecoration(color: _soft, shape: BoxShape.circle),
+          child: const Icon(
+            Icons.face_retouching_natural,
+            color: _brown,
+            size: 27,
+          ),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Colour Analysis',
+                style: TextStyle(
+                  color: _text,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.3,
+                ),
+              ),
+              const SizedBox(height: 5),
+              const Text(
+                'Let’s find the colours that suit you.',
+                style: TextStyle(color: _muted, fontSize: 14, height: 1.4),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildAnalysisAccessCard(bool isPremium) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
-        color: isPremium
-            ? const Color(0xFFF5D8C7)
-            : const Color(0xFFF7F1ED),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: const Color(0xFFF0DDD2),
-        ),
+        color: isPremium ? AppColors.premiumAccentLight : AppColors.surfaceMuted,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: AppColors.border),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(
-            isPremium
-                ? Icons.workspace_premium_outlined
-                : Icons.palette_outlined,
-            color: const Color(0xFFC58F73),
+            isPremium ? Icons.workspace_premium_outlined : Icons.palette_outlined,
+            color: _brown,
             size: 22,
           ),
           const SizedBox(width: 10),
@@ -154,22 +250,28 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  isPremium
-                      ? 'Premium Colour Analysis'
-                      : 'Basic Colour Analysis',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF5D4037),
-                  ),
+                Row(
+                  children: [
+                    Text(
+                      isPremium ? 'Premium Colour Analysis' : 'Basic Colour Analysis',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: _text,
+                      ),
+                    ),
+                    if (isPremium) ...[
+                      const SizedBox(width: 8),
+                      const PremiumBadge(compact: true),
+                    ],
+                  ],
                 ),
                 const SizedBox(height: 4),
                 Text(
                   isPremium
                       ? 'Your analysis includes Premium colour insights and a more personalised result.'
                       : 'Get your personalised colour analysis. Premium insights are available to Premium members.',
-                  style: TextStyle(
-                    color: Colors.brown.shade700,
+                  style: const TextStyle(
+                    color: _muted,
                     fontSize: 12.5,
                     height: 1.4,
                   ),
@@ -182,6 +284,163 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
     );
   }
 
+  Widget _buildImagePreview(File? selectedImage, bool isLoading) {
+    return AspectRatio(
+      aspectRatio: 1,
+      child: Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: AppColors.surfaceMuted,
+          borderRadius: BorderRadius.circular(AppRadius.xl),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: selectedImage == null
+            ? Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 76,
+                    height: 76,
+                    decoration: const BoxDecoration(
+                      color: _soft,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.face_retouching_natural,
+                      size: 36,
+                      color: _brown,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Ready when you are',
+                    style: TextStyle(
+                      color: _text,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 24),
+                    child: Text(
+                      'Take a photo or choose one from your gallery. '
+                      'For the best result, keep your face clearly visible.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: _muted, height: 1.4),
+                    ),
+                  ),
+                ],
+              )
+            : Stack(
+                fit: StackFit.expand,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(AppRadius.xl),
+                    child: Image.file(
+                      selectedImage,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                  Positioned(
+                    right: 12,
+                    top: 12,
+                    child: Material(
+                      color: AppColors.textPrimary.withValues(alpha: 0.55),
+                      shape: const CircleBorder(),
+                      child: IconButton(
+                        tooltip: 'Choose another photo',
+                        onPressed: isLoading ? null : () => pickGallery(),
+                        color: AppColors.background,
+                        icon: const Icon(Icons.refresh_rounded),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
+
+  Widget _buildStatusCard(String status, bool isLoading, File? selectedImage) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _soft,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+      ),
+      child: Row(
+        children: [
+          if (isLoading)
+            const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2.4, color: _brown),
+            )
+          else
+            Icon(
+              selectedImage != null ? Icons.check_circle_outline : Icons.info_outline,
+              size: 20,
+              color: _brown,
+            ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 220),
+              child: Text(
+                status,
+                key: ValueKey(status),
+                textAlign: TextAlign.left,
+                style: const TextStyle(
+                  color: _text,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _photoSourceTile({
+    required IconData icon,
+    required String label,
+    required bool enabled,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: AppColors.surfaceMuted,
+      borderRadius: BorderRadius.circular(AppRadius.lg),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        onTap: enabled ? onTap : null,
+        child: Container(
+          height: 96,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 26, color: enabled ? _brown : AppColors.textMuted),
+              const SizedBox(height: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  color: enabled ? _text : AppColors.textMuted,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer<AnalysisProvider>(
@@ -190,239 +449,99 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
         final isLoading = provider.isLoading;
 
         return Scaffold(
-          appBar: AppBar(title: const Text('AI Colour Analysis')),
-
+          backgroundColor: AppColors.background,
+          appBar: AppBar(
+            backgroundColor: AppColors.background,
+            elevation: 0,
+            title: const Text('Colour Analysis'),
+          ),
           body: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 30),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // ==================================================
-
-                  const SizedBox(height: 14),
-
-                  _buildAnalysisAccessCard(provider.isPremium),
-
-                  // IMAGE PREVIEW
-                  // ==================================================
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Let’s find the colours that suit you',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 6),
-
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Choose a clear, front-facing photo in natural light.',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Colors.grey.shade600,
-                          ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 14),
-
-                  Expanded(
-                    child: Container(
-                      width: double.infinity,
-
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade200,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-
-                      child: selectedImage == null
-                          ? Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.face_retouching_natural,
-                                  size: 90,
-                                  color: Colors.grey.shade500,
-                                ),
-
-                                const SizedBox(height: 16),
-
-                                Text(
-                                  'Ready when you are',
-                                  style: Theme.of(
-                                    context,
-                                  ).textTheme.titleMedium,
-                                ),
-
-                                const SizedBox(height: 6),
-
-                                Text(
-                                  'Take a photo or choose one from your gallery.\nFor the best result, keep your face clearly visible.',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(color: Colors.grey.shade600),
-                                ),
-                              ],
-                            )
-                          : Stack(
-                              fit: StackFit.expand,
-                              children: [
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(20),
-                                  child: Image.file(
-                                    selectedImage,
-                                    fit: BoxFit.cover,
-                                  ),
-                                ),
-                                Positioned(
-                                  right: 12,
-                                  top: 12,
-                                  child: DecoratedBox(
-                                    decoration: BoxDecoration(
-                                      color: Colors.black.withValues(alpha: 0.55),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: IconButton(
-                                      tooltip: 'Choose another photo',
-                                      onPressed: isLoading
-                                          ? null
-                                          : () => pickGallery(),
-                                      color: Colors.white,
-                                      icon: const Icon(Icons.refresh),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                    ),
-                  ),
-
+                  _reveal(_headerReveal, _buildHeader()),
+                  const SizedBox(height: 18),
+                  _reveal(_headerReveal, _buildAnalysisAccessCard(provider.isPremium)),
                   const SizedBox(height: 20),
-
-                  // ==================================================
-                  // STATUS
-                  // ==================================================
-                  Container(
-                    width: double.infinity,
-
-                    padding: const EdgeInsets.all(14),
-
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF5D8C7),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-
-                    child: Row(
+                  _reveal(
+                    _imageReveal,
+                    _buildImagePreview(selectedImage, isLoading),
+                  ),
+                  const SizedBox(height: 16),
+                  _reveal(
+                    _imageReveal,
+                    _buildStatusCard(provider.status, isLoading, selectedImage),
+                  ),
+                  const SizedBox(height: 20),
+                  _reveal(
+                    _actionsReveal,
+                    Row(
                       children: [
-                        Icon(
-                          isLoading
-                              ? Icons.hourglass_top_rounded
-                              : selectedImage != null
-                                  ? Icons.check_circle_outline
-                                  : Icons.info_outline,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 10),
                         Expanded(
-                          child: Text(
-                            provider.status,
-                            textAlign: TextAlign.left,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w600,
-                            ),
+                          child: _photoSourceTile(
+                            icon: Icons.camera_alt_outlined,
+                            label: 'Take a Photo',
+                            enabled: !isLoading,
+                            onTap: pickCamera,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _photoSourceTile(
+                            icon: Icons.photo_outlined,
+                            label: 'Gallery',
+                            enabled: !isLoading,
+                            onTap: pickGallery,
                           ),
                         ),
                       ],
                     ),
                   ),
-
                   const SizedBox(height: 18),
-
-                  // ==================================================
-                  // CAMERA + GALLERY
-                  // ==================================================
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: isLoading ? null : pickCamera,
-
-                          icon: const Icon(Icons.camera_alt_outlined),
-
-                          label: const Text('Take a Photo'),
-                        ),
-                      ),
-
-                      const SizedBox(width: 12),
-
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: isLoading ? null : pickGallery,
-
-                          icon: const Icon(Icons.photo_outlined),
-
-                          label: const Text('Choose from Gallery'),
-                        ),
-                      ),
-                    ],
+                  _reveal(
+                    _actionsReveal,
+                    PrimaryButton(
+                      text: isLoading
+                          ? 'Analysing...'
+                          : provider.isPremium
+                              ? 'Analyse with Premium Insights'
+                              : 'Analyse My Colours',
+                      icon: Icons.auto_awesome,
+                      onPressed: isLoading ? null : analyse,
+                    ),
                   ),
-
-                  const SizedBox(height: 16),
-
-                  // ==================================================
-                  // ANALYSE BUTTON
-                  // ==================================================
-                  PrimaryButton(
-                    text: isLoading
-                        ? 'Analysing...'
-                        : provider.isPremium
-                            ? 'Analyse with Premium Insights'
-                            : 'Analyse My Colours',
-
-                    icon: Icons.auto_awesome,
-
-                    onPressed: isLoading ? null : analyse,
-                  ),
-
                   const SizedBox(height: 10),
-
-                  Text(
-                    'Your photo is used to create your personalised colour result.',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Colors.grey.shade600,
-                        ),
+                  _reveal(
+                    _actionsReveal,
+                    const Text(
+                      'Your photo is used to create your personalised colour result.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: _muted, fontSize: 12.5),
+                    ),
                   ),
-
-                  const SizedBox(height: 14),
-
-                  // ==================================================
-                  // ANALYSIS HISTORY
-                  // ==================================================
-                  SizedBox(
-                    width: double.infinity,
-
-                    child: OutlinedButton.icon(
-                      onPressed: isLoading ? null : openAnalysisHistory,
-
-                      icon: const Icon(Icons.history),
-
-                      label: const Text('View Analysis History'),
-
-                      style: OutlinedButton.styleFrom(
-                        minimumSize: const Size(double.infinity, 52),
-
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                  const SizedBox(height: 16),
+                  _reveal(
+                    _actionsReveal,
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: isLoading ? null : openAnalysisHistory,
+                        icon: const Icon(Icons.history_rounded),
+                        label: const Text('View Analysis History'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: _brown,
+                          side: BorderSide(color: AppColors.border),
+                          minimumSize: const Size.fromHeight(52),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(AppRadius.md),
+                          ),
                         ),
                       ),
                     ),
                   ),
-
-                  const SizedBox(height: 10),
                 ],
               ),
             ),

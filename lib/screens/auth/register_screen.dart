@@ -296,7 +296,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         children: [
           Icon(
             passed ? Icons.check_circle : Icons.cancel_outlined,
-            color: passed ? Colors.green : Colors.grey,
+            color: passed ? AppColors.success : AppColors.textMuted,
             size: 18,
           ),
 
@@ -306,7 +306,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             child: Text(
               text,
               style: TextStyle(
-                color: passed ? Colors.green : Colors.grey.shade700,
+                color: passed ? AppColors.success : AppColors.textSecondary,
                 fontSize: 14,
               ),
             ),
@@ -343,12 +343,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   width: 85,
                   height: 85,
                   decoration: const BoxDecoration(
-                    color: Color(0xFFC58F73),
+                    color: AppColors.primary,
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
                     Icons.person_add_alt_1,
-                    color: Colors.white,
+                    color: AppColors.background,
                     size: 40,
                   ),
                 ),
@@ -434,9 +434,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: AppColors.surface,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.grey.shade300),
+                  border: Border.all(color: AppColors.border),
                 ),
 
                 child: Column(

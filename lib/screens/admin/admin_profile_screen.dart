@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../../core/constants/app_colors.dart';
 import '../auth/login_screen.dart';
 
 class AdminProfileScreen extends StatelessWidget {
@@ -152,10 +153,10 @@ class AdminProfileScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: AppColors.surface,
               borderRadius: BorderRadius.circular(22),
               border: Border.all(
-                color: const Color(0xFFF0DDD2),
+                color: AppColors.border,
               ),
             ),
             child: Column(
@@ -164,13 +165,13 @@ class AdminProfileScreen extends StatelessWidget {
                   width: 82,
                   height: 82,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF5D8C7),
+                    color: AppColors.secondary,
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
                     Icons.admin_panel_settings,
                     size: 42,
-                    color: Color(0xFFC58F73),
+                    color: AppColors.primary,
                   ),
                 ),
 
@@ -189,7 +190,7 @@ class AdminProfileScreen extends StatelessWidget {
                 Text(
                   email,
                   style: TextStyle(
-                    color: Colors.grey.shade600,
+                    color: AppColors.textSecondary,
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -202,13 +203,13 @@ class AdminProfileScreen extends StatelessWidget {
                     vertical: 7,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.green.shade50,
+                    color: AppColors.success.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
                     'ADMIN • ACTIVE',
                     style: TextStyle(
-                      color: Colors.green.shade700,
+                      color: AppColors.success,
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
                     ),
@@ -285,15 +286,15 @@ class AdminProfileScreen extends StatelessWidget {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(18),
               side: const BorderSide(
-                color: Color(0xFFF0DDD2),
+                color: AppColors.border,
               ),
             ),
             child: ListTile(
               leading: const CircleAvatar(
-                backgroundColor: Color(0xFFF5D8C7),
+                backgroundColor: AppColors.secondary,
                 child: Icon(
                   Icons.lock_reset,
-                  color: Color(0xFFC58F73),
+                  color: AppColors.primary,
                 ),
               ),
               title: const Text(
@@ -317,7 +318,7 @@ class AdminProfileScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: const Color(0xFFFDF1EA),
+              color: AppColors.surfaceMuted,
               borderRadius: BorderRadius.circular(16),
             ),
             child: Row(
@@ -326,14 +327,14 @@ class AdminProfileScreen extends StatelessWidget {
                 const Icon(
                   Icons.info_outline,
                   size: 19,
-                  color: Color(0xFFC58F73),
+                  color: AppColors.primary,
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     'A password reset link will be sent to the admin email above. You can continue using the account until the password is changed.',
                     style: TextStyle(
-                      color: Colors.brown.shade700,
+                      color: AppColors.primaryDark,
                       height: 1.45,
                       fontSize: 13,
                     ),
@@ -379,10 +380,10 @@ class AdminProfileScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: const Color(0xFFF0DDD2),
+          color: AppColors.border,
         ),
       ),
       child: Row(
@@ -391,12 +392,12 @@ class AdminProfileScreen extends StatelessWidget {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: const Color(0xFFFDF1EA),
+              color: AppColors.surfaceMuted,
               borderRadius: BorderRadius.circular(13),
             ),
             child: Icon(
               icon,
-              color: const Color(0xFFC58F73),
+              color: AppColors.primary,
             ),
           ),
 
@@ -411,7 +412,7 @@ class AdminProfileScreen extends StatelessWidget {
                   title,
                   style: TextStyle(
                     fontSize: 12,
-                    color: Colors.grey.shade600,
+                    color: AppColors.textSecondary,
                   ),
                 ),
 

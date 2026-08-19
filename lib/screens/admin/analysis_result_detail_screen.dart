@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../core/constants/app_colors.dart';
+
 class AnalysisResultDetailScreen extends StatelessWidget {
   final String season;
   final String undertone;
@@ -22,7 +24,7 @@ class AnalysisResultDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFDF9F6),
+      backgroundColor: AppColors.background,
 
       appBar: AppBar(
         title: const Text('Analysis Result'),
@@ -111,7 +113,7 @@ class AnalysisResultDetailScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: const Color(0xFFFDF1EA),
+              color: AppColors.surfaceMuted,
               borderRadius: BorderRadius.circular(16),
             ),
             child: Row(
@@ -120,14 +122,14 @@ class AnalysisResultDetailScreen extends StatelessWidget {
                 const Icon(
                   Icons.info_outline,
                   size: 20,
-                  color: Color(0xFFC58F73),
+                  color: AppColors.primary,
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     'These values are the colour analysis results recorded for this customer.',
                     style: TextStyle(
-                      color: Colors.brown.shade700,
+                      color: AppColors.primaryDark,
                       height: 1.45,
                     ),
                   ),
@@ -160,25 +162,25 @@ class AnalysisResultDetailScreen extends StatelessWidget {
             padding: const EdgeInsets.all(18),
 
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: AppColors.surface,
 
               borderRadius: BorderRadius.circular(18),
 
-              border: Border.all(color: const Color(0xFFF0DDD2)),
+              border: Border.all(color: AppColors.border),
             ),
 
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
 
               children: [
-                const Icon(Icons.info_outline, color: Color(0xFFC58F73)),
+                const Icon(Icons.info_outline, color: AppColors.primary),
 
                 const SizedBox(width: 12),
 
                 Expanded(
                   child: Text(
                     'Administrators can review the customer’s recorded colour analysis result and analysis information from this page.',
-                    style: TextStyle(color: Colors.grey.shade700, height: 1.5),
+                    style: TextStyle(color: AppColors.textSecondary, height: 1.5),
                   ),
                 ),
               ],
@@ -198,11 +200,11 @@ class AnalysisResultDetailScreen extends StatelessWidget {
       padding: const EdgeInsets.all(20),
 
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
 
         borderRadius: BorderRadius.circular(20),
 
-        border: Border.all(color: const Color(0xFFF0DDD2)),
+        border: Border.all(color: AppColors.border),
       ),
 
       child: Row(
@@ -212,14 +214,14 @@ class AnalysisResultDetailScreen extends StatelessWidget {
             height: 56,
 
             decoration: BoxDecoration(
-              color: const Color(0xFFF5D8C7),
+              color: AppColors.secondary,
 
               borderRadius: BorderRadius.circular(16),
             ),
 
             child: const Icon(
               Icons.auto_awesome,
-              color: Color(0xFFC58F73),
+              color: AppColors.primary,
               size: 30,
             ),
           ),
@@ -249,7 +251,7 @@ class AnalysisResultDetailScreen extends StatelessWidget {
                   style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
-                    color: Color(0xFFC58F73),
+                    color: AppColors.primary,
                   ),
                 ),
 
@@ -259,7 +261,7 @@ class AnalysisResultDetailScreen extends StatelessWidget {
                   Text(
                     _formatDate(createdAt!),
 
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                    style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
                   ),
                 ],
               ],
@@ -281,7 +283,7 @@ class AnalysisResultDetailScreen extends StatelessWidget {
         height: 280,
 
         decoration: BoxDecoration(
-          color: const Color(0xFFF5D8C7),
+          color: AppColors.secondary,
 
           borderRadius: BorderRadius.circular(20),
         ),
@@ -293,7 +295,7 @@ class AnalysisResultDetailScreen extends StatelessWidget {
             Icon(
               Icons.image_not_supported_outlined,
               size: 48,
-              color: Color(0xFFC58F73),
+              color: AppColors.primary,
             ),
 
             SizedBox(height: 10),
@@ -323,13 +325,13 @@ class AnalysisResultDetailScreen extends StatelessWidget {
             width: double.infinity,
             height: 320,
             decoration: BoxDecoration(
-              color: const Color(0xFFF5D8C7),
+              color: AppColors.secondary,
               borderRadius: BorderRadius.circular(20),
             ),
             child: const Center(
               child: CircularProgressIndicator(
                 strokeWidth: 2,
-                color: Color(0xFFC58F73),
+                color: AppColors.primary,
               ),
             ),
           );
@@ -341,7 +343,7 @@ class AnalysisResultDetailScreen extends StatelessWidget {
             height: 320,
 
             decoration: BoxDecoration(
-              color: const Color(0xFFF5D8C7),
+              color: AppColors.secondary,
 
               borderRadius: BorderRadius.circular(20),
             ),
@@ -353,7 +355,7 @@ class AnalysisResultDetailScreen extends StatelessWidget {
                 Icon(
                   Icons.image_not_supported_outlined,
                   size: 48,
-                  color: Color(0xFFC58F73),
+                  color: AppColors.primary,
                 ),
 
                 SizedBox(height: 10),
@@ -382,10 +384,10 @@ class AnalysisResultDetailScreen extends StatelessWidget {
       padding: const EdgeInsets.all(16),
 
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: const Color(0xFFF0DDD2),
+          color: AppColors.border,
         ),
       ),
 
@@ -396,12 +398,12 @@ class AnalysisResultDetailScreen extends StatelessWidget {
             height: 44,
 
             decoration: BoxDecoration(
-              color: const Color(0xFFFDF1EA),
+              color: AppColors.surfaceMuted,
 
               borderRadius: BorderRadius.circular(12),
             ),
 
-            child: Icon(icon, color: const Color(0xFFC58F73)),
+            child: Icon(icon, color: AppColors.primary),
           ),
 
           const SizedBox(width: 14),
@@ -414,7 +416,7 @@ class AnalysisResultDetailScreen extends StatelessWidget {
                 Text(
                   title,
 
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
                 ),
 
                 const SizedBox(height: 4),
@@ -448,11 +450,11 @@ class AnalysisResultDetailScreen extends StatelessWidget {
       padding: const EdgeInsets.all(18),
 
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
 
         borderRadius: BorderRadius.circular(18),
 
-        border: Border.all(color: const Color(0xFFF0DDD2)),
+        border: Border.all(color: AppColors.border),
       ),
 
       child: Column(
@@ -486,7 +488,7 @@ class AnalysisResultDetailScreen extends StatelessWidget {
     return Row(
       children: [
         Expanded(
-          child: Text(title, style: TextStyle(color: Colors.grey.shade700)),
+          child: Text(title, style: TextStyle(color: AppColors.textSecondary)),
         ),
 
         const SizedBox(width: 16),

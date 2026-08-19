@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../core/constants/app_colors.dart';
 import '../../widgets/primary_button.dart';
 import '../auth/login_screen.dart';
 
@@ -40,7 +41,7 @@ class _SplashScreenState extends State<SplashScreen> {
                 const Icon(
                   Icons.face_retouching_natural,
                   size: 90,
-                  color: Color(0xFFC58F73),
+                  color: AppColors.primary,
                 ),
 
                 const SizedBox(height: 24),
