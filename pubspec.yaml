@@ -30,8 +30,9 @@ dependencies:
   image_picker: ^1.2.0
   camera: ^0.11.2
 
-  # AI
+  # AI / ML
   google_mlkit_face_detection: ^0.13.1
+  image_background_remover: ^2.0.1
 
   # Authentication
   google_sign_in: ^7.2.0
@@ -77,4 +78,3 @@ flutter:
     - assets/lottie/
     - assets/illustrations/
 
-  
