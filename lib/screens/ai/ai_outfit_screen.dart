@@ -91,7 +91,14 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(title: const Text('AI Outfit'), centerTitle: true, backgroundColor: AppColors.background),
+      appBar: AppBar(
+        title: const Text('AI Outfit'),
+        centerTitle: true,
+        backgroundColor: AppColors.background,
+        actions: [
+          IconButton(onPressed: _loadWardrobe, icon: const Icon(Icons.refresh_rounded)),
+        ],
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : ListView(
@@ -123,45 +130,97 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
                 ),
                 const SizedBox(height: 20),
                 _generateButton(profile),
-                if (_generated) ...[const SizedBox(height: 27), _result(profile, look)],
+                if (_generated) ...[
+                  const SizedBox(height: 27),
+                  _result(profile, look),
+                ],
               ],
             ),
     );
   }
 
-  Widget _hero(ColourAnalysisResult? profile) => Container(
-    padding: const EdgeInsets.all(22),
-    decoration: BoxDecoration(gradient: AppGradients.ai, borderRadius: BorderRadius.circular(28)),
-    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 28),
-      const SizedBox(height: 14),
-      const Text('Your next look,\nmade personal.', style: TextStyle(color: Colors.white, fontSize: 29, height: 1.05, fontWeight: FontWeight.w800, letterSpacing: -.8)),
-      const SizedBox(height: 9),
-      Text(profile == null ? 'Complete your colour profile first.' : 'Built around your ${profile.season} palette and the pieces you already own.', style: const TextStyle(color: Colors.white70, fontSize: 12.5, height: 1.45)),
-    ]),
-  );
+  Widget _hero(ColourAnalysisResult? profile) {
+    return Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(gradient: AppGradients.ai, borderRadius: BorderRadius.circular(28)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Container(width: 42, height: 42, decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle), child: const Icon(Icons.auto_awesome_rounded, color: AppColors.primary)),
+          const SizedBox(width: 10),
+          const Text('AI OUTFIT', style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1.2)),
+        ]),
+        const SizedBox(height: 15),
+        const Text('Your next look,\nmade personal.', style: TextStyle(color: Colors.white, fontSize: 29, height: 1.05, fontWeight: FontWeight.w800, letterSpacing: -.8)),
+        const SizedBox(height: 9),
+        Text(profile == null ? 'Complete your colour profile first.' : 'Built around your ${profile.season} palette and the pieces you already own.', style: const TextStyle(color: Colors.white70, fontSize: 12.5, height: 1.45)),
+      ]),
+    );
+  }
 
-  Widget _generateButton(ColourAnalysisResult? profile) => SizedBox(width: double.infinity, child: FilledButton.icon(
-    onPressed: profile == null || _wardrobe.isEmpty ? null : () => setState(() => _generated = true),
-    icon: const Icon(Icons.auto_awesome_rounded),
-    label: const Text('Create my outfit'),
-    style: FilledButton.styleFrom(backgroundColor: AppColors.peach, foregroundColor: AppColors.charcoal, minimumSize: const Size.fromHeight(54), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(17))),
-  ));
+  Widget _generateButton(ColourAnalysisResult? profile) {
+    return SizedBox(width: double.infinity, child: FilledButton.icon(
+      onPressed: profile == null || _wardrobe.isEmpty ? null : () => setState(() => _generated = true),
+      icon: const Icon(Icons.auto_awesome_rounded),
+      label: Text(_generated ? 'Regenerate this look' : 'Create my outfit'),
+      style: FilledButton.styleFrom(backgroundColor: AppColors.peach, foregroundColor: AppColors.charcoal, minimumSize: const Size.fromHeight(54), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(17))),
+    ));
+  }
 
   Widget _result(ColourAnalysisResult? profile, List<WardrobeItem> look) {
     if (profile == null) return _message('Complete Colour Analysis to personalise your outfit.');
     if (_wardrobe.isEmpty) return _message('Add a few pieces to My Wardrobe first.');
     if (look.isEmpty) return _message('I could not find a complete combination yet. Try adding tops, bottoms and shoes.');
+
     final match = (72 + look.length * 6).clamp(0, 98);
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [const Expanded(child: Text('YOUR PERSONAL LOOK', style: TextStyle(fontSize: 11, color: AppColors.primary, fontWeight: FontWeight.w800, letterSpacing: 1.1))), _scorePill(match)]),
+      Row(children: [
+        const Expanded(child: Text('YOUR PERSONAL LOOK', style: TextStyle(fontSize: 11, color: AppColors.primary, fontWeight: FontWeight.w800, letterSpacing: 1.1))),
+        _scorePill(match),
+      ]),
       const SizedBox(height: 11),
-      Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(24), border: Border.all(color: AppColors.border)), child: Column(children: [
-        SizedBox(height: 225, child: ListView.separated(scrollDirection: Axis.horizontal, itemCount: look.length, separatorBuilder: (_, index) => const SizedBox(width: 10), itemBuilder: (_, index) => _itemCard(look[index]))),
-        const SizedBox(height: 13),
-        Container(width: double.infinity, padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: AppColors.lavenderMist, borderRadius: BorderRadius.circular(17)), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [const Icon(Icons.auto_awesome_rounded, color: AppColors.primary, size: 18), const SizedBox(width: 9), Expanded(child: Text('I chose these pieces because they work with your ${profile.season} palette and fit a ${_occasion.toLowerCase()} mood. Start with the hero piece, then keep the rest simple.', style: const TextStyle(fontSize: 12, height: 1.45)))])),
-      ])),
+      Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(24), border: Border.all(color: AppColors.border)),
+        child: Column(children: [
+          SizedBox(height: 225, child: ListView.separated(scrollDirection: Axis.horizontal, itemCount: look.length, separatorBuilder: (_, index) => const SizedBox(width: 10), itemBuilder: (_, index) => _itemCard(look[index]))),
+          const SizedBox(height: 13),
+          _whyItWorks(profile, look),
+          const SizedBox(height: 10),
+          Row(children: [
+            const Icon(Icons.event_outlined, color: AppColors.primary, size: 16),
+            const SizedBox(width: 6),
+            Text(_occasion, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+            const Spacer(),
+            const Icon(Icons.checkroom_outlined, color: AppColors.textMuted, size: 16),
+            const SizedBox(width: 5),
+            Text('${look.length} pieces', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+          ]),
+        ]),
+      ),
     ]);
+  }
+
+  Widget _whyItWorks(ColourAnalysisResult profile, List<WardrobeItem> look) {
+    final matchedColours = look.where((item) => profile.colours.any((c) => item.colour.toLowerCase().contains(c.toLowerCase()))).length;
+    final favouriteCount = look.where((item) => item.isFavourite).length;
+    final reason = matchedColours > 0
+        ? 'I chose these pieces because $matchedColours of them connect with your ${profile.season} colour palette. The combination keeps the ${_occasion.toLowerCase()} look intentional without feeling overdone.'
+        : 'I kept the look balanced for a ${_occasion.toLowerCase()} setting and prioritised pieces you already wear and save.';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: AppColors.lavenderMist, borderRadius: BorderRadius.circular(17)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [const Icon(Icons.auto_awesome_rounded, color: AppColors.primary, size: 18), const SizedBox(width: 7), const Text('Why this works', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5))]),
+        const SizedBox(height: 7),
+        Text(reason, style: const TextStyle(fontSize: 11.5, height: 1.45, color: AppColors.textSecondary)),
+        if (favouriteCount > 0) ...[
+          const SizedBox(height: 8),
+          Text('$favouriteCount favourite ${favouriteCount == 1 ? 'piece' : 'pieces'} included', style: const TextStyle(color: AppColors.primary, fontSize: 10.5, fontWeight: FontWeight.w700)),
+        ],
+      ]),
+    );
   }
 
   Widget _scorePill(int score) => Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: AppColors.sage.withValues(alpha: .25), borderRadius: BorderRadius.circular(AppRadius.full)), child: Text('$score% match', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: AppColors.success)));
