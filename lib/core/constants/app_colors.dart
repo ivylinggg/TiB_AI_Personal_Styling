@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 
 /// TiB visual system — warm, soft, editorial and human.
-///
-/// The new product direction follows the approved concept:
-/// ivory backgrounds, soft lavender as the primary interaction colour,
-/// peach/blush warmth, muted sage, warm taupe and charcoal text.
+/// Ivory backgrounds, soft lavender interaction colour, peach/blush warmth,
+/// muted sage, warm taupe and charcoal text.
 class AppColors {
   AppColors._();
 
@@ -13,6 +11,7 @@ class AppColors {
   static const Color primary = Color(0xFF9B7BD1);
   static const Color primaryDark = Color(0xFF7557AD);
   static const Color primarySoft = Color(0xFFE9DFF7);
+  static const Color secondary = primarySoft;
   static const Color lavenderMist = Color(0xFFF2ECF9);
   static const Color blush = Color(0xFFF5D2C2);
   static const Color peach = Color(0xFFF2B9A1);
