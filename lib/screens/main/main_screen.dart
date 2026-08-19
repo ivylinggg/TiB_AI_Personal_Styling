@@ -55,52 +55,57 @@ class _MainScreenState extends State<MainScreen> {
       body: IndexedStack(index: _selectedIndex, children: _pages),
       bottomNavigationBar: SafeArea(
         top: false,
+        minimum: const EdgeInsets.fromLTRB(12, 0, 12, 12),
         child: Container(
           decoration: BoxDecoration(
-            color: AppColors.surface,
-            border: const Border(top: BorderSide(color: AppColors.border)),
+            color: AppColors.surface.withValues(alpha: .97),
+            borderRadius: BorderRadius.circular(26),
+            border: Border.all(color: AppColors.border),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: .055),
-                blurRadius: 24,
-                offset: const Offset(0, -7),
+                color: Colors.black.withValues(alpha: .07),
+                blurRadius: 28,
+                offset: const Offset(0, 10),
               ),
             ],
           ),
-          child: NavigationBar(
-            selectedIndex: _selectedIndex,
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-            height: 76,
-            labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-            onDestinationSelected: _selectTab,
-            destinations: [
-              const NavigationDestination(
-                icon: Icon(Icons.home_outlined),
-                selectedIcon: Icon(Icons.home_rounded),
-                label: 'Home',
-              ),
-              const NavigationDestination(
-                icon: Icon(Icons.palette_outlined),
-                selectedIcon: Icon(Icons.palette_rounded),
-                label: 'Colour',
-              ),
-              NavigationDestination(
-                icon: _aiIcon(false),
-                selectedIcon: _aiIcon(true),
-                label: 'Style',
-              ),
-              const NavigationDestination(
-                icon: Icon(Icons.checkroom_outlined),
-                selectedIcon: Icon(Icons.checkroom_rounded),
-                label: 'Wardrobe',
-              ),
-              const NavigationDestination(
-                icon: Icon(Icons.person_outline_rounded),
-                selectedIcon: Icon(Icons.person_rounded),
-                label: 'Profile',
-              ),
-            ],
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(26),
+            child: NavigationBar(
+              selectedIndex: _selectedIndex,
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              height: 72,
+              labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+              onDestinationSelected: _selectTab,
+              destinations: [
+                const NavigationDestination(
+                  icon: Icon(Icons.home_outlined),
+                  selectedIcon: Icon(Icons.home_rounded),
+                  label: 'Home',
+                ),
+                const NavigationDestination(
+                  icon: Icon(Icons.palette_outlined),
+                  selectedIcon: Icon(Icons.palette_rounded),
+                  label: 'Colour',
+                ),
+                NavigationDestination(
+                  icon: _aiIcon(false),
+                  selectedIcon: _aiIcon(true),
+                  label: 'Style',
+                ),
+                const NavigationDestination(
+                  icon: Icon(Icons.checkroom_outlined),
+                  selectedIcon: Icon(Icons.checkroom_rounded),
+                  label: 'Wardrobe',
+                ),
+                const NavigationDestination(
+                  icon: Icon(Icons.person_outline_rounded),
+                  selectedIcon: Icon(Icons.person_rounded),
+                  label: 'Profile',
+                ),
+              ],
+            ),
           ),
         ),
       ),
