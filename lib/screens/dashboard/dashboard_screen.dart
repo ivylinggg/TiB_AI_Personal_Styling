@@ -302,7 +302,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       else if (_wardrobe.isEmpty)
         Container(padding: const EdgeInsets.all(18), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(21), border: Border.all(color: AppColors.border)), child: const Row(children: [Icon(Icons.add_a_photo_outlined, color: AppColors.primary, size: 30), SizedBox(width: 12), Expanded(child: Text('Add the clothes you already own. Your AI stylist will work from them.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.4)))]))
       else
-        SizedBox(height: 190, child: ListView.separated(scrollDirection: Axis.horizontal, itemCount: pieces.length, separatorBuilder: (_, __) => const SizedBox(width: 10), itemBuilder: (_, i) => _wardrobeCard(pieces[i]))),
+        SizedBox(height: 190, child: ListView.separated(scrollDirection: Axis.horizontal, itemCount: pieces.length, separatorBuilder: (_, index) => const SizedBox(width: 10), itemBuilder: (_, i) => _wardrobeCard(pieces[i]))),
     ]);
   }
 
@@ -315,7 +315,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(23), border: Border.all(color: AppColors.border)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [const Icon(Icons.tune_rounded, color: AppColors.primary), const SizedBox(width: 8), const Expanded(child: Text('Your Style Preferences', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800))), TextButton(onPressed: () async { await _open(const StylePreferencesScreen()); await _load(); }, child: const Text('Edit'))]),
+        Row(children: [const Icon(Icons.tune_rounded, color: AppColors.primary), const SizedBox(width: 8), const Expanded(child: Text('Your Style Preferences', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800))), TextButton(onPressed: () { _open(const StylePreferencesScreen()).then((_) => _load()); }, child: const Text('Edit'))]),
         const SizedBox(height: 4),
         Text(result == null ? 'Set preferences so recommendations feel more like you.' : 'Your profile is ready to guide future outfit recommendations.', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.4)),
         const SizedBox(height: 12),
@@ -333,8 +333,8 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   Widget _circleButton(IconData icon) => Material(color: AppColors.surfaceMuted, shape: const CircleBorder(), child: InkWell(onTap: () {}, customBorder: const CircleBorder(), child: SizedBox(width: 42, height: 42, child: Icon(icon, color: AppColors.primary, size: 20))));
   TextStyle _eyebrow() => const TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w800, letterSpacing: 1.1);
-  void _open(Widget page) => Navigator.push(context, MaterialPageRoute(builder: (_) => page));
-  }
+  Future<void> _open(Widget page) => Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+}
 
 class _WhitePill extends StatelessWidget {
   final String label;
