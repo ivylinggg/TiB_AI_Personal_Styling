@@ -39,6 +39,11 @@ class AppColors {
   static const Color warning = Color(0xFFD19A5A);
   static const Color error = Color(0xFFC96E6E);
 
+  /// Legacy compatibility token. Older screens used `eggYolk` for the
+  /// warm action colour. Keep the name temporarily while the UI migrates
+  /// to the newer peach/blush palette so old screens never break builds.
+  static const Color eggYolk = peach;
+
   static const Map<String, Color> seasonAccents = {
     'Warm Spring': Color(0xFFE49A69),
     'Warm Autumn': Color(0xFFB86E4B),
