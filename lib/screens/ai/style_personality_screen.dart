@@ -89,7 +89,7 @@ class _StylePersonalityScreenState extends State<StylePersonalityScreen> {
     final styles = {..._savedStyles, style}.toList();
     setState(() {
       _savedStyles = styles;
-      _question = (_question + 1).clamp(0, 4);
+      _question = (_question + 1).clamp(0, 4).toInt();
     });
 
     try {
