@@ -207,46 +207,16 @@ class _DashboardScreenState extends State<DashboardScreen>
           decoration: BoxDecoration(
             gradient: AppGradients.primary,
             borderRadius: BorderRadius.circular(28),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.primary.withValues(alpha: .18),
-                blurRadius: 25,
-                offset: const Offset(0, 12),
-              ),
-            ],
+            boxShadow: [BoxShadow(color: AppColors.primary.withValues(alpha: .18), blurRadius: 25, offset: const Offset(0, 12))],
           ),
           child: const Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'YOUR COLOUR PROFILE',
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.2,
-                ),
-              ),
+              Text('YOUR COLOUR PROFILE', style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1.2)),
               SizedBox(height: 10),
-              Text(
-                'Find the colours\nthat feel like you.',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 30,
-                  height: 1.05,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -1,
-                ),
-              ),
+              Text('Find the colours\nthat feel like you.', style: TextStyle(color: Colors.white, fontSize: 30, height: 1.05, fontWeight: FontWeight.w800, letterSpacing: -1)),
               SizedBox(height: 10),
-              Text(
-                'Start with a guided AI face scan and discover your personal palette.',
-                style: TextStyle(
-                  color: Colors.white70,
-                  height: 1.45,
-                  fontSize: 13,
-                ),
-              ),
+              Text('Start with a guided AI face scan and discover your personal palette.', style: TextStyle(color: Colors.white70, height: 1.45, fontSize: 13)),
               SizedBox(height: 19),
               _WhitePill(label: 'Start Colour Analysis'),
             ],
@@ -265,102 +235,27 @@ class _DashboardScreenState extends State<DashboardScreen>
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              AppColors.primary,
-              Color.lerp(AppColors.primaryDark, accent, .28)!,
-            ],
+            colors: [AppColors.primary, Color.lerp(AppColors.primaryDark, accent, .28)!],
           ),
           borderRadius: BorderRadius.circular(28),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.primary.withValues(alpha: .16),
-              blurRadius: 24,
-              offset: const Offset(0, 12),
-            ),
-          ],
+          boxShadow: [BoxShadow(color: AppColors.primary.withValues(alpha: .16), blurRadius: 24, offset: const Offset(0, 12))],
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Expanded(
-                  child: Text(
-                    'YOUR COLOUR PROFILE',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 9,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.eggYolk,
-                    borderRadius: BorderRadius.circular(AppRadius.full),
-                  ),
-                  child: const Text(
-                    'PERSONALISED',
-                    style: TextStyle(
-                      color: AppColors.primaryDark,
-                      fontSize: 9,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 9),
-            Text(
-              result.season,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 29,
-                fontWeight: FontWeight.w800,
-                letterSpacing: -.7,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '${result.undertone} • ${result.brightness} • ${result.contrast}',
-              style: const TextStyle(color: Colors.white70, fontSize: 12.5),
-            ),
-            if (result.colours.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              Row(
-                children: result.colours
-                    .take(6)
-                    .map(
-                      (name) => Padding(
-                        padding: const EdgeInsets.only(right: 7),
-                        child: ColourSwatch(name: name, size: 30),
-                      ),
-                    )
-                    .toList(),
-              ),
-            ],
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            const Expanded(child: Text('YOUR COLOUR PROFILE', style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1.2))),
+            Container(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6), decoration: BoxDecoration(color: AppColors.eggYolk, borderRadius: BorderRadius.circular(AppRadius.full)), child: const Text('PERSONALISED', style: TextStyle(color: AppColors.primaryDark, fontSize: 9, fontWeight: FontWeight.w800))),
+          ]),
+          const SizedBox(height: 9),
+          Text(result.season, style: const TextStyle(color: Colors.white, fontSize: 29, fontWeight: FontWeight.w800, letterSpacing: -.7)),
+          const SizedBox(height: 4),
+          Text('${result.undertone} • ${result.brightness} • ${result.contrast}', style: const TextStyle(color: Colors.white70, fontSize: 12.5)),
+          if (result.colours.isNotEmpty) ...[
             const SizedBox(height: 16),
-            const Row(
-              children: [
-                Text(
-                  'View full colour profile',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 13,
-                  ),
-                ),
-                SizedBox(width: 5),
-                Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 17),
-              ],
-            ),
+            Row(children: result.colours.take(6).map((name) => Padding(padding: const EdgeInsets.only(right: 7), child: ColourSwatch(name: name, size: 30))).toList()),
           ],
-        ),
+          const SizedBox(height: 16),
+          const Row(children: [Text('View full colour profile', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13)), SizedBox(width: 5), Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 17)]),
+        ]),
       ),
     );
   }
@@ -370,428 +265,80 @@ class _DashboardScreenState extends State<DashboardScreen>
     final name = result.colours[DateTime.now().day % result.colours.length];
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(21),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Row(
-        children: [
-          ColourSwatch(name: name, size: 52),
-          const SizedBox(width: 13),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text("TODAY'S COLOUR", style: _eyebrow()),
-                const SizedBox(height: 3),
-                Text(name, style: Theme.of(context).textTheme.titleLarge),
-                const SizedBox(height: 2),
-                const Text(
-                  'One of your real recommended shades to try today.',
-                  style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 11.5,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(21), border: Border.all(color: AppColors.border)),
+      child: Row(children: [
+        ColourSwatch(name: name, size: 52),
+        const SizedBox(width: 13),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text("TODAY'S COLOUR", style: _eyebrow()), const SizedBox(height: 3), Text(name, style: Theme.of(context).textTheme.titleLarge), const SizedBox(height: 2), const Text('One of your real recommended shades to try today.', style: TextStyle(color: AppColors.textSecondary, fontSize: 11.5))])),
+      ]),
     );
   }
 
   Widget _styleMeCard(ColourAnalysisResult? result) {
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: AppGradients.ai,
-        borderRadius: BorderRadius.circular(25),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 38,
-                height: 38,
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.auto_awesome_rounded,
-                  color: AppColors.primary,
-                ),
-              ),
-              const SizedBox(width: 10),
-              const Expanded(
-                child: Text(
-                  'AI STYLIST',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.1,
-                  ),
-                ),
-              ),
-              if (_premium) const PremiumBadge(compact: true),
-            ],
-          ),
-          const SizedBox(height: 15),
-          Text(
-            _wardrobe.isEmpty
-                ? 'Tell me what you’re dressing for.'
-                : 'Build a look from your real wardrobe.',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-              height: 1.1,
-            ),
-          ),
-          const SizedBox(height: 7),
-          Text(
-            result == null
-                ? 'Finish your colour profile for better matching.'
-                : 'Your ${result.season} palette and saved preferences stay at the centre.',
-            style: const TextStyle(
-              color: Colors.white70,
-              height: 1.4,
-              fontSize: 12.5,
-            ),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: () => _open(const StyleMeScreen()),
-              icon: const Icon(Icons.auto_awesome_rounded),
-              label: const Text('Style Me'),
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.eggYolk,
-                foregroundColor: AppColors.primaryDark,
-                minimumSize: const Size.fromHeight(50),
-              ),
-            ),
-          ),
-        ],
-      ),
+      decoration: BoxDecoration(gradient: AppGradients.ai, borderRadius: BorderRadius.circular(25)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [Container(width: 38, height: 38, decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle), child: const Icon(Icons.auto_awesome_rounded, color: AppColors.primary)), const SizedBox(width: 10), const Expanded(child: Text('AI STYLIST', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1.1))), if (_premium) const PremiumBadge(compact: true)]),
+        const SizedBox(height: 15),
+        Text(_wardrobe.isEmpty ? 'Tell me what you’re dressing for.' : 'Build a look from your real wardrobe.', style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800, height: 1.1)),
+        const SizedBox(height: 7),
+        Text(result == null ? 'Finish your colour profile for better matching.' : 'Your ${result.season} palette and saved preferences stay at the centre.', style: const TextStyle(color: Colors.white70, height: 1.4, fontSize: 12.5)),
+        const SizedBox(height: 16),
+        SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: () => _open(const StyleMeScreen()), icon: const Icon(Icons.auto_awesome_rounded), label: const Text('Style Me'), style: FilledButton.styleFrom(backgroundColor: AppColors.eggYolk, foregroundColor: AppColors.primaryDark, minimumSize: const Size.fromHeight(50)))),
+      ]),
     );
   }
 
   Widget _wardrobeSection() {
     final favourites = _wardrobe.where((item) => item.isFavourite).length;
     final pieces = _wardrobe.take(4).toList();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            const Expanded(
-              child: Text(
-                'My Wardrobe',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-              ),
-            ),
-            TextButton(
-              onPressed: () => _open(const WardrobeScreen()),
-              child: const Text('Open'),
-            ),
-          ],
-        ),
-        Text(
-          '${_wardrobe.length} pieces • $favourites favourites',
-          style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5),
-        ),
-        const SizedBox(height: 11),
-        if (_loading)
-          const SizedBox(
-            height: 130,
-            child: Center(child: CircularProgressIndicator()),
-          )
-        else if (_wardrobe.isEmpty)
-          Container(
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(21),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: const Row(
-              children: [
-                Icon(Icons.add_a_photo_outlined, color: AppColors.primary, size: 30),
-                SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Add the clothes you already own. Your AI stylist will work from them.',
-                    style: TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 12,
-                      height: 1.4,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          )
-        else
-          SizedBox(
-            height: 190,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: pieces.length,
-              separatorBuilder: (_, index) => const SizedBox(width: 10),
-              itemBuilder: (_, i) => _wardrobeCard(pieces[i]),
-            ),
-          ),
-      ],
-    );
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [const Expanded(child: Text('My Wardrobe', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800))), TextButton(onPressed: () => _open(const WardrobeScreen()), child: const Text('Open'))]),
+      Text('${_wardrobe.length} pieces • $favourites favourites', style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5)),
+      const SizedBox(height: 11),
+      if (_loading)
+        const SizedBox(height: 130, child: Center(child: CircularProgressIndicator()))
+      else if (_wardrobe.isEmpty)
+        Container(padding: const EdgeInsets.all(18), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(21), border: Border.all(color: AppColors.border)), child: const Row(children: [Icon(Icons.add_a_photo_outlined, color: AppColors.primary, size: 30), SizedBox(width: 12), Expanded(child: Text('Add the clothes you already own. Your AI stylist will work from them.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.4)))]))
+      else
+        SizedBox(height: 190, child: ListView.separated(scrollDirection: Axis.horizontal, itemCount: pieces.length, separatorBuilder: (_, index) => const SizedBox(width: 10), itemBuilder: (_, i) => _wardrobeCard(pieces[i]))),
+    ]);
   }
 
   Widget _wardrobeCard(WardrobeItem item) {
-    return SizedBox(
-      width: 142,
-      child: Container(
-        padding: const EdgeInsets.all(7),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(19),
-          border: Border.all(color: AppColors.border),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(14),
-                child: item.imageUrl.isEmpty
-                    ? Container(
-                        color: AppColors.surfaceMuted,
-                        child: const Center(
-                          child: Icon(Icons.checkroom_outlined),
-                        ),
-                      )
-                    : CachedNetworkImage(
-                        imageUrl: item.imageUrl,
-                        fit: BoxFit.cover,
-                        width: double.infinity,
-                      ),
-              ),
-            ),
-            const SizedBox(height: 7),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    item.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
-                  ),
-                ),
-                if (item.isFavourite)
-                  const Icon(
-                    Icons.favorite_rounded,
-                    color: AppColors.eggYolk,
-                    size: 15,
-                  ),
-              ],
-            ),
-            const SizedBox(height: 2),
-            Text(
-              '${item.category} · ${item.colour}',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: AppColors.textMuted, fontSize: 10.5),
-            ),
-          ],
-        ),
-      ),
-    );
+    return SizedBox(width: 142, child: Container(padding: const EdgeInsets.all(7), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(19), border: Border.all(color: AppColors.border)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(child: ClipRRect(borderRadius: BorderRadius.circular(14), child: item.imageUrl.isEmpty ? Container(color: AppColors.surfaceMuted, child: const Center(child: Icon(Icons.checkroom_outlined))) : CachedNetworkImage(imageUrl: item.imageUrl, fit: BoxFit.cover, width: double.infinity))), const SizedBox(height: 7), Row(children: [Expanded(child: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800))), if (item.isFavourite) const Icon(Icons.favorite_rounded, color: AppColors.eggYolk, size: 15)]), const SizedBox(height: 2), Text('${item.category} · ${item.colour}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.textMuted, fontSize: 10.5))]))));
   }
 
   Widget _preferencesSection(ColourAnalysisResult? result) {
     return Container(
       padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(23),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.tune_rounded, color: AppColors.primary),
-              const SizedBox(width: 8),
-              const Expanded(
-                child: Text(
-                  'Your Style Preferences',
-                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
-                ),
-              ),
-              TextButton(
-                onPressed: () {
-                  _open(const StylePreferencesScreen()).then((_) => _load());
-                },
-                child: const Text('Edit'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            result == null
-                ? 'Set preferences so recommendations feel more like you.'
-                : 'Your profile is ready to guide future outfit recommendations.',
-            style: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 12,
-              height: 1.4,
-            ),
-          ),
-          const SizedBox(height: 12),
-          if (_styles.isEmpty && _preferences.isEmpty)
-            const Text(
-              'No saved preferences yet.',
-              style: TextStyle(color: AppColors.textMuted, fontSize: 12),
-            )
-          else
-            Wrap(
-              spacing: 7,
-              runSpacing: 7,
-              children: [..._styles, ..._preferences]
-                  .take(8)
-                  .map(
-                    (value) => Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 7,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceMuted,
-                        borderRadius: BorderRadius.circular(AppRadius.full),
-                      ),
-                      child: Text(
-                        value,
-                        style: const TextStyle(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  )
-                  .toList(),
-            ),
-        ],
-      ),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(23), border: Border.all(color: AppColors.border)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [const Icon(Icons.tune_rounded, color: AppColors.primary), const SizedBox(width: 8), const Expanded(child: Text('Your Style Preferences', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800))), TextButton(onPressed: () { _open(const StylePreferencesScreen()).then((_) => _load()); }, child: const Text('Edit'))]),
+        const SizedBox(height: 4),
+        Text(result == null ? 'Set preferences so recommendations feel more like you.' : 'Your profile is ready to guide future outfit recommendations.', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.4)),
+        const SizedBox(height: 12),
+        if (_styles.isEmpty && _preferences.isEmpty)
+          const Text('No saved preferences yet.', style: TextStyle(color: AppColors.textMuted, fontSize: 12))
+        else
+          Wrap(spacing: 7, runSpacing: 7, children: [..._styles, ..._preferences].take(8).map((value) => Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: AppColors.surfaceMuted, borderRadius: BorderRadius.circular(AppRadius.full)), child: Text(value, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600)))).toList()),
+      ]),
     );
   }
 
   Widget _premiumCard() {
-    return InkWell(
-      onTap: () => _open(const PremiumScreen()),
-      borderRadius: BorderRadius.circular(22),
-      child: Container(
-        padding: const EdgeInsets.all(17),
-        decoration: BoxDecoration(
-          color: AppColors.premiumAccentLight,
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: AppColors.eggYolk.withValues(alpha: .7)),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 46,
-              height: 46,
-              decoration: const BoxDecoration(
-                color: AppColors.eggYolk,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.workspace_premium_rounded,
-                color: AppColors.primaryDark,
-              ),
-            ),
-            const SizedBox(width: 12),
-            const Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Unlock deeper AI styling',
-                    style: TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                  SizedBox(height: 3),
-                  Text(
-                    'Premium recommendations are built around your real wardrobe.',
-                    style: TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 11.5,
-                      height: 1.35,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Icon(Icons.arrow_forward_rounded, color: AppColors.primary),
-          ],
-        ),
-      ),
-    );
+    return InkWell(onTap: () => _open(const PremiumScreen()), borderRadius: BorderRadius.circular(22), child: Container(padding: const EdgeInsets.all(17), decoration: BoxDecoration(color: AppColors.premiumAccentLight, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.eggYolk.withValues(alpha: .7))), child: Row(children: [Container(width: 46, height: 46, decoration: const BoxDecoration(color: AppColors.eggYolk, shape: BoxShape.circle), child: const Icon(Icons.workspace_premium_rounded, color: AppColors.primaryDark)), const SizedBox(width: 12), const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Unlock deeper AI styling', style: TextStyle(fontWeight: FontWeight.w800)), SizedBox(height: 3), Text('Premium recommendations are built around your real wardrobe.', style: TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.35))])), const Icon(Icons.arrow_forward_rounded, color: AppColors.primary)])));
   }
 
-  Widget _circleButton(IconData icon) => Material(
-        color: AppColors.surfaceMuted,
-        shape: const CircleBorder(),
-        child: InkWell(
-          onTap: () {},
-          customBorder: const CircleBorder(),
-          child: SizedBox(
-            width: 42,
-            height: 42,
-            child: Icon(icon, color: AppColors.primary, size: 20),
-          ),
-        ),
-      );
-
-  TextStyle _eyebrow() => const TextStyle(
-        color: AppColors.textMuted,
-        fontSize: 9.5,
-        fontWeight: FontWeight.w800,
-        letterSpacing: 1.1,
-      );
-
-  Future<void> _open(Widget page) => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => page),
-      );
+  Widget _circleButton(IconData icon) => Material(color: AppColors.surfaceMuted, shape: const CircleBorder(), child: InkWell(onTap: () {}, customBorder: const CircleBorder(), child: SizedBox(width: 42, height: 42, child: Icon(icon, color: AppColors.primary, size: 20))));
+  TextStyle _eyebrow() => const TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w800, letterSpacing: 1.1);
+  Future<void> _open(Widget page) => Navigator.push(context, MaterialPageRoute(builder: (_) => page));
 }
 
 class _WhitePill extends StatelessWidget {
   final String label;
-
   const _WhitePill({required this.label});
-
   @override
-  Widget build(BuildContext context) => Container(
-        height: 46,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(15),
-        ),
-        child: Text(
-          label,
-          style: const TextStyle(
-            color: AppColors.primaryDark,
-            fontWeight: FontWeight.w800,
-            fontSize: 13,
-          ),
-        ),
-      );
+  Widget build(BuildContext context) => Container(height: 46, alignment: Alignment.center, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15)), child: Text(label, style: const TextStyle(color: AppColors.primaryDark, fontWeight: FontWeight.w800, fontSize: 13)));
 }
