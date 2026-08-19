@@ -6,9 +6,9 @@ import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_radius.dart';
 import '../../providers/analysis_provider.dart';
-import '../../services/auth_service.dart';
 import '../../services/image_picker_service.dart';
 import '../../widgets/primary_button.dart';
+import '../auth/auth_service.dart';
 import 'analysis_result_screen.dart';
 import 'history/analysis_history_screen.dart';
 
@@ -23,7 +23,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
   late final Animation<double> _header;
-  late final Animation<double> _camera;
+  late final Animation<double> _cameraReveal;
   late final Animation<double> _tips;
 
   @override
@@ -34,7 +34,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
       duration: const Duration(milliseconds: 900),
     )..forward();
     _header = _interval(0, .42);
-    _camera = _interval(.12, .72);
+    _cameraReveal = _interval(.12, .72);
     _tips = _interval(.35, 1);
   }
 
@@ -63,7 +63,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
     super.dispose();
   }
 
-  Future<void> _camera() async {
+  Future<void> _openCamera() async {
     final provider = context.read<AnalysisProvider>();
     if (provider.isLoading) return;
     final image = await ImagePickerService.pickCamera();
@@ -71,7 +71,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
     provider.setImage(image);
   }
 
-  Future<void> _gallery() async {
+  Future<void> _openGallery() async {
     final provider = context.read<AnalysisProvider>();
     if (provider.isLoading) return;
     final image = await ImagePickerService.pickGallery();
@@ -143,14 +143,11 @@ class _AnalysisScreenState extends State<AnalysisScreen>
               children: [
                 _reveal(_header, _buildHeader(provider.isPremium)),
                 const SizedBox(height: 24),
-                _reveal(
-                  _camera,
-                  _buildCameraFrame(image, loading),
-                ),
+                _reveal(_cameraReveal, _buildCameraFrame(image, loading)),
                 const SizedBox(height: 16),
-                _reveal(_camera, _buildStatus(provider, image)),
+                _reveal(_cameraReveal, _buildStatus(provider, image)),
                 const SizedBox(height: 22),
-                _reveal(_camera, _buildSources(loading)),
+                _reveal(_cameraReveal, _buildSources(loading)),
                 const SizedBox(height: 22),
                 _reveal(_tips, _buildTips()),
                 const SizedBox(height: 24),
@@ -168,10 +165,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                   const Text(
                     'Your photo is used only to create your personalised result.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: AppColors.textMuted,
-                      fontSize: 11.5,
-                    ),
+                    style: TextStyle(color: AppColors.textMuted, fontSize: 11.5),
                   ),
                 ),
               ],
@@ -233,21 +227,14 @@ class _AnalysisScreenState extends State<AnalysisScreen>
       child: Stack(
         fit: StackFit.expand,
         children: [
-          if (image != null)
-            Image.file(image, fit: BoxFit.cover)
-          else
-            _emptyCamera(),
+          if (image != null) Image.file(image, fit: BoxFit.cover) else _emptyCamera(),
           if (image == null) _faceGuide(),
           if (loading) _loadingOverlay(),
           if (image != null && !loading)
             Positioned(
               top: 14,
               right: 14,
-              child: _roundButton(
-                Icons.refresh_rounded,
-                _gallery,
-                tooltip: 'Choose another photo',
-              ),
+              child: _roundButton(Icons.refresh_rounded, _openGallery, 'Choose another photo'),
             ),
         ],
       ),
@@ -279,10 +266,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
         width: 190,
         height: 255,
         decoration: BoxDecoration(
-          border: Border.all(
-            color: Colors.white.withValues(alpha: .9),
-            width: 2,
-          ),
+          border: Border.all(color: Colors.white.withValues(alpha: .9), width: 2),
           borderRadius: BorderRadius.circular(95),
         ),
         child: Align(
@@ -296,11 +280,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
             ),
             child: const Text(
               'Place your face here',
-              style: TextStyle(
-                color: AppColors.charcoal,
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-              ),
+              style: TextStyle(color: AppColors.charcoal, fontSize: 11, fontWeight: FontWeight.w700),
             ),
           ),
         ),
@@ -318,18 +298,12 @@ class _AnalysisScreenState extends State<AnalysisScreen>
             SizedBox(
               width: 42,
               height: 42,
-              child: CircularProgressIndicator(
-                strokeWidth: 2.5,
-                color: Colors.white,
-              ),
+              child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
             ),
             SizedBox(height: 16),
             Text(
               'Reading your colour profile…',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w700,
-              ),
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
             ),
           ],
         ),
@@ -337,11 +311,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
     );
   }
 
-  Widget _roundButton(
-    IconData icon,
-    VoidCallback onTap, {
-    required String tooltip,
-  }) {
+  Widget _roundButton(IconData icon, VoidCallback onTap, String tooltip) {
     return Material(
       color: Colors.white.withValues(alpha: .92),
       shape: const CircleBorder(),
@@ -382,11 +352,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
           Expanded(
             child: Text(
               text,
-              style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 12.5,
-                height: 1.35,
-              ),
+              style: const TextStyle(color: AppColors.textPrimary, fontSize: 12.5, height: 1.35),
             ),
           ),
         ],
@@ -397,21 +363,9 @@ class _AnalysisScreenState extends State<AnalysisScreen>
   Widget _buildSources(bool loading) {
     return Row(
       children: [
-        Expanded(
-          child: _source(
-            Icons.camera_alt_outlined,
-            'Camera',
-            loading ? null : _camera,
-          ),
-        ),
+        Expanded(child: _source(Icons.camera_alt_outlined, 'Camera', loading ? null : _openCamera)),
         const SizedBox(width: 12),
-        Expanded(
-          child: _source(
-            Icons.photo_library_outlined,
-            'Gallery',
-            loading ? null : _gallery,
-          ),
-        ),
+        Expanded(child: _source(Icons.photo_library_outlined, 'Gallery', loading ? null : _openGallery)),
       ],
     );
   }
@@ -434,13 +388,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
             children: [
               Icon(icon, color: AppColors.primaryDark, size: 21),
               const SizedBox(width: 8),
-              Text(
-                label,
-                style: const TextStyle(
-                  color: AppColors.charcoal,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
+              Text(label, style: const TextStyle(color: AppColors.charcoal, fontWeight: FontWeight.w700)),
             ],
           ),
         ),
@@ -458,14 +406,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
       child: const Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'For a better result',
-            style: TextStyle(
-              color: AppColors.charcoal,
-              fontSize: 14,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
+          Text('For a better result', style: TextStyle(color: AppColors.charcoal, fontSize: 14, fontWeight: FontWeight.w800)),
           SizedBox(height: 12),
           _Tip(icon: Icons.wb_sunny_outlined, text: 'Use natural daylight.'),
           _Tip(icon: Icons.face_outlined, text: 'Keep your full face visible.'),
@@ -492,13 +433,7 @@ class _Tip extends StatelessWidget {
           Icon(icon, size: 17, color: AppColors.primaryDark),
           const SizedBox(width: 9),
           Expanded(
-            child: Text(
-              text,
-              style: const TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 12.5,
-              ),
-            ),
+            child: Text(text, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12.5)),
           ),
         ],
       ),
