@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
 
+/// Editorial gradients used across TiB. Keep them soft and low-contrast so
+/// photography and wardrobe colours remain the visual focus.
 class AppGradients {
   AppGradients._();
 
@@ -32,6 +34,18 @@ class AppGradients {
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
     colors: [Color(0xFFF7D9CB), Color(0xFFE7DDF3)],
+  );
+
+  static const LinearGradient sage = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [Color(0xFFE8EDDF), Color(0xFFF5EDE8)],
+  );
+
+  static const LinearGradient peach = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [Color(0xFFFFE7DC), Color(0xFFF6EAF4)],
   );
 
   static LinearGradient season(String? seasonName) {
