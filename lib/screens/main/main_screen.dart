@@ -5,8 +5,8 @@ import 'package:provider/provider.dart';
 
 import '../../providers/analysis_provider.dart';
 import '../dashboard/dashboard_screen.dart';
-import '../analysis/analysis_screen.dart';
 import '../ai/ai_stylist_screen.dart';
+import '../learning/learning_screen.dart';
 import '../profile/profile_screen.dart';
 import '../wardrobe/wardrobe_screen.dart';
 
@@ -22,26 +22,19 @@ class _MainScreenState extends State<MainScreen> {
 
   final List<Widget> _pages = const [
     DashboardScreen(),
-    AnalysisScreen(),
-    AIStylistScreen(),
     WardrobeScreen(),
+    AIStylistScreen(),
+    LearningScreen(),
     ProfileScreen(),
   ];
 
   @override
   void initState() {
     super.initState();
-
-    // Load the customer's most recently saved colour analysis (if any)
-    // once per session, so Dashboard and AI Stylist reflect it without
-    // requiring a fresh analysis to be run in this session.
     final uid = FirebaseAuth.instance.currentUser?.uid;
-
     if (uid != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) {
-          return;
-        }
+        if (!mounted) return;
         context.read<AnalysisProvider>().loadLatestResult(uid);
       });
     }
@@ -55,42 +48,63 @@ class _MainScreenState extends State<MainScreen> {
         selectedIndex: _selectedIndex,
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
         onDestinationSelected: (index) {
-          if (index == _selectedIndex) {
-            return;
-          }
+          if (index == _selectedIndex) return;
           HapticFeedback.selectionClick();
-          setState(() {
-            _selectedIndex = index;
-          });
+          setState(() => _selectedIndex = index);
         },
-        destinations: const [
-          NavigationDestination(
+        destinations: [
+          const NavigationDestination(
             icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
+            selectedIcon: Icon(Icons.home_rounded),
             label: 'Home',
           ),
-          NavigationDestination(
-            icon: Icon(Icons.palette_outlined),
-            selectedIcon: Icon(Icons.palette),
-            label: 'Colour',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.auto_awesome_outlined),
-            selectedIcon: Icon(Icons.auto_awesome),
-            label: 'AI',
-          ),
-          NavigationDestination(
+          const NavigationDestination(
             icon: Icon(Icons.checkroom_outlined),
-            selectedIcon: Icon(Icons.checkroom),
+            selectedIcon: Icon(Icons.checkroom_rounded),
             label: 'Wardrobe',
           ),
           NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
+            icon: Container(
+              width: 44,
+              height: 44,
+              decoration: const BoxDecoration(
+                gradient: AppNavGradient.gradient,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.auto_awesome, color: Colors.white, size: 20),
+            ),
+            selectedIcon: Container(
+              width: 48,
+              height: 48,
+              decoration: const BoxDecoration(
+                gradient: AppNavGradient.gradient,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.auto_awesome, color: Colors.white, size: 22),
+            ),
+            label: 'AI',
+          ),
+          const NavigationDestination(
+            icon: Icon(Icons.menu_book_outlined),
+            selectedIcon: Icon(Icons.menu_book_rounded),
+            label: 'Learn',
+          ),
+          const NavigationDestination(
+            icon: Icon(Icons.person_outline_rounded),
+            selectedIcon: Icon(Icons.person_rounded),
             label: 'Profile',
           ),
         ],
       ),
     );
   }
+}
+
+class AppNavGradient {
+  AppNavGradient._();
+  static const LinearGradient gradient = LinearGradient(
+    colors: [Color(0xFFB49ADF), Color(0xFFE0BEB3)],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
 }
