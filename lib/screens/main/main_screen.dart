@@ -5,7 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../providers/analysis_provider.dart';
-import '../ai/ai_stylist_screen.dart';
+import '../ai/style_me_screen.dart';
 import '../analysis/analysis_screen.dart';
 import '../dashboard/dashboard_screen.dart';
 import '../profile/profile_screen.dart';
@@ -13,11 +13,9 @@ import '../wardrobe/wardrobe_screen.dart';
 
 /// Primary application shell.
 ///
-/// The navigation is intentionally editorial rather than dashboard-heavy:
-/// Home, Colour, AI, Wardrobe and Profile are the five things a styling app
-/// should keep one tap away. AI gets a small egg-yolk visual treatment so it
-/// reads as the app's intelligent centre without introducing a new colour
-/// family.
+/// Home, Colour, AI, Wardrobe and Profile stay one tap away. AI is now the
+/// free-form Style Me experience, while the chat stylist remains available
+/// from inside that screen for users who prefer conversation.
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
 
@@ -31,7 +29,7 @@ class _MainScreenState extends State<MainScreen> {
   final List<Widget> _pages = const [
     DashboardScreen(),
     AnalysisScreen(),
-    AIStylistScreen(),
+    StyleMeScreen(),
     WardrobeScreen(),
     ProfileScreen(),
   ];
