@@ -217,7 +217,7 @@ class _PremiumScreenState extends State<PremiumScreen>
                 ),
                 const SizedBox(width: 6),
                 Text(
-                  _isPremium ? 'PREMIUM ACTIVE' : 'TIb PREMIUM',
+                  _isPremium ? 'PREMIUM ACTIVE' : 'TIB PREMIUM',
                   style: const TextStyle(
                     color: _brown,
                     fontSize: 10,
@@ -351,7 +351,7 @@ class _PremiumScreenState extends State<PremiumScreen>
                         title,
                         style: const TextStyle(
                           color: _text,
-                          fontWeight: FontWeight.w750,
+                          fontWeight: FontWeight.w700,
                           fontSize: 14,
                         ),
                       ),
