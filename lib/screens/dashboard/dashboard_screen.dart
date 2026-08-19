@@ -14,105 +14,21 @@ import '../../providers/analysis_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../services/style_preference_service.dart';
 import '../../widgets/colour_swatch.dart';
-import '../../widgets/gradient_card.dart';
 import '../../widgets/premium_badge.dart';
-import '../../widgets/section_header.dart';
 import '../ai/ai_stylist_screen.dart';
 import '../ai/style_preferences_screen.dart';
 import '../analysis/analysis_result_screen.dart';
 import '../analysis/analysis_screen.dart';
 import '../analysis/history/analysis_history_screen.dart';
-import '../learning/learning_screen.dart';
+import '../premium/premium_screen.dart';
 import '../wardrobe/wardrobe_screen.dart';
 
-class _PremiumChip extends StatelessWidget {
-  final IconData icon;
-  final String label;
-
-  const _PremiumChip({required this.icon, required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-      decoration: BoxDecoration(
-        color: AppColors.premiumAccent.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(AppRadius.full),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: AppColors.premiumAccentDark, size: 14),
-          const SizedBox(width: 5),
-          Text(
-            label,
-            style: const TextStyle(
-              color: AppColors.premiumAccentDark,
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _QuickActionTile extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  const _QuickActionTile({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(AppRadius.lg),
-      child: Container(
-        width: 88,
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 6),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(AppRadius.lg),
-          border: Border.all(color: AppColors.border),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: const BoxDecoration(
-                color: AppColors.secondary,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: AppColors.primaryDark, size: 22),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
+/// Editorial home experience.
+///
+/// Quick Access is intentionally gone. The home screen is now a personalised
+/// feed: greeting -> colour identity -> today's styling prompt -> AI stylist ->
+/// wardrobe snapshot -> personal preferences -> Premium. Every card either
+/// uses real saved data or clearly asks the user to create it.
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
@@ -122,50 +38,43 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen>
     with SingleTickerProviderStateMixin {
-  bool _isPremium = false;
-  bool _dataLoaded = false;
   String _name = '';
   String? _photoUrl;
+  bool _isPremium = false;
+  bool _loading = true;
   List<WardrobeItem> _wardrobe = const [];
   List<String> _styles = const [];
   List<String> _preferences = const [];
 
-  // Subtle entrance animation -- fade + gentle slide-up, no bounce.
-  // Staggered per the approved sequence: 0.00 greeting, 0.10 hero,
-  // 0.20 today's colour, 0.30 quick actions, 0.40 AI Stylist/Wardrobe,
-  // 0.50 Premium/Personal Style.
   late final AnimationController _revealController;
-  late final Animation<double> _greetingReveal;
-  late final Animation<double> _heroReveal;
-  late final Animation<double> _todayReveal;
-  late final Animation<double> _actionsReveal;
-  late final Animation<double> _promoReveal;
-  late final Animation<double> _premiumStyleReveal;
+  late final Animation<double> _greeting;
+  late final Animation<double> _hero;
+  late final Animation<double> _today;
+  late final Animation<double> _ai;
+  late final Animation<double> _wardrobeReveal;
+  late final Animation<double> _personal;
 
   @override
   void initState() {
     super.initState();
-    _loadDashboardData();
-
+    _load();
     _revealController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1000),
+      duration: const Duration(milliseconds: 950),
     );
-
-    _greetingReveal = _stage(0.00, 0.35);
-    _heroReveal = _stage(0.10, 0.45);
-    _todayReveal = _stage(0.20, 0.55);
-    _actionsReveal = _stage(0.30, 0.65);
-    _promoReveal = _stage(0.40, 0.75);
-    _premiumStyleReveal = _stage(0.50, 1.00);
-
+    _greeting = _stage(0.00, 0.30);
+    _hero = _stage(0.08, 0.44);
+    _today = _stage(0.18, 0.56);
+    _ai = _stage(0.30, 0.68);
+    _wardrobeReveal = _stage(0.42, 0.82);
+    _personal = _stage(0.56, 1.00);
     _revealController.forward();
   }
 
   Animation<double> _stage(double begin, double end) {
     return CurvedAnimation(
       parent: _revealController,
-      curve: Interval(begin, end, curve: Curves.easeOut),
+      curve: Interval(begin, end, curve: Curves.easeOutCubic),
     );
   }
 
@@ -175,60 +84,46 @@ class _DashboardScreenState extends State<DashboardScreen>
     super.dispose();
   }
 
-  /// Loads everything the Dashboard actually displays about the real
-  /// signed-in user: Premium status, name and photo (all from the same
-  /// users/{uid} read this screen already made), plus their real wardrobe
-  /// and Style Preferences -- the same FirestoreService/
-  /// StylePreferenceService calls ai_stylist_screen.dart and
-  /// profile_screen.dart already use, so no new architecture is
-  /// introduced.
-  Future<void> _loadDashboardData() async {
+  Future<void> _load() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
-
     if (uid == null) {
-      if (mounted) {
-        setState(() => _dataLoaded = true);
-      }
+      if (mounted) setState(() => _loading = false);
       return;
     }
 
     try {
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .get();
-      final wardrobe = await FirestoreService.getWardrobeItems(uid);
-      final stylePreferences = await StylePreferenceService.getStylePreferences(
-        uid,
-      );
+      final results = await Future.wait<dynamic>([
+        FirebaseFirestore.instance.collection('users').doc(uid).get(),
+        FirestoreService.getWardrobeItems(uid),
+        StylePreferenceService.getStylePreferences(uid),
+      ]);
 
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
 
-      final userData = userDoc.data();
+      final userSnapshot = results[0] as DocumentSnapshot<Map<String, dynamic>>;
+      final userData = userSnapshot.data() ?? const <String, dynamic>{};
+      final preferences = results[2] as Map<String, dynamic>?;
 
       setState(() {
-        _isPremium = userData?['isPremium'] == true;
-        _name = (userData?['name'] as String?)?.trim() ?? '';
-        _photoUrl = userData?['photoUrl'] as String?;
-        _wardrobe = wardrobe;
-        _styles = List<String>.from(stylePreferences?['styles'] ?? const []);
+        _name = (userData['name'] as String? ?? '').trim();
+        _photoUrl = userData['photoUrl'] as String?;
+        _isPremium = userData['isPremium'] == true;
+        _wardrobe = results[1] as List<WardrobeItem>;
+        _styles = List<String>.from(preferences?['styles'] ?? const []);
         _preferences = List<String>.from(
-          stylePreferences?['preferences'] ?? const [],
+          preferences?['preferences'] ?? const [],
         );
-        _dataLoaded = true;
+        _loading = false;
       });
     } catch (_) {
-      if (!mounted) {
-        return;
-      }
-
-      setState(() => _dataLoaded = true);
+      if (mounted) setState(() => _loading = false);
     }
   }
 
-  /// Fade + gentle slide-up reveal for one stage of the animation.
+  Future<void> _refresh() async {
+    await _load();
+  }
+
   Widget _reveal(Animation<double> animation, Widget child) {
     return AnimatedBuilder(
       animation: animation,
@@ -237,7 +132,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         return Opacity(
           opacity: value,
           child: Transform.translate(
-            offset: Offset(0, (1 - value) * 14),
+            offset: Offset(0, 18 * (1 - value)),
             child: animatedChild,
           ),
         );
@@ -248,65 +143,49 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   @override
   Widget build(BuildContext context) {
-    final analysisResult = context.watch<AnalysisProvider>().result;
+    final analysis = context.watch<AnalysisProvider>().result;
 
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _reveal(_greetingReveal, _buildGreeting(analysisResult)),
-
-              const SizedBox(height: 26),
-
-              _reveal(_heroReveal, _buildHero(context, analysisResult)),
-
-              _reveal(
-                _heroReveal,
-                Center(
-                  child: TextButton.icon(
-                    onPressed: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const AnalysisHistoryScreen(),
-                      ),
+        child: RefreshIndicator(
+          color: AppColors.primary,
+          onRefresh: _refresh,
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg,
+                  16,
+                  AppSpacing.lg,
+                  36,
+                ),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate([
+                    _reveal(_greeting, _buildGreeting(analysis)),
+                    const SizedBox(height: 24),
+                    _reveal(_hero, _buildColourHero(analysis)),
+                    if (analysis != null) ...[
+                      const SizedBox(height: 18),
+                      _reveal(_today, _buildTodayCard(analysis)),
+                    ],
+                    const SizedBox(height: 22),
+                    _reveal(_ai, _buildAiCard(analysis)),
+                    const SizedBox(height: 28),
+                    _reveal(_wardrobeReveal, _buildWardrobeSection()),
+                    const SizedBox(height: 28),
+                    _reveal(
+                      _personal,
+                      _buildPersonalSection(analysis),
                     ),
-                    icon: const Icon(Icons.history, size: 18),
-                    label: const Text('View Analysis History'),
-                  ),
+                    if (!_isPremium) ...[
+                      const SizedBox(height: 22),
+                      _reveal(_personal, _buildPremiumCard()),
+                    ],
+                  ]),
                 ),
               ),
-
-              if (analysisResult != null &&
-                  analysisResult.colours.isNotEmpty) ...[
-                const SizedBox(height: 24),
-                _reveal(_todayReveal, _buildTodaysColour(analysisResult)),
-              ],
-
-              const SizedBox(height: 30),
-
-              _reveal(_actionsReveal, _buildQuickActions(context)),
-
-              const SizedBox(height: 30),
-
-              _reveal(_promoReveal, _buildAiStylistPromo(context)),
-
-              const SizedBox(height: 20),
-
-              _reveal(_promoReveal, _buildWardrobeSnapshot(context)),
-
-              const SizedBox(height: 20),
-
-              _reveal(_premiumStyleReveal, _buildPersonalStyle(context)),
-
-              const SizedBox(height: 20),
-
-              _reveal(_premiumStyleReveal, _buildPremiumDashboardCard(context)),
-
-              const SizedBox(height: 10),
             ],
           ),
         ),
@@ -314,441 +193,181 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  // ============================================================
-  // GREETING
-  // ============================================================
-
-  Widget _buildGreeting(ColourAnalysisResult? analysisResult) {
+  Widget _buildGreeting(ColourAnalysisResult? analysis) {
     final hour = DateTime.now().hour;
     final greeting = hour < 12
-        ? 'Good Morning'
+        ? 'Good morning'
         : hour < 18
-        ? 'Good Afternoon'
-        : 'Good Evening';
-    final displayName = _name.isNotEmpty ? _name : 'there';
-
-    final subtitle = analysisResult != null
-        ? 'Your ${analysisResult.season} palette is ready.'
-        : "Let's find colours that feel like you.";
+        ? 'Good afternoon'
+        : 'Good evening';
+    final name = _name.isEmpty ? 'there' : _name;
 
     return Row(
       children: [
-        CircleAvatar(
-          radius: 28,
-          backgroundColor: AppColors.secondary,
-          backgroundImage: _photoUrl != null && _photoUrl!.isNotEmpty
-              ? CachedNetworkImageProvider(_photoUrl!)
-              : null,
-          child: _photoUrl == null || _photoUrl!.isEmpty
-              ? const Icon(Icons.person, color: Colors.white)
-              : null,
+        Hero(
+          tag: 'profile-avatar',
+          child: CircleAvatar(
+            radius: 26,
+            backgroundColor: AppColors.surfaceMuted,
+            backgroundImage: _photoUrl != null && _photoUrl!.isNotEmpty
+                ? CachedNetworkImageProvider(_photoUrl!)
+                : null,
+            child: _photoUrl == null || _photoUrl!.isEmpty
+                ? const Icon(Icons.person_rounded, color: AppColors.primary)
+                : null,
+          ),
         ),
-        const SizedBox(width: 15),
+        const SizedBox(width: 13),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 '$greeting 👋',
-                style: Theme.of(context).textTheme.bodyMedium,
+                style: Theme.of(context).textTheme.bodySmall,
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 2),
               Text(
-                'Hi, $displayName',
-                style: Theme.of(context).textTheme.headlineMedium,
+                'Hi, $name',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.headlineSmall,
               ),
-              const SizedBox(height: 3),
-              Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
+              Text(
+                analysis == null
+                    ? 'Let’s build your personal style profile.'
+                    : '${analysis.season} • ${analysis.undertone}',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
             ],
           ),
         ),
-        IconButton(
-          tooltip: 'Notifications',
-          onPressed: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  'You’re all caught up. New styling updates will appear here.',
-                ),
-              ),
-            );
-          },
-          icon: const Icon(Icons.notifications_none),
+        _roundIconButton(
+          icon: Icons.notifications_none_rounded,
+          onTap: () => _showMessage('You’re all caught up.'),
         ),
       ],
     );
   }
 
-  // ============================================================
-  // HERO -- real colour profile, or a real onboarding invitation
-  // ============================================================
-
-  Widget _buildHero(BuildContext context, ColourAnalysisResult? result) {
+  Widget _buildColourHero(ColourAnalysisResult? result) {
     if (result == null) {
-      return GradientCard(
-        gradient: AppGradients.primary,
-        icon: Icons.auto_awesome_rounded,
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const AnalysisScreen()),
-        ),
+      return _brandCard(
+        onTap: () => _open(const AnalysisScreen()),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Discover Your Colours',
-              style: Theme.of(
-                context,
-              ).textTheme.headlineMedium?.copyWith(color: Colors.white),
-            ),
-            const SizedBox(height: 8),
+            _eyebrow('YOUR STYLE STARTS HERE'),
+            const SizedBox(height: 10),
             const Text(
-              'Find the shades that make you look and feel your best.',
-              style: TextStyle(color: Colors.white70, height: 1.5),
-            ),
-            const SizedBox(height: 18),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const AnalysisScreen()),
-                ),
-                style: FilledButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: AppColors.primaryDark,
-                ),
-                child: const Text('Analyse My Colours'),
+              'Find the colours\nthat feel like you.',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 30,
+                height: 1.04,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -1,
               ),
             ),
+            const SizedBox(height: 12),
+            const Text(
+              'Take a guided colour analysis and unlock a wardrobe built around your natural colouring.',
+              style: TextStyle(color: Colors.white70, height: 1.45),
+            ),
+            const SizedBox(height: 20),
+            _whiteAction('Start Colour Analysis'),
           ],
         ),
       );
     }
 
-    return GradientCard(
-      gradient: AppGradients.season(result.season),
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => AnalysisResultScreen(result: result)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'YOUR COLOUR PROFILE',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.4,
-              color: Colors.white.withValues(alpha: 0.85),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            result.season,
-            style: Theme.of(
-              context,
-            ).textTheme.headlineLarge?.copyWith(color: Colors.white),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            '${result.undertone} • ${result.brightness} • ${result.contrast}',
-            style: const TextStyle(color: Colors.white70, fontSize: 13),
-          ),
-          if (result.colours.isNotEmpty) ...[
-            const SizedBox(height: 18),
-            Row(
-              children: result.colours
-                  .take(5)
-                  .map(
-                    (colour) => Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: ColourSwatch(name: colour, size: 30),
-                    ),
-                  )
-                  .toList(),
-            ),
-          ],
-          const SizedBox(height: 16),
-          Row(
-            children: const [
-              Text(
-                'View full analysis',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 13,
-                ),
-              ),
-              SizedBox(width: 4),
-              Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 16),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ============================================================
-  // TODAY'S COLOUR -- one real colour, picked deterministically
-  // (day-of-month index), never random and never invented.
-  // ============================================================
-
-  Widget _buildTodaysColour(ColourAnalysisResult result) {
-    final colours = result.colours;
-    final todaysColour = colours[DateTime.now().day % colours.length];
-    final pairing = colours.firstWhere(
-      (c) => c != todaysColour,
-      orElse: () => '',
-    );
+    final accent = AppColors.seasonAccent(result.season);
 
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.xl),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        children: [
-          Text(
-            "TODAY'S COLOUR",
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.2,
-              color: AppColors.textMuted,
-            ),
-          ),
-          const SizedBox(height: 14),
-          ColourSwatch(name: todaysColour, size: 84, showLabel: true),
-          const SizedBox(height: 10),
-          Text(
-            pairing.isNotEmpty
-                ? 'Pair it with $pairing for an effortless look today.'
-                : 'Try it with your wardrobe today.',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyMedium,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [AppColors.primary, Color.lerp(AppColors.primaryDark, accent, .28)!],
+        ),
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withValues(alpha: .18),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
           ),
         ],
       ),
-    );
-  }
-
-  // ============================================================
-  // QUICK ACTIONS -- same 4 existing destinations, no new ones
-  // ============================================================
-
-  Widget _buildQuickActions(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Quick Access', style: Theme.of(context).textTheme.titleLarge),
-        const SizedBox(height: 14),
-        SizedBox(
-          height: 104,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: 4,
-            separatorBuilder: (_, _) => const SizedBox(width: 12),
-            itemBuilder: (context, index) {
-              switch (index) {
-                case 0:
-                  return _QuickActionTile(
-                    icon: Icons.palette_outlined,
-                    label: 'Colour\nAnalysis',
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const AnalysisScreen()),
-                    ),
-                  );
-                case 1:
-                  return _QuickActionTile(
-                    icon: Icons.auto_awesome_outlined,
-                    label: 'AI Stylist',
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const AIStylistScreen(),
-                      ),
-                    ),
-                  );
-                case 2:
-                  return _QuickActionTile(
-                    icon: Icons.checkroom_outlined,
-                    label: 'My\nWardrobe',
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const WardrobeScreen()),
-                    ),
-                  );
-                default:
-                  return _QuickActionTile(
-                    icon: Icons.school_outlined,
-                    label: 'Learning',
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const LearningScreen()),
-                    ),
-                  );
-              }
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ============================================================
-  // AI STYLIST PROMOTION
-  // ============================================================
-
-  Widget _buildAiStylistPromo(BuildContext context) {
-    return GradientCard(
-      gradient: AppGradients.ai,
-      icon: Icons.auto_awesome_rounded,
-      padding: const EdgeInsets.all(20),
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const AIStylistScreen()),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Your AI Stylist',
-            style: Theme.of(
-              context,
-            ).textTheme.titleLarge?.copyWith(color: Colors.white),
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            'Build an outfit from your wardrobe based on your personal colours.',
-            style: TextStyle(color: Colors.white, height: 1.45),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: const [
-              Text(
-                'Try AI Stylist',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 13,
-                ),
-              ),
-              SizedBox(width: 4),
-              Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 16),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ============================================================
-  // WARDROBE SNAPSHOT -- real wardrobe items and count
-  // ============================================================
-
-  Widget _buildWardrobeSnapshot(BuildContext context) {
-    final preview = _wardrobe.take(4).toList();
-
-    return InkWell(
-      borderRadius: BorderRadius.circular(AppRadius.xl),
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const WardrobeScreen()),
-      ),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(AppRadius.xl),
-          border: Border.all(color: AppColors.border),
-        ),
+      child: InkWell(
+        onTap: () => _open(AnalysisResultScreen(result: result)),
+        borderRadius: BorderRadius.circular(28),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Your Wardrobe',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              _dataLoaded
-                  ? (_wardrobe.isEmpty
-                        ? 'Add your first piece to start building outfits.'
-                        : '${_wardrobe.length} piece${_wardrobe.length == 1 ? '' : 's'} saved')
-                  : 'Loading your wardrobe...',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            const SizedBox(height: 14),
-            if (preview.isNotEmpty)
-              Row(
-                children: preview
-                    .map(
-                      (item) => Padding(
-                        padding: const EdgeInsets.only(right: 10),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(AppRadius.sm),
-                          child: item.imageUrl.isEmpty
-                              ? Container(
-                                  width: 56,
-                                  height: 56,
-                                  color: AppColors.secondary,
-                                  child: const Icon(
-                                    Icons.checkroom_outlined,
-                                    color: AppColors.primary,
-                                    size: 22,
-                                  ),
-                                )
-                              : CachedNetworkImage(
-                                  imageUrl: item.imageUrl,
-                                  width: 56,
-                                  height: 56,
-                                  fit: BoxFit.cover,
-                                  placeholder: (context, url) => Container(
-                                    width: 56,
-                                    height: 56,
-                                    color: AppColors.secondary,
-                                  ),
-                                  errorWidget: (context, url, error) =>
-                                      Container(
-                                        width: 56,
-                                        height: 56,
-                                        color: AppColors.secondary,
-                                        child: const Icon(
-                                          Icons.checkroom_outlined,
-                                          color: AppColors.primary,
-                                          size: 22,
-                                        ),
-                                      ),
-                                ),
-                        ),
-                      ),
-                    )
-                    .toList(),
-              ),
-            const SizedBox(height: 4),
             Row(
               children: [
+                Expanded(child: _eyebrow('YOUR COLOUR PROFILE')),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppColors.eggYolk,
+                    borderRadius: BorderRadius.circular(AppRadius.full),
+                  ),
+                  child: const Text(
+                    'PERSONALISED',
+                    style: TextStyle(
+                      color: AppColors.primaryDark,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: .7,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              result.season,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 29,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -.7,
+              ),
+            ),
+            const SizedBox(height: 5),
+            Text(
+              '${result.undertone} • ${result.brightness} • ${result.contrast}',
+              style: const TextStyle(color: Colors.white70, fontSize: 13),
+            ),
+            if (result.colours.isNotEmpty) ...[
+              const SizedBox(height: 19),
+              Row(
+                children: result.colours.take(6).map((colour) {
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ColourSwatch(name: colour, size: 30),
+                  );
+                }).toList(),
+              ),
+            ],
+            const SizedBox(height: 19),
+            Row(
+              children: const [
                 Text(
-                  'View wardrobe',
+                  'View my full colour profile',
                   style: TextStyle(
-                    color: AppColors.primaryDark,
+                    color: Colors.white,
                     fontWeight: FontWeight.w700,
                     fontSize: 13,
                   ),
                 ),
-                const SizedBox(width: 4),
-                Icon(
-                  Icons.arrow_forward_rounded,
-                  color: AppColors.primaryDark,
-                  size: 16,
-                ),
+                SizedBox(width: 5),
+                Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 17),
               ],
             ),
           ],
@@ -757,182 +376,491 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  // ============================================================
-  // PERSONAL STYLE -- real saved Style Preferences
-  // ============================================================
+  Widget _buildTodayCard(ColourAnalysisResult result) {
+    if (result.colours.isEmpty) return const SizedBox.shrink();
+    final colour = result.colours[DateTime.now().day % result.colours.length];
 
-  Widget _buildPersonalStyle(BuildContext context) {
-    final hasPreferences = _styles.isNotEmpty || _preferences.isNotEmpty;
-
-    return InkWell(
-      borderRadius: BorderRadius.circular(AppRadius.xl),
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const StylePreferencesScreen()),
+    return Container(
+      padding: const EdgeInsets.all(17),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: AppColors.border),
       ),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(AppRadius.xl),
-          border: Border.all(color: AppColors.border),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SectionHeader(title: 'Your Style'),
-            const SizedBox(height: 14),
-            if (!hasPreferences)
-              Row(
-                children: [
-                  Text(
-                    'Tell us what feels like you',
-                    style: TextStyle(
-                      color: AppColors.primaryDark,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  Icon(
-                    Icons.arrow_forward_rounded,
-                    color: AppColors.primaryDark,
-                    size: 16,
-                  ),
-                ],
-              )
-            else
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [..._styles, ..._preferences]
-                    .map(
-                      (value) => Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.surfaceMuted,
-                          borderRadius: BorderRadius.circular(AppRadius.full),
-                        ),
-                        child: Text(
-                          value,
-                          style: const TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                      ),
-                    )
-                    .toList(),
-              ),
-          ],
-        ),
+      child: Row(
+        children: [
+          ColourSwatch(name: colour, size: 54),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text("TODAY'S COLOUR", style: _labelStyle()),
+                const SizedBox(height: 3),
+                Text(
+                  colour,
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 2),
+                const Text(
+                  'A shade from your personal palette to try today.',
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
+        ],
       ),
     );
   }
 
-  // ============================================================
-  // PREMIUM -- restrained, real entitlement state
-  // ============================================================
-
-  Widget _buildPremiumDashboardCard(BuildContext context) {
-    final isPremium = _dataLoaded && _isPremium;
-
+  Widget _buildAiCard(ColourAnalysisResult? analysis) {
     return Container(
-      width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.premiumAccentLight,
-        borderRadius: BorderRadius.circular(AppRadius.xl),
-        border: Border.all(
-          color: AppColors.premiumAccent.withValues(alpha: 0.35),
-        ),
+        gradient: AppGradients.ai,
+        borderRadius: BorderRadius.circular(25),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const PremiumBadge(),
-              const Spacer(),
-              if (isPremium)
-                Text(
-                  'ACTIVE',
-                  style: TextStyle(
-                    color: AppColors.premiumAccentDark,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.6,
-                  ),
+              Container(
+                width: 38,
+                height: 38,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
                 ),
+                child: const Icon(Icons.auto_awesome_rounded, color: AppColors.primary),
+              ),
+              const SizedBox(width: 11),
+              Expanded(child: _eyebrow('AI STYLIST')),
+              if (_isPremium) const PremiumBadge(compact: true),
             ],
           ),
-          const SizedBox(height: 12),
-          Text(
-            isPremium
-                ? 'Your Premium styling tools are ready ✨'
-                : 'Unlock deeper styling insights',
-            style: TextStyle(
-              color: AppColors.premiumAccentDark,
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            isPremium
-                ? 'Enjoy the full TiB AI styling experience -- advanced colour insights, real AI styling and Premium learning.'
-                : 'Advanced colour insights, smart wardrobe tools, Premium learning and personalised AI styling.',
-            style: TextStyle(
-              color: AppColors.premiumAccentDark.withValues(alpha: 0.85),
-              height: 1.5,
-            ),
-          ),
           const SizedBox(height: 16),
-          if (isPremium)
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: const [
-                _PremiumChip(
-                  icon: Icons.palette_outlined,
-                  label: 'Colour Insights',
-                ),
-                _PremiumChip(
-                  icon: Icons.checkroom_outlined,
-                  label: 'Smart Wardrobe',
-                ),
-                _PremiumChip(icon: Icons.auto_awesome, label: 'AI Stylist'),
-                _PremiumChip(
-                  icon: Icons.school_outlined,
-                  label: 'Premium Learning',
-                ),
-              ],
-            )
-          else
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Premium plans will be available soon.'),
-                    ),
-                  );
-                },
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.premiumAccent,
-                  foregroundColor: Colors.white,
-                ),
-                child: const Text('Upgrade to Premium'),
+          Text(
+            _wardrobe.isEmpty
+                ? 'Tell me what you’re dressing for.'
+                : 'Let’s build a look from your real wardrobe.',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              height: 1.1,
+            ),
+          ),
+          const SizedBox(height: 7),
+          Text(
+            analysis == null
+                ? 'Add your colour profile for more personalised recommendations.'
+                : 'Your ${analysis.season} palette, preferences and saved pieces stay at the centre.',
+            style: const TextStyle(color: Colors.white70, height: 1.4, fontSize: 13),
+          ),
+          const SizedBox(height: 17),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: () => _open(const AIStylistScreen()),
+              icon: const Icon(Icons.auto_awesome_rounded),
+              label: const Text('Style Me'),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.eggYolk,
+                foregroundColor: AppColors.primaryDark,
+                minimumSize: const Size.fromHeight(50),
               ),
             ),
+          ),
         ],
       ),
     );
+  }
+
+  Widget _buildWardrobeSection() {
+    final favourites = _wardrobe.where((item) => item.isFavourite).length;
+    final preview = _wardrobe.take(4).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle(
+          'My Wardrobe',
+          '${_wardrobe.length} pieces • $favourites favourites',
+          action: 'Open',
+          onAction: () => _open(const WardrobeScreen()),
+        ),
+        const SizedBox(height: 12),
+        if (_loading)
+          const SizedBox(
+            height: 142,
+            child: Center(child: CircularProgressIndicator()),
+          )
+        else if (_wardrobe.isEmpty)
+          _emptyWardrobeCard()
+        else
+          SizedBox(
+            height: 198,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: preview.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 12),
+              itemBuilder: (context, index) => _wardrobePreviewCard(preview[index]),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _wardrobePreviewCard(WardrobeItem item) {
+    return SizedBox(
+      width: 145,
+      child: Material(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          onTap: () => _open(const WardrobeScreen()),
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.all(7),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(15),
+                    child: item.imageUrl.isEmpty
+                        ? Container(
+                            color: AppColors.surfaceMuted,
+                            child: const Center(
+                              child: Icon(Icons.checkroom_outlined, color: AppColors.primary),
+                            ),
+                          )
+                        : CachedNetworkImage(
+                            imageUrl: item.imageUrl,
+                            width: double.infinity,
+                            fit: BoxFit.cover,
+                            placeholder: (_, __) => const ColoredBox(
+                              color: AppColors.surfaceMuted,
+                              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                            ),
+                            errorWidget: (_, __, ___) => const ColoredBox(
+                              color: AppColors.surfaceMuted,
+                              child: Center(child: Icon(Icons.image_not_supported_outlined)),
+                            ),
+                          ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(4, 7, 4, 2),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          item.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+                        ),
+                      ),
+                      if (item.isFavourite)
+                        const Icon(Icons.favorite_rounded, size: 15, color: AppColors.eggYolk),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _emptyWardrobeCard() {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: const BoxDecoration(
+              color: AppColors.surfaceMuted,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.add_a_photo_outlined, color: AppColors.primary),
+          ),
+          const SizedBox(width: 13),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Your wardrobe is waiting.', style: TextStyle(fontWeight: FontWeight.w800)),
+                SizedBox(height: 3),
+                Text(
+                  'Add your clothes and AI Stylist can build looks around what you actually own.',
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.35),
+                ),
+              ],
+            ),
+          ),
+          Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPersonalSection(ColourAnalysisResult? analysis) {
+    return Container(
+      padding: const EdgeInsets.all(19),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(23),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.tune_rounded, color: AppColors.primary),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Your Style Preferences',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+                ),
+              ),
+              TextButton(
+                onPressed: () async {
+                  await _open(const StylePreferencesScreen());
+                  await _load();
+                },
+                child: const Text('Edit'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 7),
+          Text(
+            analysis == null
+                ? 'Set your preferences so future outfit recommendations feel more like you.'
+                : 'Your recommendations prioritise your colour profile and saved preferences.',
+            style: const TextStyle(color: AppColors.textSecondary, height: 1.4, fontSize: 12.5),
+          ),
+          const SizedBox(height: 14),
+          if (_styles.isEmpty && _preferences.isEmpty)
+            _miniPreference('No style preferences saved yet.', Icons.add_rounded)
+          else ...[
+            if (_styles.isNotEmpty) _chipRow('Styles', _styles),
+            if (_preferences.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              _chipRow('Preferences', _preferences),
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _chipRow(String title, List<String> values) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title.toUpperCase(), style: _labelStyle()),
+        const SizedBox(height: 7),
+        Wrap(
+          spacing: 7,
+          runSpacing: 7,
+          children: values.take(6).map((value) {
+            return Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceMuted,
+                borderRadius: BorderRadius.circular(AppRadius.full),
+              ),
+              child: Text(
+                value,
+                style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
+  Widget _miniPreference(String text, IconData icon) {
+    return Row(
+      children: [
+        const Icon(Icons.auto_awesome_rounded, size: 18, color: AppColors.eggYolk),
+        const SizedBox(width: 8),
+        Expanded(child: Text(text, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12))),
+        Icon(icon, size: 17, color: AppColors.primary),
+      ],
+    );
+  }
+
+  Widget _buildPremiumCard() {
+    return InkWell(
+      onTap: () => _open(const PremiumScreen()),
+      borderRadius: BorderRadius.circular(22),
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: AppColors.premiumAccentLight,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: AppColors.eggYolk.withValues(alpha: .65)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: const BoxDecoration(
+                color: AppColors.eggYolk,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.workspace_premium_rounded, color: AppColors.primaryDark),
+            ),
+            const SizedBox(width: 13),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Make your styling more personal', style: TextStyle(fontWeight: FontWeight.w800)),
+                  SizedBox(height: 3),
+                  Text(
+                    'Unlock Premium AI styling and deeper personal recommendations.',
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.35),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.arrow_forward_rounded, color: AppColors.primary),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _sectionTitle(
+    String title,
+    String subtitle, {
+    String? action,
+    VoidCallback? onAction,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 2),
+              Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
+            ],
+          ),
+        ),
+        if (action != null)
+          TextButton(onPressed: onAction, child: Text(action)),
+      ],
+    );
+  }
+
+  Widget _brandCard({required VoidCallback onTap, required Widget child}) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(28),
+        child: Ink(
+          padding: const EdgeInsets.all(22),
+          decoration: BoxDecoration(
+            gradient: AppGradients.primary,
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.primary.withValues(alpha: .18),
+                blurRadius: 25,
+                offset: const Offset(0, 12),
+              ),
+            ],
+          ),
+          child: child,
+        ),
+      ),
+    );
+  }
+
+  Widget _eyebrow(String text) {
+    return Text(
+      text,
+      style: const TextStyle(
+        color: Colors.white70,
+        fontSize: 10,
+        fontWeight: FontWeight.w800,
+        letterSpacing: 1.25,
+      ),
+    );
+  }
+
+  Widget _whiteAction(String label) {
+    return Container(
+      height: 48,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: AppColors.primaryDark,
+          fontWeight: FontWeight.w800,
+          fontSize: 13,
+        ),
+      ),
+    );
+  }
+
+  Widget _roundIconButton({required IconData icon, required VoidCallback onTap}) {
+    return Material(
+      color: AppColors.surfaceMuted,
+      shape: const CircleBorder(),
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: SizedBox(
+          width: 42,
+          height: 42,
+          child: Icon(icon, color: AppColors.primary, size: 20),
+        ),
+      ),
+    );
+  }
+
+  TextStyle _labelStyle() {
+    return const TextStyle(
+      color: AppColors.textMuted,
+      fontSize: 10,
+      fontWeight: FontWeight.w800,
+      letterSpacing: 1.1,
+    );
+  }
+
+  void _open(Widget page) {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 }
