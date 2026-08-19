@@ -60,8 +60,8 @@ class AnalysisResultScreen extends StatelessWidget {
                   height: 230,
                   width: double.infinity,
                   fit: BoxFit.cover,
-                  placeholder: (_, __) => Container(height: 230, color: AppColors.surfaceMuted, child: const Center(child: CircularProgressIndicator())),
-                  errorWidget: (_, __, ___) => Container(height: 230, color: AppColors.surfaceMuted, child: const Center(child: Icon(Icons.image_not_supported_outlined))),
+                  placeholder: (context, url) => Container(height: 230, color: AppColors.surfaceMuted, child: const Center(child: CircularProgressIndicator())),
+                  errorWidget: (context, url, error) => Container(height: 230, color: AppColors.surfaceMuted, child: const Center(child: Icon(Icons.image_not_supported_outlined))),
                 ),
               ),
             ],
@@ -90,7 +90,15 @@ class AnalysisResultScreen extends StatelessWidget {
         const Text('A softer, more personal way to choose colours that feel like you.', style: TextStyle(color: Colors.white70, fontSize: 12.5, height: 1.4)),
         if (result.colours.isNotEmpty) ...[
           const SizedBox(height: 18),
-          SizedBox(height: 42, child: ListView.separated(scrollDirection: Axis.horizontal, itemCount: result.colours.take(7).length, separatorBuilder: (_, index) => const SizedBox(width: 7), itemBuilder: (_, index) => ColourSwatch(name: result.colours[index], size: 42))),
+          SizedBox(
+            height: 42,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: result.colours.take(7).length,
+              separatorBuilder: (context, index) => const SizedBox(width: 7),
+              itemBuilder: (context, index) => ColourSwatch(name: result.colours[index], size: 42),
+            ),
+          ),
         ],
       ]),
     );
