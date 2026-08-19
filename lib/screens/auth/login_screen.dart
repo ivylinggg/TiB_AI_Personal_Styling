@@ -35,7 +35,6 @@ class _LoginScreenState extends State<LoginScreen> {
       _showMessage('Please enter your email and password.');
       return;
     }
-    if (!mounted) return;
     setState(() => isLoading = true);
     try {
       await AuthService.login(email: email, password: password);
@@ -77,7 +76,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
     final role = await AuthService.getCurrentUserRole();
     if (!mounted) return;
-    final Widget destination = role == 'admin' ? const AdminMainScreen() : const MainScreen();
+    final destination = role == 'admin' ? const AdminMainScreen() : const MainScreen();
     Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => destination), (_) => false);
   }
 
@@ -98,7 +97,7 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+      ..showSnackBar(SnackBar(content: Text(message), behavior: SnackBarBehavior.floating));
   }
 
   Future<void> _forgotPassword() async {
@@ -106,15 +105,15 @@ class _LoginScreenState extends State<LoginScreen> {
     final email = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Reset password'),
+        title: const Text('Reset your password'),
         content: TextField(
           controller: controller,
           keyboardType: TextInputType.emailAddress,
-          decoration: const InputDecoration(labelText: 'Email'),
+          decoration: const InputDecoration(labelText: 'Email address'),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
-          ElevatedButton(onPressed: () => Navigator.pop(dialogContext, controller.text.trim()), child: const Text('Send')),
+          ElevatedButton(onPressed: () => Navigator.pop(dialogContext, controller.text.trim()), child: const Text('Send email')),
         ],
       ),
     );
@@ -122,7 +121,7 @@ class _LoginScreenState extends State<LoginScreen> {
     if (email == null || email.isEmpty) return;
     try {
       await AuthService.resetPassword(email: email);
-      _showMessage('Password reset email sent.');
+      _showMessage('Password reset email sent. Check your inbox.');
     } catch (_) {
       _showMessage('Unable to send the reset email.');
     }
@@ -134,34 +133,56 @@ class _LoginScreenState extends State<LoginScreen> {
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24, 32, 24, 28),
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 30),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Align(alignment: Alignment.topRight, child: IconButton(onPressed: () {}, icon: const Icon(Icons.more_horiz))),
-              const SizedBox(height: 20),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(onPressed: () {}, child: const Text('About TiB')),
+              ),
+              const SizedBox(height: 6),
               Container(
-                height: 135,
                 width: double.infinity,
-                decoration: BoxDecoration(gradient: AppGradients.blush, borderRadius: BorderRadius.circular(26)),
-                child: const Center(child: Text('TiB', style: TextStyle(fontSize: 48, fontWeight: FontWeight.w300, letterSpacing: -2))),
+                padding: const EdgeInsets.fromLTRB(24, 26, 24, 25),
+                decoration: BoxDecoration(
+                  gradient: AppGradients.blush,
+                  borderRadius: BorderRadius.circular(30),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 54,
+                      height: 54,
+                      decoration: BoxDecoration(color: Colors.white.withValues(alpha: .82), shape: BoxShape.circle),
+                      child: const Icon(Icons.auto_awesome_rounded, color: AppColors.primaryDark, size: 25),
+                    ),
+                    const SizedBox(height: 24),
+                    const Text('TiB', style: TextStyle(fontSize: 42, fontWeight: FontWeight.w300, letterSpacing: -2)),
+                    const SizedBox(height: 5),
+                    const Text('Your personal style,\nmade simple.', style: TextStyle(fontSize: 24, height: 1.08, fontWeight: FontWeight.w800, letterSpacing: -.6)),
+                    const SizedBox(height: 10),
+                    const Text('Colours, clothes and AI styling that feel like you.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5, height: 1.4)),
+                  ],
+                ),
               ),
               const SizedBox(height: 28),
-              const Text('Welcome back', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 7),
-              const Text('Let’s continue your personal style journey ✨', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-              const SizedBox(height: 26),
+              const Text('Welcome back', style: TextStyle(fontSize: 27, fontWeight: FontWeight.w800, letterSpacing: -.5)),
+              const SizedBox(height: 6),
+              const Text('Let’s continue your personal style journey.', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+              const SizedBox(height: 21),
               _socialButton('Continue with Google', Icons.g_mobiledata, loginWithGoogle),
-              const SizedBox(height: 10),
+              const SizedBox(height: 9),
               _socialButton('Continue with Apple', Icons.apple, () => _showMessage('Apple sign-in is coming soon.')),
-              const SizedBox(height: 22),
-              const Row(children: [Expanded(child: Divider()), Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('or', style: TextStyle(color: AppColors.textMuted))), Expanded(child: Divider())]),
-              const SizedBox(height: 22),
-              const Text('Email', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 20),
+              const Row(children: [Expanded(child: Divider()), Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('or email', style: TextStyle(color: AppColors.textMuted, fontSize: 11))), Expanded(child: Divider())]),
+              const SizedBox(height: 20),
+              const Text('Email', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
               const SizedBox(height: 7),
               TextField(controller: emailController, keyboardType: TextInputType.emailAddress, decoration: const InputDecoration(hintText: 'you@example.com')),
-              const SizedBox(height: 16),
-              const Text('Password', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 15),
+              const Text('Password', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
               const SizedBox(height: 7),
               TextField(
                 controller: passwordController,
@@ -173,10 +194,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
               Align(alignment: Alignment.centerRight, child: TextButton(onPressed: isLoading ? null : _forgotPassword, child: const Text('Forgot password?'))),
-              const SizedBox(height: 8),
-              ElevatedButton(onPressed: isLoading ? null : login, child: Text(isLoading ? 'Signing in...' : 'Sign In')),
+              const SizedBox(height: 3),
+              SizedBox(width: double.infinity, child: ElevatedButton(onPressed: isLoading ? null : login, child: Text(isLoading ? 'Signing in…' : 'Sign In'))),
               const SizedBox(height: 18),
-              Center(child: TextButton(onPressed: isLoading ? null : () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RegisterScreen())), child: const Text('New here? Create an account'))),
+              Center(child: TextButton(onPressed: isLoading ? null : () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RegisterScreen())), child: const Text('New here? Create your style profile'))),
             ],
           ),
         ),
@@ -185,10 +206,9 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Widget _socialButton(String label, IconData icon, VoidCallback onTap) {
-    return OutlinedButton.icon(
-      onPressed: isLoading ? null : onTap,
-      icon: Icon(icon, size: 21),
-      label: Text(label),
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(onPressed: isLoading ? null : onTap, icon: Icon(icon, size: 21), label: Text(label)),
     );
   }
 }
