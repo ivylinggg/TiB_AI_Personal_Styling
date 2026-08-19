@@ -11,6 +11,7 @@ import '../../widgets/premium_badge.dart';
 import '../../widgets/primary_button.dart';
 import '../auth/auth_service.dart';
 import 'analysis_result_screen.dart';
+import 'face_scan_screen.dart';
 import 'history/analysis_history_screen.dart';
 
 class AnalysisScreen extends StatefulWidget {
@@ -27,9 +28,6 @@ class _AnalysisScreenState extends State<AnalysisScreen>
   static const _text = AppColors.textPrimary;
   static const _muted = AppColors.textSecondary;
 
-  // One-time entrance reveal (fade + gentle slide-up, no bounce), the
-  // same recipe already used across Colour Analysis Result/Dashboard/
-  // AI Stylist/Wardrobe/Profile. Plays once on first mount only.
   late final AnimationController _revealController;
   late final Animation<double> _headerReveal;
   late final Animation<double> _imageReveal;
@@ -51,7 +49,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
   Animation<double> _stage(double begin, double end) {
     return CurvedAnimation(
       parent: _revealController,
-      curve: Interval(begin, end, curve: Curves.easeOut),
+      curve: Interval(begin, end, curve: Curves.easeOutCubic),
     );
   }
 
@@ -78,82 +76,42 @@ class _AnalysisScreenState extends State<AnalysisScreen>
     super.dispose();
   }
 
-  // ============================================================
-  // CAMERA
-  // ============================================================
+  Future<void> openFaceScan() async {
+    if (context.read<AnalysisProvider>().isLoading) return;
 
-  Future<void> pickCamera() async {
-    final provider = context.read<AnalysisProvider>();
+    final file = await Navigator.push<File?>(
+      context,
+      MaterialPageRoute(builder: (_) => const FaceScanScreen()),
+    );
 
-    if (provider.isLoading) {
-      return;
-    }
-
-    final image = await ImagePickerService.pickCamera();
-
-    if (image == null) {
-      return;
-    }
-
-    if (!mounted) {
-      return;
-    }
-
-    provider.setImage(image);
+    if (!mounted || file == null) return;
+    context.read<AnalysisProvider>().setImage(file);
   }
-
-  // ============================================================
-  // GALLERY
-  // ============================================================
 
   Future<void> pickGallery() async {
     final provider = context.read<AnalysisProvider>();
-
-    if (provider.isLoading) {
-      return;
-    }
+    if (provider.isLoading) return;
 
     final image = await ImagePickerService.pickGallery();
-
-    if (image == null) {
-      return;
-    }
-
-    if (!mounted) {
-      return;
-    }
+    if (image == null || !mounted) return;
 
     provider.setImage(image);
   }
 
-  // ============================================================
-  // ANALYSE
-  // ============================================================
-
   Future<void> analyse() async {
     final provider = context.read<AnalysisProvider>();
-
-    if (provider.isLoading) {
-      return;
-    }
+    if (provider.isLoading) return;
 
     final currentUser = AuthService.currentUser;
-
     if (currentUser == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please login before starting an analysis.'),
-        ),
+        const SnackBar(content: Text('Please login before starting an analysis.')),
       );
-
       return;
     }
 
     final success = await provider.analyse(uid: currentUser.uid);
-
-    if (!mounted) {
-      return;
-    }
+    if (!mounted) return;
 
     if (success && provider.result != null) {
       Navigator.push(
@@ -163,30 +121,19 @@ class _AnalysisScreenState extends State<AnalysisScreen>
         ),
       );
     } else if (provider.errorMessage != null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(provider.errorMessage!)));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(provider.errorMessage!)),
+      );
     }
   }
 
-  // ============================================================
-  // OPEN HISTORY
-  // ============================================================
-
   void openAnalysisHistory() {
-    if (context.read<AnalysisProvider>().isLoading) {
-      return;
-    }
-
+    if (context.read<AnalysisProvider>().isLoading) return;
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const AnalysisHistoryScreen()),
     );
   }
-
-  // ============================================================
-  // BUILD
-  // ============================================================
 
   Widget _buildHeader() {
     return Row(
@@ -206,8 +153,8 @@ class _AnalysisScreenState extends State<AnalysisScreen>
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
+            children: const [
+              Text(
                 'Colour Analysis',
                 style: TextStyle(
                   color: _text,
@@ -216,9 +163,9 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                   letterSpacing: -0.3,
                 ),
               ),
-              const SizedBox(height: 5),
-              const Text(
-                'Let’s find the colours that suit you.',
+              SizedBox(height: 5),
+              Text(
+                'A guided AI scan for a more reliable starting point.',
                 style: TextStyle(color: _muted, fontSize: 14, height: 1.4),
               ),
             ],
@@ -252,17 +199,16 @@ class _AnalysisScreenState extends State<AnalysisScreen>
               children: [
                 Row(
                   children: [
-                    Text(
-                      isPremium ? 'Premium Colour Analysis' : 'Basic Colour Analysis',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: _text,
+                    Expanded(
+                      child: Text(
+                        isPremium ? 'Premium Colour Analysis' : 'Basic Colour Analysis',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: _text,
+                        ),
                       ),
                     ),
-                    if (isPremium) ...[
-                      const SizedBox(width: 8),
-                      const PremiumBadge(compact: true),
-                    ],
+                    if (isPremium) const PremiumBadge(compact: true),
                   ],
                 ),
                 const SizedBox(height: 4),
@@ -306,14 +252,14 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
-                      Icons.face_retouching_natural,
+                      Icons.center_focus_strong_rounded,
                       size: 36,
                       color: _brown,
                     ),
                   ),
                   const SizedBox(height: 16),
                   const Text(
-                    'Ready when you are',
+                    'Ready for your scan',
                     style: TextStyle(
                       color: _text,
                       fontSize: 17,
@@ -324,8 +270,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                   const Padding(
                     padding: EdgeInsets.symmetric(horizontal: 24),
                     child: Text(
-                      'Take a photo or choose one from your gallery. '
-                      'For the best result, keep your face clearly visible.',
+                      'We’ll guide you through centre, left, right, up and down poses so the photo quality is consistent.',
                       textAlign: TextAlign.center,
                       style: TextStyle(color: _muted, height: 1.4),
                     ),
@@ -337,10 +282,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                 children: [
                   ClipRRect(
                     borderRadius: BorderRadius.circular(AppRadius.xl),
-                    child: Image.file(
-                      selectedImage,
-                      fit: BoxFit.cover,
-                    ),
+                    child: Image.file(selectedImage, fit: BoxFit.cover),
                   ),
                   Positioned(
                     right: 12,
@@ -349,8 +291,8 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                       color: AppColors.textPrimary.withValues(alpha: 0.55),
                       shape: const CircleBorder(),
                       child: IconButton(
-                        tooltip: 'Choose another photo',
-                        onPressed: isLoading ? null : () => pickGallery(),
+                        tooltip: 'Scan another face',
+                        onPressed: isLoading ? null : openFaceScan,
                         color: AppColors.background,
                         icon: const Icon(Icons.refresh_rounded),
                       ),
@@ -380,7 +322,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
             )
           else
             Icon(
-              selectedImage != null ? Icons.check_circle_outline : Icons.info_outline,
+              selectedImage != null ? Icons.verified_rounded : Icons.info_outline,
               size: 20,
               color: _brown,
             ),
@@ -391,7 +333,6 @@ class _AnalysisScreenState extends State<AnalysisScreen>
               child: Text(
                 status,
                 key: ValueKey(status),
-                textAlign: TextAlign.left,
                 style: const TextStyle(
                   color: _text,
                   fontWeight: FontWeight.w600,
@@ -464,7 +405,10 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                 children: [
                   _reveal(_headerReveal, _buildHeader()),
                   const SizedBox(height: 18),
-                  _reveal(_headerReveal, _buildAnalysisAccessCard(provider.isPremium)),
+                  _reveal(
+                    _headerReveal,
+                    _buildAnalysisAccessCard(provider.isPremium),
+                  ),
                   const SizedBox(height: 20),
                   _reveal(
                     _imageReveal,
@@ -482,17 +426,17 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                       children: [
                         Expanded(
                           child: _photoSourceTile(
-                            icon: Icons.camera_alt_outlined,
-                            label: 'Take a Photo',
+                            icon: Icons.face_retouching_natural_rounded,
+                            label: 'AI Face Scan',
                             enabled: !isLoading,
-                            onTap: pickCamera,
+                            onTap: openFaceScan,
                           ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: _photoSourceTile(
                             icon: Icons.photo_outlined,
-                            label: 'Gallery',
+                            label: 'Validate Photo',
                             enabled: !isLoading,
                             onTap: pickGallery,
                           ),
@@ -517,7 +461,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                   _reveal(
                     _actionsReveal,
                     const Text(
-                      'Your photo is used to create your personalised colour result.',
+                      'Clear face only. Photos without a detectable face will fail validation.',
                       textAlign: TextAlign.center,
                       style: TextStyle(color: _muted, fontSize: 12.5),
                     ),
@@ -533,7 +477,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                         label: const Text('View Analysis History'),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: _brown,
-                          side: BorderSide(color: AppColors.border),
+                          side: const BorderSide(color: AppColors.border),
                           minimumSize: const Size.fromHeight(52),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(AppRadius.md),
