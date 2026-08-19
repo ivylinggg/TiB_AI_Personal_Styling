@@ -114,12 +114,16 @@ class _AnalysisScreenState extends State<AnalysisScreen>
     if (!mounted) return;
 
     if (success && provider.result != null) {
-      Navigator.push(
+      final completed = await Navigator.push<bool>(
         context,
         MaterialPageRoute(
           builder: (_) => AnalysisResultScreen(result: provider.result!),
         ),
       );
+      if (!mounted) return;
+      if (completed == true) {
+        Navigator.pop(context, true);
+      }
     } else if (provider.errorMessage != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(provider.errorMessage!)),
@@ -258,126 +262,15 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                     ),
                   ),
                   const SizedBox(height: 16),
-                  const Text(
-                    'Ready for your scan',
-                    style: TextStyle(
-                      color: _text,
-                      fontSize: 17,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 24),
-                    child: Text(
-                      'We’ll guide you through centre, left, right, up and down poses so the photo quality is consistent.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: _muted, height: 1.4),
-                    ),
-                  ),
+                  const Text('Add a clear photo', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 5),
+                  const Text('Use natural light and keep your face visible.', style: TextStyle(color: _muted, fontSize: 12)),
                 ],
               )
-            : Stack(
-                fit: StackFit.expand,
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(AppRadius.xl),
-                    child: Image.file(selectedImage, fit: BoxFit.cover),
-                  ),
-                  Positioned(
-                    right: 12,
-                    top: 12,
-                    child: Material(
-                      color: AppColors.textPrimary.withValues(alpha: 0.55),
-                      shape: const CircleBorder(),
-                      child: IconButton(
-                        tooltip: 'Scan another face',
-                        onPressed: isLoading ? null : openFaceScan,
-                        color: AppColors.background,
-                        icon: const Icon(Icons.refresh_rounded),
-                      ),
-                    ),
-                  ),
-                ],
+            : ClipRRect(
+                borderRadius: BorderRadius.circular(AppRadius.xl),
+                child: Image.file(selectedImage, fit: BoxFit.cover),
               ),
-      ),
-    );
-  }
-
-  Widget _buildStatusCard(String status, bool isLoading, File? selectedImage) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: _soft,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-      ),
-      child: Row(
-        children: [
-          if (isLoading)
-            const SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2.4, color: _brown),
-            )
-          else
-            Icon(
-              selectedImage != null ? Icons.verified_rounded : Icons.info_outline,
-              size: 20,
-              color: _brown,
-            ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 220),
-              child: Text(
-                status,
-                key: ValueKey(status),
-                style: const TextStyle(
-                  color: _text,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _photoSourceTile({
-    required IconData icon,
-    required String label,
-    required bool enabled,
-    required VoidCallback onTap,
-  }) {
-    return Material(
-      color: AppColors.surfaceMuted,
-      borderRadius: BorderRadius.circular(AppRadius.lg),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        onTap: enabled ? onTap : null,
-        child: Container(
-          height: 96,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(AppRadius.lg),
-            border: Border.all(color: AppColors.border),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 26, color: enabled ? _brown : AppColors.textMuted),
-              const SizedBox(height: 8),
-              Text(
-                label,
-                style: TextStyle(
-                  color: enabled ? _text : AppColors.textMuted,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -385,105 +278,56 @@ class _AnalysisScreenState extends State<AnalysisScreen>
   @override
   Widget build(BuildContext context) {
     return Consumer<AnalysisProvider>(
-      builder: (context, provider, child) {
-        final selectedImage = provider.selectedImage;
-        final isLoading = provider.isLoading;
-
+      builder: (context, provider, _) {
         return Scaffold(
           backgroundColor: AppColors.background,
           appBar: AppBar(
-            backgroundColor: AppColors.background,
-            elevation: 0,
             title: const Text('Colour Analysis'),
+            actions: [
+              IconButton(
+                onPressed: provider.isLoading ? null : openAnalysisHistory,
+                icon: const Icon(Icons.history_rounded),
+              ),
+            ],
           ),
           body: SafeArea(
             child: SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 30),
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _reveal(_headerReveal, _buildHeader()),
-                  const SizedBox(height: 18),
-                  _reveal(
-                    _headerReveal,
-                    _buildAnalysisAccessCard(provider.isPremium),
-                  ),
                   const SizedBox(height: 20),
-                  _reveal(
-                    _imageReveal,
-                    _buildImagePreview(selectedImage, isLoading),
-                  ),
-                  const SizedBox(height: 16),
-                  _reveal(
-                    _imageReveal,
-                    _buildStatusCard(provider.status, isLoading, selectedImage),
-                  ),
-                  const SizedBox(height: 20),
-                  _reveal(
-                    _actionsReveal,
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _photoSourceTile(
-                            icon: Icons.face_retouching_natural_rounded,
-                            label: 'AI Face Scan',
-                            enabled: !isLoading,
-                            onTap: openFaceScan,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _photoSourceTile(
-                            icon: Icons.photo_outlined,
-                            label: 'Validate Photo',
-                            enabled: !isLoading,
-                            onTap: pickGallery,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                  _buildAnalysisAccessCard(provider.isPremium),
                   const SizedBox(height: 18),
+                  _reveal(_imageReveal, _buildImagePreview(provider.selectedImage, provider.isLoading)),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: provider.isLoading ? null : openFaceScan,
+                          icon: const Icon(Icons.face_retouching_natural),
+                          label: const Text('Face Scan'),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: provider.isLoading ? null : pickGallery,
+                          icon: const Icon(Icons.photo_library_outlined),
+                          label: const Text('Gallery'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
                   _reveal(
                     _actionsReveal,
                     PrimaryButton(
-                      text: isLoading
-                          ? 'Analysing...'
-                          : provider.isPremium
-                              ? 'Analyse with Premium Insights'
-                              : 'Analyse My Colours',
-                      icon: Icons.auto_awesome,
-                      onPressed: isLoading ? null : analyse,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  _reveal(
-                    _actionsReveal,
-                    const Text(
-                      'Clear face only. Photos without a detectable face will fail validation.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: _muted, fontSize: 12.5),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  _reveal(
-                    _actionsReveal,
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: isLoading ? null : openAnalysisHistory,
-                        icon: const Icon(Icons.history_rounded),
-                        label: const Text('View Analysis History'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: _brown,
-                          side: const BorderSide(color: AppColors.border),
-                          minimumSize: const Size.fromHeight(52),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(AppRadius.md),
-                          ),
-                        ),
-                      ),
+                      text: provider.isLoading ? 'Analysing your colours…' : 'Analyse My Colours',
+                      icon: Icons.auto_awesome_rounded,
+                      onPressed: provider.selectedImage == null || provider.isLoading ? null : analyse,
                     ),
                   ),
                 ],
