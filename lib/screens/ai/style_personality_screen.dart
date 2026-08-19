@@ -9,9 +9,9 @@ import '../../services/firestore_service.dart';
 import '../../services/style_preference_service.dart';
 import '../wardrobe/wardrobe_screen.dart';
 
-/// A softer editorial layer over the saved style preferences.
-/// This mirrors the reference screen where the user discovers their style
-/// through choices rather than filling in a long technical form.
+/// Editorial style-discovery journey inspired by the TiB reference flow.
+/// It uses real wardrobe imagery when available and writes choices back to
+/// the same style-preference data used by the AI Stylist.
 class StylePersonalityScreen extends StatefulWidget {
   const StylePersonalityScreen({super.key});
 
@@ -51,7 +51,6 @@ class _StylePersonalityScreenState extends State<StylePersonalityScreen> {
   List<String> _savedStyles = const [];
   bool _loading = true;
   int _question = 0;
-  int _score = 0;
 
   @override
   void initState() {
@@ -89,19 +88,20 @@ class _StylePersonalityScreenState extends State<StylePersonalityScreen> {
 
     final styles = {..._savedStyles, style}.toList();
     setState(() {
-      _score += 1;
       _savedStyles = styles;
       _question = (_question + 1).clamp(0, 4);
     });
 
     try {
+      final existing = await StylePreferenceService.getStylePreferences(uid);
+      final preferences = List<String>.from(existing?['preferences'] ?? const []);
       await StylePreferenceService.saveStylePreferences(
         uid: uid,
         styles: styles,
-        preferences: const [],
+        preferences: preferences,
       );
     } catch (_) {
-      // The visual journey should not break if saving is temporarily offline.
+      // Keep the journey usable if a save is temporarily unavailable.
     }
   }
 
@@ -150,28 +150,23 @@ class _StylePersonalityScreenState extends State<StylePersonalityScreen> {
 
   Widget _progress() {
     final value = (_question / 4).clamp(0.0, 1.0);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Row(
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(20),
-                child: LinearProgressIndicator(
-                  minHeight: 5,
-                  value: value == 0 ? .08 : value,
-                  backgroundColor: AppColors.border,
-                  valueColor: const AlwaysStoppedAnimation(AppColors.primary),
-                ),
-              ),
+        Expanded(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: LinearProgressIndicator(
+              minHeight: 5,
+              value: value == 0 ? .08 : value,
+              backgroundColor: AppColors.border,
+              valueColor: const AlwaysStoppedAnimation(AppColors.primary),
             ),
-            const SizedBox(width: 10),
-            Text(
-              '${(_question == 0 ? 1 : _question).clamp(1, 4)} / 4',
-              style: const TextStyle(fontSize: 10, color: AppColors.textMuted, fontWeight: FontWeight.w700),
-            ),
-          ],
+          ),
+        ),
+        const SizedBox(width: 10),
+        Text(
+          '${(_question == 0 ? 1 : _question).clamp(1, 4)} / 4',
+          style: const TextStyle(fontSize: 10, color: AppColors.textMuted, fontWeight: FontWeight.w700),
         ),
       ],
     );
@@ -216,9 +211,22 @@ class _StylePersonalityScreenState extends State<StylePersonalityScreen> {
   }
 
   Widget _lookCard(({String title, String subtitle, String style, IconData icon}) look) {
+    final fallback = WardrobeItem(
+      id: '',
+      userId: '',
+      imageUrl: '',
+      name: '',
+      category: '',
+      colour: '',
+      style: '',
+      season: '',
+      isFavourite: false,
+      notes: '',
+      createdAt: null,
+    );
     final image = _wardrobe.firstWhere(
       (item) => item.imageUrl.isNotEmpty && item.style.toLowerCase().contains(look.style.toLowerCase().split(' ').first),
-      orElse: () => _wardrobe.isNotEmpty ? _wardrobe[_question % _wardrobe.length] : WardrobeItem.empty(),
+      orElse: () => _wardrobe.isNotEmpty ? _wardrobe[_question % _wardrobe.length] : fallback,
     );
 
     return InkWell(
@@ -251,7 +259,7 @@ class _StylePersonalityScreenState extends State<StylePersonalityScreen> {
             const SizedBox(height: 4),
             Text(look.subtitle, maxLines: 3, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 9.5, color: AppColors.textSecondary, height: 1.35)),
             const SizedBox(height: 7),
-            Center(child: Icon(Icons.favorite_border_rounded, size: 19, color: AppColors.primary)),
+            const Center(child: Icon(Icons.favorite_border_rounded, size: 19, color: AppColors.primary)),
             const SizedBox(height: 2),
           ],
         ),
