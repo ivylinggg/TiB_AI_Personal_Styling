@@ -13,10 +13,8 @@ import '../../providers/analysis_provider.dart';
 import '../../services/ai_styling_service.dart';
 import '../../services/firestore_service.dart';
 import '../../services/style_preference_service.dart';
-import '../../widgets/colour_swatch.dart';
 import '../../widgets/premium_badge.dart';
 import '../analysis/analysis_screen.dart';
-import '../premium/premium_screen.dart';
 import '../wardrobe/wardrobe_screen.dart';
 import 'style_preferences_screen.dart';
 
@@ -302,6 +300,36 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _errorCard() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.error.withValues(alpha: .07),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.error.withValues(alpha: .16)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.cloud_off_rounded, color: AppColors.error, size: 19),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Text(
+              _error!,
+              style: const TextStyle(color: AppColors.textPrimary, fontSize: 11.5, height: 1.35),
+            ),
+          ),
+          IconButton(
+            onPressed: _load,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+            icon: const Icon(Icons.refresh_rounded, color: AppColors.primary, size: 18),
+          ),
+        ],
+      ),
     );
   }
 
