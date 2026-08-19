@@ -2,7 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
-import '../../widgets/primary_button.dart';
+import '../../core/constants/app_gradients.dart';
 import '../admin/admin_main_screen.dart';
 import '../main/main_screen.dart';
 import 'auth_service.dart';
@@ -18,7 +18,6 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
-
   bool obscurePassword = true;
   bool isLoading = false;
 
@@ -29,325 +28,105 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  // ============================================================
-  // EMAIL LOGIN
-  // ============================================================
-
   Future<void> login() async {
     final email = emailController.text.trim();
     final password = passwordController.text;
-
     if (email.isEmpty || password.isEmpty) {
-      _showMessage('Please enter email and password.');
+      _showMessage('Please enter your email and password.');
       return;
     }
-
-    if (!email.contains('@') || !email.contains('.')) {
-      _showMessage('Please enter a valid email address.');
-      return;
-    }
-
-    if (!mounted) {
-      return;
-    }
-
+    if (!mounted) return;
+    setState(() => isLoading = true);
     try {
-      setState(() {
-        isLoading = true;
-      });
-
-      await AuthService.login(
-        email: email,
-        password: password,
-      );
-
+      await AuthService.login(email: email, password: password);
       await _routeAuthenticatedUser();
     } on FirebaseAuthException catch (e) {
-      if (!mounted) {
-        return;
-      }
       _showMessage(_authErrorMessage(e));
-    } on FirebaseException catch (e) {
-      if (!mounted) {
-        return;
-      }
-      _showMessage(
-        e.message ?? 'Unable to load your account profile.',
-      );
     } catch (_) {
-      if (!mounted) {
-        return;
-      }
       _showMessage('Login failed. Please try again.');
     } finally {
-      if (mounted) {
-        setState(() {
-          isLoading = false;
-        });
-      }
+      if (mounted) setState(() => isLoading = false);
     }
   }
-
-  // ============================================================
-  // GOOGLE LOGIN
-  // ============================================================
 
   Future<void> loginWithGoogle() async {
-    if (isLoading) {
-      return;
-    }
-
-    if (!mounted) {
-      return;
-    }
-
+    if (isLoading) return;
+    setState(() => isLoading = true);
     try {
-      setState(() {
-        isLoading = true;
-      });
-
-      final credential =
-          await AuthService.loginWithGoogle();
-
+      final credential = await AuthService.loginWithGoogle();
       if (credential == null) {
-        if (mounted) {
-          _showMessage('Google sign-in was cancelled.');
-        }
+        _showMessage('Google sign-in was cancelled.');
         return;
       }
-
       await _routeAuthenticatedUser();
     } on FirebaseAuthException catch (e) {
-      if (!mounted) {
-        return;
-      }
       _showMessage(_authErrorMessage(e));
-    } catch (e) {
-      if (!mounted) return;
-
-      final errorText = e.toString();
-
-      final message = errorText.contains('ApiException: 10')
-          ? 'Google Sign-In configuration is incomplete. Check Firebase Android SHA-1 / SHA-256 and Google Sign-In setup.'
-          : errorText.toLowerCase().contains('cancel')
-              ? 'Google sign-in was cancelled.'
-              : 'Google Login failed. Please try again.';
-
-      _showMessage(message);
+    } catch (_) {
+      _showMessage('Google sign-in failed. Please try again.');
     } finally {
-      if (mounted) {
-        setState(() {
-          isLoading = false;
-        });
-      }
+      if (mounted) setState(() => isLoading = false);
     }
   }
-
-  // ============================================================
-  // COMMON AUTH ROUTING
-  // ============================================================
 
   Future<void> _routeAuthenticatedUser() async {
-    final isActive =
-        await AuthService.isCurrentUserActive();
-
-    if (!isActive) {
+    final active = await AuthService.isCurrentUserActive();
+    if (!active) {
       await AuthService.logout();
-
-      if (!mounted) return;
-
-      _showMessage(
-        'Your account is currently inactive. Please contact the administrator.',
-      );
+      _showMessage('Your account is currently inactive.');
       return;
     }
-
-    final role =
-        await AuthService.getCurrentUserRole();
-
+    final role = await AuthService.getCurrentUserRole();
     if (!mounted) return;
-
-    if (role == 'admin') {
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const AdminMainScreen(),
-        ),
-        (route) => false,
-      );
-      return;
-    }
-
-    if (role == 'customer') {
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const MainScreen(),
-        ),
-        (route) => false,
-      );
-      return;
-    }
-
-    await AuthService.logout();
-
-    if (!mounted) return;
-
-    _showMessage(
-      'Your account has an unsupported role: $role',
-    );
+    final Widget destination = role == 'admin' ? const AdminMainScreen() : const MainScreen();
+    Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => destination), (_) => false);
   }
 
-  // ============================================================
-  // AUTH ERROR MESSAGE
-  // ============================================================
-
-  String _authErrorMessage(
-    FirebaseAuthException e,
-  ) {
+  String _authErrorMessage(FirebaseAuthException e) {
     switch (e.code) {
-      case 'invalid-email':
-        return 'Please enter a valid email address.';
-
+      case 'invalid-email': return 'Please enter a valid email address.';
       case 'wrong-password':
-      case 'invalid-credential':
-        return 'Incorrect email or password.';
-
-      case 'user-disabled':
-        return 'This Firebase account has been disabled.';
-
-      case 'too-many-requests':
-        return 'Too many login attempts. Please try again later.';
-
-      case 'network-request-failed':
-        return 'Network error. Please check your internet connection.';
-
-      case 'user-not-found':
-        return 'No account was found with this email address.';
-
-      case 'no-current-user':
-        return 'No authenticated user was found.';
-
-      case 'google-id-token-missing':
-        return 'Google authentication did not return a valid ID token.';
-
-      case 'google-user-missing':
-        return 'Google authentication did not return a Firebase user.';
-
-      case 'operation-not-allowed':
-        return 'This sign-in method is not enabled in Firebase Authentication.';
-
-      default:
-        return e.message ?? 'Authentication failed.';
+      case 'invalid-credential': return 'Incorrect email or password.';
+      case 'user-not-found': return 'No account was found with this email.';
+      case 'user-disabled': return 'This account has been disabled.';
+      case 'too-many-requests': return 'Too many attempts. Please try again later.';
+      case 'network-request-failed': return 'Network error. Check your connection.';
+      default: return e.message ?? 'Authentication failed.';
     }
   }
-
-  // ============================================================
-  // MESSAGE
-  // ============================================================
 
   void _showMessage(String message) {
     if (!mounted) return;
-
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(content: Text(message)),
-      );
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
-  // ============================================================
-  // FORGOT PASSWORD
-  // ============================================================
-
-  Future<void> _showForgotPasswordDialog() async {
-    final controller = TextEditingController(
-      text: emailController.text.trim(),
-    );
-
+  Future<void> _forgotPassword() async {
+    final controller = TextEditingController(text: emailController.text.trim());
     final email = await showDialog<String>(
       context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Reset Password'),
-          content: TextField(
-            controller: controller,
-            keyboardType: TextInputType.emailAddress,
-            decoration: const InputDecoration(
-              labelText: 'Email',
-              hintText: 'Enter your email',
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(dialogContext);
-              },
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(
-                  dialogContext,
-                  controller.text.trim(),
-                );
-              },
-              child: const Text('Send'),
-            ),
-          ],
-        );
-      },
-    );
-
-    controller.dispose();
-
-    if (email == null || email.isEmpty) return;
-
-    try {
-      await AuthService.resetPassword(
-        email: email,
-      );
-
-      if (!mounted) {
-        return;
-      }
-
-      _showMessage(
-        'Password reset email sent. Please check your inbox.',
-      );
-    } on FirebaseAuthException catch (e) {
-      if (!mounted) {
-        return;
-      }
-      _showMessage(_authErrorMessage(e));
-    } catch (_) {
-      if (!mounted) return;
-      _showMessage(
-        'Unable to send the password reset email.',
-      );
-    }
-  }
-
-  // ============================================================
-  // REGISTER
-  // ============================================================
-
-  void _openRegister() {
-    if (isLoading) {
-      return;
-    }
-
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const RegisterScreen(),
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Reset password'),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.emailAddress,
+          decoration: const InputDecoration(labelText: 'Email'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+          ElevatedButton(onPressed: () => Navigator.pop(dialogContext, controller.text.trim()), child: const Text('Send')),
+        ],
       ),
     );
+    controller.dispose();
+    if (email == null || email.isEmpty) return;
+    try {
+      await AuthService.resetPassword(email: email);
+      _showMessage('Password reset email sent.');
+    } catch (_) {
+      _showMessage('Unable to send the reset email.');
+    }
   }
-
-  // ============================================================
-  // BUILD
-  // ============================================================
 
   @override
   Widget build(BuildContext context) {
@@ -355,191 +134,61 @@ class _LoginScreenState extends State<LoginScreen> {
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.fromLTRB(24, 32, 24, 28),
           child: Column(
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(height: 60),
-
-              Center(
-                child: Container(
-                  width: 95,
-                  height: 95,
-                  decoration:
-                      const BoxDecoration(
-                    color: AppColors.primary,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.auto_awesome,
-                    color: AppColors.background,
-                    size: 45,
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 32),
-
-              Text(
-                'Welcome Back',
-                style: Theme.of(context)
-                    .textTheme
-                    .headlineMedium,
-              ),
-
-              const SizedBox(height: 8),
-
-              Text(
-                'Sign in to continue your AI styling journey.',
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyMedium,
-              ),
-
-              const SizedBox(height: 36),
-
-              TextField(
-                controller: emailController,
-                keyboardType:
-                    TextInputType.emailAddress,
-                textInputAction:
-                    TextInputAction.next,
-                decoration:
-                    const InputDecoration(
-                  labelText: 'Email',
-                  hintText: 'example@email.com',
-                  prefixIcon: Icon(
-                    Icons.email_outlined,
-                  ),
-                ),
-              ),
-
+              Align(alignment: Alignment.topRight, child: IconButton(onPressed: () {}, icon: const Icon(Icons.more_horiz))),
               const SizedBox(height: 20),
-
+              Container(
+                height: 135,
+                width: double.infinity,
+                decoration: BoxDecoration(gradient: AppGradients.blush, borderRadius: BorderRadius.circular(26)),
+                child: const Center(child: Text('TiB', style: TextStyle(fontSize: 48, fontWeight: FontWeight.w300, letterSpacing: -2))),
+              ),
+              const SizedBox(height: 28),
+              const Text('Welcome back', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 7),
+              const Text('Let’s continue your personal style journey ✨', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+              const SizedBox(height: 26),
+              _socialButton('Continue with Google', Icons.g_mobiledata, loginWithGoogle),
+              const SizedBox(height: 10),
+              _socialButton('Continue with Apple', Icons.apple, () => _showMessage('Apple sign-in is coming soon.')),
+              const SizedBox(height: 22),
+              const Row(children: [Expanded(child: Divider()), Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('or', style: TextStyle(color: AppColors.textMuted))), Expanded(child: Divider())]),
+              const SizedBox(height: 22),
+              const Text('Email', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 7),
+              TextField(controller: emailController, keyboardType: TextInputType.emailAddress, decoration: const InputDecoration(hintText: 'you@example.com')),
+              const SizedBox(height: 16),
+              const Text('Password', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 7),
               TextField(
                 controller: passwordController,
                 obscureText: obscurePassword,
-                textInputAction:
-                    TextInputAction.done,
-                onSubmitted: (_) {
-                  if (!isLoading) {
-                    login();
-                  }
-                },
-                decoration:
-                    InputDecoration(
-                  labelText: 'Password',
-                  hintText:
-                      'Enter your password',
-                  prefixIcon: const Icon(
-                    Icons.lock_outline,
-                  ),
-                  suffixIcon: IconButton(
-                    onPressed: () {
-                      setState(() {
-                        obscurePassword =
-                            !obscurePassword;
-                      });
-                    },
-                    icon: Icon(
-                      obscurePassword
-                          ? Icons.visibility_off
-                          : Icons.visibility,
-                    ),
-                  ),
+                onSubmitted: (_) => login(),
+                decoration: InputDecoration(
+                  hintText: 'Enter your password',
+                  suffixIcon: IconButton(onPressed: () => setState(() => obscurePassword = !obscurePassword), icon: Icon(obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined)),
                 ),
               ),
-
-              const SizedBox(height: 12),
-
-              Align(
-                alignment:
-                    Alignment.centerRight,
-                child: TextButton(
-                  onPressed: isLoading
-                      ? null
-                      : _showForgotPasswordDialog,
-                  child: const Text(
-                    'Forgot Password?',
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
-              PrimaryButton(
-                text: isLoading
-                    ? 'Signing In...'
-                    : 'Login',
-                icon: Icons.login,
-                onPressed:
-                    isLoading ? null : login,
-              ),
-
-              const SizedBox(height: 24),
-
-              const Row(
-                children: [
-                  Expanded(child: Divider()),
-                  Padding(
-                    padding:
-                        EdgeInsets.symmetric(
-                      horizontal: 12,
-                    ),
-                    child: Text('OR'),
-                  ),
-                  Expanded(child: Divider()),
-                ],
-              ),
-
-              const SizedBox(height: 24),
-
-              OutlinedButton.icon(
-                onPressed: isLoading
-                    ? null
-                    : loginWithGoogle,
-                icon: const Icon(
-                  Icons.g_mobiledata,
-                  size: 30,
-                ),
-                label: Text(
-                  isLoading
-                      ? 'Signing In...'
-                      : 'Continue with Google',
-                ),
-                style:
-                    OutlinedButton.styleFrom(
-                  minimumSize:
-                      const Size(
-                    double.infinity,
-                    55,
-                  ),
-                ),
-              ),
-
+              Align(alignment: Alignment.centerRight, child: TextButton(onPressed: isLoading ? null : _forgotPassword, child: const Text('Forgot password?'))),
+              const SizedBox(height: 8),
+              ElevatedButton(onPressed: isLoading ? null : login, child: Text(isLoading ? 'Signing in...' : 'Sign In')),
               const SizedBox(height: 18),
-
-              Row(
-                mainAxisAlignment:
-                    MainAxisAlignment.center,
-                children: [
-                  const Text(
-                    "Don't have an account?",
-                  ),
-                  TextButton(
-                    onPressed: isLoading
-                        ? null
-                        : _openRegister,
-                    child:
-                        const Text('Register'),
-                  ),
-                ],
-              ),
+              Center(child: TextButton(onPressed: isLoading ? null : () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RegisterScreen())), child: const Text('New here? Create an account'))),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _socialButton(String label, IconData icon, VoidCallback onTap) {
+    return OutlinedButton.icon(
+      onPressed: isLoading ? null : onTap,
+      icon: Icon(icon, size: 21),
+      label: Text(label),
     );
   }
 }
