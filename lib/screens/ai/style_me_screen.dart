@@ -1,0 +1,531 @@
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_radius.dart';
+import '../../models/colour_analysis_result.dart';
+import '../../models/wardrobe_item.dart';
+import '../../providers/analysis_provider.dart';
+import '../../services/ai_styling_service.dart';
+import '../../services/firestore_service.dart';
+import '../../services/style_preference_service.dart';
+import '../../widgets/empty_state.dart';
+import 'ai_stylist_screen.dart';
+
+/// Free-form outfit planner.
+///
+/// Instead of forcing the user into a fixed occasion chip, this screen lets
+/// them describe the real plan: “rooftop dinner in KL”, “cafe hopping”,
+/// “first date”, “airport outfit”, etc. Premium users get the existing real
+/// Claude recommendation service; everyone else gets a transparent local
+/// wardrobe matcher so the UI never pretends an AI call happened.
+class StyleMeScreen extends StatefulWidget {
+  const StyleMeScreen({super.key});
+
+  @override
+  State<StyleMeScreen> createState() => _StyleMeScreenState();
+}
+
+class _StyleMeScreenState extends State<StyleMeScreen> {
+  final TextEditingController _occasionController = TextEditingController();
+  bool _loading = true;
+  bool _styling = false;
+  bool _isPremium = false;
+  String _status = '';
+  List<WardrobeItem> _wardrobe = const [];
+  List<String> _styles = const [];
+  List<String> _preferences = const [];
+  AiStylingResult? _aiResult;
+  List<WardrobeItem> _localLook = const [];
+  ColourAnalysisResult? _profile;
+
+  static const _ideas = [
+    'Dinner date tonight',
+    'Cafe hopping with friends',
+    'Airport outfit',
+    'Weekend shopping',
+    'Smart casual work day',
+    'Birthday dinner',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _occasionController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
+
+    try {
+      final results = await Future.wait<dynamic>([
+        FirestoreService.getWardrobeItems(uid),
+        StylePreferenceService.getStylePreferences(uid),
+        FirebaseFirestore.instance.collection('users').doc(uid).get(),
+      ]);
+
+      if (!mounted) return;
+      final prefs = results[1] as Map<String, dynamic>?;
+      final user = (results[2] as DocumentSnapshot<Map<String, dynamic>>).data();
+
+      setState(() {
+        _wardrobe = results[0] as List<WardrobeItem>;
+        _styles = List<String>.from(prefs?['styles'] ?? const []);
+        _preferences = List<String>.from(prefs?['preferences'] ?? const []);
+        _isPremium = user?['isPremium'] == true;
+        _loading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _styleMe() async {
+    final prompt = _occasionController.text.trim();
+    if (prompt.isEmpty || _styling || _wardrobe.isEmpty) return;
+
+    final profile = context.read<AnalysisProvider>().result;
+    if (profile == null) {
+      setState(() {
+        _status = 'Complete Colour Analysis first so your look can be colour-aware.';
+        _aiResult = null;
+        _localLook = const [];
+      });
+      return;
+    }
+
+    setState(() {
+      _styling = true;
+      _status = 'Checking your wardrobe, palette and style preferences…';
+      _aiResult = null;
+      _localLook = const [];
+    });
+
+    final result = _isPremium
+        ? await AiStylingService.getRecommendation(
+            profile: profile,
+            wardrobe: _wardrobe,
+            styles: _styles,
+            preferences: _preferences,
+            occasion: prompt,
+          )
+        : null;
+
+    if (!mounted) return;
+
+    if (result != null) {
+      setState(() {
+        _profile = profile;
+        _aiResult = result;
+        _styling = false;
+        _status = 'AI look built from pieces you already own.';
+      });
+      return;
+    }
+
+    final local = _buildLocalLook(prompt, profile);
+    setState(() {
+      _profile = profile;
+      _localLook = local;
+      _styling = false;
+      _status = _isPremium
+          ? 'AI is unavailable right now, so here is a transparent wardrobe fallback.'
+          : 'Here is a wardrobe match based on your saved palette and preferences.';
+    });
+  }
+
+  List<WardrobeItem> _buildLocalLook(String prompt, ColourAnalysisResult profile) {
+    final text = prompt.toLowerCase();
+    final wantsDress = text.contains('dress') ||
+        text.contains('date') ||
+        text.contains('birthday') ||
+        text.contains('dinner');
+    final wantsSmart = text.contains('work') ||
+        text.contains('office') ||
+        text.contains('meeting') ||
+        text.contains('smart');
+    final wantsCasual = text.contains('cafe') ||
+        text.contains('shopping') ||
+        text.contains('weekend') ||
+        text.contains('airport');
+
+    int score(WardrobeItem item) {
+      var value = 0;
+      final colour = item.colour.toLowerCase();
+      final style = item.style.toLowerCase();
+      final category = item.category.toLowerCase();
+
+      if (item.isFavourite) value += 8;
+      if (_styles.any((s) => style.contains(s.toLowerCase()))) value += 9;
+      if (_preferences.any((p) => style.contains(p.toLowerCase()))) value += 4;
+      if (profile.colours.any((c) => c.toLowerCase().contains(colour) || colour.contains(c.toLowerCase()))) {
+        value += 12;
+      }
+      if (wantsDress && category == 'dresses') value += 20;
+      if (wantsSmart && (style.contains('smart') || style.contains('elegant'))) value += 16;
+      if (wantsCasual && (style.contains('casual') || style.contains('everyday'))) value += 14;
+      if (!wantsDress && category == 'tops') value += 7;
+      if (!wantsDress && category == 'bottoms') value += 7;
+      if (category == 'shoes') value += 3;
+      if (category == 'accessories') value += 2;
+      return value;
+    }
+
+    final sorted = [..._wardrobe]..sort((a, b) => score(b).compareTo(score(a)));
+    final look = <WardrobeItem>[];
+
+    if (wantsDress) {
+      final dress = sorted.where((i) => i.category == 'Dresses').firstOrNull;
+      if (dress != null) look.add(dress);
+    } else {
+      final top = sorted.where((i) => i.category == 'Tops').firstOrNull;
+      final bottom = sorted.where((i) => i.category == 'Bottoms').firstOrNull;
+      if (top != null) look.add(top);
+      if (bottom != null && bottom.id != top?.id) look.add(bottom);
+    }
+
+    final shoes = sorted.where((i) => i.category == 'Shoes').firstOrNull;
+    final accessory = sorted.where((i) => i.category == 'Accessories').firstOrNull;
+    if (shoes != null && !look.any((i) => i.id == shoes.id)) look.add(shoes);
+    if (accessory != null && !look.any((i) => i.id == accessory.id)) look.add(accessory);
+
+    return look.take(4).toList();
+  }
+
+  WardrobeItem? _find(String? id) {
+    if (id == null) return null;
+    for (final item in _wardrobe) {
+      if (item.id == id) return item;
+    }
+    return null;
+  }
+
+  List<WardrobeItem> get _aiLook {
+    final ids = [
+      _aiResult?.topId,
+      _aiResult?.bottomId,
+      _aiResult?.shoesId,
+      _aiResult?.accessoryId,
+    ];
+    return ids.map(_find).whereType<WardrobeItem>().toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: const Text('Style Me'),
+        actions: [
+          IconButton(
+            tooltip: 'Open AI Stylist chat',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const AIStylistScreen()),
+            ),
+            icon: const Icon(Icons.chat_bubble_outline_rounded),
+          ),
+        ],
+      ),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _wardrobe.isEmpty
+          ? EmptyState(
+              icon: Icons.checkroom_outlined,
+              title: 'Add a few wardrobe pieces first',
+              description: 'Style Me only recommends pieces you actually own.',
+              ctaLabel: 'Open Wardrobe',
+              onCta: () => Navigator.pop(context),
+            )
+          : SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 30),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildHero(),
+                  const SizedBox(height: 20),
+                  _buildPromptField(),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    height: 36,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: _ideas.length,
+                      separatorBuilder: (_, _) => const SizedBox(width: 7),
+                      itemBuilder: (_, index) => ActionChip(
+                        label: Text(_ideas[index]),
+                        onPressed: () {
+                          _occasionController.text = _ideas[index];
+                          setState(() {});
+                        },
+                        backgroundColor: AppColors.surface,
+                        side: const BorderSide(color: AppColors.border),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: _styling ? null : _styleMe,
+                      icon: _styling
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: AppColors.primaryDark,
+                              ),
+                            )
+                          : const Icon(Icons.auto_awesome_rounded),
+                      label: Text(_styling ? 'Building your look…' : 'Style Me'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.eggYolk,
+                        foregroundColor: AppColors.primaryDark,
+                        minimumSize: const Size.fromHeight(54),
+                      ),
+                    ),
+                  ),
+                  if (_status.isNotEmpty) ...[
+                    const SizedBox(height: 14),
+                    Text(
+                      _status,
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                  if (_aiResult != null || _localLook.isNotEmpty) ...[
+                    const SizedBox(height: 22),
+                    _buildResult(_aiResult == null ? _localLook : _aiLook),
+                  ],
+                ],
+              ),
+            ),
+    );
+  }
+
+  Widget _buildHero() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(21),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [AppColors.primary, AppColors.primaryDark],
+        ),
+        borderRadius: BorderRadius.circular(26),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.auto_awesome_rounded, color: AppColors.eggYolk),
+              const SizedBox(width: 8),
+              Text(
+                _isPremium ? 'PREMIUM AI STYLING' : 'WARDROBE STYLING',
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.1,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Where are you going?\nTell me the vibe.',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 28,
+              height: 1.05,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -.7,
+            ),
+          ),
+          const SizedBox(height: 9),
+          Text(
+            _isPremium
+                ? 'Claude checks your real wardrobe, colour profile and preferences before choosing the look.'
+                : 'Your saved colours, favourites and preferences shape the local match.',
+            style: const TextStyle(color: Colors.white70, height: 1.4, fontSize: 12.5),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPromptField() {
+    return TextField(
+      controller: _occasionController,
+      minLines: 2,
+      maxLines: 4,
+      textInputAction: TextInputAction.done,
+      onSubmitted: (_) => _styleMe(),
+      decoration: InputDecoration(
+        labelText: 'Describe your plan',
+        hintText: 'e.g. Rooftop dinner, warm weather, I want to look feminine but modern',
+        prefixIcon: const Padding(
+          padding: EdgeInsets.only(left: 14, right: 8, top: 14),
+          child: Icon(Icons.edit_note_rounded),
+        ),
+        alignLabelWithHint: true,
+        filled: true,
+        fillColor: AppColors.surface,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          borderSide: const BorderSide(color: AppColors.border),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          borderSide: const BorderSide(color: AppColors.border),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildResult(List<WardrobeItem> look) {
+    if (look.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(17),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: const Text(
+          'I could not build a complete look from the pieces currently in your wardrobe. Add more basics or accessories and try again.',
+          style: TextStyle(color: AppColors.textSecondary, height: 1.4),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Expanded(
+              child: Text(
+                'YOUR LOOK',
+                style: TextStyle(
+                  color: AppColors.primary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.2,
+                ),
+              ),
+            ),
+            if (_aiResult != null)
+              const Text(
+                'AI MATCH',
+                style: TextStyle(
+                  color: AppColors.eggYolkDark,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        if (_aiResult?.explanation.isNotEmpty == true)
+          Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(15),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(19),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.auto_awesome_rounded, color: AppColors.primary, size: 18),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Text(
+                    _aiResult!.explanation,
+                    style: const TextStyle(color: AppColors.textSecondary, height: 1.45, fontSize: 12.5),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        SizedBox(
+          height: 190,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: look.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 10),
+            itemBuilder: (_, index) => _lookCard(look[index]),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _lookCard(WardrobeItem item) {
+    return SizedBox(
+      width: 145,
+      child: Container(
+        padding: const EdgeInsets.all(7),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(19),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: item.imageUrl.isEmpty
+                    ? Container(
+                        color: AppColors.surfaceMuted,
+                        child: const Center(child: Icon(Icons.checkroom_outlined)),
+                      )
+                    : CachedNetworkImage(
+                        imageUrl: item.imageUrl,
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                      ),
+              ),
+            ),
+            const SizedBox(height: 7),
+            Text(
+              item.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+            ),
+            Text(
+              '${item.category} · ${item.colour}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: AppColors.textMuted, fontSize: 10.5),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
