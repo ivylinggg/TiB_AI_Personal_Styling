@@ -3,13 +3,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/constants/app_colors.dart';
 import '../../providers/analysis_provider.dart';
-import '../dashboard/dashboard_screen.dart';
-import '../analysis/analysis_screen.dart';
 import '../ai/ai_stylist_screen.dart';
+import '../analysis/analysis_screen.dart';
+import '../dashboard/dashboard_screen.dart';
 import '../profile/profile_screen.dart';
 import '../wardrobe/wardrobe_screen.dart';
 
+/// Primary application shell.
+///
+/// The navigation is intentionally editorial rather than dashboard-heavy:
+/// Home, Colour, AI, Wardrobe and Profile are the five things a styling app
+/// should keep one tap away. AI gets a small egg-yolk visual treatment so it
+/// reads as the app's intelligent centre without introducing a new colour
+/// family.
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
 
@@ -32,64 +40,109 @@ class _MainScreenState extends State<MainScreen> {
   void initState() {
     super.initState();
 
-    // Load the customer's most recently saved colour analysis (if any)
-    // once per session, so Dashboard and AI Stylist reflect it without
-    // requiring a fresh analysis to be run in this session.
     final uid = FirebaseAuth.instance.currentUser?.uid;
-
     if (uid != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) {
-          return;
-        }
+        if (!mounted) return;
         context.read<AnalysisProvider>().loadLatestResult(uid);
       });
     }
+  }
+
+  void _selectTab(int index) {
+    if (index == _selectedIndex) return;
+    HapticFeedback.selectionClick();
+    setState(() => _selectedIndex = index);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: IndexedStack(index: _selectedIndex, children: _pages),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedIndex,
-        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-        onDestinationSelected: (index) {
-          if (index == _selectedIndex) {
-            return;
-          }
-          HapticFeedback.selectionClick();
-          setState(() {
-            _selectedIndex = index;
-          });
-        },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: 'Home',
+      bottomNavigationBar: _buildNavigationBar(),
+    );
+  }
+
+  Widget _buildNavigationBar() {
+    return SafeArea(
+      top: false,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          border: Border(
+            top: BorderSide(
+              color: Theme.of(context).dividerColor.withValues(alpha: 0.65),
+            ),
           ),
-          NavigationDestination(
-            icon: Icon(Icons.palette_outlined),
-            selectedIcon: Icon(Icons.palette),
-            label: 'Colour',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.auto_awesome_outlined),
-            selectedIcon: Icon(Icons.auto_awesome),
-            label: 'AI',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.checkroom_outlined),
-            selectedIcon: Icon(Icons.checkroom),
-            label: 'Wardrobe',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: 'Profile',
-          ),
-        ],
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 22,
+              offset: const Offset(0, -6),
+            ),
+          ],
+        ),
+        child: NavigationBar(
+          selectedIndex: _selectedIndex,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          height: 72,
+          labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+          onDestinationSelected: _selectTab,
+          destinations: [
+            const NavigationDestination(
+              icon: Icon(Icons.home_outlined),
+              selectedIcon: Icon(Icons.home_rounded),
+              label: 'Home',
+            ),
+            const NavigationDestination(
+              icon: Icon(Icons.palette_outlined),
+              selectedIcon: Icon(Icons.palette_rounded),
+              label: 'Colour',
+            ),
+            NavigationDestination(
+              icon: _aiIcon(false),
+              selectedIcon: _aiIcon(true),
+              label: 'AI',
+            ),
+            const NavigationDestination(
+              icon: Icon(Icons.checkroom_outlined),
+              selectedIcon: Icon(Icons.checkroom_rounded),
+              label: 'Wardrobe',
+            ),
+            const NavigationDestination(
+              icon: Icon(Icons.person_outline_rounded),
+              selectedIcon: Icon(Icons.person_rounded),
+              label: 'Profile',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _aiIcon(bool selected) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      width: selected ? 42 : 34,
+      height: selected ? 42 : 34,
+      decoration: BoxDecoration(
+        color: selected ? AppColors.eggYolk : AppColors.surfaceMuted,
+        shape: BoxShape.circle,
+        boxShadow: selected
+            ? [
+                BoxShadow(
+                  color: AppColors.eggYolk.withValues(alpha: 0.28),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ]
+            : null,
+      ),
+      child: Icon(
+        Icons.auto_awesome_rounded,
+        size: selected ? 21 : 18,
+        color: AppColors.primaryDark,
       ),
     );
   }
