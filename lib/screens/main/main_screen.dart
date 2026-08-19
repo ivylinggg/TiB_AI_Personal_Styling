@@ -59,7 +59,13 @@ class _MainScreenState extends State<MainScreen> {
           decoration: BoxDecoration(
             color: AppColors.surface,
             border: const Border(top: BorderSide(color: AppColors.border)),
-            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .055), blurRadius: 24, offset: const Offset(0, -7))],
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: .055),
+                blurRadius: 24,
+                offset: const Offset(0, -7),
+              ),
+            ],
           ),
           child: NavigationBar(
             selectedIndex: _selectedIndex,
@@ -69,11 +75,31 @@ class _MainScreenState extends State<MainScreen> {
             labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
             onDestinationSelected: _selectTab,
             destinations: [
-              const NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home_rounded), label: 'Home'),
-              const NavigationDestination(icon: Icon(Icons.palette_outlined), selectedIcon: Icon(Icons.palette_rounded), label: 'Colour'),
-              NavigationDestination(icon: _aiIcon(false), selectedIcon: _aiIcon(true), label: 'Style'),
-              const NavigationDestination(icon: Icon(Icons.checkroom_outlined), selectedIcon: Icon(Icons.checkroom_rounded), label: 'Wardrobe'),
-              const NavigationDestination(icon: Icon(Icons.person_outline_rounded), selectedIcon: Icon(Icons.person_rounded), label: 'Profile'),
+              const NavigationDestination(
+                icon: Icon(Icons.home_outlined),
+                selectedIcon: Icon(Icons.home_rounded),
+                label: 'Home',
+              ),
+              const NavigationDestination(
+                icon: Icon(Icons.palette_outlined),
+                selectedIcon: Icon(Icons.palette_rounded),
+                label: 'Colour',
+              ),
+              NavigationDestination(
+                icon: _aiIcon(false),
+                selectedIcon: _aiIcon(true),
+                label: 'Style',
+              ),
+              const NavigationDestination(
+                icon: Icon(Icons.checkroom_outlined),
+                selectedIcon: Icon(Icons.checkroom_rounded),
+                label: 'Wardrobe',
+              ),
+              const NavigationDestination(
+                icon: Icon(Icons.person_outline_rounded),
+                selectedIcon: Icon(Icons.person_rounded),
+                label: 'Profile',
+              ),
             ],
           ),
         ),
@@ -90,9 +116,21 @@ class _MainScreenState extends State<MainScreen> {
         gradient: selected ? AppGradients.primary : null,
         color: selected ? null : AppColors.surfaceMuted,
         shape: BoxShape.circle,
-        boxShadow: selected ? [BoxShadow(color: AppColors.primary.withValues(alpha: .24), blurRadius: 13, offset: const Offset(0, 4))] : null,
+        boxShadow: selected
+            ? [
+                BoxShadow(
+                  color: AppColors.primary.withValues(alpha: .24),
+                  blurRadius: 13,
+                  offset: const Offset(0, 4),
+                ),
+              ]
+            : null,
       ),
-      child: Icon(Icons.auto_awesome_rounded, size: selected ? 21 : 18, color: selected ? Colors.white : AppColors.primary),
+      child: Icon(
+        Icons.auto_awesome_rounded,
+        size: selected ? 21 : 18,
+        color: selected ? Colors.white : AppColors.primary,
+      ),
     );
   }
 }
