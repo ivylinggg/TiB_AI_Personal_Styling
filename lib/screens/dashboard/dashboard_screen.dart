@@ -19,10 +19,11 @@ import '../ai/style_preferences_screen.dart';
 import '../analysis/analysis_result_screen.dart';
 import '../analysis/analysis_screen.dart';
 import '../premium/premium_screen.dart';
+import '../profile/profile_screen.dart';
+import '../profile/saved_looks_screen.dart';
 import '../wardrobe/wardrobe_screen.dart';
 
-/// Personalised home feed. Quick Access is intentionally removed: the
-/// bottom navigation and contextual cards already expose the real features.
+/// Personalised home feed.
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
@@ -193,8 +194,131 @@ class _DashboardScreenState extends State<DashboardScreen>
             ],
           ),
         ),
-        _circleButton(Icons.notifications_none_rounded),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _circleButton(
+              Icons.menu_rounded,
+              tooltip: 'Menu',
+              onTap: _showDashboardMenu,
+            ),
+            const SizedBox(width: 8),
+            _circleButton(
+              Icons.notifications_none_rounded,
+              tooltip: 'Notifications',
+              onTap: () {},
+            ),
+          ],
+        ),
       ],
+    );
+  }
+
+  Future<void> _showDashboardMenu() async {
+    final page = await showModalBottomSheet<_DashboardMenuAction>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: AppColors.background,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(4, 0, 4, 12),
+                  child: Text(
+                    'TiB Menu',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+                  ),
+                ),
+                _menuTile(
+                  sheetContext,
+                  icon: Icons.person_outline_rounded,
+                  title: 'My Profile',
+                  subtitle: 'View and manage your profile',
+                  action: _DashboardMenuAction.profile,
+                ),
+                _menuTile(
+                  sheetContext,
+                  icon: Icons.bookmark_outline_rounded,
+                  title: 'Saved Looks',
+                  subtitle: 'Revisit looks you saved with TiB',
+                  action: _DashboardMenuAction.savedLooks,
+                ),
+                _menuTile(
+                  sheetContext,
+                  icon: Icons.tune_rounded,
+                  title: 'Style Preferences',
+                  subtitle: 'Keep your style profile up to date',
+                  action: _DashboardMenuAction.preferences,
+                ),
+                _menuTile(
+                  sheetContext,
+                  icon: Icons.palette_outlined,
+                  title: 'Colour Profile',
+                  subtitle: 'See your season and best colours',
+                  action: _DashboardMenuAction.colourProfile,
+                ),
+                _menuTile(
+                  sheetContext,
+                  icon: Icons.checkroom_outlined,
+                  title: 'My Wardrobe',
+                  subtitle: 'Manage the pieces you already own',
+                  action: _DashboardMenuAction.wardrobe,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (!mounted || page == null) return;
+
+    switch (page) {
+      case _DashboardMenuAction.profile:
+        await _open(const ProfileScreen());
+        break;
+      case _DashboardMenuAction.savedLooks:
+        await _open(const SavedLooksScreen());
+        break;
+      case _DashboardMenuAction.preferences:
+        await _open(const StylePreferencesScreen());
+        break;
+      case _DashboardMenuAction.colourProfile:
+        await _open(const AnalysisScreen());
+        break;
+      case _DashboardMenuAction.wardrobe:
+        await _open(const WardrobeScreen());
+        break;
+    }
+  }
+
+  Widget _menuTile(
+    BuildContext sheetContext, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required _DashboardMenuAction action,
+  }) {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      leading: Container(
+        width: 42,
+        height: 42,
+        decoration: BoxDecoration(
+          color: AppColors.surfaceMuted,
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, color: AppColors.primary),
+      ),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+      subtitle: Text(subtitle, style: const TextStyle(fontSize: 11.5)),
+      trailing: const Icon(Icons.chevron_right_rounded),
+      onTap: () => Navigator.pop(sheetContext, action),
     );
   }
 
@@ -757,17 +881,24 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  Widget _circleButton(IconData icon) {
-    return Material(
-      color: AppColors.surfaceMuted,
-      shape: const CircleBorder(),
-      child: InkWell(
-        onTap: () {},
-        customBorder: const CircleBorder(),
-        child: SizedBox(
-          width: 42,
-          height: 42,
-          child: Icon(icon, color: AppColors.primary, size: 20),
+  Widget _circleButton(
+    IconData icon, {
+    required String tooltip,
+    required VoidCallback onTap,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: AppColors.surfaceMuted,
+        shape: const CircleBorder(),
+        child: InkWell(
+          onTap: onTap,
+          customBorder: const CircleBorder(),
+          child: SizedBox(
+            width: 42,
+            height: 42,
+            child: Icon(icon, color: AppColors.primary, size: 20),
+          ),
         ),
       ),
     );
@@ -784,6 +915,14 @@ class _DashboardScreenState extends State<DashboardScreen>
         context,
         MaterialPageRoute(builder: (_) => page),
       );
+}
+
+enum _DashboardMenuAction {
+  profile,
+  savedLooks,
+  preferences,
+  colourProfile,
+  wardrobe,
 }
 
 class _WhitePill extends StatelessWidget {
