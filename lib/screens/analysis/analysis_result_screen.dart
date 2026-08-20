@@ -28,24 +28,18 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
     setState(() => _generatingReport = true);
 
     try {
-      final file = await ColourReportService.generateReport(result: result);
+      await ColourReportService.saveReport(result: result);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('PDF report saved to ${file.path}'),
-          action: SnackBarAction(
-            label: 'Share',
-            onPressed: () async {
-              await ColourReportService.generateAndShare(result: result);
-            },
-          ),
-          duration: const Duration(seconds: 5),
+        const SnackBar(
+          content: Text('Your colour analysis PDF has been saved successfully.'),
+          duration: Duration(seconds: 3),
         ),
       );
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not create the PDF report: $error')),
+        SnackBar(content: Text('Could not save the PDF report: $error')),
       );
     } finally {
       if (mounted) setState(() => _generatingReport = false);
@@ -93,7 +87,9 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
                 ? null
                 : () => Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => const SeasonColourGuideScreen()),
+                      MaterialPageRoute(
+                        builder: (_) => const SeasonColourGuideScreen(),
+                      ),
                     ),
             icon: const Icon(Icons.menu_book_outlined),
           ),
@@ -158,7 +154,7 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
                       icon: _generatingReport
                           ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
                           : const Icon(Icons.download_rounded),
-                      label: Text(_generatingReport ? 'Preparing…' : 'Download PDF'),
+                      label: Text(_generatingReport ? 'Saving…' : 'Download PDF'),
                       style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(50)),
                     ),
                   ),
