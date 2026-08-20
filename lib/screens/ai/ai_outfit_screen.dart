@@ -33,6 +33,9 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
   bool _loading = true;
   bool _generated = false;
   int _generation = 0;
+  final Set<String> _lovedLookIds = <String>{};
+  final Set<String> _dislikedLookIds = <String>{};
+  bool _savedLook = false;
 
   @override
   void initState() {
@@ -64,6 +67,8 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
     final text = '${item.category} ${item.style} ${item.colour}'.toLowerCase();
     final occasion = _occasion.toLowerCase();
     if (item.isFavourite) score += 10;
+    if (_lovedLookIds.contains(item.id)) score += 16;
+    if (_dislikedLookIds.contains(item.id)) score -= 20;
     if (profile.colours.any((c) => text.contains(c.toLowerCase()))) score += 25;
     if (item.season.toLowerCase().contains(profile.season.toLowerCase())) {
       score += 12;
@@ -155,6 +160,7 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
   void _generate(ColourAnalysisResult profile) {
     setState(() {
       _generation++;
+      _savedLook = false;
       _look = _buildLook(profile);
       _generated = true;
     });
@@ -374,6 +380,8 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
               ),
               const SizedBox(height: 13),
               _whyItWorks(profile, look),
+              const SizedBox(height: 12),
+              _feedbackActions(look),
               const SizedBox(height: 10),
               Row(
                 children: [
@@ -458,6 +466,116 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
         ],
       ),
     );
+  }
+
+  Widget _feedbackActions(List<WardrobeItem> look) {
+    final loved = look.any((item) => _lovedLookIds.contains(item.id));
+    final disliked = look.any((item) => _dislikedLookIds.contains(item.id));
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _feedbackButton(
+                icon: loved ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                label: loved ? 'Loved' : 'Love this',
+                selected: loved,
+                onPressed: () {
+                  setState(() {
+                    for (final item in look) {
+                      _lovedLookIds.add(item.id);
+                      _dislikedLookIds.remove(item.id);
+                    }
+                  });
+                  _showFeedback('Got it — I’ll lean into this style.');
+                },
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _feedbackButton(
+                icon: disliked ? Icons.thumb_down_rounded : Icons.thumb_down_outlined,
+                label: disliked ? 'Noted' : 'Not my style',
+                selected: disliked,
+                onPressed: () {
+                  setState(() {
+                    for (final item in look) {
+                      _dislikedLookIds.add(item.id);
+                      _lovedLookIds.remove(item.id);
+                    }
+                  });
+                  _showFeedback('Okay — I’ll move away from these pieces.');
+                },
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: () {
+              setState(() => _savedLook = !_savedLook);
+              _showFeedback(
+                _savedLook ? 'Look saved for this session.' : 'Removed from saved looks.',
+              );
+            },
+            icon: Icon(
+              _savedLook ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
+              size: 18,
+            ),
+            label: Text(_savedLook ? 'Saved look' : 'Save this look'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.primary,
+              side: BorderSide(color: AppColors.border),
+              minimumSize: const Size.fromHeight(44),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _feedbackButton({
+    required IconData icon,
+    required String label,
+    required bool selected,
+    required VoidCallback onPressed,
+  }) {
+    return OutlinedButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 17),
+      label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: selected ? AppColors.primary : AppColors.textSecondary,
+        backgroundColor: selected ? AppColors.primarySoft : AppColors.surface,
+        side: BorderSide(
+          color: selected ? AppColors.primary : AppColors.border,
+        ),
+        minimumSize: const Size.fromHeight(44),
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+        ),
+      ),
+    );
+  }
+
+  void _showFeedback(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
   }
 
   Widget _scorePill(int score) {
