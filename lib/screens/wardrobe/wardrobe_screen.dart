@@ -271,12 +271,89 @@ class _WardrobeScreenState extends State<WardrobeScreen>
                         SliverToBoxAdapter(
                           child: Padding(
                             padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-                            child: Text(
-                              'Showing ${filtered.length} of ${items.length}',
-                              style: const TextStyle(
-                                color: _muted,
-                                fontSize: 12,
-                              ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    const Text(
+                                      'Active filters',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w800,
+                                        color: _muted,
+                                      ),
+                                    ),
+                                    const Spacer(),
+                                    TextButton(
+                                      onPressed: () {
+                                        setState(() {
+                                          _category = 'All';
+                                          _colour = 'All';
+                                          _showFavouritesOnly = false;
+                                          _searchController.clear();
+                                        });
+                                      },
+                                      style: TextButton.styleFrom(
+                                        padding: EdgeInsets.zero,
+                                        minimumSize: const Size(0, 28),
+                                        tapTargetSize:
+                                            MaterialTapTargetSize.shrinkWrap,
+                                      ),
+                                      child: const Text(
+                                        'Clear all',
+                                        style: TextStyle(fontSize: 11),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 5),
+                                Wrap(
+                                  spacing: 6,
+                                  runSpacing: 6,
+                                  children: [
+                                    if (_category != 'All')
+                                      _buildActiveFilterChip(
+                                        label: _category,
+                                        onRemove: () => setState(
+                                          () => _category = 'All',
+                                        ),
+                                      ),
+                                    if (_colour != 'All')
+                                      _buildActiveFilterChip(
+                                        label: _colour,
+                                        onRemove: () => setState(
+                                          () => _colour = 'All',
+                                        ),
+                                      ),
+                                    if (_showFavouritesOnly)
+                                      _buildActiveFilterChip(
+                                        label: 'Favourites',
+                                        icon: Icons.favorite_rounded,
+                                        onRemove: () => setState(
+                                          () => _showFavouritesOnly = false,
+                                        ),
+                                      ),
+                                    if (query.isNotEmpty)
+                                      _buildActiveFilterChip(
+                                        label: 'Search: ${_searchQuery.trim()}',
+                                        onRemove: () {
+                                          setState(() {
+                                            _searchController.clear();
+                                          });
+                                        },
+                                      ),
+                                  ],
+                                ),
+                                const SizedBox(height: 7),
+                                Text(
+                                  'Showing ${filtered.length} of ${items.length}',
+                                  style: const TextStyle(
+                                    color: _muted,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
@@ -840,6 +917,61 @@ class _WardrobeScreenState extends State<WardrobeScreen>
             onTap: () => setState(() => _category = value),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildActiveFilterChip({
+    required String label,
+    required VoidCallback onRemove,
+    IconData? icon,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: .08),
+        borderRadius: BorderRadius.circular(99),
+        border: Border.all(
+          color: AppColors.primary.withValues(alpha: .16),
+        ),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(99),
+        onTap: onRemove,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(10, 6, 7, 6),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null) ...[
+                Icon(
+                  icon,
+                  size: 12,
+                  color: AppColors.primary,
+                ),
+                const SizedBox(width: 4),
+              ],
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 150),
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.primary,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              const Icon(
+                Icons.close_rounded,
+                size: 13,
+                color: AppColors.primary,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
