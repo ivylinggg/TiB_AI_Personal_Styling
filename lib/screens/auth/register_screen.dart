@@ -6,7 +6,7 @@ import '../../core/constants/app_gradients.dart';
 import '../../models/user_model.dart';
 import '../../services/firestore_service.dart';
 import '../../widgets/primary_button.dart';
-import '../onboarding/style_setup_flow.dart';
+import '../onboarding/flash_profile_flow.dart';
 import 'auth_service.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -95,7 +95,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (!mounted) return;
       await Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const StyleSetupFlow()),
+        MaterialPageRoute(builder: (_) => const FlashProfileFlow()),
       );
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
