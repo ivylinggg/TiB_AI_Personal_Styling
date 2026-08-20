@@ -50,7 +50,6 @@ class _FlashProfileFlowState extends State<FlashProfileFlow> {
   bool _saving = false;
 
   double get _progress => (_step + 1) / 5;
-
   bool get _canContinue => switch (_step) {
         0 => _gender != null,
         1 => _ageRange != null,
@@ -62,7 +61,6 @@ class _FlashProfileFlowState extends State<FlashProfileFlow> {
 
   Future<void> _continue() async {
     if (!_canContinue || _saving) return;
-
     if (_step < 4) {
       setState(() => _step += 1);
       return;
@@ -73,7 +71,6 @@ class _FlashProfileFlowState extends State<FlashProfileFlow> {
     if (uid == null || scanImage == null) return;
 
     setState(() => _saving = true);
-
     try {
       await FirestoreService.updateUser(uid, {
         'gender': _gender,
@@ -89,7 +86,6 @@ class _FlashProfileFlowState extends State<FlashProfileFlow> {
         },
       });
 
-      if (!mounted) return;
       final provider = context.read<AnalysisProvider>();
       provider.setImage(scanImage);
       final success = await provider.analyse(uid: uid);
@@ -118,9 +114,7 @@ class _FlashProfileFlowState extends State<FlashProfileFlow> {
       if (!mounted) return;
       await Navigator.pushReplacement(
         context,
-        MaterialPageRoute(
-          builder: (_) => const StyleSetupFlow(initialStep: 1),
-        ),
+        MaterialPageRoute(builder: (_) => const StyleSetupFlow(initialStep: 1)),
       );
     } catch (_) {
       if (mounted) {
@@ -283,7 +277,7 @@ class _FlashProfileFlowState extends State<FlashProfileFlow> {
             subtitle: 'This helps us personalize your style recommendations',
             options: _genders,
             selected: _gender,
-            onSelect: (v) => setState(() => _gender = v),
+            onSelect: (value) => setState(() => _gender = value),
             emojis: ['👩🏻', '👨🏻', '🌈', '🔒'],
           ),
         1 => _choiceStep(
@@ -291,7 +285,7 @@ class _FlashProfileFlowState extends State<FlashProfileFlow> {
             subtitle: 'We’ll tailor style tips to your life stage',
             options: _ages,
             selected: _ageRange,
-            onSelect: (v) => setState(() => _ageRange = v),
+            onSelect: (value) => setState(() => _ageRange = value),
             emojis: ['🧸', '🌸', '✨', '🌿', '💜', '🔵'],
           ),
         2 => _choiceStep(
@@ -299,7 +293,7 @@ class _FlashProfileFlowState extends State<FlashProfileFlow> {
             subtitle: 'Helps us understand your unique coloring',
             options: _ethnicities,
             selected: _ethnicity,
-            onSelect: (v) => setState(() => _ethnicity = v),
+            onSelect: (value) => setState(() => _ethnicity = value),
             emojis: ['🤍', '👩🏻', '👩🏽', '🧑🏻', '👩🏻', '🧑🏽', '🧑🏿', '🤎', '🌈'],
           ),
         3 => _brandStep(),
@@ -433,7 +427,6 @@ class _FlashProfileFlowState extends State<FlashProfileFlow> {
     final remaining = _brands
         .where((brand) => !_preferredBrands.contains(brand))
         .toList();
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -516,7 +509,8 @@ class _FlashProfileFlowState extends State<FlashProfileFlow> {
         Expanded(
           child: GridView.builder(
             padding: const EdgeInsets.only(bottom: 10),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            gridDelegate:
+                const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 2,
               crossAxisSpacing: 10,
               mainAxisSpacing: 10,
@@ -592,164 +586,88 @@ class _FlashProfileFlowState extends State<FlashProfileFlow> {
           child: Container(
             width: double.infinity,
             decoration: BoxDecoration(
-              color: Colors.black,
-              borderRadius: BorderRadius.circular(24),
+              color: Colors.white.withValues(alpha: .92),
+              borderRadius: BorderRadius.circular(28),
+              border: Border.all(color: AppColors.border),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: .04),
+                  blurRadius: 24,
+                  offset: const Offset(0, 10),
+                ),
+              ],
             ),
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                if (_scanImage != null)
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(24),
+            child: _scanImage == null
+                ? _scanPlaceholder()
+                : ClipRRect(
+                    borderRadius: BorderRadius.circular(28),
                     child: Image.file(
                       _scanImage!,
                       fit: BoxFit.cover,
                     ),
-                  )
-                else
-                  const Center(
-                    child: Icon(
-                      Icons.person_outline_rounded,
-                      color: Colors.white54,
-                      size: 74,
-                    ),
                   ),
-                CustomPaint(painter: _CornerPainter()),
-                Positioned(
-                  top: 18,
-                  right: 14,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: const [
-                      _Tip(
-                        icon: Icons.wb_sunny_outlined,
-                        label: 'Good\nlighting',
-                      ),
-                      SizedBox(height: 10),
-                      _Tip(
-                        icon: Icons.face_retouching_off_outlined,
-                        label: 'No makeup\nor filters',
-                      ),
-                      SizedBox(height: 10),
-                      _Tip(
-                        icon: Icons.visibility_off_outlined,
-                        label: 'Hair tied\nback',
-                      ),
-                      SizedBox(height: 10),
-                      _Tip(
-                        icon: Icons.sentiment_satisfied_alt_outlined,
-                        label: 'Look\nstraight',
-                      ),
-                    ],
-                  ),
-                ),
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 22,
-                  child: Column(
-                    children: [
-                      if (_scanImage != null)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 18),
-                          child: Text(
-                            'Photo ready. Continue to build your profile.',
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              color: Colors.white70,
-                              fontSize: 11,
-                            ),
-                          ),
-                        ),
-                      const SizedBox(height: 10),
-                      Wrap(
-                        alignment: WrapAlignment.center,
-                        spacing: 8,
-                        children: [
-                          OutlinedButton.icon(
-                            onPressed: _saving ? null : _openFaceScan,
-                            icon: const Icon(Icons.camera_alt_outlined, size: 17),
-                            label: const Text('Scan'),
-                          ),
-                          OutlinedButton.icon(
-                            onPressed: _saving ? null : _pickPhoto,
-                            icon: const Icon(Icons.photo_library_outlined, size: 17),
-                            label: const Text('Gallery'),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
           ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            FilledButton.icon(
+              onPressed: _saving ? null : _openFaceScan,
+              icon: const Icon(Icons.camera_alt_outlined, size: 17),
+              label: const Text('Scan'),
+            ),
+            const SizedBox(width: 8),
+            OutlinedButton.icon(
+              onPressed: _saving ? null : _pickPhoto,
+              icon: const Icon(Icons.photo_library_outlined, size: 17),
+              label: const Text('Gallery'),
+            ),
+          ],
         ),
       ],
     );
   }
 
-  Widget _tips() {
-    return const SizedBox.shrink();
-  }
-}
-
-class _Tip extends StatelessWidget {
-  final IconData icon;
-  final String label;
-
-  const _Tip({required this.icon, required this.label});
-
-  @override
-  Widget build(BuildContext context) => Container(
-        width: 76,
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
-        decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: .28),
-          borderRadius: BorderRadius.circular(14),
-        ),
+  Widget _scanPlaceholder() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
         child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: Colors.white, size: 18),
-            const SizedBox(height: 4),
-            Text(
-              label,
+            Container(
+              width: 92,
+              height: 92,
+              decoration: BoxDecoration(
+                color: AppColors.primarySoft,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.face_retouching_natural_rounded,
+                color: AppColors.primaryDark,
+                size: 44,
+              ),
+            ),
+            const SizedBox(height: 18),
+            const Text(
+              'Use a clear, front-facing photo',
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 8.5,
-                height: 1.15,
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Natural lighting works best. Remove heavy makeup, glasses and filters.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 11.5,
+                height: 1.45,
               ),
             ),
           ],
         ),
-      );
-}
-
-class _CornerPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.white
-      ..strokeWidth = 2.2
-      ..style = PaintingStyle.stroke;
-    const l = 26.0;
-    const r = 22.0;
-    final left = 18.0;
-    final right = size.width - 18.0;
-    final top = 24.0;
-    final bottom = size.height - 24.0;
-
-    canvas.drawLine(Offset(left, top + l), Offset(left, top), paint);
-    canvas.drawLine(Offset(left, top), Offset(left + r, top), paint);
-    canvas.drawLine(Offset(right - r, top), Offset(right, top), paint);
-    canvas.drawLine(Offset(right, top), Offset(right, top + l), paint);
-    canvas.drawLine(Offset(left, bottom - l), Offset(left, bottom), paint);
-    canvas.drawLine(Offset(left, bottom), Offset(left + r, bottom), paint);
-    canvas.drawLine(Offset(right - r, bottom), Offset(right, bottom), paint);
-    canvas.drawLine(Offset(right, bottom - l), Offset(right, bottom), paint);
+      ),
+    );
   }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
