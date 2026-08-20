@@ -5,6 +5,7 @@ import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_gradients.dart';
 import '../admin/admin_main_screen.dart';
 import '../main/main_screen.dart';
+import '../onboarding/flash_profile_flow.dart';
 import 'auth_service.dart';
 import 'register_screen.dart';
 
@@ -74,22 +75,52 @@ class _LoginScreenState extends State<LoginScreen> {
       _showMessage('Your account is currently inactive.');
       return;
     }
+
     final role = await AuthService.getCurrentUserRole();
     if (!mounted) return;
-    final destination = role == 'admin' ? const AdminMainScreen() : const MainScreen();
-    Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => destination), (_) => false);
+
+    if (role == 'admin') {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const AdminMainScreen()),
+        (_) => false,
+      );
+      return;
+    }
+
+    final profile = await AuthService.getCurrentUserProfile();
+    if (!mounted) return;
+
+    final onboardingComplete = profile['onboardingComplete'] == true;
+
+    final Widget destination = onboardingComplete
+        ? const MainScreen()
+        : const FlashProfileFlow();
+
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => destination),
+      (_) => false,
+    );
   }
 
   String _authErrorMessage(FirebaseAuthException e) {
     switch (e.code) {
-      case 'invalid-email': return 'Please enter a valid email address.';
+      case 'invalid-email':
+        return 'Please enter a valid email address.';
       case 'wrong-password':
-      case 'invalid-credential': return 'Incorrect email or password.';
-      case 'user-not-found': return 'No account was found with this email.';
-      case 'user-disabled': return 'This account has been disabled.';
-      case 'too-many-requests': return 'Too many attempts. Please try again later.';
-      case 'network-request-failed': return 'Network error. Check your connection.';
-      default: return e.message ?? 'Authentication failed.';
+      case 'invalid-credential':
+        return 'Incorrect email or password.';
+      case 'user-not-found':
+        return 'No account was found with this email.';
+      case 'user-disabled':
+        return 'This account has been disabled.';
+      case 'too-many-requests':
+        return 'Too many attempts. Please try again later.';
+      case 'network-request-failed':
+        return 'Network error. Check your connection.';
+      default:
+        return e.message ?? 'Authentication failed.';
     }
   }
 
@@ -97,7 +128,9 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message), behavior: SnackBarBehavior.floating));
+      ..showSnackBar(
+        SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+      );
   }
 
   Future<void> _forgotPassword() async {
@@ -112,8 +145,14 @@ class _LoginScreenState extends State<LoginScreen> {
           decoration: const InputDecoration(labelText: 'Email address'),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
-          ElevatedButton(onPressed: () => Navigator.pop(dialogContext, controller.text.trim()), child: const Text('Send email')),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext, controller.text.trim()),
+            child: const Text('Send email'),
+          ),
         ],
       ),
     );
@@ -155,32 +194,91 @@ class _LoginScreenState extends State<LoginScreen> {
                     Container(
                       width: 54,
                       height: 54,
-                      decoration: BoxDecoration(color: Colors.white.withValues(alpha: .82), shape: BoxShape.circle),
-                      child: const Icon(Icons.auto_awesome_rounded, color: AppColors.primaryDark, size: 25),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: .82),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.auto_awesome_rounded,
+                        color: AppColors.primaryDark,
+                        size: 25,
+                      ),
                     ),
                     const SizedBox(height: 24),
-                    const Text('TiB', style: TextStyle(fontSize: 42, fontWeight: FontWeight.w300, letterSpacing: -2)),
+                    const Text(
+                      'TiB',
+                      style: TextStyle(
+                        fontSize: 42,
+                        fontWeight: FontWeight.w300,
+                        letterSpacing: -2,
+                      ),
+                    ),
                     const SizedBox(height: 5),
-                    const Text('Your personal style,\nmade simple.', style: TextStyle(fontSize: 24, height: 1.08, fontWeight: FontWeight.w800, letterSpacing: -.6)),
+                    const Text(
+                      'Your personal style,\nmade simple.',
+                      style: TextStyle(
+                        fontSize: 24,
+                        height: 1.08,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -.6,
+                      ),
+                    ),
                     const SizedBox(height: 10),
-                    const Text('Colours, clothes and AI styling that feel like you.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5, height: 1.4)),
+                    const Text(
+                      'Colours, clothes and AI styling that feel like you.',
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12.5,
+                        height: 1.4,
+                      ),
+                    ),
                   ],
                 ),
               ),
               const SizedBox(height: 28),
-              const Text('Welcome back', style: TextStyle(fontSize: 27, fontWeight: FontWeight.w800, letterSpacing: -.5)),
+              const Text(
+                'Welcome back',
+                style: TextStyle(
+                  fontSize: 27,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -.5,
+                ),
+              ),
               const SizedBox(height: 6),
-              const Text('Let’s continue your personal style journey.', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+              const Text(
+                'Let’s continue your personal style journey.',
+                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+              ),
               const SizedBox(height: 21),
               _socialButton('Continue with Google', Icons.g_mobiledata, loginWithGoogle),
               const SizedBox(height: 9),
-              _socialButton('Continue with Apple', Icons.apple, () => _showMessage('Apple sign-in is coming soon.')),
+              _socialButton(
+                'Continue with Apple',
+                Icons.apple,
+                () => _showMessage('Apple sign-in is coming soon.'),
+              ),
               const SizedBox(height: 20),
-              const Row(children: [Expanded(child: Divider()), Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('or email', style: TextStyle(color: AppColors.textMuted, fontSize: 11))), Expanded(child: Divider())]),
+              const Row(
+                children: [
+                  Expanded(child: Divider()),
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 12),
+                    child: Text(
+                      'or email',
+                      style: TextStyle(color: AppColors.textMuted, fontSize: 11),
+                    ),
+                  ),
+                  Expanded(child: Divider()),
+                ],
+              ),
               const SizedBox(height: 20),
               const Text('Email', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
               const SizedBox(height: 7),
-              TextField(controller: emailController, keyboardType: TextInputType.emailAddress, decoration: const InputDecoration(hintText: 'you@example.com')),
+              TextField(
+                controller: emailController,
+                keyboardType: TextInputType.emailAddress,
+                decoration: const InputDecoration(hintText: 'you@example.com'),
+              ),
               const SizedBox(height: 15),
               const Text('Password', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
               const SizedBox(height: 7),
@@ -190,14 +288,43 @@ class _LoginScreenState extends State<LoginScreen> {
                 onSubmitted: (_) => login(),
                 decoration: InputDecoration(
                   hintText: 'Enter your password',
-                  suffixIcon: IconButton(onPressed: () => setState(() => obscurePassword = !obscurePassword), icon: Icon(obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined)),
+                  suffixIcon: IconButton(
+                    onPressed: () => setState(() => obscurePassword = !obscurePassword),
+                    icon: Icon(
+                      obscurePassword
+                          ? Icons.visibility_off_outlined
+                          : Icons.visibility_outlined,
+                    ),
+                  ),
                 ),
               ),
-              Align(alignment: Alignment.centerRight, child: TextButton(onPressed: isLoading ? null : _forgotPassword, child: const Text('Forgot password?'))),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: isLoading ? null : _forgotPassword,
+                  child: const Text('Forgot password?'),
+                ),
+              ),
               const SizedBox(height: 3),
-              SizedBox(width: double.infinity, child: ElevatedButton(onPressed: isLoading ? null : login, child: Text(isLoading ? 'Signing in…' : 'Sign In'))),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: isLoading ? null : login,
+                  child: Text(isLoading ? 'Signing in…' : 'Sign In'),
+                ),
+              ),
               const SizedBox(height: 18),
-              Center(child: TextButton(onPressed: isLoading ? null : () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RegisterScreen())), child: const Text('New here? Create your style profile'))),
+              Center(
+                child: TextButton(
+                  onPressed: isLoading
+                      ? null
+                      : () => Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const RegisterScreen()),
+                          ),
+                  child: const Text('New here? Create your style profile'),
+                ),
+              ),
             ],
           ),
         ),
@@ -208,7 +335,11 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget _socialButton(String label, IconData icon, VoidCallback onTap) {
     return SizedBox(
       width: double.infinity,
-      child: OutlinedButton.icon(onPressed: isLoading ? null : onTap, icon: Icon(icon, size: 21), label: Text(label)),
+      child: OutlinedButton.icon(
+        onPressed: isLoading ? null : onTap,
+        icon: Icon(icon, size: 21),
+        label: Text(label),
+      ),
     );
   }
 }
