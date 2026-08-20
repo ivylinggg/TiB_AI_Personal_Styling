@@ -35,10 +35,15 @@ class _WardrobeScreenState extends State<WardrobeScreen>
   static const _text = AppColors.textPrimary;
   static const _muted = AppColors.textSecondary;
 
+  // Wardrobe categories are deliberately kept together and are now exposed
+  // through the single Sort control instead of taking two horizontal rows.
   static const _categoryOptions = [
     'Tops',
     'Bottoms',
     'Dresses',
+    'Suits',
+    'Jackets',
+    'Skirts',
     'Shoes',
     'Accessories',
   ];
@@ -260,6 +265,15 @@ class _WardrobeScreenState extends State<WardrobeScreen>
                           ),
                         ),
                       ),
+                      SliverToBoxAdapter(
+                        child: _reveal(
+                          _browseReveal,
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(20, 9, 20, 0),
+                            child: _buildSortBar(),
+                          ),
+                        ),
+                      ),
                       if (hasActiveFilters)
                         SliverToBoxAdapter(
                           child: Padding(
@@ -350,12 +364,6 @@ class _WardrobeScreenState extends State<WardrobeScreen>
                             ),
                           ),
                         ),
-                      SliverToBoxAdapter(
-                        child: _reveal(_browseReveal, _buildCategories()),
-                      ),
-                      SliverToBoxAdapter(
-                        child: _reveal(_browseReveal, _buildColourFilters()),
-                      ),
                       if (filtered.isEmpty)
                         SliverFillRemaining(
                           hasScrollBody: false,
@@ -817,10 +825,188 @@ class _WardrobeScreenState extends State<WardrobeScreen>
     );
   }
 
+  Widget _buildSortBar() {
+    final hasSort = _category != 'All' || _colour != 'All';
+    return Row(
+      children: [
+        Expanded(
+          child: OutlinedButton.icon(
+            onPressed: _showSortSheet,
+            icon: Icon(
+              Icons.tune_rounded,
+              size: 18,
+              color: hasSort ? AppColors.primary : _text,
+            ),
+            label: Text(
+              hasSort ? 'Sort · ${_category != 'All' ? _category : _colour}' : 'Sort & filter',
+              overflow: TextOverflow.ellipsis,
+            ),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: _text,
+              backgroundColor: AppColors.surface,
+              side: BorderSide(
+                color: hasSort ? AppColors.primary.withValues(alpha: .35) : AppColors.border,
+              ),
+              minimumSize: const Size.fromHeight(44),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadius.full),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 9),
+        if (_showFavouritesOnly || hasSort)
+          IconButton(
+            tooltip: 'Clear filters',
+            onPressed: () {
+              setState(() {
+                _category = 'All';
+                _colour = 'All';
+                _showFavouritesOnly = false;
+              });
+            },
+            icon: const Icon(Icons.close_rounded),
+          ),
+      ],
+    );
+  }
+
+  Future<void> _showSortSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: _cream,
+      builder: (sheetContext) {
+        var draftCategory = _category;
+        var draftColour = _colour;
+
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 6, 20, 24),
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Sort & Filter',
+                        style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+                      ),
+                      const SizedBox(height: 5),
+                      const Text(
+                        'Keep your wardrobe clean and easy to browse.',
+                        style: TextStyle(color: _muted, fontSize: 12.5),
+                      ),
+                      const SizedBox(height: 22),
+                      const Text(
+                        'CATEGORY',
+                        style: TextStyle(
+                          color: _muted,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                      const SizedBox(height: 9),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          'All',
+                          ..._categoryOptions,
+                        ].map((value) {
+                          final selected = draftCategory == value;
+                          return StyleChip(
+                            label: value,
+                            icon: value == 'All'
+                                ? Icons.grid_view_rounded
+                                : _categoryIcon(value),
+                            selected: selected,
+                            onTap: () => setSheetState(() => draftCategory = value),
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 22),
+                      const Text(
+                        'COLOUR',
+                        style: TextStyle(
+                          color: _muted,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                      const SizedBox(height: 9),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          'All',
+                          ..._colourOptions,
+                        ].map((value) {
+                          final selected = draftColour == value;
+                          return StyleChip(
+                            label: value,
+                            icon: Icons.palette_outlined,
+                            selected: selected,
+                            onTap: () => setSheetState(() => draftColour = value),
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 20),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () {
+                                setSheetState(() {
+                                  draftCategory = 'All';
+                                  draftColour = 'All';
+                                });
+                              },
+                              child: const Text('Clear'),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: FilledButton(
+                              onPressed: () {
+                                setState(() {
+                                  _category = draftCategory;
+                                  _colour = draftColour;
+                                });
+                                Navigator.pop(sheetContext);
+                              },
+                              child: const Text('Apply'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   IconData _categoryIcon(String category) {
     switch (category) {
       case 'Bottoms':
         return Icons.layers_outlined;
+      case 'Dresses':
+        return Icons.checkroom_outlined;
+      case 'Suits':
+        return Icons.business_center_outlined;
+      case 'Jackets':
+        return Icons.dry_cleaning_outlined;
+      case 'Skirts':
+        return Icons.view_week_outlined;
       case 'Shoes':
         return Icons.directions_walk_outlined;
       case 'Accessories':
@@ -828,37 +1014,6 @@ class _WardrobeScreenState extends State<WardrobeScreen>
       default:
         return Icons.checkroom_outlined;
     }
-  }
-
-  Widget _buildCategories() {
-    const categories = [
-      'All',
-      'Tops',
-      'Bottoms',
-      'Dresses',
-      'Shoes',
-      'Accessories',
-    ];
-    return SizedBox(
-      height: 46,
-      child: ListView.separated(
-        padding: const EdgeInsets.symmetric(horizontal: 18),
-        scrollDirection: Axis.horizontal,
-        itemCount: categories.length,
-        separatorBuilder: (context, index) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          final value = categories[index];
-          return StyleChip(
-            label: value,
-            icon: value == 'All'
-                ? Icons.grid_view_rounded
-                : _categoryIcon(value),
-            selected: _category == value,
-            onTap: () => setState(() => _category = value),
-          );
-        },
-      ),
-    );
   }
 
   Widget _buildActiveFilterChip({
@@ -870,9 +1025,7 @@ class _WardrobeScreenState extends State<WardrobeScreen>
       decoration: BoxDecoration(
         color: AppColors.primary.withValues(alpha: .08),
         borderRadius: BorderRadius.circular(99),
-        border: Border.all(
-          color: AppColors.primary.withValues(alpha: .16),
-        ),
+        border: Border.all(color: AppColors.primary.withValues(alpha: .16)),
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(99),
@@ -900,35 +1053,10 @@ class _WardrobeScreenState extends State<WardrobeScreen>
                 ),
               ),
               const SizedBox(width: 4),
-              const Icon(
-                Icons.close_rounded,
-                size: 13,
-                color: AppColors.primary,
-              ),
+              const Icon(Icons.close_rounded, size: 13, color: AppColors.primary),
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildColourFilters() {
-    return SizedBox(
-      height: 46,
-      child: ListView.separated(
-        padding: const EdgeInsets.fromLTRB(18, 0, 18, 0),
-        scrollDirection: Axis.horizontal,
-        itemCount: _colourOptions.length + 1,
-        separatorBuilder: (context, index) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          final value = index == 0 ? 'All' : _colourOptions[index - 1];
-          return StyleChip(
-            label: value,
-            icon: Icons.palette_outlined,
-            selected: _colour == value,
-            onTap: () => setState(() => _colour = value),
-          );
-        },
       ),
     );
   }
@@ -1021,9 +1149,7 @@ class _WardrobeScreenState extends State<WardrobeScreen>
                                   child: SizedBox(
                                     width: 20,
                                     height: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
+                                    child: CircularProgressIndicator(strokeWidth: 2),
                                   ),
                                 ),
                               ),
@@ -1044,22 +1170,15 @@ class _WardrobeScreenState extends State<WardrobeScreen>
                         shape: const CircleBorder(),
                         child: IconButton(
                           padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints.tightFor(
-                            width: 36,
-                            height: 36,
-                          ),
+                          constraints: const BoxConstraints.tightFor(width: 36, height: 36),
                           onPressed: () => _toggleFavourite(item, uid),
                           icon: AnimatedScale(
                             scale: item.isFavourite ? 1.12 : 1.0,
                             duration: const Duration(milliseconds: 160),
                             curve: Curves.easeOut,
                             child: Icon(
-                              item.isFavourite
-                                  ? Icons.favorite
-                                  : Icons.favorite_border,
-                              color: item.isFavourite
-                                  ? AppColors.premiumAccent
-                                  : _brown,
+                              item.isFavourite ? Icons.favorite : Icons.favorite_border,
+                              color: item.isFavourite ? AppColors.premiumAccent : _brown,
                               size: 19,
                             ),
                           ),
@@ -1071,33 +1190,17 @@ class _WardrobeScreenState extends State<WardrobeScreen>
                         left: 8,
                         bottom: 8,
                         child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 7,
-                            vertical: 4,
-                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
                           decoration: BoxDecoration(
-                            color:
-                                AppColors.background.withValues(alpha: .94),
-                            borderRadius:
-                                BorderRadius.circular(AppRadius.full),
+                            color: AppColors.background.withValues(alpha: .94),
+                            borderRadius: BorderRadius.circular(AppRadius.full),
                           ),
                           child: const Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(
-                                Icons.check_circle_rounded,
-                                size: 11,
-                                color: AppColors.success,
-                              ),
+                              Icon(Icons.check_circle_rounded, size: 11, color: AppColors.success),
                               SizedBox(width: 3),
-                              Text(
-                                'Match',
-                                style: TextStyle(
-                                  color: AppColors.success,
-                                  fontSize: 9.5,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
+                              Text('Match', style: TextStyle(color: AppColors.success, fontSize: 9.5, fontWeight: FontWeight.w800)),
                             ],
                           ),
                         ),
@@ -1114,11 +1217,7 @@ class _WardrobeScreenState extends State<WardrobeScreen>
                       item.name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: _text,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13.5,
-                      ),
+                      style: const TextStyle(color: _text, fontWeight: FontWeight.w700, fontSize: 13.5),
                     ),
                     const SizedBox(height: 4),
                     Row(
@@ -1126,10 +1225,7 @@ class _WardrobeScreenState extends State<WardrobeScreen>
                         Container(
                           width: 9,
                           height: 9,
-                          decoration: BoxDecoration(
-                            color: ColourNameMapper.colourFor(item.colour),
-                            shape: BoxShape.circle,
-                          ),
+                          decoration: BoxDecoration(color: ColourNameMapper.colourFor(item.colour), shape: BoxShape.circle),
                         ),
                         const SizedBox(width: 5),
                         Expanded(
@@ -1137,10 +1233,7 @@ class _WardrobeScreenState extends State<WardrobeScreen>
                             '${item.category} · ${item.colour}',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: _muted,
-                              fontSize: 11.5,
-                            ),
+                            style: const TextStyle(color: _muted, fontSize: 11.5),
                           ),
                         ),
                       ],
@@ -1177,13 +1270,7 @@ class _WardrobeScreenState extends State<WardrobeScreen>
             children: [
               Icon(icon, size: 30, color: _brown),
               const SizedBox(height: 8),
-              Text(
-                label,
-                style: const TextStyle(
-                  color: _text,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
+              Text(label, style: const TextStyle(color: _text, fontWeight: FontWeight.w700)),
             ],
           ),
         ),
@@ -1203,19 +1290,9 @@ class _WardrobeScreenState extends State<WardrobeScreen>
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Add to Your Wardrobe',
-                style: TextStyle(
-                  color: _text,
-                  fontSize: 21,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
+              const Text('Add to Your Wardrobe', style: TextStyle(color: _text, fontSize: 21, fontWeight: FontWeight.w700)),
               const SizedBox(height: 8),
-              const Text(
-                'A clear photo works best. You can add the details after choosing it.',
-                style: TextStyle(color: _muted, height: 1.4),
-              ),
+              const Text('A clear photo works best. You can add the details after choosing it.', style: TextStyle(color: _muted, height: 1.4)),
               const SizedBox(height: 20),
               Row(
                 children: [
@@ -1273,10 +1350,7 @@ class _WardrobeScreenState extends State<WardrobeScreen>
             if (nameController.text.trim().isEmpty || saving) return;
             setSheetState(() => saving = true);
             try {
-              final imageUrl = await StorageService.uploadWardrobeImage(
-                uid: uid,
-                image: image,
-              );
+              final imageUrl = await StorageService.uploadWardrobeImage(uid: uid, image: image);
               await FirestoreService.addWardrobeItem(
                 WardrobeItem(
                   id: '',
@@ -1295,111 +1369,43 @@ class _WardrobeScreenState extends State<WardrobeScreen>
               if (sheetContext.mounted) Navigator.pop(sheetContext);
             } catch (_) {
               if (sheetContext.mounted) {
-                ScaffoldMessenger.of(sheetContext).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'Could not save this piece. Please try again.',
-                    ),
-                  ),
-                );
+                ScaffoldMessenger.of(sheetContext).showSnackBar(const SnackBar(content: Text('Could not save this piece. Please try again.')));
               }
             } finally {
-              if (sheetContext.mounted) {
-                setSheetState(() => saving = false);
-              }
+              if (sheetContext.mounted) setSheetState(() => saving = false);
             }
           }
 
           return SafeArea(
             child: Padding(
-              padding: EdgeInsets.only(
-                left: 20,
-                right: 20,
-                bottom: MediaQuery.viewInsetsOf(context).bottom + 20,
-              ),
+              padding: EdgeInsets.only(left: 20, right: 20, bottom: MediaQuery.viewInsetsOf(context).bottom + 20),
               child: SingleChildScrollView(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Tell me a little about it',
-                      style: TextStyle(
-                        color: _text,
-                        fontSize: 21,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
+                    const Text('Tell me a little about it', style: TextStyle(color: _text, fontSize: 21, fontWeight: FontWeight.w700)),
                     const SizedBox(height: 15),
                     ClipRRect(
                       borderRadius: BorderRadius.circular(AppRadius.lg),
-                      child: Image.file(
-                        image,
-                        height: 190,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                      ),
+                      child: Image.file(image, height: 190, width: double.infinity, fit: BoxFit.cover),
                     ),
                     const SizedBox(height: 15),
-                    TextField(
-                      controller: nameController,
-                      decoration: _fieldDecoration(
-                        'Name',
-                        hint: 'e.g. Cream knit cardigan',
-                      ),
-                    ),
+                    TextField(controller: nameController, decoration: _fieldDecoration('Name', hint: 'e.g. Cream knit cardigan')),
                     const SizedBox(height: 12),
-                    _dropdown(
-                      'Category',
-                      category,
-                      _categoryOptions,
-                      (v) => setSheetState(() => category = v),
-                    ),
-                    _dropdown(
-                      'Colour',
-                      colour,
-                      _colourOptions,
-                      (v) => setSheetState(() => colour = v),
-                    ),
-                    _dropdown(
-                      'Style',
-                      style,
-                      _styleOptions,
-                      (v) => setSheetState(() => style = v),
-                    ),
-                    _dropdown(
-                      'Season',
-                      season,
-                      _seasonOptions,
-                      (v) => setSheetState(() => season = v),
-                    ),
+                    _dropdown('Category', category, _categoryOptions, (v) => setSheetState(() => category = v)),
+                    _dropdown('Colour', colour, _colourOptions, (v) => setSheetState(() => colour = v)),
+                    _dropdown('Style', style, _styleOptions, (v) => setSheetState(() => style = v)),
+                    _dropdown('Season', season, _seasonOptions, (v) => setSheetState(() => season = v)),
                     const SizedBox(height: 4),
-                    TextField(
-                      controller: notesController,
-                      maxLines: 2,
-                      decoration: _fieldDecoration('Notes (optional)'),
-                    ),
+                    TextField(controller: notesController, maxLines: 2, decoration: _fieldDecoration('Notes (optional)')),
                     const SizedBox(height: 16),
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton.icon(
                         onPressed: saving ? null : save,
-                        icon: saving
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: AppColors.background,
-                                ),
-                              )
-                            : const Icon(Icons.check_rounded),
-                        label: Text(
-                          saving ? 'Saving...' : 'Save to My Wardrobe',
-                        ),
-                        style: FilledButton.styleFrom(
-                          backgroundColor: _brown,
-                          minimumSize: const Size.fromHeight(52),
-                        ),
+                        icon: saving ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.background)) : const Icon(Icons.check_rounded),
+                        label: Text(saving ? 'Saving...' : 'Save to My Wardrobe'),
+                        style: FilledButton.styleFrom(backgroundColor: _brown, minimumSize: const Size.fromHeight(52)),
                       ),
                     ),
                   ],
@@ -1418,31 +1424,18 @@ class _WardrobeScreenState extends State<WardrobeScreen>
       hintText: hint,
       filled: true,
       fillColor: AppColors.surface,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        borderSide: BorderSide(color: AppColors.border),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        borderSide: BorderSide(color: AppColors.border),
-      ),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppRadius.md), borderSide: BorderSide(color: AppColors.border)),
+      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppRadius.md), borderSide: BorderSide(color: AppColors.border)),
     );
   }
 
-  Widget _dropdown(
-    String label,
-    String value,
-    List<String> values,
-    ValueChanged<String> onChanged,
-  ) {
+  Widget _dropdown(String label, String value, List<String> values, ValueChanged<String> onChanged) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: DropdownButtonFormField<String>(
         initialValue: value,
         decoration: _fieldDecoration(label),
-        items: values
-            .map((v) => DropdownMenuItem(value: v, child: Text(v)))
-            .toList(),
+        items: values.map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
         onChanged: (v) {
           if (v != null) onChanged(v);
         },
@@ -1451,9 +1444,7 @@ class _WardrobeScreenState extends State<WardrobeScreen>
   }
 
   Future<void> _toggleFavourite(WardrobeItem item, String uid) async {
-    await FirestoreService.updateWardrobeItem(uid, item.id, {
-      'isFavourite': !item.isFavourite,
-    });
+    await FirestoreService.updateWardrobeItem(uid, item.id, {'isFavourite': !item.isFavourite});
   }
 
   Widget _detailRow(String label, String value) {
@@ -1462,23 +1453,8 @@ class _WardrobeScreenState extends State<WardrobeScreen>
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            width: 90,
-            child: Text(
-              label,
-              style: const TextStyle(
-                color: _muted,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(color: _text, fontWeight: FontWeight.w600),
-            ),
-          ),
+          SizedBox(width: 90, child: Text(label, style: const TextStyle(color: _muted, fontSize: 12, fontWeight: FontWeight.w600))),
+          Expanded(child: Text(value, style: const TextStyle(color: _text, fontWeight: FontWeight.w600))),
         ],
       ),
     );
@@ -1492,14 +1468,8 @@ class _WardrobeScreenState extends State<WardrobeScreen>
         title: const Text('Remove this piece?'),
         content: Text('“${item.name}” will be removed from your wardrobe.'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Keep it'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Remove'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Keep it')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Remove')),
         ],
       ),
     );
@@ -1510,19 +1480,13 @@ class _WardrobeScreenState extends State<WardrobeScreen>
       Navigator.pop(sheetContext);
     } catch (_) {
       if (!sheetContext.mounted) return;
-      ScaffoldMessenger.of(sheetContext).showSnackBar(
-        const SnackBar(
-          content: Text('Could not remove this piece. Please try again.'),
-        ),
-      );
+      ScaffoldMessenger.of(sheetContext).showSnackBar(const SnackBar(content: Text('Could not remove this piece. Please try again.')));
     }
   }
 
   void _showItemDetails(WardrobeItem item, String uid) {
     final analysisResult = context.read<AnalysisProvider>().result;
-    final wantedColours = (analysisResult?.colours ?? const <String>[])
-        .map((c) => c.toLowerCase())
-        .toList();
+    final wantedColours = (analysisResult?.colours ?? const <String>[]).map((c) => c.toLowerCase()).toList();
     final matchesPalette = _matchesPalette(item, wantedColours);
 
     showModalBottomSheet<void>(
@@ -1542,122 +1506,42 @@ class _WardrobeScreenState extends State<WardrobeScreen>
                   child: AspectRatio(
                     aspectRatio: 4 / 3,
                     child: item.imageUrl.isEmpty
-                        ? Container(
-                            color: _soft,
-                            child: Icon(
-                              _categoryIcon(item.category),
-                              size: 46,
-                              color: _brown,
-                            ),
-                          )
-                        : CachedNetworkImage(
-                            imageUrl: item.imageUrl,
-                            fit: BoxFit.cover,
-                            placeholder: (context, url) => Container(
-                              color: _soft,
-                              child: const Center(
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              ),
-                            ),
-                            errorWidget: (context, url, error) => Container(
-                              color: _soft,
-                              child: Icon(
-                                _categoryIcon(item.category),
-                                color: _brown,
-                              ),
-                            ),
-                          ),
+                        ? Container(color: _soft, child: Icon(_categoryIcon(item.category), size: 46, color: _brown))
+                        : CachedNetworkImage(imageUrl: item.imageUrl, fit: BoxFit.cover, placeholder: (context, url) => Container(color: _soft, child: const Center(child: CircularProgressIndicator(strokeWidth: 2))), errorWidget: (context, url, error) => Container(color: _soft, child: Icon(_categoryIcon(item.category), color: _brown))),
                   ),
                 ),
                 const SizedBox(height: 16),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Text(
-                        item.name,
-                        style: const TextStyle(
-                          color: _text,
-                          fontSize: 21,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
+                    Expanded(child: Text(item.name, style: const TextStyle(color: _text, fontSize: 21, fontWeight: FontWeight.w700))),
                     Material(
                       color: _soft,
                       shape: const CircleBorder(),
                       child: IconButton(
-                        tooltip: item.isFavourite
-                            ? 'Remove from favourites'
-                            : 'Save as favourite',
+                        tooltip: item.isFavourite ? 'Remove from favourites' : 'Save as favourite',
                         onPressed: () => _toggleFavourite(item, uid),
-                        icon: Icon(
-                          item.isFavourite
-                              ? Icons.favorite
-                              : Icons.favorite_border,
-                          color: item.isFavourite
-                              ? AppColors.premiumAccent
-                              : _brown,
-                        ),
+                        icon: Icon(item.isFavourite ? Icons.favorite : Icons.favorite_border, color: item.isFavourite ? AppColors.premiumAccent : _brown),
                       ),
                     ),
                   ],
                 ),
                 if (matchesPalette) ...[
                   const SizedBox(height: 4),
-                  const Row(
-                    children: [
-                      Icon(
-                        Icons.check_circle_rounded,
-                        size: 14,
-                        color: AppColors.success,
-                      ),
-                      SizedBox(width: 5),
-                      Text(
-                        'Matches your colour palette',
-                        style: TextStyle(
-                          color: AppColors.success,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
+                  const Row(children: [Icon(Icons.check_circle_rounded, size: 14, color: AppColors.success), SizedBox(width: 5), Text('Matches your colour palette', style: TextStyle(color: AppColors.success, fontSize: 12, fontWeight: FontWeight.w700))]),
                 ],
                 const SizedBox(height: 16),
-                const Text(
-                  'DETAILS',
-                  style: TextStyle(
-                    color: _muted,
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.6,
-                  ),
-                ),
+                const Text('DETAILS', style: TextStyle(color: _muted, fontSize: 10.5, fontWeight: FontWeight.w800, letterSpacing: 0.6)),
                 const SizedBox(height: 10),
                 _detailRow('Colour', item.colour),
                 _detailRow('Category', item.category),
                 _detailRow('Style', item.style),
-                if (item.season.isNotEmpty && item.season != 'All seasons')
-                  _detailRow('Season', item.season),
+                if (item.season.isNotEmpty && item.season != 'All seasons') _detailRow('Season', item.season),
                 if (item.notes.isNotEmpty) ...[
                   const SizedBox(height: 4),
-                  const Text(
-                    'NOTES',
-                    style: TextStyle(
-                      color: _muted,
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.6,
-                    ),
-                  ),
+                  const Text('NOTES', style: TextStyle(color: _muted, fontSize: 10.5, fontWeight: FontWeight.w800, letterSpacing: 0.6)),
                   const SizedBox(height: 6),
-                  Text(
-                    item.notes,
-                    style: const TextStyle(color: _text, height: 1.4),
-                  ),
+                  Text(item.notes, style: const TextStyle(color: _text, height: 1.4)),
                 ],
                 const SizedBox(height: 20),
                 Row(
@@ -1670,14 +1554,7 @@ class _WardrobeScreenState extends State<WardrobeScreen>
                         },
                         icon: const Icon(Icons.edit_outlined),
                         label: const Text('Edit'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: _brown,
-                          side: BorderSide(color: AppColors.border),
-                          minimumSize: const Size.fromHeight(50),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(AppRadius.md),
-                          ),
-                        ),
+                        style: OutlinedButton.styleFrom(foregroundColor: _brown, side: BorderSide(color: AppColors.border), minimumSize: const Size.fromHeight(50), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md))),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -1685,43 +1562,17 @@ class _WardrobeScreenState extends State<WardrobeScreen>
                       child: FilledButton.icon(
                         onPressed: () {
                           Navigator.pop(context);
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => AIStylistScreen(selectedItem: item),
-                            ),
-                          );
+                          Navigator.push(context, MaterialPageRoute(builder: (_) => AIStylistScreen(selectedItem: item)));
                         },
                         icon: const Icon(Icons.auto_awesome_rounded),
                         label: const Text('Style this'),
-                        style: FilledButton.styleFrom(
-                          backgroundColor: _brown,
-                          foregroundColor: Colors.white,
-                          minimumSize: const Size.fromHeight(50),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(AppRadius.md),
-                          ),
-                        ),
+                        style: FilledButton.styleFrom(backgroundColor: _brown, foregroundColor: Colors.white, minimumSize: const Size.fromHeight(50), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md))),
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 10),
-                SizedBox(
-                  width: double.infinity,
-                  child: TextButton.icon(
-                    onPressed: () => _confirmDelete(item, uid),
-                    icon: const Icon(Icons.delete_outline),
-                    label: const Text('Delete'),
-                    style: TextButton.styleFrom(
-                      foregroundColor: AppColors.error,
-                      minimumSize: const Size.fromHeight(44),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppRadius.md),
-                      ),
-                    ),
-                  ),
-                ),
+                SizedBox(width: double.infinity, child: TextButton.icon(onPressed: () => _confirmDelete(item, uid), icon: const Icon(Icons.delete_outline), label: const Text('Delete'), style: TextButton.styleFrom(foregroundColor: AppColors.error, minimumSize: const Size.fromHeight(44), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)))),
               ],
             ),
           ),
@@ -1733,18 +1584,10 @@ class _WardrobeScreenState extends State<WardrobeScreen>
   Future<void> _showEditItem(WardrobeItem item, String uid) async {
     final nameController = TextEditingController(text: item.name);
     final notesController = TextEditingController(text: item.notes);
-    var category = _categoryOptions.contains(item.category)
-        ? item.category
-        : _categoryOptions.first;
-    var colour = _colourOptions.contains(item.colour)
-        ? item.colour
-        : _colourOptions.last;
-    var style = _styleOptions.contains(item.style)
-        ? item.style
-        : _styleOptions.first;
-    var season = _seasonOptions.contains(item.season)
-        ? item.season
-        : _seasonOptions.first;
+    var category = _categoryOptions.contains(item.category) ? item.category : _categoryOptions.first;
+    var colour = _colourOptions.contains(item.colour) ? item.colour : _colourOptions.last;
+    var style = _styleOptions.contains(item.style) ? item.style : _styleOptions.first;
+    var season = _seasonOptions.contains(item.season) ? item.season : _seasonOptions.first;
     var saving = false;
     File? newImage;
 
@@ -1765,29 +1608,17 @@ class _WardrobeScreenState extends State<WardrobeScreen>
                   padding: const EdgeInsets.fromLTRB(20, 8, 20, 25),
                   child: Row(
                     children: [
-                      Expanded(
-                        child: _photoSourceTile(
-                          icon: Icons.camera_alt_outlined,
-                          label: 'Camera',
-                          onTap: () async {
-                            final image = await ImagePickerService.pickCamera();
-                            if (!pickContext.mounted) return;
-                            Navigator.pop(pickContext, image);
-                          },
-                        ),
-                      ),
+                      Expanded(child: _photoSourceTile(icon: Icons.camera_alt_outlined, label: 'Camera', onTap: () async {
+                        final image = await ImagePickerService.pickCamera();
+                        if (!pickContext.mounted) return;
+                        Navigator.pop(pickContext, image);
+                      })),
                       const SizedBox(width: 12),
-                      Expanded(
-                        child: _photoSourceTile(
-                          icon: Icons.photo_outlined,
-                          label: 'Gallery',
-                          onTap: () async {
-                            final image = await ImagePickerService.pickGallery();
-                            if (!pickContext.mounted) return;
-                            Navigator.pop(pickContext, image);
-                          },
-                        ),
-                      ),
+                      Expanded(child: _photoSourceTile(icon: Icons.photo_outlined, label: 'Gallery', onTap: () async {
+                        final image = await ImagePickerService.pickGallery();
+                        if (!pickContext.mounted) return;
+                        Navigator.pop(pickContext, image);
+                      })),
                     ],
                   ),
                 ),
@@ -1802,12 +1633,7 @@ class _WardrobeScreenState extends State<WardrobeScreen>
             try {
               var imageUrl = item.imageUrl;
               final pickedImage = newImage;
-              if (pickedImage != null) {
-                imageUrl = await StorageService.uploadWardrobeImage(
-                  uid: uid,
-                  image: pickedImage,
-                );
-              }
+              if (pickedImage != null) imageUrl = await StorageService.uploadWardrobeImage(uid: uid, image: pickedImage);
               await FirestoreService.updateWardrobeItem(uid, item.id, {
                 'imageUrl': imageUrl,
                 'name': nameController.text.trim(),
@@ -1819,15 +1645,7 @@ class _WardrobeScreenState extends State<WardrobeScreen>
               });
               if (sheetContext.mounted) Navigator.pop(sheetContext);
             } catch (_) {
-              if (sheetContext.mounted) {
-                ScaffoldMessenger.of(sheetContext).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'Could not save your changes. Please try again.',
-                    ),
-                  ),
-                );
-              }
+              if (sheetContext.mounted) ScaffoldMessenger.of(sheetContext).showSnackBar(const SnackBar(content: Text('Could not save your changes. Please try again.')));
             } finally {
               if (sheetContext.mounted) setSheetState(() => saving = false);
             }
@@ -1835,23 +1653,12 @@ class _WardrobeScreenState extends State<WardrobeScreen>
 
           return SafeArea(
             child: Padding(
-              padding: EdgeInsets.only(
-                left: 20,
-                right: 20,
-                bottom: MediaQuery.viewInsetsOf(context).bottom + 20,
-              ),
+              padding: EdgeInsets.only(left: 20, right: 20, bottom: MediaQuery.viewInsetsOf(context).bottom + 20),
               child: SingleChildScrollView(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Edit this piece',
-                      style: TextStyle(
-                        color: _text,
-                        fontSize: 21,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
+                    const Text('Edit this piece', style: TextStyle(color: _text, fontSize: 21, fontWeight: FontWeight.w700)),
                     const SizedBox(height: 15),
                     GestureDetector(
                       onTap: pickNewPhoto,
@@ -1865,95 +1672,31 @@ class _WardrobeScreenState extends State<WardrobeScreen>
                               child: newImage != null
                                   ? Image.file(newImage!, fit: BoxFit.cover)
                                   : item.imageUrl.isEmpty
-                                      ? Container(
-                                          color: _soft,
-                                          child: Icon(
-                                            _categoryIcon(item.category),
-                                            size: 40,
-                                            color: _brown,
-                                          ),
-                                        )
-                                      : CachedNetworkImage(
-                                          imageUrl: item.imageUrl,
-                                          fit: BoxFit.cover,
-                                        ),
+                                      ? Container(color: _soft, child: Icon(_categoryIcon(item.category), size: 40, color: _brown))
+                                      : CachedNetworkImage(imageUrl: item.imageUrl, fit: BoxFit.cover),
                             ),
                           ),
-                          Positioned(
-                            right: 10,
-                            bottom: 10,
-                            child: Material(
-                              color: AppColors.background.withValues(alpha: .92),
-                              shape: const CircleBorder(),
-                              child: const Padding(
-                                padding: EdgeInsets.all(8),
-                                child: Icon(
-                                  Icons.edit_outlined,
-                                  size: 18,
-                                  color: _brown,
-                                ),
-                              ),
-                            ),
-                          ),
+                          Positioned(right: 10, bottom: 10, child: Material(color: AppColors.background.withValues(alpha: .92), shape: const CircleBorder(), child: const Padding(padding: EdgeInsets.all(8), child: Icon(Icons.edit_outlined, size: 18, color: _brown)))),
                         ],
                       ),
                     ),
                     const SizedBox(height: 15),
-                    TextField(
-                      controller: nameController,
-                      decoration: _fieldDecoration('Name'),
-                    ),
+                    TextField(controller: nameController, decoration: _fieldDecoration('Name')),
                     const SizedBox(height: 12),
-                    _dropdown(
-                      'Category',
-                      category,
-                      _categoryOptions,
-                      (v) => setSheetState(() => category = v),
-                    ),
-                    _dropdown(
-                      'Colour',
-                      colour,
-                      _colourOptions,
-                      (v) => setSheetState(() => colour = v),
-                    ),
-                    _dropdown(
-                      'Style',
-                      style,
-                      _styleOptions,
-                      (v) => setSheetState(() => style = v),
-                    ),
-                    _dropdown(
-                      'Season',
-                      season,
-                      _seasonOptions,
-                      (v) => setSheetState(() => season = v),
-                    ),
+                    _dropdown('Category', category, _categoryOptions, (v) => setSheetState(() => category = v)),
+                    _dropdown('Colour', colour, _colourOptions, (v) => setSheetState(() => colour = v)),
+                    _dropdown('Style', style, _styleOptions, (v) => setSheetState(() => style = v)),
+                    _dropdown('Season', season, _seasonOptions, (v) => setSheetState(() => season = v)),
                     const SizedBox(height: 4),
-                    TextField(
-                      controller: notesController,
-                      maxLines: 2,
-                      decoration: _fieldDecoration('Notes (optional)'),
-                    ),
+                    TextField(controller: notesController, maxLines: 2, decoration: _fieldDecoration('Notes (optional)')),
                     const SizedBox(height: 16),
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton.icon(
                         onPressed: saving ? null : save,
-                        icon: saving
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: AppColors.background,
-                                ),
-                              )
-                            : const Icon(Icons.check_rounded),
+                        icon: saving ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.background)) : const Icon(Icons.check_rounded),
                         label: Text(saving ? 'Saving...' : 'Save changes'),
-                        style: FilledButton.styleFrom(
-                          backgroundColor: _brown,
-                          minimumSize: const Size.fromHeight(52),
-                        ),
+                        style: FilledButton.styleFrom(backgroundColor: _brown, minimumSize: const Size.fromHeight(52)),
                       ),
                     ),
                   ],
