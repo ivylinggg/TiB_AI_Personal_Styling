@@ -13,6 +13,7 @@ import '../auth/auth_service.dart';
 import 'analysis_result_screen.dart';
 import 'face_scan_screen.dart';
 import 'history/analysis_history_screen.dart';
+import 'season_colour_guide_screen.dart';
 
 class AnalysisScreen extends StatefulWidget {
   const AnalysisScreen({super.key});
@@ -121,9 +122,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
         ),
       );
       if (!mounted) return;
-      if (completed == true) {
-        Navigator.pop(context, true);
-      }
+      if (completed == true) Navigator.pop(context, true);
     } else if (provider.errorMessage != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(provider.errorMessage!)),
@@ -139,6 +138,14 @@ class _AnalysisScreenState extends State<AnalysisScreen>
     );
   }
 
+  void openSeasonGuide() {
+    if (context.read<AnalysisProvider>().isLoading) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const SeasonColourGuideScreen()),
+    );
+  }
+
   Widget _buildHeader() {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -147,31 +154,16 @@ class _AnalysisScreenState extends State<AnalysisScreen>
           width: 52,
           height: 52,
           decoration: const BoxDecoration(color: _soft, shape: BoxShape.circle),
-          child: const Icon(
-            Icons.face_retouching_natural,
-            color: _brown,
-            size: 27,
-          ),
+          child: const Icon(Icons.face_retouching_natural, color: _brown, size: 27),
         ),
         const SizedBox(width: 14),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: const [
-              Text(
-                'Colour Analysis',
-                style: TextStyle(
-                  color: _text,
-                  fontSize: 24,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.3,
-                ),
-              ),
+              Text('Colour Analysis', style: TextStyle(color: _text, fontSize: 24, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
               SizedBox(height: 5),
-              Text(
-                'A guided AI scan for a more reliable starting point.',
-                style: TextStyle(color: _muted, fontSize: 14, height: 1.4),
-              ),
+              Text('A guided AI scan for a more reliable starting point.', style: TextStyle(color: _muted, fontSize: 14, height: 1.4)),
             ],
           ),
         ),
@@ -191,11 +183,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            isPremium ? Icons.workspace_premium_outlined : Icons.palette_outlined,
-            color: _brown,
-            size: 22,
-          ),
+          Icon(isPremium ? Icons.workspace_premium_outlined : Icons.palette_outlined, color: _brown, size: 22),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -203,15 +191,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
               children: [
                 Row(
                   children: [
-                    Expanded(
-                      child: Text(
-                        isPremium ? 'Premium Colour Analysis' : 'Basic Colour Analysis',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          color: _text,
-                        ),
-                      ),
-                    ),
+                    Expanded(child: Text(isPremium ? 'Premium Colour Analysis' : 'Basic Colour Analysis', style: const TextStyle(fontWeight: FontWeight.w700, color: _text))),
                     if (isPremium) const PremiumBadge(compact: true),
                   ],
                 ),
@@ -220,11 +200,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                   isPremium
                       ? 'Your analysis includes Premium colour insights and a more personalised result.'
                       : 'Get your personalised colour analysis. Premium insights are available to Premium members.',
-                  style: const TextStyle(
-                    color: _muted,
-                    fontSize: 12.5,
-                    height: 1.4,
-                  ),
+                  style: const TextStyle(color: _muted, fontSize: 12.5, height: 1.4),
                 ),
               ],
             ),
@@ -247,24 +223,12 @@ class _AnalysisScreenState extends State<AnalysisScreen>
         child: selectedImage == null
             ? Column(
                 mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    width: 76,
-                    height: 76,
-                    decoration: const BoxDecoration(
-                      color: _soft,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.center_focus_strong_rounded,
-                      size: 36,
-                      color: _brown,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text('Add a clear photo', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-                  const SizedBox(height: 5),
-                  const Text('Use natural light and keep your face visible.', style: TextStyle(color: _muted, fontSize: 12)),
+                children: const [
+                  CircleAvatar(radius: 38, backgroundColor: _soft, child: Icon(Icons.center_focus_strong_rounded, size: 36, color: _brown)),
+                  SizedBox(height: 16),
+                  Text('Add a clear photo', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                  SizedBox(height: 5),
+                  Text('Use natural light and keep your face visible.', style: TextStyle(color: _muted, fontSize: 12)),
                 ],
               )
             : ClipRRect(
@@ -285,6 +249,12 @@ class _AnalysisScreenState extends State<AnalysisScreen>
             title: const Text('Colour Analysis'),
             actions: [
               IconButton(
+                tooltip: 'Season Colour Guide',
+                onPressed: provider.isLoading ? null : openSeasonGuide,
+                icon: const Icon(Icons.menu_book_outlined),
+              ),
+              IconButton(
+                tooltip: 'Analysis History',
                 onPressed: provider.isLoading ? null : openAnalysisHistory,
                 icon: const Icon(Icons.history_rounded),
               ),
@@ -299,6 +269,13 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                   _reveal(_headerReveal, _buildHeader()),
                   const SizedBox(height: 20),
                   _buildAnalysisAccessCard(provider.isPremium),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: provider.isLoading ? null : openSeasonGuide,
+                    icon: const Icon(Icons.auto_awesome_rounded),
+                    label: const Text('Explore the 4 Season Colour Guide'),
+                    style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(46)),
+                  ),
                   const SizedBox(height: 18),
                   _reveal(_imageReveal, _buildImagePreview(provider.selectedImage, provider.isLoading)),
                   const SizedBox(height: 14),
