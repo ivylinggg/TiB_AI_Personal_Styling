@@ -8,7 +8,7 @@ import '../../core/constants/app_gradients.dart';
 import '../../providers/analysis_provider.dart';
 import '../ai/ai_hub_screen.dart';
 import '../analysis/analysis_screen.dart';
-import '../dashboard/dashboard_screen.dart';
+import '../dashboard/dashboard_designed_screen.dart';
 import '../profile/profile_screen.dart';
 import '../wardrobe/wardrobe_screen.dart';
 
@@ -23,7 +23,7 @@ class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
 
   final List<Widget> _pages = const [
-    DashboardScreen(),
+    DashboardDesignedScreen(),
     AnalysisScreen(),
     AIHubScreen(),
     WardrobeScreen(),
@@ -63,9 +63,9 @@ class _MainScreenState extends State<MainScreen> {
             border: Border.all(color: AppColors.border),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: .07),
-                blurRadius: 28,
-                offset: const Offset(0, 10),
+                color: Colors.black.withValues(alpha: .06),
+                blurRadius: 24,
+                offset: const Offset(0, 8),
               ),
             ],
           ),
@@ -77,6 +77,7 @@ class _MainScreenState extends State<MainScreen> {
               elevation: 0,
               height: 72,
               labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+              indicatorColor: AppColors.primarySoft,
               onDestinationSelected: _selectTab,
               destinations: [
                 const NavigationDestination(
@@ -124,8 +125,8 @@ class _MainScreenState extends State<MainScreen> {
         boxShadow: selected
             ? [
                 BoxShadow(
-                  color: AppColors.primary.withValues(alpha: .24),
-                  blurRadius: 13,
+                  color: AppColors.primary.withValues(alpha: .20),
+                  blurRadius: 12,
                   offset: const Offset(0, 4),
                 ),
               ]
