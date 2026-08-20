@@ -9,6 +9,11 @@ class UserModel {
   final String? photoUrl;
   final String? colourSeason;
   final String? skinTone;
+  final String? gender;
+  final String? ageRange;
+  final String? ethnicity;
+  final List<String> preferredBrands;
+  final bool onboardingComplete;
   final UserRole role;
   final bool isActive;
   final bool isPremium;
@@ -22,6 +27,11 @@ class UserModel {
     this.photoUrl,
     this.colourSeason,
     this.skinTone,
+    this.gender,
+    this.ageRange,
+    this.ethnicity,
+    this.preferredBrands = const [],
+    this.onboardingComplete = false,
     this.role = UserRole.customer,
     this.isActive = true,
     this.isPremium = false,
@@ -31,6 +41,7 @@ class UserModel {
 
   factory UserModel.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data() ?? {};
+    final brands = data['preferredBrands'];
 
     return UserModel(
       uid: doc.id,
@@ -39,6 +50,13 @@ class UserModel {
       photoUrl: data['photoUrl'] as String?,
       colourSeason: data['colourSeason'] as String?,
       skinTone: data['skinTone'] as String?,
+      gender: data['gender'] as String?,
+      ageRange: data['ageRange'] as String?,
+      ethnicity: data['ethnicity'] as String?,
+      preferredBrands: brands is List
+          ? brands.map((item) => item.toString()).toList()
+          : const [],
+      onboardingComplete: data['onboardingComplete'] as bool? ?? false,
       role: UserRoleExtension.fromString(data['role'] as String?),
       isActive: data['isActive'] as bool? ?? true,
       isPremium: data['isPremium'] as bool? ?? false,
@@ -54,6 +72,11 @@ class UserModel {
       'photoUrl': photoUrl,
       'colourSeason': colourSeason,
       'skinTone': skinTone,
+      'gender': gender,
+      'ageRange': ageRange,
+      'ethnicity': ethnicity,
+      'preferredBrands': preferredBrands,
+      'onboardingComplete': onboardingComplete,
       'role': role.value,
       'isActive': isActive,
       'isPremium': isPremium,
@@ -72,6 +95,11 @@ class UserModel {
     String? photoUrl,
     String? colourSeason,
     String? skinTone,
+    String? gender,
+    String? ageRange,
+    String? ethnicity,
+    List<String>? preferredBrands,
+    bool? onboardingComplete,
     UserRole? role,
     bool? isActive,
     bool? isPremium,
@@ -85,6 +113,11 @@ class UserModel {
       photoUrl: photoUrl ?? this.photoUrl,
       colourSeason: colourSeason ?? this.colourSeason,
       skinTone: skinTone ?? this.skinTone,
+      gender: gender ?? this.gender,
+      ageRange: ageRange ?? this.ageRange,
+      ethnicity: ethnicity ?? this.ethnicity,
+      preferredBrands: preferredBrands ?? this.preferredBrands,
+      onboardingComplete: onboardingComplete ?? this.onboardingComplete,
       role: role ?? this.role,
       isActive: isActive ?? this.isActive,
       isPremium: isPremium ?? this.isPremium,
