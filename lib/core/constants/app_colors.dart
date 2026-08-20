@@ -45,6 +45,13 @@ class AppColors {
   static const Color eggYolk = peach;
 
   static const Map<String, Color> seasonAccents = {
+    // Four-season guide used by Colour Analysis.
+    'Winter': Color(0xFF4D63A0),
+    'Summer': Color(0xFF8D68B4),
+    'Spring': Color(0xFFD58A4D),
+    'Autumn': Color(0xFF9B5A38),
+
+    // Legacy aliases kept for older saved analyses.
     'Warm Spring': Color(0xFFE49A69),
     'Warm Autumn': Color(0xFFB86E4B),
     'Cool Summer': Color(0xFF9AA6C6),
@@ -54,8 +61,7 @@ class AppColors {
     'Soft Autumn': Color(0xFFA98D6E),
   };
 
-  static Color seasonAccent(String? season) =>
-      seasonAccents[season] ?? primary;
+  static Color seasonAccent(String? season) => seasonAccents[season] ?? primary;
 }
 
 class AppColorsDark {
