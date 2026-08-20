@@ -2,7 +2,6 @@
 # ONNX Runtime implementation used by image_background_remover.
 platform :ios, '16.0'
 
-# CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
 
 project 'Runner', {
@@ -33,10 +32,6 @@ target 'Runner' do
 
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
 
-  # Keep the Flutter-generated Firebase/gRPC dependency graph intact.
-  # BoringSSL-GRPC is an indirect dependency of the Firebase stack.
-  # When running on a machine with the repository unavailable over Git,
-  # CocoaPods will still resolve the official podspec normally.
   target 'RunnerTests' do
     inherit! :search_paths
   end
@@ -45,5 +40,14 @@ end
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
+
+    # flutter_onnxruntime brings prebuilt static ONNX Runtime binaries.
+    # They must not be embedded as transitive framework dependencies of Runner.
+    if ['onnxruntime-c', 'onnxruntime-objc'].include?(target.name)
+      target.build_configurations.each do |config|
+        config.build_settings['MACH_O_TYPE'] = 'staticlib'
+        config.build_settings['SKIP_INSTALL'] = 'YES'
+      end
+    end
   end
 end
