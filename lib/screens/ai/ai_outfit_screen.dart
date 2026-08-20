@@ -36,6 +36,7 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
   final Set<String> _lovedLookIds = <String>{};
   final Set<String> _dislikedLookIds = <String>{};
   bool _savedLook = false;
+  bool _savingLook = false;
 
   @override
   void initState() {
@@ -166,6 +167,40 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
     });
   }
 
+  Future<void> _saveCurrentLook(ColourAnalysisResult profile, List<WardrobeItem> look) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null || look.isEmpty || _savingLook) return;
+
+    if (_savedLook) {
+      _showFeedback('This look is already saved.');
+      return;
+    }
+
+    setState(() => _savingLook = true);
+
+    try {
+      final matchScore = _matchScore(profile, look);
+      await FirestoreService.saveOutfitLook(
+        uid: uid,
+        occasion: _occasion,
+        itemIds: look.map((item) => item.id).where((id) => id.isNotEmpty).toList(),
+        matchScore: matchScore,
+        season: profile.season,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _savedLook = true;
+        _savingLook = false;
+      });
+      _showFeedback('Saved. You can come back to this look anytime.');
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _savingLook = false);
+      _showFeedback('I couldn’t save that look right now. Please try again.');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final profile = context.watch<AnalysisProvider>().result;
@@ -217,6 +252,7 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
                         onSelected: (_) => setState(() {
                           _occasion = item.$1;
                           _generated = false;
+                          _savedLook = false;
                           _look = const [];
                         }),
                         selectedColor: AppColors.primarySoft,
@@ -381,7 +417,7 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
               const SizedBox(height: 13),
               _whyItWorks(profile, look),
               const SizedBox(height: 12),
-              _feedbackActions(look),
+              _feedbackActions(look, profile),
               const SizedBox(height: 10),
               Row(
                 children: [
@@ -468,7 +504,7 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
     );
   }
 
-  Widget _feedbackActions(List<WardrobeItem> look) {
+  Widget _feedbackActions(List<WardrobeItem> look, ColourAnalysisResult profile) {
     final loved = look.any((item) => _lovedLookIds.contains(item.id));
     final disliked = look.any((item) => _dislikedLookIds.contains(item.id));
 
@@ -516,17 +552,24 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
         SizedBox(
           width: double.infinity,
           child: OutlinedButton.icon(
-            onPressed: () {
-              setState(() => _savedLook = !_savedLook);
-              _showFeedback(
-                _savedLook ? 'Look saved for this session.' : 'Removed from saved looks.',
-              );
-            },
-            icon: Icon(
-              _savedLook ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
-              size: 18,
+            onPressed: _savingLook ? null : () => _saveCurrentLook(profile, look),
+            icon: _savingLook
+                ? const SizedBox(
+                    width: 17,
+                    height: 17,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Icon(
+                    _savedLook ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
+                    size: 18,
+                  ),
+            label: Text(
+              _savingLook
+                  ? 'Saving…'
+                  : _savedLook
+                      ? 'Saved look'
+                      : 'Save this look',
             ),
-            label: Text(_savedLook ? 'Saved look' : 'Save this look'),
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.primary,
               side: BorderSide(color: AppColors.border),
@@ -558,7 +601,6 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
           color: selected ? AppColors.primary : AppColors.border,
         ),
         minimumSize: const Size.fromHeight(44),
-        padding: const EdgeInsets.symmetric(horizontal: 10),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(14),
         ),
@@ -567,15 +609,16 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
   }
 
   void _showFeedback(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(message),
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 2),
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
         ),
-      );
+      ),
+    );
   }
 
   Widget _scorePill(int score) {
