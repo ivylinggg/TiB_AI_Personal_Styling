@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
 import '../../data/professional_style_data.dart';
 import '../../providers/analysis_provider.dart';
+import '../ai/ai_stylist_screen.dart';
 import '../profile/personal_brand_screen.dart';
 import '../wardrobe/wardrobe_audit_screen.dart';
 
@@ -58,13 +59,30 @@ class ProfessionalStyleScreen extends StatelessWidget {
           const SizedBox(height: 14),
           _guidanceCard(ProfessionalStyleData.occasionGuidance, accent),
           const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AIStylistScreen()),
+              ),
+              icon: const Icon(Icons.auto_awesome_rounded),
+              label: const Text('Continue with TiB AI Stylist'),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                minimumSize: const Size.fromHeight(52),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
           _sectionTitle('Your Styling Toolkit', 'Turn the professional guidance into an ongoing personal profile.'),
           const SizedBox(height: 10),
           Row(
             children: [
               Expanded(
                 child: _toolButton(
-                  context,
                   icon: Icons.checkroom_outlined,
                   title: 'Wardrobe Audit',
                   subtitle: 'Balance & capsule',
@@ -74,7 +92,6 @@ class ProfessionalStyleScreen extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: _toolButton(
-                  context,
                   icon: Icons.workspace_premium_outlined,
                   title: 'Personal Brand',
                   subtitle: 'Image direction',
@@ -216,8 +233,7 @@ class ProfessionalStyleScreen extends StatelessWidget {
     );
   }
 
-  Widget _toolButton(
-    BuildContext context, {
+  Widget _toolButton({
     required IconData icon,
     required String title,
     required String subtitle,
