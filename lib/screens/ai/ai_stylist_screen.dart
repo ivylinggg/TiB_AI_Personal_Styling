@@ -15,6 +15,7 @@ import '../../services/firestore_service.dart';
 import '../../services/style_preference_service.dart';
 import '../../widgets/premium_badge.dart';
 import '../analysis/analysis_screen.dart';
+import '../premium/premium_screen.dart';
 import '../wardrobe/wardrobe_screen.dart';
 import 'style_preferences_screen.dart';
 
@@ -116,6 +117,10 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
       _showMessage('Add a few pieces to My Wardrobe first, then I can style what you already own.');
       return;
     }
+    if (!_isPremium) {
+      await _showPremiumPrompt();
+      return;
+    }
 
     setState(() {
       _styling = true;
@@ -125,16 +130,13 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
     });
     _scrollToBottom();
 
-    AiStylingResult? result;
-    if (_isPremium) {
-      result = await AiStylingService.getRecommendation(
-        profile: profile,
-        wardrobe: _wardrobe,
-        styles: _styles,
-        preferences: _preferences,
-        occasion: prompt,
-      );
-    }
+    final result = await AiStylingService.getRecommendation(
+      profile: profile,
+      wardrobe: _wardrobe,
+      styles: _styles,
+      preferences: _preferences,
+      occasion: prompt,
+    );
 
     if (!mounted) return;
     setState(() {
@@ -142,6 +144,110 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
       _styling = false;
     });
     _scrollToBottom();
+  }
+
+  Future<void> _showPremiumPrompt() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(22, 10, 22, 22),
+            decoration: const BoxDecoration(
+              color: AppColors.background,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 38,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppColors.border,
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 22),
+                Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: const BoxDecoration(
+                        color: AppColors.secondary,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.auto_awesome_rounded,
+                        color: AppColors.primary,
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Text(
+                        'Make it personal',
+                        style: TextStyle(
+                          fontSize: 19,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Premium connects your colour profile, style preferences and real wardrobe to TiB’s personalised AI styling.',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 13,
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: () async {
+                      Navigator.pop(sheetContext);
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const PremiumScreen()),
+                      );
+                      await _load();
+                    },
+                    icon: const Icon(Icons.workspace_premium_rounded, size: 18),
+                    label: const Text('Explore Premium'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(sheetContext),
+                    child: const Text('Maybe later'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   void _showMessage(String message) {
@@ -193,6 +299,7 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.background,
         elevation: 0,
+        scrolledUnderElevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
           onPressed: () => Navigator.pop(context),
@@ -210,7 +317,10 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
               child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 16),
             ),
             const SizedBox(width: 8),
-            const Text('TiB AI Stylist', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+            const Text(
+              'TiB AI Stylist',
+              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+            ),
           ],
         ),
         centerTitle: true,
@@ -240,6 +350,10 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
                         if (season != null) _profileStrip(profile!),
                         const SizedBox(height: 17),
                         _quickPromptSection(),
+                        if (!_isPremium) ...[
+                          const SizedBox(height: 14),
+                          _premiumTeaser(),
+                        ],
                         if (_lastPrompt != null) ...[
                           const SizedBox(height: 18),
                           _userBubble(_lastPrompt!),
@@ -250,11 +364,13 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
                         ],
                         if (_lastPrompt != null && !_styling) ...[
                           const SizedBox(height: 14),
-                          _assistantReply(profile),
+                          _assistantReply(),
                         ],
                         if (_result != null && !_styling) ...[
                           const SizedBox(height: 14),
                           _lookCard(profile!),
+                          const SizedBox(height: 10),
+                          _resultActions(),
                         ],
                         const SizedBox(height: 20),
                         _contextLinks(),
@@ -271,6 +387,12 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
   Widget _assistantGreeting(ColourAnalysisResult? profile) {
     final name = FirebaseAuth.instance.currentUser?.displayName?.split(' ').first;
     final greeting = name == null || name.isEmpty ? 'Hi there' : 'Hi $name';
+    final intro = profile == null
+        ? 'I’m here to help you feel confident in what you wear.'
+        : _isPremium
+            ? 'I know your ${profile.season} palette. Tell me what you’re dressing for and we’ll work it out together.'
+            : 'Your ${profile.season} palette is ready. Add your wardrobe and I can help you build looks around it.';
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -291,9 +413,7 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
               Text(greeting, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
               const SizedBox(height: 4),
               Text(
-                profile == null
-                    ? 'I’m here to help you feel confident in what you wear.'
-                    : 'I know your ${profile.season} palette. Tell me what you’re dressing for and we’ll work it out together.',
+                intro,
                 style: const TextStyle(color: AppColors.textSecondary, height: 1.45, fontSize: 13),
               ),
             ],
@@ -381,6 +501,34 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
     );
   }
 
+  Widget _premiumTeaser() {
+    return InkWell(
+      onTap: _showPremiumPrompt,
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 13, 12, 13),
+        decoration: BoxDecoration(
+          color: AppColors.secondary.withValues(alpha: .55),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: AppColors.primary.withValues(alpha: .12)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.workspace_premium_rounded, color: AppColors.primary, size: 20),
+            const SizedBox(width: 9),
+            const Expanded(
+              child: Text(
+                'Want looks built from your own wardrobe?',
+                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, height: 1.3),
+              ),
+            ),
+            const Icon(Icons.arrow_forward_ios_rounded, color: AppColors.primary, size: 13),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _userBubble(String text) {
     return Align(
       alignment: Alignment.centerRight,
@@ -415,7 +563,7 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
             children: [
               SizedBox(width: 7, height: 7, child: CircularProgressIndicator(strokeWidth: 1.5)),
               SizedBox(width: 9),
-              Text('Styling your look…', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+              Text('Putting a look together…', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
             ],
           ),
         ),
@@ -423,7 +571,7 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
     );
   }
 
-  Widget _assistantReply(ColourAnalysisResult? profile) {
+  Widget _assistantReply() {
     final explanation = _result?.explanation.trim();
     final text = explanation == null || explanation.isEmpty
         ? 'I’ve looked at your wardrobe and profile. Here’s a look I’d start with.'
@@ -499,6 +647,48 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _resultActions() {
+    return Row(
+      children: [
+        Expanded(
+          child: OutlinedButton.icon(
+            onPressed: _styling ? null : () => _send(_lastPrompt),
+            icon: const Icon(Icons.refresh_rounded, size: 17),
+            label: const Text('Try another'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.primary,
+              side: const BorderSide(color: AppColors.border),
+              padding: const EdgeInsets.symmetric(vertical: 11),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+            ),
+          ),
+        ),
+        const SizedBox(width: 9),
+        Expanded(
+          child: FilledButton.icon(
+            onPressed: _styling
+                ? null
+                : () {
+                    _composer.text = 'Make this look a little more casual';
+                    _composer.selection = TextSelection.fromPosition(
+                      TextPosition(offset: _composer.text.length),
+                    );
+                    _send();
+                  },
+            icon: const Icon(Icons.tune_rounded, size: 17),
+            label: const Text('Refine it'),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 11),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -584,7 +774,7 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
           ),
           const SizedBox(width: 8),
           Material(
-            color: AppColors.primary,
+            color: _styling ? AppColors.textMuted : AppColors.primary,
             shape: const CircleBorder(),
             child: InkWell(
               onTap: _styling ? null : _send,
