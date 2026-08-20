@@ -29,6 +29,7 @@ import '../analysis/analysis_result_screen.dart';
 import '../analysis/analysis_screen.dart';
 import '../auth/login_screen.dart';
 import '../wardrobe/wardrobe_screen.dart';
+import 'saved_looks_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -643,6 +644,13 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
+  void openSavedLooks() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const SavedLooksScreen()),
+    );
+  }
+
   void openColourAnalysis() {
     Navigator.push(
       context,
@@ -759,6 +767,8 @@ class _ProfileScreenState extends State<ProfileScreen>
           _reveal(_connectionsReveal, _buildWardrobeConnectionCard()),
           const SizedBox(height: 10),
           _reveal(_connectionsReveal, _buildAiStylistConnectionCard()),
+          const SizedBox(height: 10),
+          _reveal(_connectionsReveal, _buildSavedLooksConnectionCard()),
           const SizedBox(height: 28),
           _reveal(
             _preferencesReveal,
