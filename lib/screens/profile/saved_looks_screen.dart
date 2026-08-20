@@ -13,11 +13,17 @@ class SavedLooksScreen extends StatefulWidget {
   State<SavedLooksScreen> createState() => _SavedLooksScreenState();
 }
 
+enum _SavedLookSort { recent, highestMatch }
+
 class _SavedLooksScreenState extends State<SavedLooksScreen> {
   bool _loading = true;
   String? _error;
   List<Map<String, dynamic>> _looks = const [];
   List<Map<String, dynamic>> _wardrobe = const [];
+  String _occasionFilter = 'All';
+  _SavedLookSort _sort = _SavedLookSort.recent;
+
+  static const _filters = ['All', 'Work', 'Casual', 'Date', 'Event'];
 
   @override
   void initState() {
@@ -61,7 +67,7 @@ class _SavedLooksScreenState extends State<SavedLooksScreen> {
         _wardrobe = wardrobe;
         _loading = false;
       });
-    } catch (e) {
+    } catch (_) {
       if (!mounted) return;
       setState(() {
         _loading = false;
@@ -84,6 +90,57 @@ class _SavedLooksScreenState extends State<SavedLooksScreen> {
     return null;
   }
 
+  List<Map<String, dynamic>> get _visibleLooks {
+    final filtered = _occasionFilter == 'All'
+        ? List<Map<String, dynamic>>.from(_looks)
+        : _looks.where((look) {
+            final occasion = (look['occasion'] as String? ?? '').toLowerCase();
+            return _matchesOccasion(occasion, _occasionFilter);
+          }).toList();
+
+    filtered.sort((a, b) {
+      if (_sort == _SavedLookSort.highestMatch) {
+        final aScore = (a['matchScore'] as num?)?.toDouble() ?? 0;
+        final bScore = (b['matchScore'] as num?)?.toDouble() ?? 0;
+        return bScore.compareTo(aScore);
+      }
+      final aDate = _createdAt(a);
+      final bDate = _createdAt(b);
+      if (aDate == null && bDate == null) return 0;
+      if (aDate == null) return 1;
+      if (bDate == null) return -1;
+      return bDate.compareTo(aDate);
+    });
+
+    return filtered;
+  }
+
+  bool _matchesOccasion(String occasion, String filter) {
+    switch (filter) {
+      case 'Work':
+        return occasion.contains('work') ||
+            occasion.contains('office') ||
+            occasion.contains('business');
+      case 'Casual':
+        return occasion.contains('casual') ||
+            occasion.contains('weekend') ||
+            occasion.contains('cafe') ||
+            occasion.contains('coffee') ||
+            occasion.contains('everyday');
+      case 'Date':
+        return occasion.contains('date') ||
+            occasion.contains('dinner') ||
+            occasion.contains('romantic');
+      case 'Event':
+        return occasion.contains('event') ||
+            occasion.contains('party') ||
+            occasion.contains('wedding') ||
+            occasion.contains('occasion');
+      default:
+        return true;
+    }
+  }
+
   Future<void> _deleteLook(String lookId) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
@@ -92,7 +149,9 @@ class _SavedLooksScreenState extends State<SavedLooksScreen> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Remove saved look?'),
-        content: const Text('This saved outfit will be removed from your collection.'),
+        content: const Text(
+          'This saved outfit will be removed from your collection.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
@@ -254,6 +313,9 @@ class _SavedLooksScreenState extends State<SavedLooksScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final visibleLooks = _visibleLooks;
+    final hasFilter = _occasionFilter != 'All';
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -262,6 +324,11 @@ class _SavedLooksScreenState extends State<SavedLooksScreen> {
         backgroundColor: AppColors.background,
         elevation: 0,
         actions: [
+          IconButton(
+            tooltip: 'Sort saved looks',
+            onPressed: _showSortSheet,
+            icon: const Icon(Icons.swap_vert_rounded),
+          ),
           IconButton(
             tooltip: 'Refresh',
             onPressed: _load,
@@ -289,55 +356,235 @@ class _SavedLooksScreenState extends State<SavedLooksScreen> {
                 )
               : RefreshIndicator(
                   onRefresh: _load,
-                  child: _looksEmpty
-                      ? ListView(
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          padding: const EdgeInsets.fromLTRB(20, 60, 20, 32),
-                          children: [
-                            const Icon(Icons.bookmark_border_rounded, color: AppColors.primary, size: 48),
-                            const SizedBox(height: 14),
-                            const Text(
-                              'No saved looks yet',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
-                            ),
-                            const SizedBox(height: 8),
-                            const Text(
-                              'When an AI outfit feels like you, save it here and come back to it later.',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(color: AppColors.textSecondary, height: 1.45, fontSize: 12.5),
-                            ),
-                          ],
+                  child: CustomScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    slivers: [
+                      SliverToBoxAdapter(child: _buildHeader()),
+                      if (_looks.isEmpty)
+                        SliverFillRemaining(
+                          hasScrollBody: false,
+                          child: _emptyState(),
                         )
-                      : ListView.separated(
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
-                          itemCount: _looks.length,
-                          separatorBuilder: (_, index) => const SizedBox(height: 12),
-                          itemBuilder: (_, index) => _lookCard(_looks[index]),
+                      else if (visibleLooks.isEmpty)
+                        SliverFillRemaining(
+                          hasScrollBody: false,
+                          child: _filteredEmptyState(),
+                        )
+                      else
+                        SliverPadding(
+                          padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
+                          sliver: SliverList.separated(
+                            itemCount: visibleLooks.length,
+                            itemBuilder: (_, index) => _lookCard(visibleLooks[index]),
+                            separatorBuilder: (_, index) => const SizedBox(height: 12),
+                          ),
                         ),
+                    ],
+                  ),
                 ),
     );
   }
 
-  bool get _looksEmpty => _looks.isEmpty;
+  Widget _buildHeader() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'YOUR LOOKBOOK',
+            style: TextStyle(
+              fontSize: 9,
+              letterSpacing: 1.35,
+              fontWeight: FontWeight.w800,
+              color: AppColors.textMuted,
+            ),
+          ),
+          const SizedBox(height: 5),
+          const Text(
+            'Looks worth coming back to.',
+            style: TextStyle(fontSize: 25, fontWeight: FontWeight.w800, letterSpacing: -.5),
+          ),
+          const SizedBox(height: 7),
+          Text(
+            _looks.isEmpty
+                ? 'Save an outfit you love and it will live here.'
+                : '${_looks.length} saved ${_looks.length == 1 ? 'look' : 'looks'} in your collection.',
+            style: const TextStyle(color: AppColors.textSecondary, fontSize: 12.5, height: 1.4),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            height: 38,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: _filters.length,
+              separatorBuilder: (_, index) => const SizedBox(width: 7),
+              itemBuilder: (_, index) {
+                final filter = _filters[index];
+                final selected = filter == _occasionFilter;
+                return ChoiceChip(
+                  label: Text(filter),
+                  selected: selected,
+                  onSelected: (_) => setState(() => _occasionFilter = filter),
+                  selectedColor: AppColors.primary,
+                  backgroundColor: AppColors.surface,
+                  side: BorderSide(
+                    color: selected ? AppColors.primary : AppColors.border,
+                  ),
+                  labelStyle: TextStyle(
+                    color: selected ? Colors.white : AppColors.textPrimary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                  showCheckmark: false,
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              const Icon(Icons.sort_rounded, size: 15, color: AppColors.textMuted),
+              const SizedBox(width: 5),
+              Text(
+                _sort == _SavedLookSort.recent ? 'Recently saved' : 'Highest match',
+                style: const TextStyle(fontSize: 10.5, color: AppColors.textSecondary, fontWeight: FontWeight.w700),
+              ),
+              if (_sort == _SavedLookSort.highestMatch || hasFilter)
+                Padding(
+                  padding: const EdgeInsets.only(left: 8),
+                  child: TextButton(
+                    onPressed: () => setState(() {
+                      _occasionFilter = 'All';
+                      _sort = _SavedLookSort.recent;
+                    }),
+                    style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 28), tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                    child: const Text('Reset', style: TextStyle(fontSize: 10.5)),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showSortSheet() async {
+    final selected = await showModalBottomSheet<_SavedLookSort>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(24, 0, 24, 8),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Sort saved looks',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ),
+              RadioListTile<_SavedLookSort>(
+                value: _SavedLookSort.recent,
+                groupValue: _sort,
+                title: const Text('Recently saved'),
+                onChanged: (value) => Navigator.pop(sheetContext, value),
+              ),
+              RadioListTile<_SavedLookSort>(
+                value: _SavedLookSort.highestMatch,
+                groupValue: _sort,
+                title: const Text('Highest match'),
+                onChanged: (value) => Navigator.pop(sheetContext, value),
+              ),
+              const SizedBox(height: 10),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (selected != null && mounted) {
+      setState(() => _sort = selected);
+    }
+  }
+
+  Widget _emptyState() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(28, 54, 28, 32),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.bookmark_border_rounded, color: AppColors.primary, size: 48),
+          const SizedBox(height: 14),
+          const Text(
+            'No saved looks yet',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'When an AI outfit feels like you, save it here and come back to it later.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: AppColors.textSecondary, height: 1.45, fontSize: 12.5),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _filteredEmptyState() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(28, 54, 28, 32),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.filter_alt_off_rounded, color: AppColors.primary, size: 42),
+          const SizedBox(height: 13),
+          Text(
+            'No ${_occasionFilter.toLowerCase()} looks yet',
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 7),
+          const Text(
+            'Try another category or reset the filter.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5),
+          ),
+          const SizedBox(height: 14),
+          TextButton(
+            onPressed: () => setState(() => _occasionFilter = 'All'),
+            child: const Text('Show all looks'),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _lookCard(Map<String, dynamic> look) {
     final ids = List<String>.from(look['itemIds'] ?? const <String>[]);
     final pieces = ids.map(_wardrobeItem).whereType<Map<String, dynamic>>().toList();
     final date = _createdAt(look);
     final occasion = look['occasion'] as String? ?? 'Saved look';
+    final score = (look['matchScore'] as num?)?.toInt() ?? 0;
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: () => _openLook(look),
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(24),
         child: Ink(
-          padding: const EdgeInsets.all(13),
+          padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: AppColors.surface,
-            borderRadius: BorderRadius.circular(22),
+            borderRadius: BorderRadius.circular(24),
             border: Border.all(color: AppColors.border),
           ),
           child: Column(
@@ -348,24 +595,35 @@ class _SavedLooksScreenState extends State<SavedLooksScreen> {
                   Expanded(
                     child: Text(
                       occasion,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
                     ),
                   ),
                   IconButton(
                     tooltip: 'Remove saved look',
                     onPressed: () => _deleteLook(look['id'] as String? ?? ''),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
                     icon: const Icon(Icons.more_horiz_rounded),
                   ),
                 ],
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 2),
               Row(
                 children: [
-                  Text(
-                    '${look['matchScore'] ?? 0}% match',
-                    style: const TextStyle(color: AppColors.success, fontSize: 10.5, fontWeight: FontWeight.w800),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: AppColors.sage.withValues(alpha: .20),
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                    child: Text(
+                      '$score% match',
+                      style: const TextStyle(color: AppColors.success, fontSize: 10, fontWeight: FontWeight.w800),
+                    ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 7),
                   if (date != null)
                     Text(
                       _formatDate(date),
@@ -380,15 +638,18 @@ class _SavedLooksScreenState extends State<SavedLooksScreen> {
               ),
               const SizedBox(height: 12),
               SizedBox(
-                height: 118,
+                height: 122,
                 child: pieces.isEmpty
                     ? Container(
                         decoration: BoxDecoration(
                           color: AppColors.surfaceMuted,
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(17),
                         ),
                         child: const Center(
-                          child: Text('Some wardrobe pieces are unavailable', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+                          child: Text(
+                            'Some wardrobe pieces are unavailable',
+                            style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                          ),
                         ),
                       )
                     : ListView.separated(
@@ -398,19 +659,32 @@ class _SavedLooksScreenState extends State<SavedLooksScreen> {
                         itemBuilder: (_, index) {
                           final url = pieces[index]['imageUrl'] as String? ?? '';
                           return ClipRRect(
-                            borderRadius: BorderRadius.circular(16),
+                            borderRadius: BorderRadius.circular(17),
                             child: SizedBox(
-                              width: 92,
+                              width: 96,
                               child: url.isEmpty
                                   ? Container(
                                       color: AppColors.surfaceMuted,
-                                      child: const Icon(Icons.checkroom_outlined, color: AppColors.primary),
+                                      child: const Center(
+                                        child: Icon(Icons.checkroom_outlined, color: AppColors.primary),
+                                      ),
                                     )
                                   : CachedNetworkImage(imageUrl: url, fit: BoxFit.cover),
                             ),
                           );
                         },
                       ),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  const Icon(Icons.chevron_right_rounded, size: 16, color: AppColors.primary),
+                  const SizedBox(width: 2),
+                  Text(
+                    'View look details',
+                    style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: AppColors.primary),
+                  ),
+                ],
               ),
             ],
           ),
