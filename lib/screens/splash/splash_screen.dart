@@ -1,7 +1,14 @@
-import 'dart:async';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_gradients.dart';
+import '../../services/auth_service.dart';
+import '../admin/admin_main_screen.dart';
+import '../auth/login_screen.dart';
+import '../main/main_screen.dart';
+import '../onboarding/flash_profile_flow.dart';
 import '../onboarding/onboarding_screen.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -15,13 +22,66 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    Timer(const Duration(milliseconds: 2200), () {
+    Future<void>.delayed(const Duration(milliseconds: 2200), _routeFromSplash);
+  }
+
+  Future<void> _routeFromSplash() async {
+    if (!mounted) return;
+
+    final currentUser = FirebaseAuth.instance.currentUser;
+
+    if (currentUser != null) {
+      try {
+        final active = await AuthService.isCurrentUserActive();
+        if (!active) {
+          await AuthService.logout();
+        } else {
+          final role = await AuthService.getCurrentUserRole();
+          if (!mounted) return;
+
+          if (role == 'admin') {
+            _replace(const AdminMainScreen());
+            return;
+          }
+
+          final profile = await AuthService.getCurrentUserProfile();
+          if (!mounted) return;
+
+          final onboardingComplete = profile['onboardingComplete'] == true;
+          if (!onboardingComplete) {
+            _replace(const FlashProfileFlow());
+          } else {
+            _replace(const MainScreen());
+          }
+          return;
+        }
+      } catch (_) {
+        if (!mounted) return;
+      }
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+
+    final hasSeenIntro = prefs.getBool('tib_intro_seen') ?? false;
+
+    if (!hasSeenIntro) {
+      await prefs.setBool('tib_intro_seen', true);
       if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const OnboardingScreen()),
-      );
-    });
+      _replace(const OnboardingScreen());
+      return;
+    }
+
+    _replace(const LoginScreen());
+  }
+
+  void _replace(Widget destination) {
+    if (!mounted) return;
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => destination),
+      (_) => false,
+    );
   }
 
   @override
