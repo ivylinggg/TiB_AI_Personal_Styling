@@ -62,8 +62,10 @@ dependencies:
   # Calendar
   table_calendar: ^3.2.0
 
-  # PDF
+  # PDF / File export
   syncfusion_flutter_pdf: ^31.1.20
+  path_provider: ^2.1.6
+  share_plus: ^13.3.0
 
 dev_dependencies:
   flutter_test:
@@ -80,4 +82,3 @@ flutter:
     - assets/logo/
     - assets/lottie/
     - assets/illustrations/
-
