@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_gradients.dart';
+import '../../data/professional_style_data.dart';
 import '../../data/season_colour_guide.dart';
 import '../../models/colour_analysis_result.dart';
 import '../../services/colour_report_service.dart';
 import '../../widgets/colour_swatch.dart';
+import '../professional/professional_style_screen.dart';
 import 'season_colour_guide_screen.dart';
 
 class AnalysisResultScreen extends StatefulWidget {
@@ -68,6 +70,7 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
   Widget build(BuildContext context) {
     final profile = SeasonColourGuide.forSeason(result.season);
     final accent = AppColors.seasonAccent(result.season);
+    final avoid = ProfessionalStyleData.avoidColours[result.season] ?? const <String>[];
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -117,6 +120,10 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
             const SizedBox(height: 16),
             if (profile.bestColours.isEmpty) _emptyPalette() else _palette(profile.bestColours),
             const SizedBox(height: 24),
+            _avoidSection(avoid, accent),
+            const SizedBox(height: 22),
+            _colourPsychologyPreview(accent),
+            const SizedBox(height: 22),
             _makeupSection('Eye Shadow Colour Advise', profile.eyeShadowColours, accent),
             const SizedBox(height: 18),
             _makeupSection('Blush Colour Advise', profile.blushColours, accent),
@@ -173,6 +180,22 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
                     ),
                   ),
                 ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ProfessionalStyleScreen()),
+              ),
+              icon: const Icon(Icons.work_outline_rounded),
+              label: const Text('Explore Professional Image'),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(54),
+                backgroundColor: AppColors.surface,
+                foregroundColor: AppColors.primaryDark,
+                side: const BorderSide(color: AppColors.border),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(17)),
               ),
             ),
             const SizedBox(height: 12),
@@ -251,6 +274,79 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
                 const SizedBox(height: 5),
                 const Text('TiB uses this season reference for your wardrobe matching, makeup colour advice and AI styling prompts.', style: TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.4)),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _avoidSection(List<String> colours, Color accent) {
+    return Container(
+      padding: const EdgeInsets.all(17),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Less-Flattering Colours', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 5),
+          const Text('Use these colours more carefully when they sit close to your face or dominate the outfit.', style: TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.4)),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 7,
+            children: colours.map((name) => Chip(
+              avatar: const Icon(Icons.remove_circle_outline_rounded, size: 16),
+              label: Text(name, style: const TextStyle(fontSize: 10.5)),
+              side: BorderSide(color: accent.withValues(alpha: .16)),
+              backgroundColor: AppColors.surfaceMuted,
+            )).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _colourPsychologyPreview(Color accent) {
+    final cues = ProfessionalStyleData.colourPsychology.take(3).toList();
+    return Container(
+      padding: const EdgeInsets.all(17),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [AppColors.lavenderMist, Colors.white],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Colour Psychology', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 5),
+          const Text('Colour can help shape the impression you want to create.', style: TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.4)),
+          const SizedBox(height: 10),
+          ...cues.map((cue) => Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Row(
+                  children: [
+                    Icon(Icons.auto_awesome_rounded, size: 14, color: accent),
+                    const SizedBox(width: 7),
+                    Expanded(child: Text('${cue.colour}  •  ${cue.impression}', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700))),
+                  ],
+                ),
+              )),
+          const SizedBox(height: 4),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfessionalStyleScreen())),
+              child: const Text('Explore professional styling'),
             ),
           ),
         ],
