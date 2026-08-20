@@ -9,7 +9,9 @@ import '../../core/constants/app_radius.dart';
 import '../../models/colour_analysis_result.dart';
 import '../../models/wardrobe_item.dart';
 import '../../providers/analysis_provider.dart';
+import '../../services/ai_styling_service.dart';
 import '../../services/firestore_service.dart';
+import '../../services/style_preference_service.dart';
 
 class AIOutfitScreen extends StatefulWidget {
   const AIOutfitScreen({super.key});
@@ -31,6 +33,7 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
   List<WardrobeItem> _wardrobe = const [];
   List<WardrobeItem> _look = const [];
   bool _loading = true;
+  bool _styling = false;
   bool _generated = false;
   int _generation = 0;
   final Set<String> _lovedLookIds = <String>{};
@@ -158,13 +161,65 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
         createdAt: null,
       );
 
-  void _generate(ColourAnalysisResult profile) {
+  WardrobeItem? _findWardrobeItem(String? id) {
+    if (id == null || id.isEmpty) return null;
+    for (final item in _wardrobe) {
+      if (item.id == id) return item;
+    }
+    return null;
+  }
+
+  Future<void> _generate(ColourAnalysisResult profile) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null || _styling || _wardrobe.isEmpty) return;
+
     setState(() {
       _generation++;
       _savedLook = false;
-      _look = _buildLook(profile);
+      _styling = true;
       _generated = true;
+      _look = const [];
     });
+
+    try {
+      final prefs = await StylePreferenceService.getStylePreferences(uid);
+      final styles = List<String>.from(prefs?['styles'] ?? const []);
+      final preferences = List<String>.from(prefs?['preferences'] ?? const []);
+
+      final aiResult = await AiStylingService.getRecommendation(
+        profile: profile,
+        wardrobe: _wardrobe,
+        styles: styles,
+        preferences: preferences,
+        occasion: _occasion,
+      );
+
+      if (!mounted) return;
+
+      if (aiResult != null) {
+        final aiLook = [
+          _findWardrobeItem(aiResult.topId),
+          _findWardrobeItem(aiResult.bottomId),
+          _findWardrobeItem(aiResult.shoesId),
+          _findWardrobeItem(aiResult.accessoryId),
+        ].whereType<WardrobeItem>().toList();
+
+        setState(() {
+          _look = aiLook;
+          _styling = false;
+        });
+        return;
+      }
+    } catch (_) {
+      // Fall back to the transparent local matcher below.
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _look = _buildLook(profile);
+      _styling = false;
+    });
+    _showFeedback('AI is unavailable right now — I used your wardrobe match instead.');
   }
 
   Future<void> _saveCurrentLook(ColourAnalysisResult profile, List<WardrobeItem> look) async {
@@ -344,11 +399,23 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
     return SizedBox(
       width: double.infinity,
       child: FilledButton.icon(
-        onPressed: profile == null || _wardrobe.isEmpty
+        onPressed: profile == null || _wardrobe.isEmpty || _styling
             ? null
             : () => _generate(profile),
-        icon: const Icon(Icons.auto_awesome_rounded),
-        label: Text(_generated ? 'Try another look' : 'Create my outfit'),
+        icon: _styling
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Icon(Icons.auto_awesome_rounded),
+        label: Text(
+          _styling
+              ? 'Putting your look together…'
+              : _generated
+                  ? 'Try another look'
+                  : 'Create my outfit',
+        ),
         style: FilledButton.styleFrom(
           backgroundColor: AppColors.peach,
           foregroundColor: AppColors.charcoal,
@@ -364,6 +431,9 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
   Widget _result(ColourAnalysisResult? profile, List<WardrobeItem> look) {
     if (profile == null) {
       return _message('Complete Colour Analysis to personalise your outfit.');
+    }
+    if (_styling) {
+      return _message('Looking through your wardrobe and matching your profile…');
     }
     if (_wardrobe.isEmpty) {
       return _message('Add a few pieces to My Wardrobe first.');
