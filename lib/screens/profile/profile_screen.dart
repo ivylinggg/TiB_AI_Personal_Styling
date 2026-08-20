@@ -1159,6 +1159,15 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
+  Widget _buildSavedLooksConnectionCard() {
+    return _connectionCard(
+      icon: Icons.bookmark_rounded,
+      title: 'Saved Looks',
+      subtitle: 'Come back to outfits you loved and saved.',
+      onTap: openSavedLooks,
+    );
+  }
+
   // ============================================================
   // MY PREFERENCES -- the user's real saved Style Preferences.
   // ============================================================
