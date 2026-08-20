@@ -4,6 +4,7 @@ import '../../core/constants/app_colors.dart';
 import '../../data/season_colour_guide.dart';
 import '../../widgets/colour_swatch.dart';
 import 'analysis_screen.dart';
+import '../professional/professional_style_screen.dart';
 
 /// Editorial four-season guide matching the TiB visual direction.
 class SeasonColourGuideScreen extends StatelessWidget {
@@ -36,6 +37,7 @@ class SeasonColourGuideScreen extends StatelessWidget {
               ),
             ),
             SliverToBoxAdapter(child: _analysisCta(context)),
+            SliverToBoxAdapter(child: _professionalCta(context)),
             const SliverToBoxAdapter(child: SizedBox(height: 24)),
           ],
         ),
@@ -177,6 +179,48 @@ class SeasonColourGuideScreen extends StatelessWidget {
                 Icon(Icons.arrow_forward_rounded, size: 14),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _professionalCta(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(18, 10, 18, 0),
+      padding: const EdgeInsets.fromLTRB(15, 13, 13, 13),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: const BoxDecoration(
+              color: AppColors.lavenderMist,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.work_outline_rounded, color: AppColors.primaryDark),
+          ),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Go beyond your colour palette', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800)),
+                SizedBox(height: 3),
+                Text('Explore colour psychology, professional styling and your personal image direction.', style: TextStyle(color: AppColors.textSecondary, fontSize: 10.5, height: 1.35)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          IconButton(
+            tooltip: 'Professional Style',
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfessionalStyleScreen())),
+            icon: const Icon(Icons.arrow_forward_rounded, color: AppColors.primaryDark),
           ),
         ],
       ),
