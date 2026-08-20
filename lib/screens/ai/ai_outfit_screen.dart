@@ -52,8 +52,6 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
         setState(() {
           _wardrobe = items;
           _loading = false;
-          _generated = false;
-          _look = const [];
         });
       }
     } catch (_) {
@@ -62,65 +60,61 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
   }
 
   int _score(WardrobeItem item, ColourAnalysisResult profile) {
-    var score = 30;
+    var score = 0;
     final text = '${item.category} ${item.style} ${item.colour}'.toLowerCase();
     final occasion = _occasion.toLowerCase();
-
-    if (item.isFavourite) score += 8;
-    if (profile.colours.any((c) => text.contains(c.toLowerCase()))) score += 28;
-
-    switch (occasion) {
-      case 'work':
-        if (text.contains('smart') || text.contains('formal')) score += 24;
-        if (text.contains('elegant') || text.contains('classic')) score += 12;
-        if (text.contains('casual')) score -= 8;
-        break;
-      case 'date':
-        if (text.contains('feminine') || text.contains('elegant')) score += 22;
-        if (text.contains('dress')) score += 16;
-        if (text.contains('casual')) score += 4;
-        break;
-      case 'dinner':
-        if (text.contains('elegant') || text.contains('dress')) score += 22;
-        if (text.contains('smart') || text.contains('classic')) score += 14;
-        break;
-      case 'cafe':
-        if (text.contains('casual') || text.contains('everyday')) score += 20;
-        if (text.contains('minimal') || text.contains('relaxed')) score += 10;
-        break;
-      case 'weekend':
-        if (text.contains('casual') || text.contains('everyday')) score += 22;
-        if (text.contains('relaxed') || text.contains('street')) score += 10;
-        break;
+    if (item.isFavourite) score += 10;
+    if (profile.colours.any((c) => text.contains(c.toLowerCase()))) score += 25;
+    if (item.season.toLowerCase().contains(profile.season.toLowerCase())) {
+      score += 12;
     }
-
-    if (item.category == 'Shoes') score += 6;
-    if (item.category == 'Accessories') score += 4;
-    return score.clamp(0, 100);
+    if (occasion == 'work' &&
+        (text.contains('smart') || text.contains('elegant'))) {
+      score += 22;
+    }
+    if (occasion == 'date' &&
+        (text.contains('feminine') ||
+            text.contains('elegant') ||
+            text.contains('dress'))) {
+      score += 22;
+    }
+    if (occasion == 'dinner' &&
+        (text.contains('elegant') ||
+            text.contains('dress') ||
+            text.contains('smart'))) {
+      score += 18;
+    }
+    if ((occasion == 'cafe' || occasion == 'weekend') &&
+        (text.contains('casual') || text.contains('everyday'))) {
+      score += 18;
+    }
+    if (item.category == 'Shoes') score += 5;
+    if (item.category == 'Accessories') score += 3;
+    return score;
   }
 
   List<WardrobeItem> _buildLook(ColourAnalysisResult profile) {
-    final ranked = [..._wardrobe]
+    final sorted = [..._wardrobe]
       ..sort((a, b) => _score(b, profile).compareTo(_score(a, profile)));
 
-    // Rotate equally strong candidates when the user regenerates so the
-    // recommendation feels useful rather than returning the exact same look.
-    final offset = ranked.isEmpty ? 0 : _generation % ranked.length;
-    final rotated = [
-      ...ranked.skip(offset),
-      ...ranked.take(offset),
-    ];
+    final categories = _occasion == 'Dinner' || _occasion == 'Date'
+        ? ['Dresses', 'Shoes', 'Accessories']
+        : ['Tops', 'Bottoms', 'Shoes', 'Accessories'];
+
+    final rotated = [...sorted];
+    if (rotated.length > 1 && _generation > 1) {
+      final offset = (_generation - 1) % rotated.length;
+      final head = rotated.sublist(offset);
+      head.addAll(rotated.sublist(0, offset));
+      rotated
+        ..clear()
+        ..addAll(head);
+    }
 
     final result = <WardrobeItem>[];
     final used = <String>{};
-    const categories = ['Dresses', 'Tops', 'Bottoms', 'Shoes', 'Accessories'];
 
-    final hasDress = rotated.any((item) => item.category == 'Dresses');
-    final targetCategories = hasDress
-        ? ['Dresses', 'Shoes', 'Accessories']
-        : categories.where((category) => category != 'Dresses').toList();
-
-    for (final category in targetCategories) {
+    for (final category in categories) {
       final match = rotated.firstWhere(
         (item) => item.category == category && !used.contains(item.id),
         orElse: () => _emptyItem,
@@ -131,17 +125,31 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
       }
     }
 
+    if (result.length < 2) {
+      for (final item in rotated) {
+        if (!used.contains(item.id)) {
+          result.add(item);
+          used.add(item.id);
+        }
+        if (result.length == 4) break;
+      }
+    }
+
     return result.take(4).toList();
   }
 
-  static WardrobeItem get _emptyItem => WardrobeItem(
+  static WardrobeItem get _emptyItem => const WardrobeItem(
         id: '',
+        userId: '',
         name: '',
         category: '',
         colour: '',
         style: '',
+        season: '',
         imageUrl: '',
         isFavourite: false,
+        notes: '',
+        createdAt: null,
       );
 
   void _generate(ColourAnalysisResult profile) {
@@ -164,7 +172,7 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
         backgroundColor: AppColors.background,
         actions: [
           IconButton(
-            onPressed: _loading ? null : _loadWardrobe,
+            onPressed: _loadWardrobe,
             icon: const Icon(Icons.refresh_rounded),
           ),
         ],
@@ -208,7 +216,9 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
                         selectedColor: AppColors.primarySoft,
                         backgroundColor: AppColors.surface,
                         side: BorderSide(
-                          color: selected ? AppColors.primary : AppColors.border,
+                          color: selected
+                              ? AppColors.primary
+                              : AppColors.border,
                         ),
                       );
                     },
@@ -244,7 +254,10 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
                   color: Colors.white,
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.auto_awesome_rounded, color: AppColors.primary),
+                child: const Icon(
+                  Icons.auto_awesome_rounded,
+                  color: AppColors.primary,
+                ),
               ),
               const SizedBox(width: 10),
               const Text(
@@ -274,7 +287,11 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
             profile == null
                 ? 'Complete your colour profile first.'
                 : 'Built around your ${profile.season} palette and the pieces you already own.',
-            style: const TextStyle(color: Colors.white70, fontSize: 12.5, height: 1.45),
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 12.5,
+              height: 1.45,
+            ),
           ),
         ],
       ),
@@ -282,20 +299,21 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
   }
 
   Widget _generateButton(ColourAnalysisResult? profile) {
-    final disabled = profile == null || _wardrobe.isEmpty;
     return SizedBox(
       width: double.infinity,
       child: FilledButton.icon(
-        onPressed: disabled ? null : () => _generate(profile),
+        onPressed: profile == null || _wardrobe.isEmpty
+            ? null
+            : () => _generate(profile),
         icon: const Icon(Icons.auto_awesome_rounded),
         label: Text(_generated ? 'Try another look' : 'Create my outfit'),
         style: FilledButton.styleFrom(
           backgroundColor: AppColors.peach,
           foregroundColor: AppColors.charcoal,
-          disabledBackgroundColor: AppColors.surfaceMuted,
-          disabledForegroundColor: AppColors.textMuted,
           minimumSize: const Size.fromHeight(54),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(17)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(17),
+          ),
         ),
       ),
     );
@@ -315,6 +333,7 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
     }
 
     final match = _matchScore(profile, look);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -358,13 +377,19 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
               const SizedBox(height: 10),
               Row(
                 children: [
-                  const Icon(Icons.event_outlined, color: AppColors.primary, size: 16),
+                  const Icon(Icons.event_outlined,
+                      color: AppColors.primary, size: 16),
                   const SizedBox(width: 6),
-                  Text(_occasion, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+                  Text(_occasion,
+                      style: const TextStyle(
+                          fontSize: 11, fontWeight: FontWeight.w700)),
                   const Spacer(),
-                  const Icon(Icons.checkroom_outlined, color: AppColors.textMuted, size: 16),
+                  const Icon(Icons.checkroom_outlined,
+                      color: AppColors.textMuted, size: 16),
                   const SizedBox(width: 5),
-                  Text('${look.length} pieces', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                  Text('${look.length} pieces',
+                      style: const TextStyle(
+                          fontSize: 11, color: AppColors.textSecondary)),
                 ],
               ),
             ],
@@ -375,31 +400,25 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
   }
 
   int _matchScore(ColourAnalysisResult profile, List<WardrobeItem> look) {
-    final colourMatches = look.where(
-      (item) => profile.colours.any((c) => item.colour.toLowerCase().contains(c.toLowerCase())),
-    ).length;
-    final favourites = look.where((item) => item.isFavourite).length;
-    final occasionMatches = look.where((item) {
-      final text = '${item.style} ${item.category}'.toLowerCase();
-      return switch (_occasion.toLowerCase()) {
-        'work' => text.contains('smart') || text.contains('formal') || text.contains('elegant'),
-        'date' => text.contains('feminine') || text.contains('elegant') || text.contains('dress'),
-        'dinner' => text.contains('elegant') || text.contains('dress') || text.contains('smart'),
-        'cafe' || 'weekend' => text.contains('casual') || text.contains('everyday') || text.contains('relaxed'),
-        _ => false,
-      };
-    }).length;
-    return (62 + colourMatches * 7 + favourites * 3 + occasionMatches * 5).clamp(68, 97);
+    var total = 0;
+    for (final item in look) {
+      total += _score(item, profile);
+    }
+    final maximum = look.length * 75;
+    if (maximum == 0) return 0;
+    return ((total / maximum) * 100).round().clamp(45, 98);
   }
 
   Widget _whyItWorks(ColourAnalysisResult profile, List<WardrobeItem> look) {
-    final matchedColours = look.where(
-      (item) => profile.colours.any((c) => item.colour.toLowerCase().contains(c.toLowerCase())),
-    ).length;
+    final matchedColours = look
+        .where((item) => profile.colours.any(
+              (c) => item.colour.toLowerCase().contains(c.toLowerCase()),
+            ))
+        .length;
     final favouriteCount = look.where((item) => item.isFavourite).length;
     final reason = matchedColours > 0
-        ? 'I kept $matchedColours ${matchedColours == 1 ? 'piece' : 'pieces'} close to your ${profile.season} palette, then balanced the look for a ${_occasion.toLowerCase()} setting.'
-        : 'I balanced the pieces for a ${_occasion.toLowerCase()} setting while keeping the recommendation grounded in what you already own.';
+        ? 'I chose these pieces because $matchedColours of them connect with your ${profile.season} colour palette. The combination keeps the ${_occasion.toLowerCase()} look intentional without feeling overdone.'
+        : 'I kept the look balanced for a ${_occasion.toLowerCase()} setting and prioritised pieces you already wear and save.';
 
     return Container(
       width: double.infinity,
@@ -413,21 +432,27 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
         children: [
           const Row(
             children: [
-              Icon(Icons.auto_awesome_rounded, color: AppColors.primary, size: 18),
+              Icon(Icons.auto_awesome_rounded,
+                  color: AppColors.primary, size: 18),
               SizedBox(width: 7),
-              Text('Why this works', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5)),
+              Text('Why this works',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5)),
             ],
           ),
           const SizedBox(height: 7),
-          Text(
-            reason,
-            style: const TextStyle(fontSize: 11.5, height: 1.45, color: AppColors.textSecondary),
-          ),
+          Text(reason,
+              style: const TextStyle(
+                  fontSize: 11.5,
+                  height: 1.45,
+                  color: AppColors.textSecondary)),
           if (favouriteCount > 0) ...[
             const SizedBox(height: 8),
             Text(
               '$favouriteCount favourite ${favouriteCount == 1 ? 'piece' : 'pieces'} included',
-              style: const TextStyle(color: AppColors.primary, fontSize: 10.5, fontWeight: FontWeight.w700),
+              style: const TextStyle(
+                  color: AppColors.primary,
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w700),
             ),
           ],
         ],
@@ -442,10 +467,11 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
         color: AppColors.sage.withValues(alpha: .25),
         borderRadius: BorderRadius.circular(AppRadius.full),
       ),
-      child: Text(
-        '$score% match',
-        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: AppColors.success),
-      ),
+      child: Text('$score% match',
+          style: const TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              color: AppColors.success)),
     );
   }
 
@@ -462,25 +488,28 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
                   ? Container(
                       color: AppColors.surfaceMuted,
                       width: double.infinity,
-                      child: const Center(child: Icon(Icons.checkroom_outlined, color: AppColors.primary)),
+                      child: const Center(
+                        child: Icon(Icons.checkroom_outlined,
+                            color: AppColors.primary),
+                      ),
                     )
-                  : CachedNetworkImage(imageUrl: item.imageUrl, fit: BoxFit.cover, width: double.infinity),
+                  : CachedNetworkImage(
+                      imageUrl: item.imageUrl,
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                    ),
             ),
           ),
           const SizedBox(height: 8),
-          Text(
-            item.name,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
-          ),
+          Text(item.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
           const SizedBox(height: 2),
-          Text(
-            '${item.category} · ${item.colour}',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: AppColors.textMuted, fontSize: 10.5),
-          ),
+          Text('${item.category} · ${item.colour}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: AppColors.textMuted, fontSize: 10.5)),
         ],
       ),
     );
@@ -494,10 +523,11 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppColors.border),
       ),
-      child: Text(
-        text,
-        style: const TextStyle(color: AppColors.textSecondary, height: 1.45, fontSize: 12.5),
-      ),
+      child: Text(text,
+          style: const TextStyle(
+              color: AppColors.textSecondary,
+              height: 1.45,
+              fontSize: 12.5)),
     );
   }
 }
