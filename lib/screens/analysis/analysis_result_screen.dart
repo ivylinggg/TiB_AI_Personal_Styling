@@ -3,19 +3,78 @@ import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_gradients.dart';
+import '../../data/season_colour_guide.dart';
 import '../../models/colour_analysis_result.dart';
+import '../../services/colour_report_service.dart';
 import '../../widgets/colour_swatch.dart';
+import 'season_colour_guide_screen.dart';
 
-/// Editorial colour-profile result. Users see the season first, then the
-/// useful palette and the natural next step into outfit styling.
-class AnalysisResultScreen extends StatelessWidget {
+class AnalysisResultScreen extends StatefulWidget {
   final ColourAnalysisResult result;
 
   const AnalysisResultScreen({super.key, required this.result});
 
   @override
+  State<AnalysisResultScreen> createState() => _AnalysisResultScreenState();
+}
+
+class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
+  bool _generatingReport = false;
+
+  ColourAnalysisResult get result => widget.result;
+
+  Future<void> _downloadReport() async {
+    if (_generatingReport) return;
+    setState(() => _generatingReport = true);
+
+    try {
+      final file = await ColourReportService.generateReport(result: result);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('PDF report saved to ${file.path}'),
+          action: SnackBarAction(
+            label: 'Share',
+            onPressed: () async {
+              await ColourReportService.generateAndShare(result: result);
+            },
+          ),
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not create the PDF report: $error')),
+      );
+    } finally {
+      if (mounted) setState(() => _generatingReport = false);
+    }
+  }
+
+  Future<void> _shareReport() async {
+    if (_generatingReport) return;
+    setState(() => _generatingReport = true);
+    try {
+      await ColourReportService.generateAndShare(
+        result: result,
+        shareText: 'My ${result.season} personal colour analysis from TiB.',
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not share the PDF report: $error')),
+      );
+    } finally {
+      if (mounted) setState(() => _generatingReport = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final profile = SeasonColourGuide.forSeason(result.season);
     final accent = AppColors.seasonAccent(result.season);
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -23,10 +82,22 @@ class AnalysisResultScreen extends StatelessWidget {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => Navigator.pop(context, true),
         ),
         title: const Text('Your Colour Season'),
         centerTitle: true,
+        actions: [
+          IconButton(
+            tooltip: 'Season Guide',
+            onPressed: _generatingReport
+                ? null
+                : () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const SeasonColourGuideScreen()),
+                    ),
+            icon: const Icon(Icons.menu_book_outlined),
+          ),
+        ],
       ),
       body: SafeArea(
         child: ListView(
@@ -38,17 +109,23 @@ class AnalysisResultScreen extends StatelessWidget {
             const SizedBox(height: 4),
             Text('${result.undertone} · ${result.brightness} · ${result.contrast}', style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
             const SizedBox(height: 18),
-            _hero(accent),
+            _hero(accent, profile),
             const SizedBox(height: 18),
             _attributeRow(accent),
-            const SizedBox(height: 26),
+            const SizedBox(height: 22),
+            _guideSummary(profile, accent),
+            const SizedBox(height: 24),
             const Text('Best Colours', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
             const SizedBox(height: 5),
             const Text('These shades are the easiest place to start when building outfits.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5, height: 1.4)),
             const SizedBox(height: 16),
-            if (result.colours.isEmpty) _emptyPalette() else _palette(),
+            if (profile.bestColours.isEmpty) _emptyPalette() else _palette(profile.bestColours),
             const SizedBox(height: 24),
-            _whyItWorks(accent),
+            _makeupSection('Eye Shadow Colour Advise', profile.eyeShadowColours, accent),
+            const SizedBox(height: 18),
+            _makeupSection('Blush Colour Advise', profile.blushColours, accent),
+            const SizedBox(height: 24),
+            _whyItWorks(accent, profile),
             if (result.imageUrl.isNotEmpty) ...[
               const SizedBox(height: 24),
               const Text('Your Analysis', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
@@ -65,9 +142,46 @@ class AnalysisResultScreen extends StatelessWidget {
                 ),
               ),
             ],
-            const SizedBox(height: 25),
+            const SizedBox(height: 24),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _generatingReport ? null : _downloadReport,
+                      icon: _generatingReport
+                          ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                          : const Icon(Icons.download_rounded),
+                      label: Text(_generatingReport ? 'Preparing…' : 'Download PDF'),
+                      style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(50)),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: _generatingReport ? null : _shareReport,
+                      icon: const Icon(Icons.ios_share_rounded),
+                      label: const Text('Share Report'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size.fromHeight(50),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
             FilledButton.icon(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => Navigator.pop(context, true),
               icon: const Icon(Icons.auto_awesome_rounded),
               label: const Text('Style an Outfit With My Colours'),
               style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(54), backgroundColor: AppColors.primary, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(17))),
@@ -78,29 +192,73 @@ class AnalysisResultScreen extends StatelessWidget {
     );
   }
 
-  Widget _hero(Color accent) {
+  Widget _hero(Color accent, SeasonColourProfile profile) {
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
-      decoration: BoxDecoration(gradient: AppGradients.season(result.season), borderRadius: BorderRadius.circular(26), boxShadow: [BoxShadow(color: accent.withValues(alpha: .18), blurRadius: 24, offset: const Offset(0, 10))]),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Text('YOUR PALETTE', style: TextStyle(color: Colors.white70, fontSize: 9.5, fontWeight: FontWeight.w800, letterSpacing: 1.1)),
-        const SizedBox(height: 10),
-        Text(result.season, style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w800)),
-        const SizedBox(height: 5),
-        const Text('A softer, more personal way to choose colours that feel like you.', style: TextStyle(color: Colors.white70, fontSize: 12.5, height: 1.4)),
-        if (result.colours.isNotEmpty) ...[
-          const SizedBox(height: 18),
-          SizedBox(
+      decoration: BoxDecoration(
+        gradient: AppGradients.season(result.season),
+        borderRadius: BorderRadius.circular(26),
+        boxShadow: [BoxShadow(color: accent.withValues(alpha: .18), blurRadius: 24, offset: const Offset(0, 10))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('YOUR PALETTE', style: TextStyle(color: Colors.white70, fontSize: 9.5, fontWeight: FontWeight.w800, letterSpacing: 1.1)),
+          const SizedBox(height: 10),
+          Text(result.season, style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 5),
+          Text(profile.description, style: const TextStyle(color: Colors.white70, fontSize: 12.5, height: 1.4)),
+          const SizedBox(height: 12),
+          Text(profile.dimension, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w800)),
+          if (profile.bestColours.isNotEmpty) ...[
+            const SizedBox(height: 18),
+            SizedBox(
+              height: 42,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: profile.bestColours.take(7).length,
+                separatorBuilder: (context, index) => const SizedBox(width: 7),
+                itemBuilder: (context, index) => ColourSwatch(name: profile.bestColours[index], size: 42),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _guideSummary(SeasonColourProfile profile, Color accent) {
+    return Container(
+      padding: const EdgeInsets.all(17),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(21),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 42,
             height: 42,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: result.colours.take(7).length,
-              separatorBuilder: (context, index) => const SizedBox(width: 7),
-              itemBuilder: (context, index) => ColourSwatch(name: result.colours[index], size: 42),
+            decoration: BoxDecoration(color: accent.withValues(alpha: .12), shape: BoxShape.circle),
+            child: Icon(Icons.auto_awesome_rounded, color: accent, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Your seasonal direction', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 4),
+                Text(profile.keywords.take(6).join(' • '), style: TextStyle(color: accent, fontSize: 11, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 5),
+                const Text('TiB uses this season reference for your wardrobe matching, makeup colour advice and AI styling prompts.', style: TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.4)),
+              ],
             ),
           ),
         ],
-      ]),
+      ),
     );
   }
 
@@ -110,11 +268,61 @@ class AnalysisResultScreen extends StatelessWidget {
     return Expanded(child: Container(margin: const EdgeInsets.only(right: 7), padding: const EdgeInsets.fromLTRB(9, 13, 9, 13), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border)), child: Column(children: [Icon(icon, color: accent, size: 20), const SizedBox(height: 8), Text(label, style: const TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w700)), const SizedBox(height: 3), Text(value, maxLines: 2, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800))])));
   }
 
-  Widget _palette() => Wrap(spacing: 14, runSpacing: 16, children: result.colours.map((colour) => ColourSwatch(name: colour, size: 58, showLabel: true)).toList());
+  Widget _palette(List<String> colours) => Wrap(spacing: 14, runSpacing: 16, children: colours.map((colour) => ColourSwatch(name: colour, size: 58, showLabel: true)).toList());
+
+  Widget _makeupSection(String title, List<String> colours, Color accent) {
+    return Container(
+      padding: const EdgeInsets.all(17),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 9),
+          Wrap(
+            spacing: 8,
+            runSpacing: 7,
+            children: colours.map((colour) => Chip(
+              avatar: CircleAvatar(backgroundColor: ColourNameMapper.colourFor(colour), radius: 8),
+              label: Text(colour, style: const TextStyle(fontSize: 10.5)),
+              side: BorderSide(color: accent.withValues(alpha: .14)),
+            )).toList(),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _emptyPalette() => Container(padding: const EdgeInsets.all(18), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.border)), child: const Text('Your saved result does not contain a colour palette yet. You can run the analysis again later.', style: TextStyle(color: AppColors.textSecondary, height: 1.45, fontSize: 12)));
 
-  Widget _whyItWorks(Color accent) {
-    return Container(padding: const EdgeInsets.all(19), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Container(width: 42, height: 42, decoration: BoxDecoration(color: accent.withValues(alpha: .14), shape: BoxShape.circle), child: Icon(Icons.auto_awesome_rounded, color: accent, size: 20)), const SizedBox(width: 12), const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Why it works', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)), SizedBox(height: 5), Text('Your natural colouring is the starting point. Use these shades to make outfits feel more harmonious, then mix them with neutrals and pieces you already love.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.45))]))]));
+  Widget _whyItWorks(Color accent, SeasonColourProfile profile) {
+    return Container(
+      padding: const EdgeInsets.all(19),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(width: 42, height: 42, decoration: BoxDecoration(color: accent.withValues(alpha: .14), shape: BoxShape.circle), child: Icon(Icons.auto_awesome_rounded, color: accent, size: 20)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Why it works', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 5),
+                Text(
+                  '${profile.description} TiB uses your detected undertone, brightness and contrast as the starting point, then applies the season guide colours to your wardrobe and styling recommendations.',
+                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.45),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
