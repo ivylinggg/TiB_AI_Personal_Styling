@@ -6,13 +6,15 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../core/constants/app_colors.dart';
+import '../core/constants/app_radius.dart';
 import '../services/mlkit_service.dart';
 
-/// Live face scan used by the fifth flash-profile step.
+/// Live Face ID-style scanner shared by Colour Analysis and Flash Profile.
 ///
-/// The user does not press a shutter button and does not take five photos.
-/// The front camera stays live while TiB repeatedly checks temporary frames
-/// until one clear, centred face has been stable for several checks.
+/// The user keeps their face straight and centred while the front camera
+/// continuously checks temporary frames. No shutter button and no
+/// left/right/up/down poses are required. Once a valid scan is found, the
+/// user can review it, retry the scan, or continue with the captured face.
 class FlashFaceScanPanel extends StatefulWidget {
   final ValueChanged<File> onCaptured;
   final bool busy;
@@ -37,6 +39,7 @@ class _FlashFaceScanPanelState extends State<FlashFaceScanPanel>
   String? _error;
   String _status = 'Look straight at the camera and hold still.';
   int _stableChecks = 0;
+  File? _capturedFile;
 
   late final AnimationController _pulseController;
 
@@ -111,6 +114,25 @@ class _FlashFaceScanPanelState extends State<FlashFaceScanPanel>
     _scanTimer = null;
   }
 
+  void _retryScan() {
+    if (!mounted || widget.busy) return;
+    setState(() {
+      _capturedFile = null;
+      _completed = false;
+      _checkingFrame = false;
+      _stableChecks = 0;
+      _status = 'Look straight at the camera and hold still.';
+    });
+    _startScanning();
+  }
+
+  void _continueWithScan() {
+    final file = _capturedFile;
+    if (file == null || !mounted || widget.busy) return;
+    setState(() => _status = 'Creating your colour profile…');
+    widget.onCaptured(file);
+  }
+
   @override
   void dispose() {
     _stopScanning();
@@ -125,6 +147,7 @@ class _FlashFaceScanPanelState extends State<FlashFaceScanPanel>
         widget.busy ||
         _completed ||
         _checkingFrame ||
+        _capturedFile != null ||
         controller == null ||
         !controller.value.isInitialized) {
       return;
@@ -178,12 +201,12 @@ class _FlashFaceScanPanelState extends State<FlashFaceScanPanel>
       _stableChecks += 1;
       if (_stableChecks >= 3) {
         _completed = true;
+        _capturedFile = file;
         _stopScanning();
         setState(() {
           _checkingFrame = false;
-          _status = 'Face detected — analysing your colouring…';
+          _status = 'Face scan complete. Review it before continuing.';
         });
-        widget.onCaptured(file);
         return;
       }
 
@@ -202,7 +225,9 @@ class _FlashFaceScanPanelState extends State<FlashFaceScanPanel>
   }
 
   Future<void> _gallery() async {
-    if (_checkingFrame || widget.busy || _completed) return;
+    if (_checkingFrame || widget.busy || _completed || _capturedFile != null) {
+      return;
+    }
 
     _stopScanning();
 
@@ -238,12 +263,12 @@ class _FlashFaceScanPanelState extends State<FlashFaceScanPanel>
         return;
       }
 
+      _capturedFile = file;
       _completed = true;
       setState(() {
         _checkingFrame = false;
-        _status = 'Face detected — analysing your colouring…';
+        _status = 'Face scan complete. Review it before continuing.';
       });
-      widget.onCaptured(file);
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -324,16 +349,53 @@ class _FlashFaceScanPanelState extends State<FlashFaceScanPanel>
             ),
           ),
         ),
-        const SizedBox(height: 9),
-        Material(
-          color: AppColors.surface,
-          shape: const CircleBorder(),
-          child: IconButton(
-            tooltip: 'Choose from gallery',
-            onPressed: _checkingFrame || widget.busy ? null : _gallery,
-            icon: const Icon(Icons.photo_outlined, size: 22),
+        const SizedBox(height: 11),
+        if (_capturedFile != null && !widget.busy)
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _retryScan,
+                  icon: const Icon(Icons.refresh_rounded, size: 18),
+                  label: const Text('Retry Scan'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.primaryDark,
+                    side: const BorderSide(color: AppColors.border),
+                    minimumSize: const Size.fromHeight(46),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: _continueWithScan,
+                  icon: const Icon(Icons.check_rounded, size: 18),
+                  label: const Text('Continue'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size.fromHeight(46),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          )
+        else
+          Material(
+            color: AppColors.surface,
+            shape: const CircleBorder(),
+            child: IconButton(
+              tooltip: 'Choose from gallery',
+              onPressed: _checkingFrame || widget.busy ? null : _gallery,
+              icon: const Icon(Icons.photo_outlined, size: 22),
+            ),
           ),
-        ),
         const SizedBox(height: 3),
       ],
     );
@@ -527,6 +589,7 @@ class _FaceGuidePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _FaceGuidePainter oldDelegate) {
-    return oldDelegate.active != active || oldDelegate.pulse.value != pulse.value;
+    return oldDelegate.active != active ||
+        oldDelegate.pulse.value != pulse.value;
   }
 }
