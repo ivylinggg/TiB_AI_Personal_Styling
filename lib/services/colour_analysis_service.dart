@@ -3,17 +3,24 @@ import 'dart:math' as math;
 
 import 'package:image/image.dart' as img;
 
+import '../data/season_colour_guide.dart';
 import '../models/colour_analysis_result.dart';
 
 class ColourAnalysisService {
   ColourAnalysisService._();
 
-  /// Performs a deterministic image-based colour analysis.
+  /// Analyses the selected portrait image using the detected facial-area
+  /// colours plus overall brightness/contrast, then maps the result to the
+  /// four-season framework from the user's colour guide:
   ///
-  /// This is intentionally kept inside the service layer so the UI/provider
-  /// does not contain analysis logic. It is not a trained AI model; it uses
-  /// sampled facial-area colours to estimate undertone, brightness and
-  /// contrast and then maps those measurements to a seasonal palette.
+  /// Winter  = Deep • Cool • Clear
+  /// Summer  = Soft • Cool • Light
+  /// Spring  = Light • Warm • Clear
+  /// Autumn  = Deep • Warm • Muted
+  ///
+  /// This remains an on-device deterministic analysis rather than a trained
+  /// vision model. The existing ML Kit face detection in AnalysisProvider is
+  /// still used first to ensure there is exactly one face in the source image.
   static Future<ColourAnalysisResult> analyse({
     required File image,
     required String imageUrl,
@@ -26,7 +33,6 @@ class ColourAnalysisService {
     }
 
     final source = img.bakeOrientation(decoded);
-
     final sample = _sampleSkinRegion(source);
 
     if (sample.count == 0) {
@@ -44,21 +50,23 @@ class ColourAnalysisService {
       contrast: contrast,
     );
 
+    final guide = SeasonColourGuide.forSeason(season);
+
     return ColourAnalysisResult(
       season: season,
       undertone: undertone,
       brightness: brightness,
       contrast: contrast,
       imageUrl: imageUrl,
-      colours: _paletteForSeason(season),
+      colours: guide.bestColours,
     );
   }
 
   static _ColourSample _sampleSkinRegion(img.Image image) {
     final left = (image.width * 0.25).round();
     final right = (image.width * 0.75).round();
-    final top = (image.height * 0.22).round();
-    final bottom = (image.height * 0.62).round();
+    final top = (image.height * 0.18).round();
+    final bottom = (image.height * 0.68).round();
 
     var red = 0.0;
     var green = 0.0;
@@ -66,9 +74,8 @@ class ColourAnalysisService {
     var luminance = 0.0;
     var count = 0;
 
-    // Sample every few pixels to keep analysis fast on mobile.
-    for (var y = top; y < bottom; y += 8) {
-      for (var x = left; x < right; x += 8) {
+    for (var y = top; y < bottom; y += 6) {
+      for (var x = left; x < right; x += 6) {
         final pixel = image.getPixel(x, y);
         final r = pixel.r.toDouble();
         final g = pixel.g.toDouble();
@@ -84,9 +91,7 @@ class ColourAnalysisService {
       }
     }
 
-    if (count == 0) {
-      return _ColourSample.empty();
-    }
+    if (count == 0) return _ColourSample.empty();
 
     return _ColourSample(
       red: red / count,
@@ -102,29 +107,23 @@ class ColourAnalysisService {
     final minValue = math.min(r, math.min(g, b));
 
     if (maxValue - minValue < 12) return false;
-    if (r < 60 || g < 35 || b < 25) return false;
+    if (r < 55 || g < 30 || b < 20) return false;
 
-    return r > g * 0.92 && g > b * 0.95;
+    return r > g * 0.90 && g > b * 0.92;
   }
 
-  static String _undertone(
-    double red,
-    double green,
-    double blue,
-  ) {
+  static String _undertone(double red, double green, double blue) {
     final warmScore = ((red - blue) + (green - blue)) / 2;
     final coolScore = blue - ((red + green) / 2);
+    final difference = warmScore - coolScore;
 
-    if ((warmScore - coolScore).abs() < 12) {
-      return 'Neutral';
-    }
-
-    return warmScore > coolScore ? 'Warm' : 'Cool';
+    if (difference.abs() < 16) return 'Neutral';
+    return difference > 0 ? 'Warm' : 'Cool';
   }
 
   static String _brightness(double luminance) {
     if (luminance >= 190) return 'Light';
-    if (luminance >= 135) return 'Medium';
+    if (luminance >= 132) return 'Medium';
     return 'Deep';
   }
 
@@ -153,9 +152,8 @@ class ColourAnalysisService {
     }
 
     final range = maxValue - minValue;
-
     if (range >= 150) return 'High';
-    if (range >= 90) return 'Medium';
+    if (range >= 95) return 'Medium';
     return 'Low';
   }
 
@@ -165,38 +163,22 @@ class ColourAnalysisService {
     required String contrast,
   }) {
     if (undertone == 'Warm') {
-      if (brightness == 'Light') return 'Warm Spring';
-      if (contrast == 'High') return 'Warm Autumn';
-      return 'Warm Autumn';
+      // PDF standard: Spring = Light/Warm/Clear; Autumn = Deep/Warm/Muted.
+      return brightness == 'Light' && contrast != 'Low' ? 'Spring' : 'Autumn';
     }
 
     if (undertone == 'Cool') {
-      if (brightness == 'Light') return 'Cool Summer';
-      return 'Cool Winter';
+      // PDF standard: Summer = Soft/Cool/Light; Winter = Deep/Cool/Clear.
+      return brightness == 'Light' && contrast != 'High' ? 'Summer' : 'Winter';
     }
 
-    if (brightness == 'Light') return 'Soft Summer';
-    if (contrast == 'High') return 'Clear Winter';
-    return 'Soft Autumn';
-  }
-
-  static List<String> _paletteForSeason(String season) {
-    switch (season) {
-      case 'Warm Spring':
-        return const ['Peach', 'Coral', 'Cream', 'Camel', 'Olive'];
-      case 'Warm Autumn':
-        return const ['Terracotta', 'Rust', 'Camel', 'Mustard', 'Olive'];
-      case 'Cool Summer':
-        return const ['Rose', 'Mauve', 'Dusty Blue', 'Lavender', 'Soft Grey'];
-      case 'Cool Winter':
-        return const ['Berry', 'Navy', 'Emerald', 'Charcoal', 'Crisp White'];
-      case 'Clear Winter':
-        return const ['Ruby', 'Cobalt', 'Emerald', 'Black', 'Pure White'];
-      case 'Soft Summer':
-        return const ['Dusty Rose', 'Sage', 'Mauve', 'Powder Blue', 'Taupe'];
-      default:
-        return const ['Terracotta', 'Olive', 'Cream', 'Camel', 'Warm Rose'];
-    }
+    // Neutral undertones need a visual tie-breaker. Light/soft colouring is
+    // placed into Summer, while deeper/high-contrast colouring is placed into
+    // Winter; medium/deep lower-contrast colouring leans Autumn.
+    if (brightness == 'Light' && contrast != 'High') return 'Summer';
+    if (contrast == 'High') return brightness == 'Light' ? 'Spring' : 'Winter';
+    if (brightness == 'Deep') return 'Autumn';
+    return 'Autumn';
   }
 }
 
