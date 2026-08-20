@@ -99,7 +99,7 @@ class ColourReportService {
 
   static void _metricCard(PdfPage page, double x, double y, double width, String label, String value, PdfColor accent, PdfColor dark) {
     page.graphics.drawRectangle(brush: PdfSolidBrush(PdfColor(250, 248, 251)), pen: PdfPen(PdfColor(225, 219, 228)), bounds: ui.Rect.fromLTWH(x, y, width, 66));
-    page.graphics.drawEllipse(PdfSolidBrush(accent), ui.Rect.fromLTWH(x + 12, y + 14, 16, 16));
+    page.graphics.drawEllipse(ui.Rect.fromLTWH(x + 12, y + 14, 16, 16), brush: PdfSolidBrush(accent));
     _text(page, label, PdfStandardFont(PdfFontFamily.helvetica, 8, style: PdfFontStyle.bold), PdfColor(120, 114, 122), ui.Rect.fromLTWH(x + 36, y + 12, width - 48, 12));
     _text(page, value, PdfStandardFont(PdfFontFamily.helvetica, 12, style: PdfFontStyle.bold), dark, ui.Rect.fromLTWH(x + 12, y + 34, width - 24, 18));
   }
@@ -115,12 +115,14 @@ class ColourReportService {
       final col = i % columns;
       final x = startX + col * (swatch + gapX);
       final top = y + row * gapY;
-      page.graphics.drawRectangle(brush: PdfSolidBrush(_colourFor(names[i], accent)), pen: PdfPen(PdfColor(230, 224, 232)), bounds: ui.Rect.fromLTWH(x, top, swatch, 27));
+      graphicsFor(page).drawRectangle(brush: PdfSolidBrush(_colourFor(names[i], accent)), pen: PdfPen(PdfColor(230, 224, 232)), bounds: ui.Rect.fromLTWH(x, top, swatch, 27));
       _text(page, names[i], PdfStandardFont(PdfFontFamily.helvetica, 6.6), dark, ui.Rect.fromLTWH(x, top + 30, swatch, 16), alignCenter: true);
     }
     final rows = (names.length / columns).ceil();
     return y + rows * gapY;
   }
+
+  static PdfGraphics graphicsFor(PdfPage page) => page.graphics;
 
   static double _drawKeywords(PdfPage page, List<String> keywords, double y, PdfColor accent, PdfColor dark, PdfColor soft) {
     var x = 28.0;
@@ -169,7 +171,7 @@ class ColourReportService {
       alignment: alignCenter ? PdfTextAlignment.center : alignRight ? PdfTextAlignment.right : PdfTextAlignment.left,
       lineAlignment: PdfVerticalAlignment.middle,
     );
-    PdfTextElement(text: text, font: font, brush: PdfSolidBrush(color)).draw(page: page, bounds: bounds, format: format);
+    PdfTextElement(text: text, font: font, brush: PdfSolidBrush(color)).draw(page: page, bounds: bounds, format: format as PdfLayoutFormat?);
   }
 
   static PdfColor _seasonColor(String season) {
