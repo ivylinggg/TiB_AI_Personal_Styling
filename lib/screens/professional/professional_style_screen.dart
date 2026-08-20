@@ -40,7 +40,7 @@ class ProfessionalStyleScreen extends StatelessWidget {
           const SizedBox(height: 10),
           _avoidCard(avoid, accent),
           const SizedBox(height: 20),
-          _sectionTitle('Professional / Work Styling', 'Pick the situation and use the brief when planning your next look.'),
+          _sectionTitle('Professional / Work Styling', 'Pick the situation and send the brief straight into TiB AI Stylist.'),
           const SizedBox(height: 10),
           Wrap(
             spacing: 8,
@@ -49,7 +49,7 @@ class ProfessionalStyleScreen extends StatelessWidget {
                 .map(
                   (occasion) => ActionChip(
                     label: Text(occasion),
-                    onPressed: () => _showOccasion(context, occasion, accent),
+                    onPressed: () => _openAiForOccasion(context, occasion),
                     backgroundColor: AppColors.lavenderMist,
                     side: BorderSide(color: accent.withValues(alpha: .18)),
                   ),
@@ -58,20 +58,17 @@ class ProfessionalStyleScreen extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           _guidanceCard(ProfessionalStyleData.occasionGuidance, accent),
-          const SizedBox(height: 20),
+          const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const AIStylistScreen()),
-              ),
+            child: OutlinedButton.icon(
+              onPressed: () => _openAiForOccasion(context, 'Professional / Work Styling'),
               icon: const Icon(Icons.auto_awesome_rounded),
-              label: const Text('Continue with TiB AI Stylist'),
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                minimumSize: const Size.fromHeight(52),
+              label: const Text('Open AI Stylist'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primaryDark,
+                side: const BorderSide(color: AppColors.border),
+                minimumSize: const Size.fromHeight(50),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               ),
             ),
@@ -101,6 +98,21 @@ class ProfessionalStyleScreen extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Future<void> _openAiForOccasion(BuildContext context, String occasion) async {
+    final result = context.read<AnalysisProvider>().result;
+    final season = result?.season ?? 'your personal';
+    final prompt = occasion == 'Professional / Work Styling'
+        ? 'Create a professional work look using my $season colour direction.'
+        : 'Style me for $occasion using my $season colour direction.';
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AIStylistScreen(initialPrompt: prompt),
       ),
     );
   }
@@ -258,33 +270,6 @@ class ProfessionalStyleScreen extends StatelessWidget {
             const SizedBox(height: 3),
             Text(subtitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.5)),
           ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _showOccasion(BuildContext context, String occasion, Color accent) async {
-    final points = ProfessionalStyleData.occasionGuidance[occasion] ?? const <String>[];
-    await showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      backgroundColor: AppColors.background,
-      builder: (sheetContext) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 6, 20, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(occasion, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
-              const SizedBox(height: 8),
-              Text('Use your ${context.read<AnalysisProvider>().result?.season ?? 'personal'} colour direction and keep these cues in mind:', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.4)),
-              const SizedBox(height: 12),
-              ...points.map((point) => Padding(padding: const EdgeInsets.only(bottom: 7), child: Row(children: [Icon(Icons.check_circle_outline_rounded, color: accent, size: 17), const SizedBox(width: 8), Expanded(child: Text(point, style: const TextStyle(fontSize: 12.5)))]))),
-              const SizedBox(height: 8),
-              SizedBox(width: double.infinity, child: FilledButton(onPressed: () => Navigator.pop(sheetContext), child: const Text('Got it'))),
-            ],
-          ),
         ),
       ),
     );
