@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
 import '../../data/professional_style_data.dart';
 import '../../providers/analysis_provider.dart';
+import '../profile/personal_brand_screen.dart';
+import '../wardrobe/wardrobe_audit_screen.dart';
 
 class ProfessionalStyleScreen extends StatelessWidget {
   const ProfessionalStyleScreen({super.key});
@@ -37,7 +39,7 @@ class ProfessionalStyleScreen extends StatelessWidget {
           const SizedBox(height: 10),
           _avoidCard(avoid, accent),
           const SizedBox(height: 20),
-          _sectionTitle('Professional / Work Styling', 'Pick the situation and use the brief in AI Stylist.'),
+          _sectionTitle('Professional / Work Styling', 'Pick the situation and use the brief when planning your next look.'),
           const SizedBox(height: 10),
           Wrap(
             spacing: 8,
@@ -46,7 +48,7 @@ class ProfessionalStyleScreen extends StatelessWidget {
                 .map(
                   (occasion) => ActionChip(
                     label: Text(occasion),
-                    onPressed: () => Navigator.pop(context, occasion),
+                    onPressed: () => _showOccasion(context, occasion, accent),
                     backgroundColor: AppColors.lavenderMist,
                     side: BorderSide(color: accent.withValues(alpha: .18)),
                   ),
@@ -55,6 +57,32 @@ class ProfessionalStyleScreen extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           _guidanceCard(ProfessionalStyleData.occasionGuidance, accent),
+          const SizedBox(height: 20),
+          _sectionTitle('Your Styling Toolkit', 'Turn the professional guidance into an ongoing personal profile.'),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: _toolButton(
+                  context,
+                  icon: Icons.checkroom_outlined,
+                  title: 'Wardrobe Audit',
+                  subtitle: 'Balance & capsule',
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const WardrobeAuditScreen())),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _toolButton(
+                  context,
+                  icon: Icons.workspace_premium_outlined,
+                  title: 'Personal Brand',
+                  subtitle: 'Image direction',
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PersonalBrandScreen())),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -184,6 +212,64 @@ class ProfessionalStyleScreen extends StatelessWidget {
                 .toList(),
           );
         }).toList(),
+      ),
+    );
+  }
+
+  Widget _toolButton(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: Ink(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: AppColors.primary, size: 22),
+            const SizedBox(height: 9),
+            Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5)),
+            const SizedBox(height: 3),
+            Text(subtitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.5)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showOccasion(BuildContext context, String occasion, Color accent) async {
+    final points = ProfessionalStyleData.occasionGuidance[occasion] ?? const <String>[];
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: AppColors.background,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 6, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(occasion, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 8),
+              Text('Use your ${context.read<AnalysisProvider>().result?.season ?? 'personal'} colour direction and keep these cues in mind:', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.4)),
+              const SizedBox(height: 12),
+              ...points.map((point) => Padding(padding: const EdgeInsets.only(bottom: 7), child: Row(children: [Icon(Icons.check_circle_outline_rounded, color: accent, size: 17), const SizedBox(width: 8), Expanded(child: Text(point, style: const TextStyle(fontSize: 12.5)))]))),
+              const SizedBox(height: 8),
+              SizedBox(width: double.infinity, child: FilledButton(onPressed: () => Navigator.pop(sheetContext), child: const Text('Got it'))),
+            ],
+          ),
+        ),
       ),
     );
   }
