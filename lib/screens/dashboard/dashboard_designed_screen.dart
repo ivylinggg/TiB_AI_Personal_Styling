@@ -33,7 +33,6 @@ class DashboardDesignedScreen extends StatefulWidget {
 class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
   String _name = '';
   String? _photoUrl;
-  bool _loading = true;
   bool _premium = false;
   List<WardrobeItem> _wardrobe = const [];
   Map<String, dynamic>? _stylePrefs;
@@ -46,10 +45,7 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
 
   Future<void> _load() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) {
-      if (mounted) setState(() => _loading = false);
-      return;
-    }
+    if (uid == null) return;
 
     try {
       final values = await Future.wait<dynamic>([
@@ -65,10 +61,9 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
         _premium = user?['isPremium'] == true;
         _wardrobe = values[1] as List<WardrobeItem>;
         _stylePrefs = values[2] as Map<String, dynamic>?;
-        _loading = false;
       });
     } catch (_) {
-      if (mounted) setState(() => _loading = false);
+      // Keep the dashboard usable with whatever data has already loaded.
     }
   }
 
@@ -141,7 +136,7 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
             children: [
               Text(greeting, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
               const SizedBox(height: 1),
-              Text('Good $name! ✨'.replaceFirst('Good Good', 'Good'), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -.5)),
+              Text('$greeting, $name! ✨', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -.5)),
               const SizedBox(height: 1),
               Text(
                 result == null ? 'Let’s make today feel more like you.' : '${result.season} • ${result.undertone}',
@@ -263,11 +258,7 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
           Text('$score', style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w900)),
           const Text(' /100', style: TextStyle(color: AppColors.textMuted, fontSize: 11, fontWeight: FontWeight.w700)),
           const Spacer(),
-          SizedBox(
-            width: 48,
-            height: 32,
-            child: CustomPaint(painter: _ScorePainter(score / 100)),
-          ),
+          SizedBox(width: 48, height: 32, child: CustomPaint(painter: _ScorePainter(score / 100))),
         ],
       ),
     );
@@ -277,19 +268,10 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
     final completed = _wardrobe.where((item) => item.isFavourite).length;
     return Container(
       padding: const EdgeInsets.fromLTRB(15, 14, 15, 13),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.border),
-      ),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border)),
       child: Row(
         children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: const BoxDecoration(color: Color(0xFFF7EDE5), shape: BoxShape.circle),
-            child: const Icon(Icons.emoji_events_outlined, color: AppColors.brown),
-          ),
+          Container(width: 44, height: 44, decoration: const BoxDecoration(color: Color(0xFFF7EDE5), shape: BoxShape.circle), child: const Icon(Icons.emoji_events_outlined, color: AppColors.brown)),
           const SizedBox(width: 10),
           const Expanded(
             child: Column(
@@ -353,7 +335,7 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
               : ListView.separated(
                   scrollDirection: Axis.horizontal,
                   itemCount: _wardrobe.take(5).length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 9),
+                  separatorBuilder: (_, index) => const SizedBox(width: 9),
                   itemBuilder: (_, index) => _wardrobeCard(_wardrobe[index]),
                 ),
         ),
@@ -367,11 +349,7 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
       borderRadius: BorderRadius.circular(18),
       child: Ink(
         width: 94,
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: AppColors.border),
-        ),
+        decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border)),
         child: Column(
           children: [
             Expanded(
@@ -382,10 +360,7 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
                     : CachedNetworkImage(imageUrl: item.imageUrl, width: double.infinity, fit: BoxFit.cover),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(7, 5, 7, 6),
-              child: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800)),
-            ),
+            Padding(padding: const EdgeInsets.fromLTRB(7, 5, 7, 6), child: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800))),
           ],
         ),
       ),
@@ -409,29 +384,26 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
       children: [
         Expanded(child: _quickTile(Icons.auto_awesome_rounded, 'Style Me', () => _open(const StyleMeScreen()))),
         const SizedBox(width: 9),
-        Expanded(child: _quickTile(Icons.tune_rounded, 'Preferences', () => _open(const StylePreferencesScreen()))),
-        const SizedBox(width: 9),
         Expanded(child: _quickTile(Icons.palette_outlined, 'Colours', () => _open(const AnalysisScreen()))),
+        const SizedBox(width: 9),
+        Expanded(child: _quickTile(Icons.tune_rounded, 'Preferences', () => _open(const StylePreferencesScreen()))),
       ],
     );
   }
 
-  Widget _quickTile(IconData icon, String title, VoidCallback onTap) {
-    return Material(
-      color: AppColors.surface,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          child: Column(
-            children: [
-              Icon(icon, color: AppColors.primaryDark, size: 19),
-              const SizedBox(height: 5),
-              Text(title, style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700)),
-            ],
-          ),
+  Widget _quickTile(IconData icon, String label, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: Ink(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 13),
+        decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border)),
+        child: Column(
+          children: [
+            Icon(icon, color: AppColors.primary, size: 20),
+            const SizedBox(height: 6),
+            Text(label, style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800)),
+          ],
         ),
       ),
     );
@@ -463,15 +435,9 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
     return Material(
       color: AppColors.surface,
       borderRadius: BorderRadius.circular(18),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
-        child: child,
-      ),
+      child: InkWell(onTap: onTap, borderRadius: BorderRadius.circular(18), child: child),
     );
   }
-
-  TextStyle _eyebrow() => const TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: .65);
 
   Future<void> _showMenu() async {
     final action = await showModalBottomSheet<_MenuAction>(
@@ -499,34 +465,37 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
     if (!mounted || action == null) return;
     switch (action) {
       case _MenuAction.profile:
-        _open(const ProfileScreen());
+        await _open(const ProfileScreen());
         break;
       case _MenuAction.savedLooks:
-        _open(const SavedLooksScreen());
+        await _open(const SavedLooksScreen());
         break;
       case _MenuAction.preferences:
-        _open(const StylePreferencesScreen());
+        await _open(const StylePreferencesScreen());
         break;
       case _MenuAction.colours:
-        _open(const AnalysisScreen());
+        await _open(const AnalysisScreen());
         break;
       case _MenuAction.wardrobe:
-        _open(const WardrobeScreen());
+        await _open(const WardrobeScreen());
         break;
     }
   }
 
-  Widget _menuItem(BuildContext ctx, IconData icon, String title, _MenuAction action) {
+  Widget _menuItem(BuildContext sheetContext, IconData icon, String title, _MenuAction action) {
     return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: Container(width: 40, height: 40, decoration: const BoxDecoration(color: AppColors.primarySoft, shape: BoxShape.circle), child: Icon(icon, color: AppColors.primaryDark, size: 19)),
-      title: Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+      leading: Container(width: 42, height: 42, decoration: const BoxDecoration(color: AppColors.surfaceMuted, shape: BoxShape.circle), child: Icon(icon, color: AppColors.primary)),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
       trailing: const Icon(Icons.chevron_right_rounded),
-      onTap: () => Navigator.pop(ctx, action),
+      onTap: () => Navigator.pop(sheetContext, action),
     );
   }
 
-  void _open(Widget page) => Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+  Future<void> _open(Widget page) async {
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+    if (mounted) _load();
+  }
 }
 
 enum _MenuAction { profile, savedLooks, preferences, colours, wardrobe }
@@ -534,47 +503,41 @@ enum _MenuAction { profile, savedLooks, preferences, colours, wardrobe }
 class _HeroPill extends StatelessWidget {
   final String label;
   const _HeroPill({required this.label});
-
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(color: AppColors.eggYolk, borderRadius: BorderRadius.circular(AppRadius.full)),
-        child: Text(label, style: const TextStyle(color: AppColors.primaryDark, fontSize: 10.5, fontWeight: FontWeight.w800)),
-      );
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(color: Colors.white.withValues(alpha: .16), borderRadius: BorderRadius.circular(AppRadius.full)),
+      child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.w800)),
+    );
+  }
 }
 
 class _MiniTag extends StatelessWidget {
   final String label;
   const _MiniTag({required this.label});
-
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-        decoration: BoxDecoration(color: AppColors.eggYolk, borderRadius: BorderRadius.circular(10)),
-        child: Text(label, style: const TextStyle(color: AppColors.primaryDark, fontSize: 7.5, fontWeight: FontWeight.w900)),
-      );
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+      decoration: BoxDecoration(color: AppColors.eggYolk, borderRadius: BorderRadius.circular(AppRadius.full)),
+      child: const Text('PERSONALISED', style: TextStyle(color: AppColors.primaryDark, fontSize: 8, fontWeight: FontWeight.w800)),
+    );
+  }
 }
 
 class _ScorePainter extends CustomPainter {
-  final double value;
-  const _ScorePainter(this.value);
-
+  final double progress;
+  _ScorePainter(this.progress);
   @override
   void paint(Canvas canvas, Size size) {
-    final path = Path();
-    final points = <Offset>[];
-    for (var i = 0; i < 6; i++) {
-      final x = i * size.width / 5;
-      final wave = (i.isEven ? .68 : .35) + (1 - value) * .12;
-      points.add(Offset(x, size.height * wave));
-    }
-    path.moveTo(points.first.dx, points.first.dy);
-    for (var i = 1; i < points.length; i++) {
-      path.lineTo(points[i].dx, points[i].dy);
-    }
-    canvas.drawPath(path, Paint()..color = AppColors.primary..strokeWidth = 2.2..style = PaintingStyle.stroke..strokeCap = StrokeCap.round);
+    final stroke = size.height * .28;
+    final rect = Rect.fromLTWH(stroke, stroke, size.width - stroke * 2, size.height - stroke * 2);
+    final bg = Paint()..color = AppColors.border..style = PaintingStyle.stroke..strokeWidth = stroke..strokeCap = StrokeCap.round;
+    final fg = Paint()..color = AppColors.primary..style = PaintingStyle.stroke..strokeWidth = stroke..strokeCap = StrokeCap.round;
+    canvas.drawArc(rect, 3.4, 5.75, false, bg);
+    canvas.drawArc(rect, 3.4, 5.75 * progress.clamp(0, 1), false, fg);
   }
-
   @override
-  bool shouldRepaint(covariant _ScorePainter oldDelegate) => oldDelegate.value != value;
+  bool shouldRepaint(covariant _ScorePainter oldDelegate) => oldDelegate.progress != progress;
 }
