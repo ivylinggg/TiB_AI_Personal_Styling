@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 
@@ -33,9 +34,14 @@ class AiStylingResult {
 /// checked against Firestore) and, only then, asks Claude for a real
 /// personalised pick from the user's own wardrobe.
 ///
+/// The existing wardrobe, colour and style preference behaviour is kept.
+/// When the user has saved a Personal Brand profile, that profile is also
+/// supplied as additional context so professional styling recommendations
+/// can respect the impression the user wants to create.
+///
 /// This never throws and never surfaces a network/AI error to the caller --
-/// any failure (not Premium, offline, timeout, AI unavailable) simply
-/// returns null so the screen can fall back to the local heuristic engine.
+/// any failure simply returns null so the screen can fall back to the local
+/// heuristic engine.
 class AiStylingService {
   AiStylingService._();
 
@@ -61,6 +67,48 @@ class AiStylingService {
       if (idToken == null || idToken.isEmpty) {
         return null;
       }
+
+      Map<String, dynamic> personalBrand = const {};
+      try {
+        final userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
+        final raw = userDoc.data()?['personalBrand'];
+        if (raw is Map<String, dynamic>) {
+          personalBrand = raw;
+        }
+      } catch (_) {
+        // Personal Brand is optional; AI styling continues without it.
+      }
+
+      final role = personalBrand['role'] is String
+          ? (personalBrand['role'] as String).trim()
+          : '';
+      final impressions = personalBrand['impressions'] is List
+          ? (personalBrand['impressions'] as List)
+              .whereType<String>()
+              .map((value) => value.trim())
+              .where((value) => value.isNotEmpty)
+              .take(4)
+              .toList()
+          : const <String>[];
+      final statement = personalBrand['statement'] is String
+          ? (personalBrand['statement'] as String).trim()
+          : '';
+
+      final brandContext = <String>[];
+      if (role.isNotEmpty) brandContext.add('Role: $role');
+      if (impressions.isNotEmpty) {
+        brandContext.add('Desired impression: ${impressions.join(', ')}');
+      }
+      if (statement.isNotEmpty) {
+        brandContext.add('Personal brand statement: $statement');
+      }
+
+      final enrichedOccasion = brandContext.isEmpty
+          ? occasion
+          : '$occasion\n\nPersonal Brand context:\n${brandContext.join('\n')}';
 
       final response = await http
           .post(
@@ -91,7 +139,8 @@ class AiStylingService {
                   .toList(),
               'styles': styles,
               'preferences': preferences,
-              'occasion': occasion,
+              'occasion': enrichedOccasion,
+              'personalBrand': personalBrand,
               if (selectedItem != null)
                 'selectedItem': {
                   'id': selectedItem.id,
