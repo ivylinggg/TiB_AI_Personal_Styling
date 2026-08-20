@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../core/constants/app_colors.dart';
-import '../core/constants/app_radius.dart';
 import '../services/mlkit_service.dart';
 
 /// Live face scan used by the fifth flash-profile step.
@@ -528,7 +527,6 @@ class _FaceGuidePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _FaceGuidePainter oldDelegate) {
-    return oldDelegate.active != active ||
-        oldDelegate.pulse.value != pulse.value;
+    return oldDelegate.active != active || oldDelegate.pulse.value != pulse.value;
   }
 }
