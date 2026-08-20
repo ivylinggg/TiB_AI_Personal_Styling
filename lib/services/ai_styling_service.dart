@@ -45,6 +45,7 @@ class AiStylingService {
     required List<String> styles,
     required List<String> preferences,
     required String occasion,
+    WardrobeItem? selectedItem,
   }) async {
     if (wardrobe.isEmpty) {
       return null;
@@ -91,6 +92,14 @@ class AiStylingService {
               'styles': styles,
               'preferences': preferences,
               'occasion': occasion,
+              if (selectedItem != null)
+                'selectedItem': {
+                  'id': selectedItem.id,
+                  'name': selectedItem.name,
+                  'category': selectedItem.category,
+                  'colour': selectedItem.colour,
+                  'style': selectedItem.style,
+                },
             }),
           )
           .timeout(const Duration(seconds: 20));
