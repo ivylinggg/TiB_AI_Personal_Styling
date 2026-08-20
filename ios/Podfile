@@ -32,6 +32,11 @@ target 'Runner' do
   use_frameworks!
 
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
+
+  # Keep the Flutter-generated Firebase/gRPC dependency graph intact.
+  # BoringSSL-GRPC is an indirect dependency of the Firebase stack.
+  # When running on a machine with the repository unavailable over Git,
+  # CocoaPods will still resolve the official podspec normally.
   target 'RunnerTests' do
     inherit! :search_paths
   end
