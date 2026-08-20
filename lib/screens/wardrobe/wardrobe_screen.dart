@@ -83,6 +83,7 @@ class _WardrobeScreenState extends State<WardrobeScreen>
 
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  String _colour = 'All';
 
   // One-time entrance reveal (fade + gentle slide-up, no bounce) for the
   // top of the screen. Plays once on first mount only -- it never replays
@@ -210,6 +211,8 @@ class _WardrobeScreenState extends State<WardrobeScreen>
                 final filtered = items.where((item) {
                   final categoryMatches =
                       _category == 'All' || item.category == _category;
+                  final colourMatches =
+                      _colour == 'All' || item.colour == _colour;
                   final favouriteMatches =
                       !_showFavouritesOnly || item.isFavourite;
                   final searchMatches =
@@ -218,11 +221,17 @@ class _WardrobeScreenState extends State<WardrobeScreen>
                       item.category.toLowerCase().contains(query) ||
                       item.colour.toLowerCase().contains(query) ||
                       item.style.toLowerCase().contains(query);
-                  return categoryMatches && favouriteMatches && searchMatches;
+                  return categoryMatches &&
+                      colourMatches &&
+                      favouriteMatches &&
+                      searchMatches;
                 }).toList();
 
                 final hasActiveFilters =
-                    _category != 'All' || _showFavouritesOnly || query.isNotEmpty;
+                    _category != 'All' ||
+                    _colour != 'All' ||
+                    _showFavouritesOnly ||
+                    query.isNotEmpty;
 
                 return RefreshIndicator(
                   onRefresh: () async => setState(() {}),
@@ -273,6 +282,9 @@ class _WardrobeScreenState extends State<WardrobeScreen>
                         ),
                       SliverToBoxAdapter(
                         child: _reveal(_browseReveal, _buildCategories()),
+                      ),
+                      SliverToBoxAdapter(
+                        child: _reveal(_browseReveal, _buildColourFilters()),
                       ),
                       if (filtered.isEmpty)
                         SliverFillRemaining(
@@ -818,7 +830,7 @@ class _WardrobeScreenState extends State<WardrobeScreen>
         padding: const EdgeInsets.symmetric(horizontal: 18),
         scrollDirection: Axis.horizontal,
         itemCount: categories.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        separatorBuilder: (context, index) => const SizedBox(width: 8),
         itemBuilder: (context, index) {
           final value = categories[index];
           return StyleChip(
@@ -826,6 +838,29 @@ class _WardrobeScreenState extends State<WardrobeScreen>
             icon: value == 'All' ? Icons.grid_view_rounded : _categoryIcon(value),
             selected: _category == value,
             onTap: () => setState(() => _category = value),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildColourFilters() {
+    return SizedBox(
+      height: 46,
+      child: ListView.separated(
+        padding: const EdgeInsets.fromLTRB(18, 0, 18, 0),
+        scrollDirection: Axis.horizontal,
+        itemCount: _colourOptions.length + 1,
+        separatorBuilder: (context, index) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final value =
+              index == 0 ? 'All' : _colourOptions[index - 1];
+
+          return StyleChip(
+            label: value,
+            icon: Icons.palette_outlined,
+            selected: _colour == value,
+            onTap: () => setState(() => _colour = value),
           );
         },
       ),
@@ -862,6 +897,7 @@ class _WardrobeScreenState extends State<WardrobeScreen>
       onCta: () {
         setState(() {
           _category = 'All';
+          _colour = 'All';
           _showFavouritesOnly = false;
           _searchController.clear();
         });
