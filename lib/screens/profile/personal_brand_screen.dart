@@ -122,7 +122,7 @@ class _PersonalBrandScreenState extends State<PersonalBrandScreen> {
                 const Text('YOUR ROLE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: .7, color: AppColors.textMuted)),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
-                  value: _role,
+                  initialValue: _role,
                   decoration: _decoration('Choose your main context'),
                   items: roles.map((r) => DropdownMenuItem(value: r, child: Text(r))).toList(),
                   onChanged: (value) => setState(() => _role = value),
