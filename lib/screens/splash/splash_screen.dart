@@ -4,8 +4,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_gradients.dart';
-import '../../services/auth_service.dart';
 import '../admin/admin_main_screen.dart';
+import '../auth/auth_service.dart';
 import '../auth/login_screen.dart';
 import '../main/main_screen.dart';
 import '../onboarding/flash_profile_flow.dart';
@@ -48,11 +48,11 @@ class _SplashScreenState extends State<SplashScreen> {
           if (!mounted) return;
 
           final onboardingComplete = profile['onboardingComplete'] == true;
-          if (!onboardingComplete) {
-            _replace(const FlashProfileFlow());
-          } else {
-            _replace(const MainScreen());
-          }
+          _replace(
+            onboardingComplete
+                ? const MainScreen()
+                : const FlashProfileFlow(),
+          );
           return;
         }
       } catch (_) {
