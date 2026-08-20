@@ -63,7 +63,7 @@ class _WardrobeAuditScreenState extends State<WardrobeAuditScreen> {
       return targetColours.any((target) => colour.contains(target) || target.contains(colour));
     }).length;
 
-    final capsule = _capsuleSuggestions(missing, categories);
+    final capsule = _capsuleSuggestions(missing);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -211,7 +211,7 @@ class _WardrobeAuditScreenState extends State<WardrobeAuditScreen> {
     );
   }
 
-  List<String> _capsuleSuggestions(List<String> missing, Map<String, int> categories) {
+  List<String> _capsuleSuggestions(List<String> missing) {
     final result = <String>[];
     if (missing.contains('Tops')) result.add('1 versatile top in a signature palette neutral.');
     if (missing.contains('Bottoms')) result.add('1 tailored bottom that works with at least three existing tops.');
