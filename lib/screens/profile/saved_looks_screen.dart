@@ -52,13 +52,15 @@ class _SavedLooksScreenState extends State<SavedLooksScreen> {
       final saved = await FirestoreService.getSavedOutfitLooks(uid);
       final wardrobeItems = await FirestoreService.getWardrobeItems(uid);
       final wardrobe = wardrobeItems
-          .map((item) => <String, dynamic>{
-                'id': item.id,
-                'name': item.name,
-                'category': item.category,
-                'colour': item.colour,
-                'imageUrl': item.imageUrl,
-              })
+          .map(
+            (item) => <String, dynamic>{
+              'id': item.id,
+              'name': item.name,
+              'category': item.category,
+              'colour': item.colour,
+              'imageUrl': item.imageUrl,
+            },
+          )
           .toList();
 
       if (!mounted) return;
@@ -172,9 +174,9 @@ class _SavedLooksScreenState extends State<SavedLooksScreen> {
       if (!mounted) return;
       await _load();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Saved look removed.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Saved look removed.')));
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -185,7 +187,17 @@ class _SavedLooksScreenState extends State<SavedLooksScreen> {
 
   void _openLook(Map<String, dynamic> look) {
     final ids = List<String>.from(look['itemIds'] ?? const <String>[]);
-    final pieces = ids.map(_wardrobeItem).whereType<Map<String, dynamic>>().toList();
+
+    final pieces = ids
+        .map(_wardrobeItem)
+        .whereType<Map<String, dynamic>>()
+        .toList();
+
+    final occasion = (look['occasion'] as String?)?.trim();
+    final season = (look['season'] as String?)?.trim();
+    final notes = (look['notes'] as String?)?.trim();
+    final score = (look['matchScore'] as num?)?.toInt() ?? 0;
+
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -193,117 +205,331 @@ class _SavedLooksScreenState extends State<SavedLooksScreen> {
       builder: (sheetContext) {
         return SafeArea(
           child: Container(
-            padding: const EdgeInsets.fromLTRB(20, 10, 20, 22),
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(sheetContext).size.height * .88,
+            ),
+            padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
             decoration: const BoxDecoration(
               color: AppColors.background,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 38,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: AppColors.border,
-                      borderRadius: BorderRadius.circular(99),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 18),
-                Text(
-                  '${look['occasion'] ?? 'Saved look'}',
-                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'A look you saved with TiB',
-                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
-                ),
-                const SizedBox(height: 16),
-                if (pieces.isEmpty)
-                  const Text(
-                    'Some wardrobe pieces are no longer available.',
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
-                  )
-                else
-                  SizedBox(
-                    height: 190,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: pieces.length,
-                      separatorBuilder: (_, index) => const SizedBox(width: 10),
-                      itemBuilder: (_, index) {
-                        final item = pieces[index];
-                        final imageUrl = item['imageUrl'] as String? ?? '';
-                        return SizedBox(
-                          width: 132,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(16),
-                                  child: imageUrl.isEmpty
-                                      ? Container(
-                                          color: AppColors.surfaceMuted,
-                                          child: const Center(
-                                            child: Icon(Icons.checkroom_outlined, color: AppColors.primary),
-                                          ),
-                                        )
-                                      : CachedNetworkImage(
-                                          imageUrl: imageUrl,
-                                          fit: BoxFit.cover,
-                                          width: double.infinity,
-                                        ),
-                                ),
-                              ),
-                              const SizedBox(height: 7),
-                              Text(
-                                item['name'] as String? ?? 'Wardrobe piece',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800),
-                              ),
-                              Text(
-                                '${item['category'] ?? ''} · ${item['colour'] ?? ''}',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(fontSize: 9.5, color: AppColors.textMuted),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                const SizedBox(height: 14),
-                Row(
-                  children: [
-                    const Icon(Icons.palette_outlined, size: 16, color: AppColors.primary),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        'Built around ${look['season'] ?? 'your'} colours',
-                        style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 38,
+                      height: 4,
                       decoration: BoxDecoration(
-                        color: AppColors.sage.withValues(alpha: .22),
+                        color: AppColors.border,
                         borderRadius: BorderRadius.circular(99),
                       ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'SAVED LOOK',
+                              style: TextStyle(
+                                fontSize: 9,
+                                letterSpacing: 1.3,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.textMuted,
+                              ),
+                            ),
+                            const SizedBox(height: 5),
+                            Text(
+                              occasion?.isNotEmpty == true
+                                  ? occasion!
+                                  : 'Your saved outfit',
+                              style: const TextStyle(
+                                fontSize: 25,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -.5,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              'A look worth coming back to.',
+                              style: TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.sage.withValues(alpha: .20),
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(
+                            color: AppColors.sage.withValues(alpha: .35),
+                          ),
+                        ),
+                        child: Column(
+                          children: [
+                            Text(
+                              '$score%',
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w900,
+                                color: AppColors.success,
+                              ),
+                            ),
+                            const Text(
+                              'MATCH',
+                              style: TextStyle(
+                                fontSize: 8,
+                                letterSpacing: .8,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.success,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 22),
+
+                  Row(
+                    children: [
+                      const Text(
+                        'YOUR OUTFIT',
+                        style: TextStyle(
+                          fontSize: 9,
+                          letterSpacing: 1.3,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.textMuted,
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        '${pieces.length} ${pieces.length == 1 ? 'piece' : 'pieces'}',
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+
+                  if (pieces.isEmpty)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(18),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(
+                            Icons.checkroom_outlined,
+                            color: AppColors.primary,
+                          ),
+                          SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Some wardrobe pieces are no longer available.',
+                              style: TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    SizedBox(
+                      height: 205,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: pieces.length,
+                        separatorBuilder: (_, index) =>
+                            const SizedBox(width: 10),
+                        itemBuilder: (_, index) {
+                          final item = pieces[index];
+                          final imageUrl = item['imageUrl'] as String? ?? '';
+
+                          return SizedBox(
+                            width: 142,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: AppColors.surface,
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(color: AppColors.border),
+                              ),
+                              clipBehavior: Clip.antiAlias,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                    child: imageUrl.isEmpty
+                                        ? Container(
+                                            width: double.infinity,
+                                            color: AppColors.surfaceMuted,
+                                            child: const Center(
+                                              child: Icon(
+                                                Icons.checkroom_outlined,
+                                                color: AppColors.primary,
+                                                size: 30,
+                                              ),
+                                            ),
+                                          )
+                                        : CachedNetworkImage(
+                                            imageUrl: imageUrl,
+                                            fit: BoxFit.cover,
+                                            width: double.infinity,
+                                            placeholder: (context, child) =>
+                                                const Center(
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                        strokeWidth: 2,
+                                                      ),
+                                                ),
+                                            errorWidget: (context, error, stackTrace) =>
+                                                const Center(
+                                                  child: Icon(
+                                                    Icons
+                                                        .image_not_supported_outlined,
+                                                    color: AppColors.textMuted,
+                                                  ),
+                                                ),
+                                          ),
+                                  ),
+                                  Padding(
+                                    padding: const EdgeInsets.fromLTRB(
+                                      11,
+                                      9,
+                                      11,
+                                      10,
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          item['name'] as String? ??
+                                              'Wardrobe piece',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            fontSize: 11.5,
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 3),
+                                        Text(
+                                          '${item['category'] ?? ''}'
+                                          '${item['colour'] == null ? '' : ' · ${item['colour']}'}',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            fontSize: 9.5,
+                                            color: AppColors.textMuted,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+
+                  const SizedBox(height: 20),
+
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _lookInfoTile(
+                          icon: Icons.palette_outlined,
+                          label: 'PALETTE',
+                          value: season?.isNotEmpty == true
+                              ? season!
+                              : 'Your colours',
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _lookInfoTile(
+                          icon: Icons.auto_awesome_outlined,
+                          label: 'MATCH',
+                          value: score >= 85
+                              ? 'Excellent'
+                              : score >= 70
+                              ? 'Great'
+                              : 'Good',
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  if (notes?.isNotEmpty == true) ...[
+                    const SizedBox(height: 18),
+                    const Text(
+                      'NOTES',
+                      style: TextStyle(
+                        fontSize: 9,
+                        letterSpacing: 1.3,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textMuted,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(15),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: AppColors.border),
+                      ),
                       child: Text(
-                        '${look['matchScore'] ?? 0}% match',
-                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: AppColors.success),
+                        notes!,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          height: 1.45,
+                          color: AppColors.textSecondary,
+                        ),
                       ),
                     ),
                   ],
-                ),
-              ],
+
+                  const SizedBox(height: 20),
+
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: () => Navigator.pop(sheetContext),
+                      icon: const Icon(Icons.check_rounded),
+                      label: const Text('Done'),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         );
@@ -311,11 +537,64 @@ class _SavedLooksScreenState extends State<SavedLooksScreen> {
     );
   }
 
+  Widget _lookInfoTile({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: .10),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, size: 17, color: AppColors.primary),
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 8,
+                    letterSpacing: .9,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textMuted,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final visibleLooks = _visibleLooks;
-    final hasFilter = _occasionFilter != 'All';
-
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -339,49 +618,62 @@ class _SavedLooksScreenState extends State<SavedLooksScreen> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.cloud_off_rounded, color: AppColors.primary, size: 38),
-                        const SizedBox(height: 12),
-                        Text(_error!, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.textSecondary)),
-                        const SizedBox(height: 14),
-                        FilledButton(onPressed: _load, child: const Text('Try again')),
-                      ],
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.cloud_off_rounded,
+                      color: AppColors.primary,
+                      size: 38,
                     ),
-                  ),
-                )
-              : RefreshIndicator(
-                  onRefresh: _load,
-                  child: CustomScrollView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    slivers: [
-                      SliverToBoxAdapter(child: _buildHeader()),
-                      if (_looks.isEmpty)
-                        SliverFillRemaining(
-                          hasScrollBody: false,
-                          child: _emptyState(),
-                        )
-                      else if (visibleLooks.isEmpty)
-                        SliverFillRemaining(
-                          hasScrollBody: false,
-                          child: _filteredEmptyState(),
-                        )
-                      else
-                        SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
-                          sliver: SliverList.separated(
-                            itemCount: visibleLooks.length,
-                            itemBuilder: (_, index) => _lookCard(visibleLooks[index]),
-                            separatorBuilder: (_, index) => const SizedBox(height: 12),
-                          ),
-                        ),
-                    ],
-                  ),
+                    const SizedBox(height: 12),
+                    Text(
+                      _error!,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: AppColors.textSecondary),
+                    ),
+                    const SizedBox(height: 14),
+                    FilledButton(
+                      onPressed: _load,
+                      child: const Text('Try again'),
+                    ),
+                  ],
                 ),
+              ),
+            )
+          : RefreshIndicator(
+              onRefresh: _load,
+              child: CustomScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                slivers: [
+                  SliverToBoxAdapter(child: _buildHeader()),
+                  if (_looks.isEmpty)
+                    SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: _emptyState(),
+                    )
+                  else if (visibleLooks.isEmpty)
+                    SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: _filteredEmptyState(),
+                    )
+                  else
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
+                      sliver: SliverList.separated(
+                        itemCount: visibleLooks.length,
+                        itemBuilder: (_, index) =>
+                            _lookCard(visibleLooks[index]),
+                        separatorBuilder: (_, index) =>
+                            const SizedBox(height: 12),
+                      ),
+                    ),
+                ],
+              ),
+            ),
     );
   }
 
@@ -403,14 +695,22 @@ class _SavedLooksScreenState extends State<SavedLooksScreen> {
           const SizedBox(height: 5),
           const Text(
             'Looks worth coming back to.',
-            style: TextStyle(fontSize: 25, fontWeight: FontWeight.w800, letterSpacing: -.5),
+            style: TextStyle(
+              fontSize: 25,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -.5,
+            ),
           ),
           const SizedBox(height: 7),
           Text(
             _looks.isEmpty
                 ? 'Save an outfit you love and it will live here.'
                 : '${_looks.length} saved ${_looks.length == 1 ? 'look' : 'looks'} in your collection.',
-            style: const TextStyle(color: AppColors.textSecondary, fontSize: 12.5, height: 1.4),
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 12.5,
+              height: 1.4,
+            ),
           ),
           const SizedBox(height: 16),
           SizedBox(
@@ -447,13 +747,24 @@ class _SavedLooksScreenState extends State<SavedLooksScreen> {
           const SizedBox(height: 10),
           Row(
             children: [
-              const Icon(Icons.sort_rounded, size: 15, color: AppColors.textMuted),
+              const Icon(
+                Icons.sort_rounded,
+                size: 15,
+                color: AppColors.textMuted,
+              ),
               const SizedBox(width: 5),
               Text(
-                _sort == _SavedLookSort.recent ? 'Recently saved' : 'Highest match',
-                style: const TextStyle(fontSize: 10.5, color: AppColors.textSecondary, fontWeight: FontWeight.w700),
+                _sort == _SavedLookSort.recent
+                    ? 'Recently saved'
+                    : 'Highest match',
+                style: const TextStyle(
+                  fontSize: 10.5,
+                  color: AppColors.textSecondary,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
-              if (_sort == _SavedLookSort.highestMatch || hasFilter)
+              if (_sort == _SavedLookSort.highestMatch ||
+                  _occasionFilter != 'All')
                 Padding(
                   padding: const EdgeInsets.only(left: 8),
                   child: TextButton(
@@ -461,8 +772,15 @@ class _SavedLooksScreenState extends State<SavedLooksScreen> {
                       _occasionFilter = 'All';
                       _sort = _SavedLookSort.recent;
                     }),
-                    style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 28), tapTargetSize: MaterialTapTargetSize.shrinkWrap),
-                    child: const Text('Reset', style: TextStyle(fontSize: 10.5)),
+                    style: TextButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      minimumSize: const Size(0, 28),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: const Text(
+                      'Reset',
+                      style: TextStyle(fontSize: 10.5),
+                    ),
                   ),
                 ),
             ],
@@ -491,17 +809,22 @@ class _SavedLooksScreenState extends State<SavedLooksScreen> {
                   ),
                 ),
               ),
-              RadioListTile<_SavedLookSort>(
-                value: _SavedLookSort.recent,
+              RadioGroup<_SavedLookSort>(
                 groupValue: _sort,
-                title: const Text('Recently saved'),
                 onChanged: (value) => Navigator.pop(sheetContext, value),
-              ),
-              RadioListTile<_SavedLookSort>(
-                value: _SavedLookSort.highestMatch,
-                groupValue: _sort,
-                title: const Text('Highest match'),
-                onChanged: (value) => Navigator.pop(sheetContext, value),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    RadioListTile<_SavedLookSort>(
+                      value: _SavedLookSort.recent,
+                      title: const Text('Recently saved'),
+                    ),
+                    RadioListTile<_SavedLookSort>(
+                      value: _SavedLookSort.highestMatch,
+                      title: const Text('Highest match'),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 10),
             ],
@@ -521,7 +844,11 @@ class _SavedLooksScreenState extends State<SavedLooksScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.bookmark_border_rounded, color: AppColors.primary, size: 48),
+          const Icon(
+            Icons.bookmark_border_rounded,
+            color: AppColors.primary,
+            size: 48,
+          ),
           const SizedBox(height: 14),
           const Text(
             'No saved looks yet',
@@ -532,7 +859,11 @@ class _SavedLooksScreenState extends State<SavedLooksScreen> {
           const Text(
             'When an AI outfit feels like you, save it here and come back to it later.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: AppColors.textSecondary, height: 1.45, fontSize: 12.5),
+            style: TextStyle(
+              color: AppColors.textSecondary,
+              height: 1.45,
+              fontSize: 12.5,
+            ),
           ),
         ],
       ),
@@ -545,7 +876,11 @@ class _SavedLooksScreenState extends State<SavedLooksScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.filter_alt_off_rounded, color: AppColors.primary, size: 42),
+          const Icon(
+            Icons.filter_alt_off_rounded,
+            color: AppColors.primary,
+            size: 42,
+          ),
           const SizedBox(height: 13),
           Text(
             'No ${_occasionFilter.toLowerCase()} looks yet',
@@ -570,7 +905,10 @@ class _SavedLooksScreenState extends State<SavedLooksScreen> {
 
   Widget _lookCard(Map<String, dynamic> look) {
     final ids = List<String>.from(look['itemIds'] ?? const <String>[]);
-    final pieces = ids.map(_wardrobeItem).whereType<Map<String, dynamic>>().toList();
+    final pieces = ids
+        .map(_wardrobeItem)
+        .whereType<Map<String, dynamic>>()
+        .toList();
     final date = _createdAt(look);
     final occasion = look['occasion'] as String? ?? 'Saved look';
     final score = (look['matchScore'] as num?)?.toInt() ?? 0;
@@ -597,14 +935,20 @@ class _SavedLooksScreenState extends State<SavedLooksScreen> {
                       occasion,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                   ),
                   IconButton(
                     tooltip: 'Remove saved look',
                     onPressed: () => _deleteLook(look['id'] as String? ?? ''),
                     padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+                    constraints: const BoxConstraints(
+                      minWidth: 34,
+                      minHeight: 34,
+                    ),
                     icon: const Icon(Icons.more_horiz_rounded),
                   ),
                 ],
@@ -613,26 +957,39 @@ class _SavedLooksScreenState extends State<SavedLooksScreen> {
               Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 5,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.sage.withValues(alpha: .20),
                       borderRadius: BorderRadius.circular(99),
                     ),
                     child: Text(
                       '$score% match',
-                      style: const TextStyle(color: AppColors.success, fontSize: 10, fontWeight: FontWeight.w800),
+                      style: const TextStyle(
+                        color: AppColors.success,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 7),
                   if (date != null)
                     Text(
                       _formatDate(date),
-                      style: const TextStyle(color: AppColors.textMuted, fontSize: 10.5),
+                      style: const TextStyle(
+                        color: AppColors.textMuted,
+                        fontSize: 10.5,
+                      ),
                     ),
                   const Spacer(),
                   Text(
                     '${pieces.length} pieces',
-                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.5),
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 10.5,
+                    ),
                   ),
                 ],
               ),
@@ -648,16 +1005,21 @@ class _SavedLooksScreenState extends State<SavedLooksScreen> {
                         child: const Center(
                           child: Text(
                             'Some wardrobe pieces are unavailable',
-                            style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                            style: TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 11,
+                            ),
                           ),
                         ),
                       )
                     : ListView.separated(
                         scrollDirection: Axis.horizontal,
                         itemCount: pieces.length,
-                        separatorBuilder: (_, index) => const SizedBox(width: 9),
+                        separatorBuilder: (_, index) =>
+                            const SizedBox(width: 9),
                         itemBuilder: (_, index) {
-                          final url = pieces[index]['imageUrl'] as String? ?? '';
+                          final url =
+                              pieces[index]['imageUrl'] as String? ?? '';
                           return ClipRRect(
                             borderRadius: BorderRadius.circular(17),
                             child: SizedBox(
@@ -666,10 +1028,16 @@ class _SavedLooksScreenState extends State<SavedLooksScreen> {
                                   ? Container(
                                       color: AppColors.surfaceMuted,
                                       child: const Center(
-                                        child: Icon(Icons.checkroom_outlined, color: AppColors.primary),
+                                        child: Icon(
+                                          Icons.checkroom_outlined,
+                                          color: AppColors.primary,
+                                        ),
                                       ),
                                     )
-                                  : CachedNetworkImage(imageUrl: url, fit: BoxFit.cover),
+                                  : CachedNetworkImage(
+                                      imageUrl: url,
+                                      fit: BoxFit.cover,
+                                    ),
                             ),
                           );
                         },
@@ -678,11 +1046,19 @@ class _SavedLooksScreenState extends State<SavedLooksScreen> {
               const SizedBox(height: 10),
               Row(
                 children: [
-                  const Icon(Icons.chevron_right_rounded, size: 16, color: AppColors.primary),
+                  const Icon(
+                    Icons.chevron_right_rounded,
+                    size: 16,
+                    color: AppColors.primary,
+                  ),
                   const SizedBox(width: 2),
                   Text(
                     'View look details',
-                    style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: AppColors.primary),
+                    style: TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primary,
+                    ),
                   ),
                 ],
               ),
@@ -695,8 +1071,18 @@ class _SavedLooksScreenState extends State<SavedLooksScreen> {
 
   String _formatDate(DateTime date) {
     final months = const [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return '${months[date.month - 1]} ${date.day}, ${date.year}';
   }
