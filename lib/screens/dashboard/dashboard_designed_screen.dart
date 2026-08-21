@@ -57,22 +57,22 @@ class DashboardDesignedScreen extends StatelessWidget {
   String _todayColourMessage(String colour) {
     final key = _normaliseColour(colour);
     const exact = <String, String>{
-      'pink': '今天的你可能会遇到一点甜甜的桃花运噢 ✨',
-      'rose': '今天的你自带一点浪漫滤镜，勇敢接受新的缘分吧 🌹',
-      'coral': '今天适合主动一点，好事可能就在你开口以后发生 🧡',
-      'red': '今天适合大胆一点，你的自信会特别有存在感 ❤️',
-      'orange': '今天很适合主动一点，好事可能就在你开口以后发生 🧡',
-      'yellow': '今天带一点阳光色，灵感和好心情都会跟着来 💛',
-      'green': '今天适合慢一点、稳一点，你的好状态会自然散发出来 🌿',
-      'teal': '今天的语言会更有感染力，保持清爽、真诚和好心情 🩵',
-      'blue': '今天的沟通会更顺，把你的冷静和可靠穿出来 💙',
-      'purple': '今天很适合发挥一点创意，让别人记住你的独特感 💜',
-      'brown': '今天的你自带稳重魅力，温柔又让人觉得很可靠 🤎',
-      'beige': '今天适合轻松一点，简单干净的状态反而最耐看 🤍',
-      'white': '今天像一个新的开始，保持轻盈，你会发现更多可能 🤍',
-      'black': '今天适合把气场打开一点，你会比自己想象中更有力量 🖤',
-      'grey': '今天适合保持清醒与从容，低调也可以很有质感 🩶',
-      'gray': '今天适合保持清醒与从容，低调也可以很有质感 🩶',
+      'pink': 'A little romance may find you today ✨',
+      'rose': 'You are giving off a romantic energy today — stay open to new connections 🌹',
+      'coral': 'Take the lead today. A good thing may begin when you speak up 🧡',
+      'red': 'Be a little bolder today — your confidence will stand out ❤️',
+      'orange': 'Be a little more proactive today. Good things may follow 🧡',
+      'yellow': 'Bring a little sunshine with you today — inspiration and good vibes will follow 💛',
+      'green': 'Take it slow and steady today. Your calm confidence will shine naturally 🌿',
+      'teal': 'Your words may carry extra warmth today. Stay clear, sincere and positive 🩵',
+      'blue': 'Communication may flow more smoothly today. Let your calm and reliability show 💙',
+      'purple': 'Let your creativity show today and give people something memorable about you 💜',
+      'brown': 'You are giving off a grounded, dependable energy today 🤎',
+      'beige': 'Keep it easy today. A clean, effortless look may be all you need 🤍',
+      'white': 'Today feels like a fresh start. Stay light and open to new possibilities 🤍',
+      'black': 'Own your presence today. You may feel more powerful than you expect 🖤',
+      'grey': 'Stay calm and composed today. Understated can still look incredibly polished 🩶',
+      'gray': 'Stay calm and composed today. Understated can still look incredibly polished 🩶',
     };
     if (exact.containsKey(key)) return exact[key]!;
     if (key.contains('pink') || key.contains('rose')) return exact['pink']!;
@@ -88,7 +88,7 @@ class DashboardDesignedScreen extends StatelessWidget {
     if (key.contains('white')) return exact['white']!;
     if (key.contains('black') || key.contains('charcoal')) return exact['black']!;
     if (key.contains('grey') || key.contains('gray')) return exact['grey']!;
-    return '今天就穿上它，让属于你的颜色陪你完成一个好日子 ✨';
+    return 'Wear it with confidence and let your colour set the tone for a good day ✨';
   }
 
   int _challengeIndex(DateTime date) => _dayOfYear(date) % _challenges.length;
@@ -190,8 +190,6 @@ class DashboardDesignedScreen extends StatelessWidget {
               _styleScoreCard(context, uid, provider),
               const SizedBox(height: 14),
               _challengeCard(context, result),
-              const SizedBox(height: 14),
-              _seasonCard(context, result),
             ],
           ),
         ),
@@ -314,10 +312,7 @@ class DashboardDesignedScreen extends StatelessWidget {
     );
   }
 
-  Widget _seasonCard(BuildContext context, ColourAnalysisResult? result) {
-    if (result == null) return _card(context, const AnalysisScreen(), const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('YOUR COLOUR SEASON', style: TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: .7)), SizedBox(height: 7), Text('Discover your season', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800)), SizedBox(height: 5), Text('Start your face scan to unlock your personal colour profile.', style: TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.35))]));
-    return _card(context, AnalysisResultScreen(result: result), Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('YOUR COLOUR SEASON', style: TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: .7)), const SizedBox(height: 7), Text(result.season, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900)), const SizedBox(height: 4), Text('${result.undertone} • ${result.brightness} • ${result.contrast}', style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)), const SizedBox(height: 10), Wrap(spacing: 7, runSpacing: 7, children: result.colours.take(7).map<Widget>((name) => ColourSwatch(name: name, size: 31, showLabel: true)).toList())]));
-  }
+  Widget _seasonCard(BuildContext context, ColourAnalysisResult? result) => const SizedBox.shrink();
 
   Widget _card(BuildContext context, Widget? target, Widget child) => Material(color: AppColors.surface, borderRadius: BorderRadius.circular(20), child: InkWell(borderRadius: BorderRadius.circular(20), onTap: target == null ? null : () => Navigator.push(context, MaterialPageRoute(builder: (_) => target)), child: Padding(padding: const EdgeInsets.fromLTRB(16, 16, 14, 17), child: child)));
 }
