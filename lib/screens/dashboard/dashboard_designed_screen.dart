@@ -18,12 +18,10 @@ import '../ai/style_preferences_screen.dart';
 import '../analysis/analysis_result_screen.dart';
 import '../analysis/analysis_screen.dart';
 import '../auth/login_screen.dart';
-import '../profile/profile_screen.dart';
-import '../profile/saved_looks_screen.dart';
 import '../wardrobe/wardrobe_screen.dart';
 
-/// Home dashboard rebuilt from the TiB storyboard: compact greeting, season
-/// hero, daily colour, style score, challenge and recent report.
+/// Home dashboard built around TiB's personal-colour, wardrobe and
+/// professional-image direction.
 class DashboardDesignedScreen extends StatefulWidget {
   const DashboardDesignedScreen({super.key});
 
@@ -37,6 +35,27 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
   bool _premium = false;
   List<WardrobeItem> _wardrobe = const [];
   Map<String, dynamic>? _stylePrefs;
+  bool _challengeCompleted = false;
+
+  static const _challengeNames = <String>[
+    'Colour Confidence',
+    'Wardrobe Remix',
+    'Professional Polish',
+    'Digital Presence',
+    'Signature Style',
+    'Smart Styling',
+    'Confidence Check',
+  ];
+
+  static const _challengeDescriptions = <String>[
+    'Wear today\'s recommended colour near your face and notice how it changes your overall harmony.',
+    'Choose one piece from your wardrobe and create a second look with a different styling combination.',
+    'Add one polished detail today: structured layering, neat grooming, or a confident finishing touch.',
+    'Use natural light and a clean background for one professional photo or video call today.',
+    'Build a look around one of your best colours and make it feel unmistakably like you.',
+    'Pick one wardrobe piece that matches your colour palette and style it for today\'s occasion.',
+    'Take one minute to reset your posture, smile and presence before your next meeting or social moment.',
+  ];
 
   @override
   void initState() {
@@ -54,17 +73,151 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
         FirestoreService.getWardrobeItems(uid),
         StylePreferenceService.getStylePreferences(uid),
       ]);
+
       if (!mounted) return;
-      final user = (values[0] as DocumentSnapshot<Map<String, dynamic>>).data();
+
+      final userSnapshot = values[0] as DocumentSnapshot<Map<String, dynamic>>;
+      final user = userSnapshot.data();
+      final now = DateTime.now();
+      final currentChallengeId = _challengeId(now);
+      final currentDate = _dateKey(now);
+      final savedChallengeDate = user?['dailyChallengeDate'] as String?;
+      final savedChallengeId = user?['dailyChallengeId'] as int?;
+
       setState(() {
         _name = (user?['name'] as String? ?? '').trim();
         _photoUrl = user?['photoUrl'] as String?;
         _premium = user?['isPremium'] == true;
         _wardrobe = values[1] as List<WardrobeItem>;
         _stylePrefs = values[2] as Map<String, dynamic>?;
+        _challengeCompleted = savedChallengeDate == currentDate && savedChallengeId == currentChallengeId && user?['dailyChallengeCompleted'] == true;
       });
     } catch (_) {
       // Keep the dashboard usable with whatever data has already loaded.
+    }
+  }
+
+  int _dayOfYear(DateTime date) {
+    return date.difference(DateTime(date.year, 1, 1)).inDays + 1;
+  }
+
+  int _challengeId(DateTime date) => _dayOfYear(date) % _challengeNames.length;
+
+  String _dateKey(DateTime date) => '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+
+  String _normaliseColour(String value) {
+    return value
+        .toLowerCase()
+        .replaceAll('-', ' ')
+        .replaceAll('_', ' ')
+        .trim();
+  }
+
+  String _todayColourName(ColourAnalysisResult? result) {
+    if (result == null || result.colours.isEmpty) return '—';
+    final index = _dayOfYear(DateTime.now()) % result.colours.length;
+    return result.colours[index];
+  }
+
+  String _todayColourMessage(String colour) {
+    final key = _normaliseColour(colour);
+
+    if (key.contains('pink') || key.contains('rose') || key.contains('raspberry')) {
+      return '今天的你可能会遇到一点甜甜的桃花运噢 ✨';
+    }
+    if (key.contains('turquoise') || key.contains('teal') || key.contains('cyan') || key.contains('aqua')) {
+      return '今天的空气会特别清爽，保持你的好心情与阳光感 ☀️';
+    }
+    if (key.contains('red') || key.contains('ruby') || key.contains('cranberry')) {
+      return '今天适合大胆一点，你的自信会特别有存在感 ❤️';
+    }
+    if (key.contains('orange') || key.contains('coral') || key.contains('peach') || key.contains('apricot')) {
+      return '今天很适合主动一点，好事可能就在你开口以后发生 🧡';
+    }
+    if (key.contains('yellow') || key.contains('gold') || key.contains('mustard')) {
+      return '今天带一点阳光色，灵感和好心情都会跟着来 💛';
+    }
+    if (key.contains('green') || key.contains('olive') || key.contains('mint') || key.contains('sage')) {
+      return '今天适合慢一点、稳一点，你的好状态会自然散发出来 🌿';
+    }
+    if (key.contains('blue') || key.contains('navy') || key.contains('sapphire') || key.contains('cobalt')) {
+      return '今天的沟通会更顺，把你的冷静和可靠穿出来 💙';
+    }
+    if (key.contains('purple') || key.contains('lavender') || key.contains('lilac') || key.contains('mauve')) {
+      return '今天很适合发挥一点创意，让别人记住你的独特感 💜';
+    }
+    if (key.contains('brown') || key.contains('camel') || key.contains('chocolate') || key.contains('sienna')) {
+      return '今天的你自带稳重魅力，温柔又让人觉得很可靠 🤎';
+    }
+    if (key.contains('beige') || key.contains('cream') || key.contains('ivory') || key.contains('taupe')) {
+      return '今天适合轻松一点，简单干净的状态反而最耐看 🤍';
+    }
+    if (key.contains('white')) {
+      return '今天像一个新的开始，保持轻盈，你会发现更多可能 🤍';
+    }
+    if (key.contains('black') || key.contains('charcoal')) {
+      return '今天适合把气场打开一点，你会比自己想象中更有力量 🖤';
+    }
+    if (key.contains('grey') || key.contains('gray')) {
+      return '今天适合保持清醒与从容，低调也可以很有质感 🩶';
+    }
+
+    return '今天就穿上它，让属于你的颜色陪你完成一个好日子 ✨';
+  }
+
+  List<String> _paletteMatches(ColourAnalysisResult? result) {
+    if (result == null || result.colours.isEmpty) return const [];
+    final palette = result.colours.map(_normaliseColour).toSet();
+    return _wardrobe.where((item) {
+      final colour = _normaliseColour(item.colour);
+      return palette.any((wanted) => wanted.contains(colour) || colour.contains(wanted));
+    }).map((item) => item.id).toList();
+  }
+
+  int _styleScore(ColourAnalysisResult? result) {
+    if (result == null) return 0;
+
+    final colourProfile = 40;
+    final wardrobeReadiness = (_wardrobe.length * 4).clamp(0, 25);
+    final preferences = _stylePrefs == null ? 0 : 15;
+    final paletteMatches = (_paletteMatches(result).length * 4).clamp(0, 20);
+
+    return (colourProfile + wardrobeReadiness + preferences + paletteMatches).clamp(0, 100);
+  }
+
+  String _scoreLabel(int score) {
+    if (score >= 90) return 'Signature ready';
+    if (score >= 75) return 'Well styled';
+    if (score >= 55) return 'Good foundation';
+    if (score >= 35) return 'Building your style';
+    return 'Start your style journey';
+  }
+
+  Future<void> _completeChallenge() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null || _challengeCompleted) return;
+
+    final now = DateTime.now();
+    final challengeId = _challengeId(now);
+    final dateKey = _dateKey(now);
+
+    try {
+      await FirebaseFirestore.instance.collection('users').doc(uid).set({
+        'dailyChallengeDate': dateKey,
+        'dailyChallengeId': challengeId,
+        'dailyChallengeCompleted': true,
+      }, SetOptions(merge: true));
+
+      if (!mounted) return;
+      setState(() => _challengeCompleted = true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nice work — today\'s style challenge is complete! ✨')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not save your challenge progress. Please try again.')),
+      );
     }
   }
 
@@ -85,14 +238,9 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
               const SizedBox(height: 18),
               _seasonHero(result),
               const SizedBox(height: 12),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(child: _todayColour(result)),
-                  const SizedBox(width: 10),
-                  Expanded(child: _styleScore(result)),
-                ],
-              ),
+              _todayColour(result),
+              const SizedBox(height: 12),
+              _styleScoreCard(result),
               const SizedBox(height: 12),
               _challenge(result),
               const SizedBox(height: 12),
@@ -237,54 +385,176 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
   }
 
   Widget _todayColour(ColourAnalysisResult? result) {
-    final name = result?.colours.isNotEmpty == true ? result!.colours[DateTime.now().day % result.colours.length] : '—';
-    return _smallCard(
-      title: "TODAY'S COLOUR",
-      child: Row(
-        children: [
-          result == null ? Container(width: 42, height: 42, decoration: const BoxDecoration(color: AppColors.primarySoft, shape: BoxShape.circle)) : ColourSwatch(name: name, size: 42),
-          const SizedBox(width: 9),
-          Expanded(child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800))),
-        ],
+    final name = _todayColourName(result);
+    final message = _todayColourMessage(name);
+    return _card(
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 15, 16, 16),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(19),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: result == null
+            ? Row(
+                children: [
+                  Container(
+                    width: 50,
+                    height: 50,
+                    decoration: const BoxDecoration(color: AppColors.primarySoft, shape: BoxShape.circle),
+                    child: const Icon(Icons.palette_outlined, color: AppColors.primaryDark),
+                  ),
+                  const SizedBox(width: 11),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text("TODAY'S COLOUR", style: TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: .65)),
+                        SizedBox(height: 5),
+                        Text('Complete your colour analysis to unlock your daily shade.', style: TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.35)),
+                      ],
+                    ),
+                  ),
+                ],
+              )
+            : Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  ColourSwatch(name: name, size: 54, showLabel: false),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text("TODAY'S COLOUR", style: TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: .65)),
+                        const SizedBox(height: 3),
+                        Text(name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+                        const SizedBox(height: 4),
+                        Text(message, style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.8, height: 1.35)),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 7),
+                  const Icon(Icons.auto_awesome_rounded, color: AppColors.primary, size: 18),
+                ],
+              ),
       ),
     );
   }
 
-  Widget _styleScore(ColourAnalysisResult? result) {
-    final score = result == null ? 0 : (55 + (_wardrobe.length.clamp(0, 6) * 5) + (_stylePrefs == null ? 0 : 15)).clamp(0, 100);
-    return _smallCard(
-      title: 'STYLE SCORE',
-      child: Row(
-        children: [
-          Text('$score', style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w900)),
-          const Text(' /100', style: TextStyle(color: AppColors.textMuted, fontSize: 11, fontWeight: FontWeight.w700)),
-          const Spacer(),
-          SizedBox(width: 48, height: 32, child: CustomPaint(painter: _ScorePainter(score / 100))),
-        ],
+  Widget _styleScoreCard(ColourAnalysisResult? result) {
+    final score = _styleScore(result);
+    final paletteMatches = _paletteMatches(result).length;
+    final wardrobePoints = (_wardrobe.length * 4).clamp(0, 25);
+    final preferencePoints = _stylePrefs == null ? 0 : 15;
+
+    return _card(
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 15, 16, 15),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(19),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Text('STYLE SCORE', style: TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: .65)),
+                const Spacer(),
+                Text(_scoreLabel(score), style: const TextStyle(color: AppColors.primaryDark, fontSize: 10.5, fontWeight: FontWeight.w800)),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text('$score', style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, height: .95)),
+                const Padding(
+                  padding: EdgeInsets.only(left: 3, bottom: 2),
+                  child: Text('/100', style: TextStyle(color: AppColors.textMuted, fontSize: 11, fontWeight: FontWeight.w700)),
+                ),
+                const Spacer(),
+                SizedBox(width: 62, height: 38, child: CustomPaint(painter: _ScorePainter(score / 100))),
+              ],
+            ),
+            const SizedBox(height: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(99),
+              child: LinearProgressIndicator(
+                value: score / 100,
+                minHeight: 6,
+                backgroundColor: AppColors.border,
+                color: AppColors.primary,
+              ),
+            ),
+            const SizedBox(height: 9),
+            Text(
+              result == null
+                  ? 'Your score begins after your colour analysis.'
+                  : 'Colour harmony 40 • Wardrobe $wardrobePoints • Preferences $preferencePoints • Palette matches $paletteMatches',
+              style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.5, height: 1.35),
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _challenge(ColourAnalysisResult? result) {
-    final completed = _wardrobe.where((item) => item.isFavourite).length;
+    final index = _challengeId(DateTime.now());
+    final title = _challengeNames[index];
+    final description = _challengeDescriptions[index];
+
     return Container(
-      padding: const EdgeInsets.fromLTRB(15, 14, 15, 13),
-      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border)),
-      child: Row(
+      padding: const EdgeInsets.fromLTRB(15, 14, 15, 14),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [AppColors.lavenderMist, AppColors.background],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(19),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(width: 44, height: 44, decoration: const BoxDecoration(color: Color(0xFFF7EDE5), shape: BoxShape.circle), child: const Icon(Icons.emoji_events_outlined, color: AppColors.brown)),
-          const SizedBox(width: 10),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text("Today's Challenge", style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800)),
-                SizedBox(height: 4),
-                Text('Wear one of your signature colours today.', style: TextStyle(color: AppColors.textSecondary, fontSize: 10.8, height: 1.3)),
-              ],
+          Row(
+            children: [
+              Container(width: 42, height: 42, decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle), child: const Icon(Icons.emoji_events_outlined, color: AppColors.primaryDark)),
+              const SizedBox(width: 10),
+              const Expanded(child: Text("TODAY'S CHALLENGE", style: TextStyle(color: AppColors.primaryDark, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: .7))),
+              Text('Day ${_dayOfYear(DateTime.now())}', style: const TextStyle(color: AppColors.textMuted, fontSize: 10, fontWeight: FontWeight.w700)),
+            ],
+          ),
+          const SizedBox(height: 11),
+          Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
+          const SizedBox(height: 4),
+          Text(description, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.38)),
+          const SizedBox(height: 11),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: result == null || _challengeCompleted ? null : _completeChallenge,
+              icon: Icon(_challengeCompleted ? Icons.check_rounded : Icons.auto_awesome_rounded, size: 17),
+              label: Text(_challengeCompleted ? 'Completed today' : 'Mark as complete'),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: AppColors.primarySoft,
+                disabledForegroundColor: AppColors.primaryDark,
+                minimumSize: const Size.fromHeight(44),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
+              ),
             ),
           ),
-          Text('$completed/7', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.primaryDark)),
+          if (result == null)
+            const Padding(
+              padding: EdgeInsets.only(top: 7),
+              child: Text('Complete your colour analysis first to unlock personalised daily challenges.', style: TextStyle(color: AppColors.textMuted, fontSize: 10)),
+            ),
         ],
       ),
     );
@@ -509,7 +779,7 @@ class _MiniTag extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
       decoration: BoxDecoration(color: AppColors.eggYolk, borderRadius: BorderRadius.circular(AppRadius.full)),
-      child: const Text('PERSONALISED', style: TextStyle(color: AppColors.primaryDark, fontSize: 8, fontWeight: FontWeight.w800)),
+      child: Text(label, style: const TextStyle(color: AppColors.primaryDark, fontSize: 8, fontWeight: FontWeight.w800)),
     );
   }
 }
@@ -517,15 +787,25 @@ class _MiniTag extends StatelessWidget {
 class _ScorePainter extends CustomPainter {
   final double progress;
   _ScorePainter(this.progress);
+
   @override
   void paint(Canvas canvas, Size size) {
-    final stroke = size.height * .28;
+    final stroke = size.height * .25;
     final rect = Rect.fromLTWH(stroke, stroke, size.width - stroke * 2, size.height - stroke * 2);
-    final bg = Paint()..color = AppColors.border..style = PaintingStyle.stroke..strokeWidth = stroke..strokeCap = StrokeCap.round;
-    final fg = Paint()..color = AppColors.primary..style = PaintingStyle.stroke..strokeWidth = stroke..strokeCap = StrokeCap.round;
+    final bg = Paint()
+      ..color = AppColors.border
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = stroke
+      ..strokeCap = StrokeCap.round;
+    final fg = Paint()
+      ..color = AppColors.primary
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = stroke
+      ..strokeCap = StrokeCap.round;
     canvas.drawArc(rect, 3.4, 5.75, false, bg);
     canvas.drawArc(rect, 3.4, 5.75 * progress.clamp(0, 1), false, fg);
   }
+
   @override
   bool shouldRepaint(covariant _ScorePainter oldDelegate) => oldDelegate.progress != progress;
 }
