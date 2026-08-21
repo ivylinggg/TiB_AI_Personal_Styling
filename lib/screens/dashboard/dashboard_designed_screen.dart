@@ -12,13 +12,11 @@ import '../analysis/analysis_screen.dart';
 class DashboardDesignedScreen extends StatelessWidget {
   const DashboardDesignedScreen({super.key});
 
-  int _dayOfYear(DateTime date) {
-    return date.difference(DateTime(date.year, 1, 1)).inDays + 1;
-  }
+  int _dayOfYear(DateTime date) =>
+      date.difference(DateTime(date.year, 1, 1)).inDays + 1;
 
-  String _normaliseColour(String value) {
-    return value.toLowerCase().replaceAll('-', ' ').replaceAll('_', ' ').trim();
-  }
+  String _normaliseColour(String value) =>
+      value.toLowerCase().replaceAll('-', ' ').replaceAll('_', ' ').trim();
 
   String _todayColourName(ColourAnalysisResult? result) {
     if (result == null || result.colours.isEmpty) return '—';
@@ -216,13 +214,16 @@ class DashboardDesignedScreen extends StatelessWidget {
           onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalysisScreen())),
           child: const Padding(
             padding: EdgeInsets.all(17),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('YOUR COLOUR SEASON', style: TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: .7)),
-              SizedBox(height: 7),
-              Text('Discover your season', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800)),
-              SizedBox(height: 5),
-              Text('Start your face scan to unlock your personal colour profile.', style: TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.35)),
-            ]),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('YOUR COLOUR SEASON', style: TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: .7)),
+                SizedBox(height: 7),
+                Text('Discover your season', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800)),
+                SizedBox(height: 5),
+                Text('Start your face scan to unlock your personal colour profile.', style: TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.35)),
+              ],
+            ),
           ),
         ),
       );
@@ -235,27 +236,23 @@ class DashboardDesignedScreen extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => AnalysisResultScreen(result: result))),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(17, 16, 14, 16),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              const Expanded(child: Text('YOUR COLOUR SEASON', style: TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: .7))),
-              const Text('PERSONALISED', style: TextStyle(color: AppColors.primaryDark, fontSize: 8.5, fontWeight: FontWeight.w900)),
-            ]),
-            const SizedBox(height: 7),
-            Text(result.season, style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w900)),
-            const SizedBox(height: 4),
-            Text('${result.undertone} • ${result.brightness} • ${result.contrast}', style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
-            const SizedBox(height: 11),
-            SizedBox(
-              height: 42,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: result.colours.length > 7 ? 7 : result.colours.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 7),
-                itemBuilder: (_, index) => ColourSwatch(name: result.colours[index], size: 42, showLabel: true),
+          padding: const EdgeInsets.fromLTRB(17, 15, 15, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('YOUR COLOUR SEASON', style: TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: .7)),
+              const SizedBox(height: 7),
+              Text(result.season, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
+              const SizedBox(height: 4),
+              Text('${result.undertone} • ${result.brightness} • ${result.contrast}', style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 7,
+                runSpacing: 7,
+                children: result.colours.take(7).map((name) => ColourSwatch(name: name, size: 31, showLabel: true)).toList(),
               ),
-            ),
-          ]),
+            ],
+          ),
         ),
       ),
     );
