@@ -210,7 +210,6 @@ class FlashScanResultScreen extends StatelessWidget {
     required List<String> avoid,
   }) {
     return Container(
-      margin: const EdgeInsets.only(top: -6),
       padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
       decoration: BoxDecoration(
         color: const Color(0xFFFFFAFC),
