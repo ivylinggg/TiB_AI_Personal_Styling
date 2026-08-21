@@ -26,6 +26,10 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
+	<key>UIFileSharingEnabled</key>
+	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>TiB AI Personal Styling uses your camera to take photos for Colour Analysis, profile photos, and wardrobe items.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
