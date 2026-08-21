@@ -113,8 +113,9 @@ class DashboardDesignedScreen extends StatelessWidget {
         'dailyChallengeCompleted': true,
         'dailyChallengeCategory': challenge.category,
         'dailyChallengeTitle': challenge.title,
+        'dailyChallengeXp': 10,
         'dailyChallengeHistory': FieldValue.arrayUnion([
-          {'date': _dateKey(now), 'challengeId': challengeId, 'category': challenge.category, 'title': challenge.title},
+          {'date': _dateKey(now), 'challengeId': challengeId, 'category': challenge.category, 'title': challenge.title, 'xp': 10},
         ]),
       }, SetOptions(merge: true));
       if (!context.mounted) return;
@@ -151,7 +152,10 @@ class DashboardDesignedScreen extends StatelessWidget {
               const SizedBox(height: 12),
               Container(padding: const EdgeInsets.all(13), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(15), border: Border.all(color: AppColors.border)), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [const Icon(Icons.lightbulb_outline_rounded, color: AppColors.primaryDark, size: 20), const SizedBox(width: 9), Expanded(child: Text(challenge.howTo, style: const TextStyle(fontSize: 11.5, height: 1.4, fontWeight: FontWeight.w600)))])),
               const SizedBox(height: 15),
-              if (result == null) const Text('Complete your colour analysis first to unlock personalised daily challenges.', style: TextStyle(color: AppColors.textMuted, fontSize: 10.5)) else SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: completed ? null : () => _completeChallenge(sheetContext), icon: Icon(completed ? Icons.check_rounded : Icons.auto_awesome_rounded), label: Text(completed ? 'Completed today' : 'Mark as complete'))),
+              if (result == null)
+                const Text('Complete your colour analysis first to unlock personalised daily challenges.', style: TextStyle(color: AppColors.textMuted, fontSize: 10.5))
+              else
+                SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: completed ? null : () => _completeChallenge(sheetContext), icon: Icon(completed ? Icons.check_rounded : Icons.auto_awesome_rounded), label: Text(completed ? 'Completed today' : 'Mark as complete'))),
             ],
           ),
         ),
@@ -247,18 +251,65 @@ class DashboardDesignedScreen extends StatelessWidget {
   Widget _challengeCard(BuildContext context, ColourAnalysisResult? result) {
     final challenge = _challenges[_challengeIndex(DateTime.now())];
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    return FutureBuilder<bool>(
-      future: uid == null ? Future.value(false) : _isChallengeCompleted(uid, DateTime.now()),
-      builder: (context, snapshot) {
-        final completed = snapshot.data == true;
-        return Material(color: Colors.transparent, child: InkWell(onTap: result == null ? null : () => _showChallengeDetails(context, result), borderRadius: BorderRadius.circular(20), child: Container(padding: const EdgeInsets.fromLTRB(16, 15, 16, 16), decoration: BoxDecoration(gradient: const LinearGradient(colors: [AppColors.lavenderMist, AppColors.background], begin: Alignment.topLeft, end: Alignment.bottomRight), borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.border)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [Container(width: 42, height: 42, decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle), child: Icon(challenge.icon, color: AppColors.primaryDark)), const SizedBox(width: 10), const Expanded(child: Text("TODAY'S CHALLENGE", style: TextStyle(color: AppColors.primaryDark, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: .7))), const Text('+10 XP', style: TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w800))]),
-          const SizedBox(height: 10),
-          Row(children: [Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(99)), child: Text(challenge.category, style: const TextStyle(color: AppColors.primaryDark, fontSize: 9, fontWeight: FontWeight.w800))), const Spacer(), if (completed) const Icon(Icons.check_circle_rounded, color: AppColors.primaryDark, size: 18)]),
-          const SizedBox(height: 8), Text(challenge.title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900)), const SizedBox(height: 4), Text(challenge.description, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.4)), const SizedBox(height: 11),
-          SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: result == null || completed ? null : () => _showChallengeDetails(context, result), icon: Icon(completed ? Icons.check_rounded : Icons.auto_awesome_rounded, size: 17), label: Text(completed ? 'Completed today' : 'View today\'s challenge'))),
-          if (result == null) const Padding(padding: EdgeInsets.only(top: 7), child: Text('Complete your colour analysis first to unlock personalised daily challenges.', style: TextStyle(color: AppColors.textMuted, fontSize: 10))),
-        ]))));
+    return FutureBuilder<StyleScoreSnapshot>(
+      future: uid == null ? Future.value(const StyleScoreSnapshot(appearance: 0, behavior: 0, communication: 0, digitalEtiquette: 0)) : StyleScoreService.calculate(uid: uid, analysis: result),
+      builder: (context, scoreSnapshot) {
+        final score = scoreSnapshot.data;
+        final streak = score?.challengeStreak ?? 0;
+        final xp = score?.challengeXp ?? 0;
+        return FutureBuilder<bool>(
+          future: uid == null ? Future.value(false) : _isChallengeCompleted(uid, DateTime.now()),
+          builder: (context, completedSnapshot) {
+            final completed = completedSnapshot.data == true;
+            return Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: result == null ? null : () => _showChallengeDetails(context, result),
+                borderRadius: BorderRadius.circular(20),
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(16, 15, 16, 16),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(colors: [AppColors.lavenderMist, AppColors.background], begin: Alignment.topLeft, end: Alignment.bottomRight),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(children: [
+                        Container(width: 42, height: 42, decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle), child: Icon(challenge.icon, color: AppColors.primaryDark)),
+                        const SizedBox(width: 10),
+                        const Expanded(child: Text("TODAY'S CHALLENGE", style: TextStyle(color: AppColors.primaryDark, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: .7))),
+                        Text('+10 XP', style: const TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w800)),
+                      ]),
+                      const SizedBox(height: 9),
+                      Row(children: [
+                        Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(99)), child: Text(challenge.category, style: const TextStyle(color: AppColors.primaryDark, fontSize: 9, fontWeight: FontWeight.w800))),
+                        const Spacer(),
+                        if (streak > 0) Row(children: [const Icon(Icons.local_fire_department_rounded, color: AppColors.primaryDark, size: 16), const SizedBox(width: 3), Text('$streak day streak', style: const TextStyle(color: AppColors.primaryDark, fontSize: 9.5, fontWeight: FontWeight.w800))]),
+                      ]),
+                      const SizedBox(height: 8),
+                      Text(challenge.title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
+                      const SizedBox(height: 4),
+                      Text(challenge.description, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.4)),
+                      const SizedBox(height: 9),
+                      Row(children: [
+                        const Icon(Icons.bolt_rounded, color: AppColors.primaryDark, size: 15),
+                        const SizedBox(width: 3),
+                        Text('$xp XP earned', style: const TextStyle(color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.w700)),
+                        const Spacer(),
+                        if (completed) const Icon(Icons.check_circle_rounded, color: AppColors.primaryDark, size: 18),
+                      ]),
+                      const SizedBox(height: 10),
+                      SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: result == null || completed ? null : () => _showChallengeDetails(context, result), icon: Icon(completed ? Icons.check_rounded : Icons.auto_awesome_rounded, size: 17), label: Text(completed ? 'Completed today' : 'View today\'s challenge'))),
+                      if (result == null) const Padding(padding: EdgeInsets.only(top: 7), child: Text('Complete your colour analysis first to unlock personalised daily challenges.', style: TextStyle(color: AppColors.textMuted, fontSize: 10))),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
       },
     );
   }
@@ -283,7 +334,6 @@ class _DailyChallenge {
 class _ScorePainter extends CustomPainter {
   final double progress;
   _ScorePainter(this.progress);
-
   @override
   void paint(Canvas canvas, Size size) {
     final stroke = size.height * .22;
@@ -293,7 +343,6 @@ class _ScorePainter extends CustomPainter {
     canvas.drawArc(rect, 3.4, 5.75, false, bg);
     canvas.drawArc(rect, 3.4, 5.75 * progress.clamp(0, 1), false, fg);
   }
-
   @override
   bool shouldRepaint(covariant _ScorePainter oldDelegate) => oldDelegate.progress != progress;
 }
