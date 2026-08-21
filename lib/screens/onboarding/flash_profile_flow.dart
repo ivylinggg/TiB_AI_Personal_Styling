@@ -7,12 +7,11 @@ import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_radius.dart';
 import '../../providers/analysis_provider.dart';
 import '../../services/firestore_service.dart';
-import '../../services/image_picker_service.dart';
+import '../../widgets/flash_face_scan_panel.dart';
 import '../../widgets/primary_button.dart';
-import '../analysis/analysis_result_screen.dart';
-import '../analysis/face_scan_screen.dart';
 import '../auth/auth_service.dart';
-import 'style_setup_flow.dart';
+import '../main/main_screen.dart';
+import 'flash_scan_result_screen.dart';
 
 class FlashProfileFlow extends StatefulWidget {
   const FlashProfileFlow({super.key});
@@ -36,9 +35,23 @@ class _FlashProfileFlowState extends State<FlashProfileFlow> {
     'Other',
   ];
   static const _brands = [
-    'Zara', 'Uniqlo', 'Shein', 'Cotton On', 'H&M', 'Forever 21', 'Mango',
-    'Primark', 'Fashion Nova', 'Gap', 'Cider', 'ASOS', 'Romwe', 'Bershka',
-    'Target', 'Charlotte Russe', 'Dynamite',
+    'Zara',
+    'Uniqlo',
+    'Shein',
+    'Cotton On',
+    'H&M',
+    'Forever 21',
+    'Mango',
+    'Primark',
+    'Fashion Nova',
+    'Gap',
+    'Cider',
+    'ASOS',
+    'Romwe',
+    'Bershka',
+    'Target',
+    'Charlotte Russe',
+    'Dynamite',
   ];
 
   int _step = 0;
@@ -50,26 +63,28 @@ class _FlashProfileFlowState extends State<FlashProfileFlow> {
   bool _saving = false;
 
   double get _progress => (_step + 1) / 5;
+
   bool get _canContinue => switch (_step) {
         0 => _gender != null,
         1 => _ageRange != null,
         2 => _ethnicity != null,
         3 => _preferredBrands.isNotEmpty,
-        4 => _scanImage != null,
         _ => false,
       };
 
   Future<void> _continue() async {
-    if (!_canContinue || _saving) return;
-    if (_step < 4) {
-      setState(() => _step += 1);
-      return;
-    }
+    if (!_canContinue || _saving || _step >= 4) return;
+    setState(() => _step += 1);
+  }
+
+  Future<void> _handleFaceScan(File file) async {
+    if (_saving) return;
+    setState(() => _scanImage = file);
     await _runColourAnalysis();
   }
 
   Future<void> _runColourAnalysis() async {
-    if (_saving) return;
+    if (_saving || _scanImage == null) return;
 
     final uid = AuthService.currentUser?.uid;
     final scanImage = _scanImage;
@@ -112,66 +127,45 @@ class _FlashProfileFlowState extends State<FlashProfileFlow> {
       }
 
       final result = provider.result!;
+      setState(() => _saving = false);
 
-      await FirestoreService.updateUser(uid, {
-        'onboardingComplete': true,
-        'onboardingScanCompleted': true,
-      });
-
-      if (!mounted) return;
-
-      await Navigator.push(
+      final action = await Navigator.push<FlashScanResultAction>(
         context,
         MaterialPageRoute(
-          builder: (_) => AnalysisResultScreen(result: result),
+          builder: (_) => FlashScanResultScreen(
+            result: result,
+            scanImage: scanImage,
+          ),
         ),
       );
 
       if (!mounted) return;
-      await Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const StyleSetupFlow(initialStep: 1),
-        ),
-      );
+
+      if (action == FlashScanResultAction.continueOnboarding) {
+        await FirestoreService.updateUser(uid, {
+          'onboardingComplete': true,
+          'onboardingScanCompleted': true,
+        });
+
+        if (!mounted) return;
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const MainScreen()),
+          (_) => false,
+        );
+        return;
+      }
+
+      if (action == FlashScanResultAction.rescan) {
+        setState(() => _scanImage = null);
+      }
     } catch (_) {
       if (!mounted) return;
       setState(() => _saving = false);
-      _message('Your colour profile could not be generated. Please try again.');
+      _message(
+        'Your colour profile could not be generated. Please try again.',
+      );
     }
-  }
-
-  void _back() {
-    if (_saving) return;
-    if (_step == 0) {
-      Navigator.pop(context);
-    } else {
-      setState(() => _step -= 1);
-    }
-  }
-
-  Future<void> _openFaceScan() async {
-    if (_saving) return;
-
-    final file = await Navigator.push<File?>(
-      context,
-      MaterialPageRoute(builder: (_) => const FaceScanScreen()),
-    );
-
-    if (!mounted || file == null) return;
-
-    setState(() => _scanImage = file);
-    await _runColourAnalysis();
-  }
-
-  Future<void> _pickPhoto() async {
-    if (_saving) return;
-
-    final file = await ImagePickerService.pickGallery();
-    if (!mounted || file == null) return;
-
-    setState(() => _scanImage = file);
-    await _runColourAnalysis();
   }
 
   void _toggleBrand(String brand) {
@@ -184,6 +178,18 @@ class _FlashProfileFlowState extends State<FlashProfileFlow> {
         _message('Choose up to 10 brands.');
       }
     });
+  }
+
+  void _back() {
+    if (_saving) return;
+    if (_step == 0) {
+      Navigator.pop(context);
+    } else {
+      setState(() {
+        _step -= 1;
+        if (_step < 4) _scanImage = null;
+      });
+    }
   }
 
   void _message(String message) {
@@ -233,18 +239,9 @@ class _FlashProfileFlowState extends State<FlashProfileFlow> {
                   Padding(
                     padding: const EdgeInsets.fromLTRB(22, 4, 22, 22),
                     child: PrimaryButton(
-                      text: _saving ? 'Building your profile…' : 'Continue',
-                      icon: _saving ? null : Icons.arrow_forward_rounded,
-                      onPressed: _canContinue && !_saving ? _continue : null,
-                    ),
-                  ),
-                if (_step == 4 && _scanImage == null)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(22, 4, 22, 22),
-                    child: PrimaryButton(
-                      text: 'Scan your face to continue',
-                      icon: Icons.face_retouching_natural_outlined,
-                      onPressed: _saving ? null : _openFaceScan,
+                      text: 'Continue',
+                      icon: Icons.arrow_forward_rounded,
+                      onPressed: _saving || !_canContinue ? null : _continue,
                     ),
                   ),
                 if (_step == 4 && _saving)
@@ -262,50 +259,6 @@ class _FlashProfileFlowState extends State<FlashProfileFlow> {
       ),
     );
   }
-
-  Widget _blob(double size, Color color) => Transform.rotate(
-        angle: -.28,
-        child: Container(
-          width: size,
-          height: size * .62,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(size),
-          ),
-        ),
-      );
-
-  Widget _topBar() => Padding(
-        padding: const EdgeInsets.fromLTRB(18, 8, 18, 0),
-        child: Row(
-          children: [
-            IconButton(
-              onPressed: _saving ? null : _back,
-              icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
-            ),
-            const Spacer(),
-            Text(
-              '${_step + 1} of 5',
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
-            ),
-            const Spacer(),
-            const SizedBox(width: 48),
-          ],
-        ),
-      );
-
-  Widget _progressBar() => Padding(
-        padding: const EdgeInsets.fromLTRB(64, 0, 64, 4),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(AppRadius.full),
-          child: LinearProgressIndicator(
-            minHeight: 3,
-            value: _progress,
-            backgroundColor: AppColors.border,
-            valueColor: const AlwaysStoppedAnimation(AppColors.primary),
-          ),
-        ),
-      );
 
   Widget _buildStep() => switch (_step) {
         0 => _choiceStep(
@@ -344,115 +297,120 @@ class _FlashProfileFlowState extends State<FlashProfileFlow> {
     String? selected,
     ValueChanged<String> onSelect,
     List<String> emojis,
-  ) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SizedBox(height: 8),
-          Center(
-            child: Text(
-              title,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 26,
-                fontWeight: FontWeight.w800,
-                letterSpacing: -.5,
-              ),
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 8),
+        Center(
+          child: Text(
+            title,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 26,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -.5,
             ),
           ),
-          const SizedBox(height: 10),
-          Center(
-            child: Text(
-              subtitle,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 13,
-                height: 1.45,
-              ),
+        ),
+        const SizedBox(height: 10),
+        Center(
+          child: Text(
+            subtitle,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 13,
+              height: 1.45,
             ),
           ),
-          const SizedBox(height: 28),
-          Expanded(
-            child: ListView.separated(
-              padding: const EdgeInsets.only(bottom: 10),
-              itemCount: options.length,
-              separatorBuilder: (_, index) => const SizedBox(height: 10),
-              itemBuilder: (_, index) {
-                final option = options[index];
-                return _selectCard(
-                  option,
-                  emoji: emojis[index],
-                  selected: selected == option,
-                  onTap: () => onSelect(option),
-                );
-              },
-            ),
+        ),
+        const SizedBox(height: 28),
+        Expanded(
+          child: ListView.separated(
+            padding: const EdgeInsets.only(bottom: 10),
+            itemCount: options.length,
+            separatorBuilder: (_, index) => const SizedBox(height: 10),
+            itemBuilder: (_, index) {
+              final option = options[index];
+              return _selectCard(
+                option,
+                emoji: emojis[index],
+                selected: selected == option,
+                onTap: () => onSelect(option),
+              );
+            },
           ),
-        ],
-      );
+        ),
+      ],
+    );
+  }
 
   Widget _selectCard(
     String label, {
     required String emoji,
     required bool selected,
     required VoidCallback onTap,
-  }) => InkWell(
-        onTap: _saving ? null : onTap,
-        borderRadius: BorderRadius.circular(18),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-          decoration: BoxDecoration(
+  }) {
+    return InkWell(
+      onTap: _saving ? null : onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        decoration: BoxDecoration(
+          color: selected
+              ? AppColors.lavenderMist
+              : Colors.white.withValues(alpha: .92),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
             color: selected
-                ? AppColors.lavenderMist
-                : Colors.white.withValues(alpha: .92),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: selected
-                  ? AppColors.primary.withValues(alpha: .45)
-                  : AppColors.border,
-              width: selected ? 1.3 : 1,
-            ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: selected
-                      ? AppColors.primarySoft
-                      : AppColors.surfaceMuted,
-                  shape: BoxShape.circle,
-                ),
-                child: Text(emoji, style: const TextStyle(fontSize: 20)),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  label,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              if (selected)
-                const Icon(
-                  Icons.check_circle_rounded,
-                  color: AppColors.primary,
-                  size: 23,
-                ),
-            ],
+                ? AppColors.primary.withValues(alpha: .45)
+                : AppColors.border,
+            width: selected ? 1.3 : 1,
           ),
         ),
-      );
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: selected
+                    ? AppColors.primarySoft
+                    : AppColors.surfaceMuted,
+                shape: BoxShape.circle,
+              ),
+              child: Text(emoji, style: const TextStyle(fontSize: 20)),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            if (selected)
+              const Icon(
+                Icons.check_circle_rounded,
+                color: AppColors.primary,
+                size: 23,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 
   Widget _brandStep() {
     final remaining = _brands
         .where((brand) => !_preferredBrands.contains(brand))
         .toList();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -507,10 +465,7 @@ class _FlashProfileFlowState extends State<FlashProfileFlow> {
             children: _preferredBrands
                 .map(
                   (brand) => InputChip(
-                    label: Text(
-                      brand,
-                      style: const TextStyle(fontSize: 11),
-                    ),
+                    label: Text(brand, style: const TextStyle(fontSize: 11)),
                     onDeleted: () => _toggleBrand(brand),
                     backgroundColor: AppColors.lavenderMist,
                     side: BorderSide(
@@ -583,134 +538,87 @@ class _FlashProfileFlowState extends State<FlashProfileFlow> {
     );
   }
 
-  Widget _scanStep() => Column(
+  Widget _scanStep() {
+    return Column(
+      children: [
+        const SizedBox(height: 8),
+        const Text(
+          'Let’s scan your\nbeautiful you ✨',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 25,
+            fontWeight: FontWeight.w800,
+            height: 1.1,
+          ),
+        ),
+        const SizedBox(height: 10),
+        const Text(
+          'We’ll analyze your natural coloring\nto find the best shades for you',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: AppColors.textSecondary,
+            fontSize: 13,
+            height: 1.4,
+          ),
+        ),
+        const SizedBox(height: 16),
+        Expanded(
+          child: FlashFaceScanPanel(
+            busy: _saving,
+            onCaptured: _handleFaceScan,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _blob(double size, Color color) {
+    return Transform.rotate(
+      angle: -.28,
+      child: Container(
+        width: size,
+        height: size * .62,
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(size),
+        ),
+      ),
+    );
+  }
+
+  Widget _topBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(18, 8, 18, 0),
+      child: Row(
         children: [
-          const SizedBox(height: 8),
-          const Text(
-            'Let’s scan your\nbeautiful you ✨',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 25,
-              fontWeight: FontWeight.w800,
-              height: 1.1,
-            ),
+          IconButton(
+            onPressed: _saving ? null : _back,
+            icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
           ),
-          const SizedBox(height: 10),
-          const Text(
-            'We’ll analyze your natural coloring\nto find the best shades for you',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 13,
-              height: 1.4,
-            ),
+          const Spacer(),
+          Text(
+            '${_step + 1} of 5',
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
           ),
-          const SizedBox(height: 18),
-          Expanded(
-            child: Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(28),
-                gradient: const LinearGradient(
-                  colors: [Color(0xFFF1E8FA), Color(0xFFFFF1EA)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-              ),
-              child: _scanImage == null
-                  ? const Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.face_retouching_natural_outlined,
-                          color: AppColors.primary,
-                          size: 58,
-                        ),
-                        SizedBox(height: 18),
-                        Text(
-                          'Upload a clear face photo',
-                          style: TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        SizedBox(height: 6),
-                        Text(
-                          'Good lighting works best.',
-                          style: TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    )
-                  : ClipRRect(
-                      borderRadius: BorderRadius.circular(28),
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          Image.file(
-                            _scanImage!,
-                            width: double.infinity,
-                            height: double.infinity,
-                            fit: BoxFit.cover,
-                          ),
-                          if (_saving)
-                            Container(
-                              color: Colors.black.withValues(alpha: .42),
-                              child: const Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  SizedBox(
-                                    width: 42,
-                                    height: 42,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 3,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                  SizedBox(height: 16),
-                                  Text(
-                                    'Creating your colour profile…',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                  SizedBox(height: 6),
-                                  Text(
-                                    'Analyzing your natural colouring',
-                                    style: TextStyle(
-                                      color: Colors.white70,
-                                      fontSize: 11.5,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              OutlinedButton.icon(
-                onPressed: _saving ? null : _openFaceScan,
-                icon: const Icon(Icons.camera_alt_outlined, size: 17),
-                label: const Text('Scan'),
-              ),
-              const SizedBox(width: 10),
-              OutlinedButton.icon(
-                onPressed: _saving ? null : _pickPhoto,
-                icon: const Icon(Icons.photo_library_outlined, size: 17),
-                label: const Text('Gallery'),
-              ),
-            ],
-          ),
+          const Spacer(),
+          const SizedBox(width: 48),
         ],
-      );
+      ),
+    );
+  }
+
+  Widget _progressBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(64, 0, 64, 4),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppRadius.full),
+        child: LinearProgressIndicator(
+          minHeight: 3,
+          value: _progress,
+          backgroundColor: AppColors.border,
+          valueColor: const AlwaysStoppedAnimation(AppColors.primary),
+        ),
+      ),
+    );
+  }
 }
