@@ -98,9 +98,9 @@ class ColourReportService {
     return file;
   }
 
-  /// Saves a durable copy into the app Documents directory. On iOS,
-  /// the project exposes this directory through the Files app configuration.
-  /// The same durable copy remains available for later sharing.
+  /// Saves a durable copy into the app Documents directory.
+  /// On iOS the project exposes this directory through the Files app
+  /// configuration, so the saved report remains available to the user.
   static Future<File> saveReport({
     required ColourAnalysisResult result,
   }) async {
@@ -136,7 +136,7 @@ class ColourReportService {
 
   static void _metricCard(PdfPage page, double x, double y, double width, String label, String value, PdfColor accent, PdfColor dark) {
     page.graphics.drawRectangle(brush: PdfSolidBrush(PdfColor(250, 248, 251)), pen: PdfPen(PdfColor(225, 219, 228)), bounds: ui.Rect.fromLTWH(x, y, width, 66));
-    page.graphics.drawEllipse(PdfSolidBrush(accent), ui.Rect.fromLTWH(x + 12, y + 14, 16, 16));
+    page.graphics.drawEllipse(ui.Rect.fromLTWH(x + 12, y + 14, 16, 16), brush: PdfSolidBrush(accent));
     _text(page, label, PdfStandardFont(PdfFontFamily.helvetica, 8, style: PdfFontStyle.bold), PdfColor(120, 114, 122), ui.Rect.fromLTWH(x + 36, y + 12, width - 48, 12));
     _text(page, value, PdfStandardFont(PdfFontFamily.helvetica, 12, style: PdfFontStyle.bold), dark, ui.Rect.fromLTWH(x + 12, y + 34, width - 24, 18));
   }
