@@ -2,7 +2,6 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
-import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -99,32 +98,19 @@ class ColourReportService {
     return file;
   }
 
-  /// Creates a durable app copy and then opens the operating-system
-  /// Save-to-Files / Save-As dialog. On iOS this uses the native document
-  /// picker, allowing the user to choose Files, iCloud Drive, or another
-  /// available location. On Android it uses the system save dialog as well.
-  static Future<void> saveReport({
+  /// Saves a durable copy into the app Documents directory. On iOS,
+  /// the project exposes this directory through the Files app configuration.
+  /// The same durable copy remains available for later sharing.
+  static Future<File> saveReport({
     required ColourAnalysisResult result,
   }) async {
     final bytes = await generateBytes(result: result);
     final safeSeason = result.season.replaceAll(RegExp(r'[^A-Za-z0-9_-]+'), '_');
     final fileName = 'TiB_Colour_Report_$safeSeason.pdf';
-
     final documentsDirectory = await getApplicationDocumentsDirectory();
-    final durableFile = File('${documentsDirectory.path}/$fileName');
-    await durableFile.writeAsBytes(bytes, flush: true);
-
-    final savedUri = await FilePicker.saveFile(
-      dialogTitle: 'Save your TiB Colour Analysis PDF',
-      fileName: fileName,
-      bytes: bytes,
-      type: FileType.custom,
-      allowedExtensions: ['pdf'],
-    );
-
-    if (savedUri == null) {
-      throw StateError('PDF save was cancelled.');
-    }
+    final file = File('${documentsDirectory.path}/$fileName');
+    await file.writeAsBytes(bytes, flush: true);
+    return file;
   }
 
   static Future<File> generateAndShare({
