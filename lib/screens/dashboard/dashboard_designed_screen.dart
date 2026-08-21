@@ -17,6 +17,7 @@ import '../ai/style_me_screen.dart';
 import '../ai/style_preferences_screen.dart';
 import '../analysis/analysis_result_screen.dart';
 import '../analysis/analysis_screen.dart';
+import '../auth/login_screen.dart';
 import '../profile/profile_screen.dart';
 import '../profile/saved_looks_screen.dart';
 import '../wardrobe/wardrobe_screen.dart';
@@ -145,9 +146,9 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
             ],
           ),
         ),
-        _iconButton(Icons.menu_rounded, _showMenu),
-        const SizedBox(width: 7),
         _iconButton(Icons.notifications_none_rounded, () {}),
+        const SizedBox(width: 7),
+        _iconButton(Icons.logout_rounded, _confirmLogout),
       ],
     );
   }
@@ -439,57 +440,46 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
     );
   }
 
-  Future<void> _showMenu() async {
-    final action = await showModalBottomSheet<_MenuAction>(
+  Future<void> _confirmLogout() async {
+    final shouldLogout = await showDialog<bool>(
       context: context,
-      showDragHandle: true,
-      backgroundColor: AppColors.background,
-      builder: (sheetContext) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 4, 20, 18),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Padding(padding: EdgeInsets.fromLTRB(4, 0, 4, 12), child: Text('TiB Menu', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800))),
-              _menuItem(sheetContext, Icons.person_outline_rounded, 'My Profile', _MenuAction.profile),
-              _menuItem(sheetContext, Icons.bookmark_outline_rounded, 'Saved Looks', _MenuAction.savedLooks),
-              _menuItem(sheetContext, Icons.tune_rounded, 'Style Preferences', _MenuAction.preferences),
-              _menuItem(sheetContext, Icons.palette_outlined, 'Colour Profile', _MenuAction.colours),
-              _menuItem(sheetContext, Icons.checkroom_outlined, 'My Wardrobe', _MenuAction.wardrobe),
-            ],
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Logout'),
+        content: const Text('You can sign in again anytime with your account.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
           ),
-        ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Logout'),
+          ),
+        ],
       ),
     );
-    if (!mounted || action == null) return;
-    switch (action) {
-      case _MenuAction.profile:
-        await _open(const ProfileScreen());
-        break;
-      case _MenuAction.savedLooks:
-        await _open(const SavedLooksScreen());
-        break;
-      case _MenuAction.preferences:
-        await _open(const StylePreferencesScreen());
-        break;
-      case _MenuAction.colours:
-        await _open(const AnalysisScreen());
-        break;
-      case _MenuAction.wardrobe:
-        await _open(const WardrobeScreen());
-        break;
+
+    if (shouldLogout == true) {
+      await _logout();
     }
   }
 
-  Widget _menuItem(BuildContext sheetContext, IconData icon, String title, _MenuAction action) {
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-      leading: Container(width: 42, height: 42, decoration: const BoxDecoration(color: AppColors.surfaceMuted, shape: BoxShape.circle), child: Icon(icon, color: AppColors.primary)),
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
-      trailing: const Icon(Icons.chevron_right_rounded),
-      onTap: () => Navigator.pop(sheetContext, action),
-    );
+  Future<void> _logout() async {
+    try {
+      await FirebaseAuth.instance.signOut();
+      if (!mounted) return;
+      context.read<AnalysisProvider>().clear();
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        (route) => false,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Logout failed. Please try again.')),
+      );
+    }
   }
 
   Future<void> _open(Widget page) async {
@@ -497,8 +487,6 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
     if (mounted) _load();
   }
 }
-
-enum _MenuAction { profile, savedLooks, preferences, colours, wardrobe }
 
 class _HeroPill extends StatelessWidget {
   final String label;
