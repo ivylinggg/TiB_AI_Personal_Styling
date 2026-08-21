@@ -98,17 +98,24 @@ class ColourReportService {
     return file;
   }
 
-  /// Saves a durable copy into the app Documents directory.
-  /// On iOS the project exposes this directory through the Files app
-  /// configuration, so the saved report remains available to the user.
+  /// Saves a durable copy in a dedicated Reports folder inside the app's
+  /// Documents directory. On iOS this folder is exposed through the Files
+  /// app because UIFileSharingEnabled and LSSupportsOpeningDocumentsInPlace
+  /// are enabled in Runner/Info.plist.
   static Future<File> saveReport({
     required ColourAnalysisResult result,
   }) async {
     final bytes = await generateBytes(result: result);
     final safeSeason = result.season.replaceAll(RegExp(r'[^A-Za-z0-9_-]+'), '_');
     final fileName = 'TiB_Colour_Report_$safeSeason.pdf';
+
     final documentsDirectory = await getApplicationDocumentsDirectory();
-    final file = File('${documentsDirectory.path}/$fileName');
+    final reportsDirectory = Directory('${documentsDirectory.path}/Reports');
+    if (!await reportsDirectory.exists()) {
+      await reportsDirectory.create(recursive: true);
+    }
+
+    final file = File('${reportsDirectory.path}/$fileName');
     await file.writeAsBytes(bytes, flush: true);
     return file;
   }
@@ -136,7 +143,7 @@ class ColourReportService {
 
   static void _metricCard(PdfPage page, double x, double y, double width, String label, String value, PdfColor accent, PdfColor dark) {
     page.graphics.drawRectangle(brush: PdfSolidBrush(PdfColor(250, 248, 251)), pen: PdfPen(PdfColor(225, 219, 228)), bounds: ui.Rect.fromLTWH(x, y, width, 66));
-    page.graphics.drawEllipse(ui.Rect.fromLTWH(x + 12, y + 14, 16, 16), brush: PdfSolidBrush(accent));
+    page.graphics.drawEllipse(PdfSolidBrush(accent), ui.Rect.fromLTWH(x + 12, y + 14, 16, 16));
     _text(page, label, PdfStandardFont(PdfFontFamily.helvetica, 8, style: PdfFontStyle.bold), PdfColor(120, 114, 122), ui.Rect.fromLTWH(x + 36, y + 12, width - 48, 12));
     _text(page, value, PdfStandardFont(PdfFontFamily.helvetica, 12, style: PdfFontStyle.bold), dark, ui.Rect.fromLTWH(x + 12, y + 34, width - 24, 18));
   }
