@@ -27,7 +27,6 @@ import '../ai/ai_stylist_screen.dart';
 import '../ai/style_preferences_screen.dart';
 import '../analysis/analysis_result_screen.dart';
 import '../analysis/analysis_screen.dart';
-import '../auth/login_screen.dart';
 import '../wardrobe/wardrobe_screen.dart';
 import 'saved_looks_screen.dart';
 
@@ -44,7 +43,6 @@ class _ProfileScreenState extends State<ProfileScreen>
     with SingleTickerProviderStateMixin {
   UserModel? user;
   bool isLoading = true;
-  bool isLoggingOut = false;
   bool isUploadingPhoto = false;
   bool isPremium = false;
   String? loadError;
@@ -446,62 +444,6 @@ class _ProfileScreenState extends State<ProfileScreen>
     }
   }
 
-  Future<void> logout() async {
-    if (isLoggingOut) {
-      return;
-    }
-
-    setState(() => isLoggingOut = true);
-
-    try {
-      await FirebaseAuth.instance.signOut();
-      if (!mounted) {
-        return;
-      }
-
-      // Clear any in-memory colour analysis result so a different account
-      // signing in afterwards never briefly sees this user's data.
-      context.read<AnalysisProvider>().clear();
-
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
-        (route) => false,
-      );
-    } catch (e) {
-      if (!mounted) {
-        return;
-      }
-      setState(() => isLoggingOut = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Logout failed: $e')),
-      );
-    }
-  }
-
-  Future<void> confirmLogout() async {
-    final shouldLogout = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Logout'),
-        content: const Text('You can sign in again anytime with your account.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Logout'),
-          ),
-        ],
-      ),
-    );
-
-    if (shouldLogout == true) {
-      await logout();
-    }
-  }
 
   Future<void> openEditProfile() async {
     final firebaseUser = FirebaseAuth.instance.currentUser;
@@ -789,8 +731,6 @@ class _ProfileScreenState extends State<ProfileScreen>
           ),
           const SizedBox(height: 14),
           _reveal(_preferencesReveal, _buildAccountSection()),
-          const SizedBox(height: 30),
-          _reveal(_preferencesReveal, _buildLogoutButton()),
         ],
       ),
     );
@@ -1297,28 +1237,4 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-  Widget _buildLogoutButton() {
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton.icon(
-        onPressed: isLoggingOut ? null : confirmLogout,
-        icon: isLoggingOut
-            ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : const Icon(Icons.logout),
-        label: Text(isLoggingOut ? 'Logging Out...' : 'Logout'),
-        style: OutlinedButton.styleFrom(
-          minimumSize: const Size.fromHeight(52),
-          foregroundColor: AppColors.error,
-          side: BorderSide(color: AppColors.error),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadius.md),
-          ),
-        ),
-      ),
-    );
-  }
 }
