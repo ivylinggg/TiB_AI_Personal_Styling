@@ -1,0 +1,68 @@
+name: Temporary dashboard copy patch
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ !startsWith(github.event.head_commit.message, 'bot:') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Patch dashboard copy
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('lib/screens/dashboard/dashboard_designed_screen.dart')
+          text = path.read_text()
+
+          replacements = {
+            '今天的你可能会遇到一点甜甜的桃花运噢 ✨': 'A little romance may find you today ✨',
+            '今天的你自带一点浪漫滤镜，勇敢接受新的缘分吧 🌹': 'You are giving off a romantic energy today — stay open to new connections 🌹',
+            '今天适合主动一点，好事可能就在你开口以后发生 🧡': 'Take the lead today. A good thing may begin when you speak up 🧡',
+            '今天适合大胆一点，你的自信会特别有存在感 ❤️': 'Be a little bolder today — your confidence will stand out ❤️',
+            '今天很适合主动一点，好事可能就在你开口以后发生 🧡': 'Be a little more proactive today. Good things may follow 🧡',
+            '今天带一点阳光色，灵感和好心情都会跟着来 💛': 'Bring a little sunshine with you today — inspiration and good vibes will follow 💛',
+            '今天适合慢一点、稳一点，你的好状态会自然散发出来 🌿': 'Take it slow and steady today. Your calm confidence will shine naturally 🌿',
+            '今天的语言会更有感染力，保持清爽、真诚和好心情 🩵': 'Your words may carry extra warmth today. Stay clear, sincere and positive 🩵',
+            '今天的沟通会更顺，把你的冷静和可靠穿出来 💙': 'Communication may flow more smoothly today. Let your calm and reliability show 💙',
+            '今天很适合发挥一点创意，让别人记住你的独特感 💜': 'Let your creativity show today and give people something memorable about you 💜',
+            '今天的你自带稳重魅力，温柔又让人觉得很可靠 🤎': 'You are giving off a grounded, dependable energy today 🤎',
+            '今天适合轻松一点，简单干净的状态反而最耐看 🤍': 'Keep it easy today. A clean, effortless look may be all you need 🤍',
+            '今天像一个新的开始，保持轻盈，你会发现更多可能 🤍': 'Today feels like a fresh start. Stay light and open to new possibilities 🤍',
+            '今天适合把气场打开一点，你会比自己想象中更有力量 🖤': 'Own your presence today. You may feel more powerful than you expect 🖤',
+            '今天适合保持清醒与从容，低调也可以很有质感 🩶': 'Stay calm and composed today. Understated can still look incredibly polished 🩶',
+            '今天就穿上它，让属于你的颜色陪你完成一个好日子 ✨': 'Wear it with confidence and let your colour set the tone for a good day ✨',
+          }
+          for old, new in replacements.items():
+              text = text.replace(old, new)
+
+          text = text.replace(
+            "              const SizedBox(height: 14),\n              _challengeCard(context, result),\n              const SizedBox(height: 14),\n              _seasonCard(context, result),\n",
+            "              const SizedBox(height: 14),\n              _challengeCard(context, result),\n",
+          )
+
+          old_method = '''  Widget _seasonCard(BuildContext context, ColourAnalysisResult? result) {\n    if (result == null) return _card(context, const AnalysisScreen(), const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('YOUR COLOUR SEASON', style: TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: .7)), SizedBox(height: 7), Text('Discover your season', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800)), SizedBox(height: 5), Text('Start your face scan to unlock your personal colour profile.', style: TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.35))]));\n    return _card(context, AnalysisResultScreen(result: result), Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('YOUR COLOUR SEASON', style: TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: .7)), const SizedBox(height: 7), Text(result.season, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900)), const SizedBox(height: 4), Text('${result.undertone} • ${result.brightness} • ${result.contrast}', style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)), const SizedBox(height: 10), Wrap(spacing: 7, runSpacing: 7, children: result.colours.take(7).map<Widget>((name) => ColourSwatch(name: name, size: 31, showLabel: true)).toList())]));\n  }\n'''
+          if old_method in text:
+              text = text.replace(old_method, '  Widget _seasonCard(BuildContext context, ColourAnalysisResult? result) => const SizedBox.shrink();\n')
+
+          path.write_text(text)
+          PY
+
+      - name: Validate and commit
+        run: |
+          flutter analyze
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add lib/screens/dashboard/dashboard_designed_screen.dart .github/workflows/patch_dashboard_copy.yml
+          git rm .github/workflows/patch_dashboard_copy.yml
+          git commit -m "bot: Update Today’s Colour copy and remove season card" || exit 0
+          git push
