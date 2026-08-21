@@ -99,6 +99,12 @@ class _AnalysisScreenState extends State<AnalysisScreen>
     provider.setImage(image);
   }
 
+  void removeSelectedPhoto() {
+    final provider = context.read<AnalysisProvider>();
+    if (provider.isLoading) return;
+    provider.clear();
+  }
+
   Future<void> analyse() async {
     final provider = context.read<AnalysisProvider>();
     if (provider.isLoading) return;
@@ -122,7 +128,12 @@ class _AnalysisScreenState extends State<AnalysisScreen>
         ),
       );
       if (!mounted) return;
-      if (completed == true) Navigator.pop(context, true);
+      if (completed == true) {
+        // Clear the temporary photo/result from the active analysis session so
+        // the user can immediately start a fresh scan next time.
+        provider.clear();
+        Navigator.pop(context, true);
+      }
     } else if (provider.errorMessage != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(provider.errorMessage!)),
@@ -298,7 +309,21 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                       ),
                     ],
                   ),
-                  const SizedBox(height: 14),
+                  if (provider.selectedImage != null) ...[
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.center,
+                      child: TextButton.icon(
+                        onPressed: provider.isLoading ? null : removeSelectedPhoto,
+                        icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                        label: const Text('Remove Photo & Scan Again'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColors.primaryDark,
+                        ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 6),
                   _reveal(
                     _actionsReveal,
                     PrimaryButton(
