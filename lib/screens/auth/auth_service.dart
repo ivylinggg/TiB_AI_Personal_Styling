@@ -63,32 +63,55 @@ class AuthService {
 
     final userCredential = await _auth.signInWithCredential(credential);
 
-    final user = userCredential.user;
-
-    if (user == null) {
-      throw FirebaseAuthException(
-        code: 'google-user-missing',
-        message: 'Google sign-in did not return a Firebase user.',
-      );
-    }
-
-    // Create the Firestore profile automatically for a new Google user.
-    final existingProfile = await FirestoreService.getUser(user.uid);
-
-    if (existingProfile == null) {
-      final profile = UserModel(
-        uid: user.uid,
-        name: user.displayName?.trim().isNotEmpty == true
-            ? user.displayName!.trim()
-            : 'Google User',
-        email: user.email?.trim() ?? '',
-        photoUrl: user.photoURL,
-      );
-
-      await FirestoreService.createUser(profile);
-    }
+    await _ensureFirestoreProfile(userCredential.user);
 
     return userCredential;
+  }
+
+  // ============================================================
+  // APPLE SIGN-IN
+  // ============================================================
+
+  static Future<UserCredential?> loginWithApple() async {
+    final appleProvider = AppleAuthProvider();
+    appleProvider.addScope('email');
+    appleProvider.addScope('name');
+
+    final userCredential = await _auth.signInWithProvider(appleProvider);
+
+    await _ensureFirestoreProfile(userCredential.user);
+
+    return userCredential;
+  }
+
+  // ============================================================
+  // OAUTH PROFILE
+  // ============================================================
+
+  static Future<void> _ensureFirestoreProfile(User? user) async {
+    if (user == null) {
+      throw FirebaseAuthException(
+        code: 'social-user-missing',
+        message: 'Social sign-in did not return a Firebase user.',
+      );
+    }
+
+    final existingProfile = await FirestoreService.getUser(user.uid);
+
+    if (existingProfile != null) {
+      return;
+    }
+
+    final profile = UserModel(
+      uid: user.uid,
+      name: user.displayName?.trim().isNotEmpty == true
+          ? user.displayName!.trim()
+          : 'TiB User',
+      email: user.email?.trim() ?? '',
+      photoUrl: user.photoURL,
+    );
+
+    await FirestoreService.createUser(profile);
   }
 
   // ============================================================
@@ -179,7 +202,7 @@ class AuthService {
       await GoogleSignIn.instance.signOut();
     } catch (_) {
       // Ignore Google sign-out errors when the user is using
-      // email/password authentication.
+      // email/password or Apple authentication.
     }
   }
 }
