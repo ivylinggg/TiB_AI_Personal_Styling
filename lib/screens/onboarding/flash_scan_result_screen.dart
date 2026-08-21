@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
-import '../../core/constants/app_gradients.dart';
 import '../../data/professional_style_data.dart';
 import '../../data/season_colour_guide.dart';
 import '../../models/colour_analysis_result.dart';
@@ -89,6 +88,7 @@ class FlashScanResultScreen extends StatelessWidget {
                       _scanImageCard(),
                       const SizedBox(height: 2),
                       _resultCard(
+                        context: context,
                         season: season,
                         bestColours: bestColours,
                         avoid: avoid,
@@ -204,6 +204,7 @@ class FlashScanResultScreen extends StatelessWidget {
   }
 
   Widget _resultCard({
+    required BuildContext context,
     required SeasonColourProfile season,
     required List<String> bestColours,
     required List<String> avoid,
@@ -313,7 +314,7 @@ class FlashScanResultScreen extends StatelessWidget {
             width: double.infinity,
             child: FilledButton.icon(
               onPressed: () => Navigator.pop(
-                _resultContext,
+                context,
                 FlashScanResultAction.continueOnboarding,
               ),
               icon: const Icon(Icons.arrow_forward_rounded),
@@ -332,7 +333,7 @@ class FlashScanResultScreen extends StatelessWidget {
           Center(
             child: TextButton.icon(
               onPressed: () => Navigator.pop(
-                _resultContext,
+                context,
                 FlashScanResultAction.rescan,
               ),
               icon: const Icon(Icons.refresh_rounded, size: 18),
@@ -346,10 +347,6 @@ class FlashScanResultScreen extends StatelessWidget {
       ),
     );
   }
-
-  // The result card is intentionally built with a stable navigator context
-  // supplied by the screen below. This avoids capturing parent contexts.
-  late BuildContext _resultContext;
 
   Widget _attribute({
     required IconData icon,
@@ -426,12 +423,6 @@ class FlashScanResultScreen extends StatelessWidget {
           borderRadius: BorderRadius.circular(size),
         ),
       );
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _resultContext = context;
-  }
 }
 
 class _ResultTip extends StatelessWidget {
