@@ -1,0 +1,65 @@
+name: Cleanup Profile Logout
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/cleanup-profile-logout.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Remove Profile logout
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          path = Path('lib/screens/profile/profile_screen.dart')
+          text = path.read_text(encoding='utf-8')
+
+          text = text.replace("import '../auth/login_screen.dart';\n", '')
+          text = text.replace('  bool isLoggingOut = false;\n', '')
+
+          text = re.sub(
+              r"\n  Future<void> logout\(\) async \{.*?\n  \}\n\n  Future<void> confirmLogout\(\) async \{.*?\n  \}\n",
+              '\n',
+              text,
+              flags=re.S,
+          )
+
+          text = re.sub(
+              r"\n          const SizedBox\(height: 30\),\n          _reveal\(_preferencesReveal, _buildLogoutButton\(\)\),",
+              '',
+              text,
+              flags=re.S,
+          )
+
+          text = re.sub(
+              r"\n  Widget _buildLogoutButton\(\) \{.*?\n  \}\n",
+              '\n',
+              text,
+              flags=re.S,
+          )
+
+          path.write_text(text, encoding='utf-8')
+          print('Profile logout flow removed.')
+
+      - name: Commit and push
+        shell: bash
+        run: |
+          rm -f .github/workflows/cleanup-profile-logout.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add lib/screens/profile/profile_screen.dart .github/workflows/cleanup-profile-logout.yml
+          git commit -m 'Remove logout from Profile screen'
+          git push
