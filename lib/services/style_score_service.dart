@@ -9,6 +9,8 @@ class StyleScoreSnapshot {
   final int digitalEtiquette;
   final int challengeXp;
   final int challengeStreak;
+  final int wardrobePaletteMatches;
+  final int wardrobeSeasonMatches;
 
   const StyleScoreSnapshot({
     required this.appearance,
@@ -17,6 +19,8 @@ class StyleScoreSnapshot {
     required this.digitalEtiquette,
     this.challengeXp = 0,
     this.challengeStreak = 0,
+    this.wardrobePaletteMatches = 0,
+    this.wardrobeSeasonMatches = 0,
   });
 
   int get total =>
@@ -26,9 +30,10 @@ class StyleScoreSnapshot {
 
 /// Calculates the dashboard Style Score from real user progress.
 ///
-/// The score maps to the TiB-style Appearance / Behavior / Communication /
-/// Digital Etiquette framework. Appearance now rewards both wardrobe growth
-/// and how well the wardrobe reflects the user's personal colour palette.
+/// Appearance rewards colour analysis, wardrobe growth, palette alignment,
+/// and seasonal wardrobe alignment. Behavior uses challenge history and
+/// streak. Communication uses saved style preferences. Digital Etiquette uses
+/// profile completeness.
 class StyleScoreService {
   StyleScoreService._();
 
@@ -64,11 +69,7 @@ class StyleScoreService {
     final user = userDoc.data() ?? const <String, dynamic>{};
     final preferences = preferenceDoc.data() ?? const <String, dynamic>{};
 
-    // Appearance / 40:
-    // 20 points reward completing a colour profile + having a usable wardrobe.
-    // A further 20 points reward wardrobe items that match the user's
-    // personal best-colour palette, so adding the right clothes improves the
-    // score rather than rewarding quantity alone.
+    // Appearance / 40.
     final analysisColours = analysis?.colours.length ?? 0;
     final analysisPoints = analysis == null
         ? 0
@@ -86,21 +87,32 @@ class StyleScoreService {
         .where((colour) => colour.isNotEmpty)
         .toSet();
 
+    final season = _normalise(analysis?.season ?? '');
     var paletteMatches = 0;
-    if (palette.isNotEmpty) {
-      for (final doc in wardrobeSnapshot.docs) {
-        final colour = _normalise(doc.data()['colour']?.toString() ?? '');
-        if (colour.isNotEmpty && _matchesPalette(colour, palette)) {
-          paletteMatches++;
-        }
+    var seasonMatches = 0;
+
+    for (final doc in wardrobeSnapshot.docs) {
+      final data = doc.data();
+      final colour = _normalise(data['colour']?.toString() ?? '');
+      final itemSeason = _normalise(data['season']?.toString() ?? '');
+
+      if (colour.isNotEmpty && palette.isNotEmpty && _matchesPalette(colour, palette)) {
+        paletteMatches++;
+      }
+
+      if (season.isNotEmpty &&
+          itemSeason.isNotEmpty &&
+          itemSeason != 'all seasons' &&
+          itemSeason == season) {
+        seasonMatches++;
       }
     }
 
-    final palettePoints = paletteMatches >= 10
-        ? 10
-        : paletteMatches;
+    final palettePoints = paletteMatches >= 5 ? 5 : paletteMatches;
+    final seasonPoints = seasonMatches >= 5 ? 5 : seasonMatches;
     final appearance =
-        (analysisPoints + wardrobeQuantityPoints + palettePoints).clamp(0, 40);
+        (analysisPoints + wardrobeQuantityPoints + palettePoints + seasonPoints)
+            .clamp(0, 40);
 
     // Behavior / 25.
     final history = user['dailyChallengeHistory'];
@@ -155,6 +167,8 @@ class StyleScoreService {
       digitalEtiquette: digitalEtiquette,
       challengeXp: challengeXp,
       challengeStreak: challengeStreak,
+      wardrobePaletteMatches: paletteMatches,
+      wardrobeSeasonMatches: seasonMatches,
     );
   }
 
@@ -165,7 +179,8 @@ class StyleScoreService {
     if (palette.contains(wardrobeColour)) return true;
 
     for (final preferred in palette) {
-      if (wardrobeColour.contains(preferred) || preferred.contains(wardrobeColour)) {
+      if (wardrobeColour.contains(preferred) ||
+          preferred.contains(wardrobeColour)) {
         return true;
       }
 
@@ -193,7 +208,9 @@ class StyleScoreService {
     if (colour.contains('orange') || colour.contains('terracotta')) {
       return 'orange';
     }
-    if (colour.contains('yellow') || colour.contains('gold') || colour.contains('mustard')) {
+    if (colour.contains('yellow') ||
+        colour.contains('gold') ||
+        colour.contains('mustard')) {
       return 'yellow';
     }
     if (colour.contains('green') ||
