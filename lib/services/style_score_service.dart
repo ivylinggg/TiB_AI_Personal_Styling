@@ -27,8 +27,8 @@ class StyleScoreSnapshot {
 /// Calculates the dashboard Style Score from real user progress.
 ///
 /// The score maps to the TiB-style Appearance / Behavior / Communication /
-/// Digital Etiquette framework. Challenge behaviour now also considers the
-/// user's recorded challenge XP and current consecutive-day streak.
+/// Digital Etiquette framework. Appearance now rewards both wardrobe growth
+/// and how well the wardrobe reflects the user's personal colour palette.
 class StyleScoreService {
   StyleScoreService._();
 
@@ -64,16 +64,43 @@ class StyleScoreService {
     final user = userDoc.data() ?? const <String, dynamic>{};
     final preferences = preferenceDoc.data() ?? const <String, dynamic>{};
 
-    // Appearance / 40.
+    // Appearance / 40:
+    // 20 points reward completing a colour profile + having a usable wardrobe.
+    // A further 20 points reward wardrobe items that match the user's
+    // personal best-colour palette, so adding the right clothes improves the
+    // score rather than rewarding quantity alone.
     final analysisColours = analysis?.colours.length ?? 0;
     final analysisPoints = analysis == null
         ? 0
         : analysisColours >= 8
             ? 20
             : analysisColours * 2;
+
     final wardrobeCount = wardrobeSnapshot.docs.length;
-    final wardrobePoints = wardrobeCount >= 10 ? 20 : wardrobeCount * 2;
-    final appearance = (analysisPoints + wardrobePoints).clamp(0, 40);
+    final wardrobeQuantityPoints = wardrobeCount >= 10
+        ? 10
+        : wardrobeCount;
+
+    final palette = (analysis?.colours ?? const <String>[])
+        .map(_normalise)
+        .where((colour) => colour.isNotEmpty)
+        .toSet();
+
+    var paletteMatches = 0;
+    if (palette.isNotEmpty) {
+      for (final doc in wardrobeSnapshot.docs) {
+        final colour = _normalise(doc.data()['colour']?.toString() ?? '');
+        if (colour.isNotEmpty && _matchesPalette(colour, palette)) {
+          paletteMatches++;
+        }
+      }
+    }
+
+    final palettePoints = paletteMatches >= 10
+        ? 10
+        : paletteMatches;
+    final appearance =
+        (analysisPoints + wardrobeQuantityPoints + palettePoints).clamp(0, 40);
 
     // Behavior / 25.
     final history = user['dailyChallengeHistory'];
@@ -93,12 +120,10 @@ class StyleScoreService {
     final challengeXp = challengeCount * 10;
     final challengeStreak = _calculateStreak(challengeDates);
 
-    final completionPoints = (challengeCount >= 5 ? 15 : challengeCount * 3)
-        .clamp(0, 15);
-    final streakPoints = (challengeStreak >= 5
-            ? 10
-            : challengeStreak * 2)
-        .clamp(0, 10);
+    final completionPoints =
+        (challengeCount >= 5 ? 15 : challengeCount * 3).clamp(0, 15);
+    final streakPoints =
+        (challengeStreak >= 5 ? 10 : challengeStreak * 2).clamp(0, 10);
     final behavior = (completionPoints + streakPoints).clamp(0, 25);
 
     // Communication / 20.
@@ -131,6 +156,88 @@ class StyleScoreService {
       challengeXp: challengeXp,
       challengeStreak: challengeStreak,
     );
+  }
+
+  static String _normalise(String value) =>
+      value.toLowerCase().replaceAll('-', ' ').replaceAll('_', ' ').trim();
+
+  static bool _matchesPalette(String wardrobeColour, Set<String> palette) {
+    if (palette.contains(wardrobeColour)) return true;
+
+    for (final preferred in palette) {
+      if (wardrobeColour.contains(preferred) || preferred.contains(wardrobeColour)) {
+        return true;
+      }
+
+      if (_colourFamily(wardrobeColour) == _colourFamily(preferred)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  static String _colourFamily(String colour) {
+    if (colour.contains('pink') ||
+        colour.contains('rose') ||
+        colour.contains('coral') ||
+        colour.contains('peach')) {
+      return 'pink';
+    }
+    if (colour.contains('red') ||
+        colour.contains('ruby') ||
+        colour.contains('burgundy') ||
+        colour.contains('wine')) {
+      return 'red';
+    }
+    if (colour.contains('orange') || colour.contains('terracotta')) {
+      return 'orange';
+    }
+    if (colour.contains('yellow') || colour.contains('gold') || colour.contains('mustard')) {
+      return 'yellow';
+    }
+    if (colour.contains('green') ||
+        colour.contains('olive') ||
+        colour.contains('sage') ||
+        colour.contains('mint') ||
+        colour.contains('emerald')) {
+      return 'green';
+    }
+    if (colour.contains('teal') ||
+        colour.contains('turquoise') ||
+        colour.contains('cyan') ||
+        colour.contains('aqua')) {
+      return 'teal';
+    }
+    if (colour.contains('blue') ||
+        colour.contains('navy') ||
+        colour.contains('cobalt') ||
+        colour.contains('sapphire')) {
+      return 'blue';
+    }
+    if (colour.contains('purple') ||
+        colour.contains('lavender') ||
+        colour.contains('lilac') ||
+        colour.contains('mauve') ||
+        colour.contains('plum')) {
+      return 'purple';
+    }
+    if (colour.contains('brown') ||
+        colour.contains('camel') ||
+        colour.contains('chocolate') ||
+        colour.contains('tan')) {
+      return 'brown';
+    }
+    if (colour.contains('beige') ||
+        colour.contains('cream') ||
+        colour.contains('ivory') ||
+        colour.contains('taupe')) {
+      return 'beige';
+    }
+    if (colour.contains('white')) return 'white';
+    if (colour.contains('black') || colour.contains('charcoal')) return 'black';
+    if (colour.contains('grey') || colour.contains('gray')) return 'grey';
+    return colour;
   }
 
   static int _calculateStreak(Set<String> dates) {
