@@ -1,11 +1,13 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_gradients.dart';
 import '../../data/professional_style_data.dart';
 import '../../data/season_colour_guide.dart';
 import '../../models/colour_analysis_result.dart';
+import '../../providers/analysis_provider.dart';
 import '../../services/colour_report_service.dart';
 import '../../widgets/colour_swatch.dart';
 import '../professional/professional_style_screen.dart';
@@ -28,7 +30,6 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
   Future<void> _downloadReport() async {
     if (_generatingReport) return;
     setState(() => _generatingReport = true);
-
     try {
       await ColourReportService.saveReport(result: result);
       if (!mounted) return;
@@ -64,6 +65,12 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
     } finally {
       if (mounted) setState(() => _generatingReport = false);
     }
+  }
+
+  void _removePhotoAndRescan() {
+    if (_generatingReport) return;
+    context.read<AnalysisProvider>().clear();
+    Navigator.pop(context, true);
   }
 
   @override
@@ -142,6 +149,18 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
                   fit: BoxFit.cover,
                   placeholder: (context, url) => Container(height: 230, color: AppColors.surfaceMuted, child: const Center(child: CircularProgressIndicator())),
                   errorWidget: (context, url, error) => Container(height: 230, color: AppColors.surfaceMuted, child: const Center(child: Icon(Icons.image_not_supported_outlined))),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.center,
+                child: TextButton.icon(
+                  onPressed: _generatingReport ? null : _removePhotoAndRescan,
+                  icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                  label: const Text('Remove Photo & Scan Again'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.primaryDark,
+                  ),
                 ),
               ),
             ],
@@ -389,7 +408,11 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
     );
   }
 
-  Widget _emptyPalette() => Container(padding: const EdgeInsets.all(18), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.border)), child: const Text('Your saved result does not contain a colour palette yet. You can run the analysis again later.', style: TextStyle(color: AppColors.textSecondary, height: 1.45, fontSize: 12)));
+  Widget _emptyPalette() => Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.border)),
+        child: const Text('Your saved result does not contain a colour palette yet. You can run the analysis again later.', style: TextStyle(color: AppColors.textSecondary, height: 1.45, fontSize: 12)),
+      );
 
   Widget _whyItWorks(Color accent, SeasonColourProfile profile) {
     return Container(
