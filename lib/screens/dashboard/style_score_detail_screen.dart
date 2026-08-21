@@ -130,6 +130,23 @@ class StyleScoreDetailScreen extends StatelessWidget {
                         ),
                       );
                     }),
+                    _progressCard(
+                      title: 'Wardrobe alignment',
+                      subtitle: 'How well your wardrobe supports your personal colour profile.',
+                      rows: [
+                        _ProgressRow(
+                          label: 'Best-colour matches',
+                          value: score.wardrobePaletteMatches,
+                          max: 5,
+                        ),
+                        _ProgressRow(
+                          label: 'Season matches',
+                          value: score.wardrobeSeasonMatches,
+                          max: 5,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
                     Container(
                       padding: const EdgeInsets.all(15),
                       decoration: BoxDecoration(
@@ -137,9 +154,9 @@ class StyleScoreDetailScreen extends StatelessWidget {
                         borderRadius: BorderRadius.circular(18),
                         border: Border.all(color: AppColors.border),
                       ),
-                      child: const Text(
-                        'Your score improves as you build your colour profile, grow your wardrobe, complete daily challenges, refine your style preferences and keep your profile complete.',
-                        style: TextStyle(
+                      child: Text(
+                        'Your score improves as you build your colour profile, add wardrobe pieces that suit your season and palette, complete daily challenges, refine your style preferences and keep your profile complete.',
+                        style: const TextStyle(
                           color: AppColors.textSecondary,
                           fontSize: 12,
                           height: 1.45,
@@ -152,4 +169,91 @@ class StyleScoreDetailScreen extends StatelessWidget {
             ),
     );
   }
+
+  Widget _progressCard({
+    required String title,
+    required String subtitle,
+    required List<_ProgressRow> rows,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            subtitle,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 11.5,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 14),
+          ...rows.map(
+            (row) => Padding(
+              padding: const EdgeInsets.only(bottom: 11),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          row.label,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        '${row.value}/${row.max}',
+                        style: const TextStyle(
+                          color: AppColors.primaryDark,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 5),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(99),
+                    child: LinearProgressIndicator(
+                      value: (row.value / row.max).clamp(0.0, 1.0),
+                      minHeight: 6,
+                      backgroundColor: AppColors.border,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProgressRow {
+  final String label;
+  final int value;
+  final int max;
+
+  const _ProgressRow({
+    required this.label,
+    required this.value,
+    required this.max,
+  });
 }
