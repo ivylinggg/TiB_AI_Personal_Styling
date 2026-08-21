@@ -68,6 +68,25 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Future<void> loginWithApple() async {
+    if (isLoading) return;
+    setState(() => isLoading = true);
+    try {
+      final credential = await AuthService.loginWithApple();
+      if (credential == null) {
+        _showMessage('Apple sign-in was cancelled.');
+        return;
+      }
+      await _routeAuthenticatedUser();
+    } on FirebaseAuthException catch (e) {
+      _showMessage(_authErrorMessage(e));
+    } catch (_) {
+      _showMessage('Apple sign-in failed. Please try again.');
+    } finally {
+      if (mounted) setState(() => isLoading = false);
+    }
+  }
+
   Future<void> _routeAuthenticatedUser() async {
     final active = await AuthService.isCurrentUserActive();
     if (!active) {
@@ -119,6 +138,10 @@ class _LoginScreenState extends State<LoginScreen> {
         return 'Too many attempts. Please try again later.';
       case 'network-request-failed':
         return 'Network error. Check your connection.';
+      case 'operation-not-allowed':
+        return 'This sign-in method is not enabled yet.';
+      case 'account-exists-with-different-credential':
+        return 'An account already exists with a different sign-in method.';
       default:
         return e.message ?? 'Authentication failed.';
     }
@@ -252,11 +275,7 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 21),
               _socialButton('Continue with Google', Icons.g_mobiledata, loginWithGoogle),
               const SizedBox(height: 9),
-              _socialButton(
-                'Continue with Apple',
-                Icons.apple,
-                () => _showMessage('Apple sign-in is coming soon.'),
-              ),
+              _socialButton('Continue with Apple', Icons.apple, loginWithApple),
               const SizedBox(height: 20),
               const Row(
                 children: [
