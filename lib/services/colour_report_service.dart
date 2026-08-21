@@ -2,7 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
-import 'package:file_saver/file_saver.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -99,10 +99,10 @@ class ColourReportService {
     return file;
   }
 
-  /// Saves a durable copy inside the app's Documents directory and also uses
-  /// the platform file saver so the user can choose a visible Files/Downloads
-  /// destination. On iOS, the Documents copy is exposed through the Files app
-  /// via UIFileSharingEnabled/LSSupportsOpeningDocumentsInPlace.
+  /// Creates a durable app copy and then opens the operating-system
+  /// Save-to-Files / Save-As dialog. On iOS this uses the native document
+  /// picker, allowing the user to choose Files, iCloud Drive, or another
+  /// available location. On Android it uses the system save dialog as well.
   static Future<void> saveReport({
     required ColourAnalysisResult result,
   }) async {
@@ -114,12 +114,17 @@ class ColourReportService {
     final durableFile = File('${documentsDirectory.path}/$fileName');
     await durableFile.writeAsBytes(bytes, flush: true);
 
-    await FileSaver.instance.saveFile(
-      name: 'TiB_Colour_Report_$safeSeason',
+    final savedUri = await FilePicker.saveFile(
+      dialogTitle: 'Save your TiB Colour Analysis PDF',
+      fileName: fileName,
       bytes: bytes,
-      fileExtension: 'pdf',
-      mimeType: MimeType.pdf,
+      type: FileType.custom,
+      allowedExtensions: ['pdf'],
     );
+
+    if (savedUri == null) {
+      throw StateError('PDF save was cancelled.');
+    }
   }
 
   static Future<File> generateAndShare({
@@ -145,7 +150,7 @@ class ColourReportService {
 
   static void _metricCard(PdfPage page, double x, double y, double width, String label, String value, PdfColor accent, PdfColor dark) {
     page.graphics.drawRectangle(brush: PdfSolidBrush(PdfColor(250, 248, 251)), pen: PdfPen(PdfColor(225, 219, 228)), bounds: ui.Rect.fromLTWH(x, y, width, 66));
-    page.graphics.drawEllipse(ui.Rect.fromLTWH(x + 12, y + 14, 16, 16), brush: PdfSolidBrush(accent));
+    page.graphics.drawEllipse(PdfSolidBrush(accent), ui.Rect.fromLTWH(x + 12, y + 14, 16, 16));
     _text(page, label, PdfStandardFont(PdfFontFamily.helvetica, 8, style: PdfFontStyle.bold), PdfColor(120, 114, 122), ui.Rect.fromLTWH(x + 36, y + 12, width - 48, 12));
     _text(page, value, PdfStandardFont(PdfFontFamily.helvetica, 12, style: PdfFontStyle.bold), dark, ui.Rect.fromLTWH(x + 12, y + 34, width - 24, 18));
   }
@@ -218,10 +223,6 @@ class ColourReportService {
     }
   }
 
-  /// PdfTextElement in this Syncfusion version takes PdfLayoutFormat in
-  /// draw(), while PdfStringFormat is for string alignment on graphics/text
-  /// surfaces. We therefore use PdfGraphics.drawString and calculate the x
-  /// position ourselves for centered/right-aligned text.
   static void _text(PdfPage page, String text, PdfFont font, PdfColor color, ui.Rect bounds, {bool alignCenter = false, bool alignRight = false}) {
     final textSize = font.measureString(text);
     var x = bounds.left;
