@@ -35,8 +35,8 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Your colour analysis PDF has been saved successfully.'),
-          duration: Duration(seconds: 3),
+          content: Text('PDF saved to Files > On My iPhone > TiB AI Personal Styling > Reports.'),
+          duration: Duration(seconds: 4),
         ),
       );
     } catch (error) {
@@ -199,6 +199,14 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
                     ),
                   ),
                 ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 4),
+              child: Text(
+                'Tip: On iPhone, open Files → On My iPhone → TiB AI Personal Styling → Reports to find your saved PDF.',
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.4),
               ),
             ),
             const SizedBox(height: 12),
@@ -376,12 +384,26 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
   Widget _attributeRow(Color accent) => Row(children: [_attribute('Undertone', result.undertone, Icons.thermostat_outlined, accent), _attribute('Brightness', result.brightness, Icons.wb_sunny_outlined, accent), _attribute('Contrast', result.contrast, Icons.contrast_rounded, accent)]);
 
   Widget _attribute(String label, String value, IconData icon, Color accent) {
-    return Expanded(child: Container(margin: const EdgeInsets.only(right: 7), padding: const EdgeInsets.fromLTRB(9, 13, 9, 13), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border)), child: Column(children: [Icon(icon, color: accent, size: 20), const SizedBox(height: 8), Text(label, style: const TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w700)), const SizedBox(height: 3), Text(value, maxLines: 2, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800))])));
+    return Expanded(child: Container(margin: const EdgeInsets.only(right: 7), padding: const EdgeInsets.fromLTRB(9, 13, 9, 13), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border)), child: Column(children: [Icon(icon, color: accent, size: 20), const SizedBox(height: 8), Text(label, style: const TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w700)), const SizedBox(height: 3), Text(value, maxLines: 2, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800))])));
   }
 
-  Widget _palette(List<String> colours) => Wrap(spacing: 14, runSpacing: 16, children: colours.map((colour) => ColourSwatch(name: colour, size: 58, showLabel: true)).toList());
+  Widget _palette(List<String> colours) => Wrap(spacing: 9, runSpacing: 10, children: colours.map((name) => ColourSwatch(name: name, size: 66)).toList());
+
+  Widget _emptyPalette() => Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: AppColors.surfaceMuted, borderRadius: BorderRadius.circular(18)), child: const Text('Your personal palette will appear here after the analysis.', style: TextStyle(color: AppColors.textSecondary)));
 
   Widget _makeupSection(String title, List<String> colours, Color accent) {
+    return Container(
+      padding: const EdgeInsets.all(17),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.border)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 10),
+        Wrap(spacing: 8, runSpacing: 8, children: colours.map((name) => Chip(label: Text(name, style: const TextStyle(fontSize: 10.5)), backgroundColor: accent.withValues(alpha: .08), side: BorderSide(color: accent.withValues(alpha: .14)))).toList()),
+      ]),
+    );
+  }
+
+  Widget _whyItWorks(Color accent, SeasonColourProfile profile) {
     return Container(
       padding: const EdgeInsets.all(17),
       decoration: BoxDecoration(
@@ -389,55 +411,11 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppColors.border),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 9),
-          Wrap(
-            spacing: 8,
-            runSpacing: 7,
-            children: colours.map((colour) => Chip(
-              avatar: CircleAvatar(backgroundColor: ColourNameMapper.colourFor(colour), radius: 8),
-              label: Text(colour, style: const TextStyle(fontSize: 10.5)),
-              side: BorderSide(color: accent.withValues(alpha: .14)),
-            )).toList(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _emptyPalette() => Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.border)),
-        child: const Text('Your saved result does not contain a colour palette yet. You can run the analysis again later.', style: TextStyle(color: AppColors.textSecondary, height: 1.45, fontSize: 12)),
-      );
-
-  Widget _whyItWorks(Color accent, SeasonColourProfile profile) {
-    return Container(
-      padding: const EdgeInsets.all(19),
-      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(width: 42, height: 42, decoration: BoxDecoration(color: accent.withValues(alpha: .14), shape: BoxShape.circle), child: Icon(Icons.auto_awesome_rounded, color: accent, size: 20)),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Why it works', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 5),
-                Text(
-                  '${profile.description} TiB uses your detected undertone, brightness and contrast as the starting point, then applies the season guide colours to your wardrobe and styling recommendations.',
-                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.45),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+      child: Row(children: [
+        Icon(Icons.tips_and_updates_outlined, color: accent),
+        const SizedBox(width: 11),
+        Expanded(child: Text('Your ${profile.name} palette works best when the colours support its ${profile.dimension.toLowerCase()} qualities and stay close to your natural colouring.', style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondary, height: 1.4))),
+      ]),
     );
   }
 }
