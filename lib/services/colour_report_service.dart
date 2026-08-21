@@ -99,14 +99,21 @@ class ColourReportService {
     return file;
   }
 
-  /// Saves the PDF using the platform's native file-saving mechanism.
-  /// On Android this writes through the platform file saver instead of an
-  /// inaccessible application-only path.
+  /// Saves a durable copy inside the app's Documents directory and also uses
+  /// the platform file saver so the user can choose a visible Files/Downloads
+  /// destination. On iOS, the Documents copy is exposed through the Files app
+  /// via UIFileSharingEnabled/LSSupportsOpeningDocumentsInPlace.
   static Future<void> saveReport({
     required ColourAnalysisResult result,
   }) async {
     final bytes = await generateBytes(result: result);
     final safeSeason = result.season.replaceAll(RegExp(r'[^A-Za-z0-9_-]+'), '_');
+    final fileName = 'TiB_Colour_Report_$safeSeason.pdf';
+
+    final documentsDirectory = await getApplicationDocumentsDirectory();
+    final durableFile = File('${documentsDirectory.path}/$fileName');
+    await durableFile.writeAsBytes(bytes, flush: true);
+
     await FileSaver.instance.saveFile(
       name: 'TiB_Colour_Report_$safeSeason',
       bytes: bytes,
