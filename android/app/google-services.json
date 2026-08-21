@@ -12,7 +12,20 @@
           "package_name": "com.example.tib_ai_personal_styling"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "494434706372-v6hesgilp7rraa12pg2khg3cbe740rpl.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.tib_ai_personal_styling",
+            "certificate_hash": "5f2bb6a1c07ae86558cd894f82e01c7485af59bc"
+          }
+        },
+        {
+          "client_id": "494434706372-jdg9h3re1bdc6idecjumdavdmbh3eai8.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyD_v1EqXYYHptNSB7JeWUYZt2_glwABaBU"
@@ -20,7 +33,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "494434706372-jdg9h3re1bdc6idecjumdavdmbh3eai8.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "494434706372-m3o2bvqoqac6e4fjeg7uuc65cn5a53ul.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.tibAiPersonalStyling"
+              }
+            }
+          ]
         }
       }
     },
@@ -31,7 +56,20 @@
           "package_name": "com.tib.personalstyling"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "494434706372-2jedtqb630t5dm016r0s0hs7k9mmv7d0.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.tib.personalstyling",
+            "certificate_hash": "5f2bb6a1c07ae86558cd894f82e01c7485af59bc"
+          }
+        },
+        {
+          "client_id": "494434706372-jdg9h3re1bdc6idecjumdavdmbh3eai8.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyD_v1EqXYYHptNSB7JeWUYZt2_glwABaBU"
@@ -39,7 +77,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "494434706372-jdg9h3re1bdc6idecjumdavdmbh3eai8.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "494434706372-m3o2bvqoqac6e4fjeg7uuc65cn5a53ul.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.tibAiPersonalStyling"
+              }
+            }
+          ]
         }
       }
     }
