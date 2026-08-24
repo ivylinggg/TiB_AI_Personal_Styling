@@ -219,18 +219,19 @@ class DashboardDesignedScreen extends StatelessWidget {
       future: StyleScoreService.calculate(uid: uid, analysis: provider.result),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) return _card(context, null, const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('STYLE SCORE', style: TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: .7)), SizedBox(height: 8), Text('Updating your Style Score…', style: TextStyle(color: AppColors.textSecondary, fontSize: 12))]));
-        if (snapshot.hasError || !snapshot.hasData) return _card(context, null, const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('STYLE SCORE', style: TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: .7)), SizedBox(height: 8), Text('Your Style Score is temporarily unavailable.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12))]));
+        if (snapshot.hasError || !snapshot.hasData) return _card(context, null, const Text('Style Score is unavailable right now.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)));
         final score = snapshot.data!;
-        return _card(context, StyleScoreDetailScreen(analysisProvider: provider), Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [const Expanded(child: Text('STYLE SCORE', style: TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: .7))), Text(_scoreLabel(score.total), style: const TextStyle(color: AppColors.primaryDark, fontSize: 10.5, fontWeight: FontWeight.w800))]),
-          const SizedBox(height: 8),
-          Row(crossAxisAlignment: CrossAxisAlignment.end, children: [Text('${score.total}', style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w900, height: .95)), const Padding(padding: EdgeInsets.only(left: 3, bottom: 3), child: Text('/100', style: TextStyle(color: AppColors.textMuted, fontSize: 11, fontWeight: FontWeight.w700))), const Spacer(), SizedBox(width: 78, height: 42, child: CustomPaint(painter: _ScorePainter(score.total / 100)))]),
+        final label = _scoreLabel(score.total);
+        return _card(context, const StyleScoreDetailScreen(), Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [const Expanded(child: Text('STYLE SCORE', style: TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: .7))), Text(label, style: const TextStyle(color: AppColors.primaryDark, fontSize: 10.5, fontWeight: FontWeight.w800))]),
           const SizedBox(height: 10),
-          ClipRRect(borderRadius: BorderRadius.circular(99), child: LinearProgressIndicator(value: score.total / 100, minHeight: 6, backgroundColor: AppColors.border, color: AppColors.primary)),
-          const SizedBox(height: 10),
-          Wrap(spacing: 6, runSpacing: 6, children: <Widget>[_scoreChip('A', score.appearance, 40), _scoreChip('B', score.behavior, 25), _scoreChip('C', score.communication, 20), _scoreChip('D', score.digitalEtiquette, 15)]),
-          const SizedBox(height: 7),
-          const Text('Tap to see your full Style Score breakdown.', style: TextStyle(color: AppColors.textSecondary, fontSize: 9.8, height: 1.35)),
+          Row(children: [Text('${score.total}', style: const TextStyle(fontSize: 42, fontWeight: FontWeight.w900, color: AppColors.textPrimary)), const Text('/100', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textMuted)), const Spacer(), SizedBox(width: 95, height: 95, child: CircularProgressIndicator(value: score.total / 100, strokeWidth: 10, color: AppColors.primary, backgroundColor: AppColors.border))]),
+          const SizedBox(height: 9),
+          ClipRRect(borderRadius: BorderRadius.circular(20), child: LinearProgressIndicator(value: score.total / 100, minHeight: 6, color: AppColors.primary, backgroundColor: AppColors.border)),
+          const SizedBox(height: 11),
+          Wrap(spacing: 7, runSpacing: 7, children: [_scoreChip('A', score.appearance, 40), _scoreChip('B', score.behavior, 25), _scoreChip('C', score.communication, 20), _scoreChip('D', score.digitalEtiquette, 15)]),
+          const SizedBox(height: 9),
+          const Text('Tap to see your full Style Score breakdown.', style: TextStyle(color: AppColors.textMuted, fontSize: 10.5)),
         ]));
       },
     );
@@ -252,67 +253,32 @@ class DashboardDesignedScreen extends StatelessWidget {
     return FutureBuilder<StyleScoreSnapshot>(
       future: uid == null ? Future.value(const StyleScoreSnapshot(appearance: 0, behavior: 0, communication: 0, digitalEtiquette: 0)) : StyleScoreService.calculate(uid: uid, analysis: result),
       builder: (context, scoreSnapshot) {
-        final score = scoreSnapshot.data;
-        final streak = score?.challengeStreak ?? 0;
-        final xp = score?.challengeXp ?? 0;
+        if (scoreSnapshot.connectionState == ConnectionState.waiting) return _card(context, null, const Text('Loading today\'s challenge…', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)));
+        final score = scoreSnapshot.data ?? const StyleScoreSnapshot(appearance: 0, behavior: 0, communication: 0, digitalEtiquette: 0);
+        final completed = uid == null ? false : score.behavior > 0;
         return FutureBuilder<bool>(
           future: uid == null ? Future.value(false) : _isChallengeCompleted(uid, DateTime.now()),
           builder: (context, completedSnapshot) {
-            final completed = completedSnapshot.data == true;
-            return Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: result == null ? null : () => _showChallengeDetails(context, result),
-                borderRadius: BorderRadius.circular(20),
-                child: Container(
-                  padding: const EdgeInsets.fromLTRB(16, 15, 16, 16),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(colors: [AppColors.lavenderMist, AppColors.background], begin: Alignment.topLeft, end: Alignment.bottomRight),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: AppColors.border),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(children: [
-                        Container(width: 42, height: 42, decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle), child: Icon(challenge.icon, color: AppColors.primaryDark)),
-                        const SizedBox(width: 10),
-                        const Expanded(child: Text("TODAY'S CHALLENGE", style: TextStyle(color: AppColors.primaryDark, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: .7))),
-                        Text('+10 XP', style: const TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w800)),
-                      ]),
-                      const SizedBox(height: 9),
-                      Row(children: [
-                        Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(99)), child: Text(challenge.category, style: const TextStyle(color: AppColors.primaryDark, fontSize: 9, fontWeight: FontWeight.w800))),
-                        const Spacer(),
-                        if (streak > 0) Row(children: [const Icon(Icons.local_fire_department_rounded, color: AppColors.primaryDark, size: 16), const SizedBox(width: 3), Text('$streak day streak', style: const TextStyle(color: AppColors.primaryDark, fontSize: 9.5, fontWeight: FontWeight.w800))]),
-                      ]),
-                      const SizedBox(height: 8),
-                      Text(challenge.title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
-                      const SizedBox(height: 4),
-                      Text(challenge.description, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.4)),
-                      const SizedBox(height: 9),
-                      Row(children: [
-                        const Icon(Icons.bolt_rounded, color: AppColors.primaryDark, size: 15),
-                        const SizedBox(width: 3),
-                        Text('$xp XP earned', style: const TextStyle(color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.w700)),
-                        const Spacer(),
-                        if (completed) const Icon(Icons.check_circle_rounded, color: AppColors.primaryDark, size: 18),
-                      ]),
-                      const SizedBox(height: 10),
-                      SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: result == null || completed ? null : () => _showChallengeDetails(context, result), icon: Icon(completed ? Icons.check_rounded : Icons.auto_awesome_rounded, size: 17), label: Text(completed ? 'Completed today' : 'View today\'s challenge'))),
-                      if (result == null) const Padding(padding: EdgeInsets.only(top: 7), child: Text('Complete your colour analysis first to unlock personalised daily challenges.', style: TextStyle(color: AppColors.textMuted, fontSize: 10))),
-                    ],
-                  ),
-                ),
-              ),
-            );
+            final isCompleted = completedSnapshot.data ?? completed;
+            return _card(context, null, Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: AppColors.lavenderMist.withOpacity(.45), borderRadius: BorderRadius.circular(18)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [const Icon(Icons.auto_awesome_rounded, color: AppColors.primaryDark, size: 20), const SizedBox(width: 9), const Expanded(child: Text('TODAY\'S CHALLENGE', style: TextStyle(color: AppColors.primaryDark, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: .8))), const Text('+10 XP', style: TextStyle(color: AppColors.textMuted, fontSize: 11, fontWeight: FontWeight.w800))]),
+              const SizedBox(height: 12),
+              Text(challenge.category, style: const TextStyle(color: AppColors.primaryDark, fontSize: 10, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 7),
+              Text(challenge.title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
+              const SizedBox(height: 5),
+              Text(challenge.description, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.4)),
+              const SizedBox(height: 10),
+              Text(isCompleted ? 'Completed today' : 'Make one small improvement today.', style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.5, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 10),
+              SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: result == null || isCompleted ? null : () => _showChallengeDetails(context, result), icon: Icon(isCompleted ? Icons.check_rounded : Icons.auto_awesome_rounded, size: 17), label: Text(isCompleted ? 'Completed today' : 'View today\'s challenge'))),
+              if (result == null) const Padding(padding: EdgeInsets.only(top: 7), child: Text('Complete your colour analysis first to unlock personalised daily challenges.', style: TextStyle(color: AppColors.textMuted, fontSize: 10))),
+            ])));
           },
         );
       },
     );
   }
-
-  Widget _seasonCard(BuildContext context, ColourAnalysisResult? result) => const SizedBox.shrink();
 
   Widget _card(BuildContext context, Widget? target, Widget child) => Material(color: AppColors.surface, borderRadius: BorderRadius.circular(20), child: InkWell(borderRadius: BorderRadius.circular(20), onTap: target == null ? null : () => Navigator.push(context, MaterialPageRoute(builder: (_) => target)), child: Padding(padding: const EdgeInsets.fromLTRB(16, 16, 14, 17), child: child)));
 }
@@ -323,21 +289,6 @@ class _DailyChallenge {
   final String description;
   final String howTo;
   final IconData icon;
-  const _DailyChallenge(this.category, this.title, this.description, this.howTo, this.icon);
-}
 
-class _ScorePainter extends CustomPainter {
-  final double progress;
-  _ScorePainter(this.progress);
-  @override
-  void paint(Canvas canvas, Size size) {
-    final stroke = size.height * .22;
-    final rect = Rect.fromLTWH(stroke, stroke, size.width - stroke * 2, size.height - stroke * 2);
-    final bg = Paint()..color = AppColors.border..style = PaintingStyle.stroke..strokeWidth = stroke..strokeCap = StrokeCap.round;
-    final fg = Paint()..color = AppColors.primary..style = PaintingStyle.stroke..strokeWidth = stroke..strokeCap = StrokeCap.round;
-    canvas.drawArc(rect, 3.4, 5.75, false, bg);
-    canvas.drawArc(rect, 3.4, 5.75 * progress.clamp(0, 1), false, fg);
-  }
-  @override
-  bool shouldRepaint(covariant _ScorePainter oldDelegate) => oldDelegate.progress != progress;
+  const _DailyChallenge(this.category, this.title, this.description, this.howTo, this.icon);
 }
