@@ -1,14 +1,12 @@
-import 'dart:io';
-
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'tib_model_service.dart';
 
 /// Stores the user's persistent TiB Avatar configuration.
 ///
-/// This layer intentionally separates the avatar asset from the TiB Model
-/// measurements. The GLB can later be replaced by a generated personalised
-/// avatar without changing the rest of the styling flow.
+/// The avatar asset is intentionally separated from the TiB Model profile so a
+/// generated personalised 3D asset can be swapped in without changing the
+/// styling and wardrobe flows.
 class TibAvatarService {
   TibAvatarService._();
 
@@ -53,9 +51,10 @@ class TibAvatarService {
     return true;
   }
 
-  /// Returns the current avatar source plus a deterministic profile snapshot.
-  /// The snapshot is useful when a future backend generates a personalised GLB.
-  static Future<Map<String, dynamic>> buildGenerationContext(TibModelProfile profile) async {
+  /// Returns deterministic profile data for the future avatar-generation API.
+  static Future<Map<String, dynamic>> buildGenerationContext(
+    TibModelProfile profile,
+  ) async {
     return {
       'version': 1,
       'faceShape': profile.faceShape,
