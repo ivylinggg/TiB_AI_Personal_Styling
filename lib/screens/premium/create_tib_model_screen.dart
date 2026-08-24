@@ -9,6 +9,7 @@ import '../../core/constants/app_gradients.dart';
 import '../../services/image_picker_service.dart';
 import '../../services/mlkit_service.dart';
 import '../../services/tib_model_service.dart';
+import '../../widgets/tib_virtual_model_preview.dart';
 
 class CreateTibModelScreen extends StatefulWidget {
   const CreateTibModelScreen({super.key});
@@ -294,6 +295,70 @@ class _CreateTibModelScreenState extends State<CreateTibModelScreen> {
     );
   }
 
+  Widget _modelReadyPreview() {
+    final profile = TibModelProfile(
+      facePath: _facePhoto?.path,
+      bodyPath: _bodyPhoto?.path,
+      weight: _number(_weightController) ?? 0,
+      height: _number(_heightController) ?? 0,
+      bust: _number(_bustController) ?? 0,
+      waist: _number(_waistController) ?? 0,
+      hips: _number(_hipsController) ?? 0,
+      bodyShape: _calculatedShape,
+      isComplete: _facePhoto != null &&
+          (_number(_weightController) ?? 0) > 0 &&
+          (_number(_heightController) ?? 0) > 0 &&
+          (_number(_bustController) ?? 0) > 0 &&
+          (_number(_waistController) ?? 0) > 0 &&
+          (_number(_hipsController) ?? 0) > 0,
+    );
+
+    if (!profile.isComplete) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'YOUR 3D TIΒ MODEL',
+          style: TextStyle(
+            fontSize: 9,
+            letterSpacing: 1.3,
+            fontWeight: FontWeight.w900,
+            color: AppColors.textMuted,
+          ),
+        ),
+        const SizedBox(height: 9),
+        TibVirtualModelPreview(model: profile, height: 430),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: const Row(
+            children: [
+              Icon(Icons.info_outline_rounded, size: 17, color: AppColors.primary),
+              SizedBox(width: 9),
+              Expanded(
+                child: Text(
+                  'Drag the model to rotate 360°. Pinch to zoom. Use the pause button to control auto-rotation.',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 10.5,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 18),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final ready = _facePhoto != null;
@@ -337,6 +402,7 @@ class _CreateTibModelScreenState extends State<CreateTibModelScreen> {
             const SizedBox(height: 12),
             _rulesCard(),
             const SizedBox(height: 16),
+            _modelReadyPreview(),
             Container(padding: const EdgeInsets.all(15), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.border)), child: const Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(Icons.shield_outlined, color: AppColors.primary, size: 18), SizedBox(width: 10), Expanded(child: Text('Your measurements are stored locally with your TiB Model and are used to personalise styling recommendations and virtual try-on proportions.', style: TextStyle(color: AppColors.textSecondary, fontSize: 10.5, height: 1.4)))])),
             const SizedBox(height: 18),
             FilledButton.icon(onPressed: _busy || !ready ? null : _saveProfile, icon: const Icon(Icons.check_rounded), label: Text(_busy ? 'Preparing…' : 'Save My TiB Model')),
