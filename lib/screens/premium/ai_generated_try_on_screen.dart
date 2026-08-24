@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_gradients.dart';
 import '../../models/wardrobe_item.dart';
 import '../../services/firestore_service.dart';
 import '../../services/tib_model_service.dart';
@@ -147,7 +148,7 @@ class _AiGeneratedTryOnScreenState extends State<AiGeneratedTryOnScreen> {
           const SizedBox(height: 14),
           _buildWardrobe(),
           const SizedBox(height: 16),
-          SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: _generating ? null : _generate, icon: _generating ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.auto_awesome_rounded), label: Text(_generating ? 'Creating Your Look…' : 'Generate My Try-On')),
+          SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: _generating ? null : _generate, icon: _generating ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.auto_awesome_rounded), label: Text(_generating ? 'Creating Your Look…' : 'Generate My Try-On'))),
           if (_status.isNotEmpty) ...[const SizedBox(height: 12), Text(_status, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.45))],
           if (_generatedImageUrl != null) ...[const SizedBox(height: 20), _buildResult()],
         ],
@@ -270,7 +271,7 @@ class _AiGeneratedTryOnScreenState extends State<AiGeneratedTryOnScreen> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         const Row(children: [Icon(Icons.auto_awesome_rounded, size: 18, color: AppColors.primary), SizedBox(width: 8), Text('YOUR AI TRY-ON', style: TextStyle(fontSize: 11, letterSpacing: 1.1, fontWeight: FontWeight.w900))]),
         const SizedBox(height: 12),
-        ClipRRect(borderRadius: BorderRadius.circular(20), child: Image.network(_generatedImageUrl!, width: double.infinity, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(height: 300, alignment: Alignment.center, color: AppColors.surfaceMuted, child: const Text('The generated image could not be displayed.'))),
+        ClipRRect(borderRadius: BorderRadius.circular(20), child: Image.network(_generatedImageUrl!, width: double.infinity, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(height: 300, alignment: Alignment.center, color: AppColors.surfaceMuted, child: const Text('The generated image could not be displayed.')))),
         const SizedBox(height: 12),
         Row(children: [Expanded(child: OutlinedButton.icon(onPressed: _generating ? null : _generate, icon: const Icon(Icons.refresh_rounded), label: const Text('Try Again'))), const SizedBox(width: 9), Expanded(child: FilledButton.icon(onPressed: _generating ? null : () { setState(() { _generatedImageUrl = null; _status = ''; }); }, icon: const Icon(Icons.checkroom_rounded), label: const Text('Change Look')))]),
       ]),
