@@ -7,12 +7,8 @@ import 'package:http/http.dart' as http;
 import '../config/google_drive_config.dart';
 import '../models/colour_analysis_result.dart';
 import '../models/wardrobe_item.dart';
+import 'tib_model_service.dart';
 
-/// Result of a real Claude AI styling request. [topId]/[bottomId]/[shoesId]/
-/// [accessoryId] are ids of items from the caller's own wardrobe (validated
-/// server-side against the wardrobe list that was sent) -- never a
-/// fabricated item. [accessoryId] is only ever set when Claude judged the
-/// occasion actually calls for one and a real match existed.
 class AiStylingResult {
   final String explanation;
   final String? topId;
@@ -29,19 +25,12 @@ class AiStylingResult {
   });
 }
 
-/// Calls the existing Apps Script Web App's `aiStyling` action, which
-/// verifies the caller is a Premium user (via their Firebase ID token,
-/// checked against Firestore) and, only then, asks Claude for a real
-/// personalised pick from the user's own wardrobe.
+/// Calls the existing Apps Script Web App's `aiStyling` action.
 ///
-/// The existing wardrobe, colour and style preference behaviour is kept.
-/// When the user has saved a Personal Brand profile, that profile is also
-/// supplied as additional context so professional styling recommendations
-/// can respect the impression the user wants to create.
-///
-/// This never throws and never surfaces a network/AI error to the caller --
-/// any failure simply returns null so the screen can fall back to the local
-/// heuristic engine.
+/// Claude receives the user's colour profile, wardrobe, preferences and,
+/// when available, the TiB Model measurements plus automatically scanned
+/// face/body shapes. The five body-shape rules remain deterministic in
+/// TibModelService; Claude uses the resulting profile for styling decisions.
 class AiStylingService {
   AiStylingService._();
 
@@ -53,20 +42,14 @@ class AiStylingService {
     required String occasion,
     WardrobeItem? selectedItem,
   }) async {
-    if (wardrobe.isEmpty) {
-      return null;
-    }
+    if (wardrobe.isEmpty) return null;
 
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        return null;
-      }
+      if (user == null) return null;
 
       final idToken = await user.getIdToken();
-      if (idToken == null || idToken.isEmpty) {
-        return null;
-      }
+      if (idToken == null || idToken.isEmpty) return null;
 
       Map<String, dynamic> personalBrand = const {};
       try {
@@ -75,12 +58,23 @@ class AiStylingService {
             .doc(user.uid)
             .get();
         final raw = userDoc.data()?['personalBrand'];
-        if (raw is Map<String, dynamic>) {
-          personalBrand = raw;
-        }
+        if (raw is Map<String, dynamic>) personalBrand = raw;
       } catch (_) {
-        // Personal Brand is optional; AI styling continues without it.
+        // Optional context; styling continues without it.
       }
+
+      final tibModel = await TibModelService.load();
+      final tibContext = tibModel.isComplete
+          ? {
+              'faceShape': tibModel.faceShape,
+              'bodyShape': tibModel.bodyShape,
+              'weightKg': tibModel.weight,
+              'heightCm': tibModel.height,
+              'bustCm': tibModel.bust,
+              'waistCm': tibModel.waist,
+              'hipsCm': tibModel.hips,
+            }
+          : <String, dynamic>{};
 
       final role = personalBrand['role'] is String
           ? (personalBrand['role'] as String).trim()
@@ -125,6 +119,7 @@ class AiStylingService {
                 'contrast': profile.contrast,
                 'colours': profile.colours,
               },
+              'tibModel': tibContext,
               'wardrobe': wardrobe
                   .map(
                     (item) => {
@@ -153,15 +148,10 @@ class AiStylingService {
           )
           .timeout(const Duration(seconds: 20));
 
-      if (response.statusCode != 200) {
-        return null;
-      }
+      if (response.statusCode != 200) return null;
 
       final data = jsonDecode(response.body);
-
-      if (data is! Map<String, dynamic> || data['success'] != true) {
-        return null;
-      }
+      if (data is! Map<String, dynamic> || data['success'] != true) return null;
 
       final explanation = data['explanation'] is String
           ? (data['explanation'] as String).trim()
