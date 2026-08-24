@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_gradients.dart';
-import '../analysis/analysis_screen.dart';
-import '../wardrobe/wardrobe_screen.dart';
 import 'ai_outfit_screen.dart';
 import 'ai_stylist_screen.dart';
 import 'style_me_screen.dart';
@@ -155,44 +153,8 @@ class AIHubScreen extends StatelessWidget {
               ),
               primary: false,
             ),
-            const SizedBox(height: 22),
-            _sectionLabel('YOUR STYLE DATA'),
-            const SizedBox(height: 9),
-            Row(
-              children: [
-                Expanded(
-                  child: _smallLink(
-                    context,
-                    Icons.palette_outlined,
-                    'Colour profile',
-                    const AnalysisScreen(),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _smallLink(
-                    context,
-                    Icons.checkroom_outlined,
-                    'My wardrobe',
-                    const WardrobeScreen(),
-                  ),
-                ),
-              ],
-            ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _sectionLabel(String text) {
-    return Text(
-      text,
-      style: const TextStyle(
-        fontSize: 9,
-        letterSpacing: 1.2,
-        fontWeight: FontWeight.w800,
-        color: AppColors.textMuted,
       ),
     );
   }
@@ -267,44 +229,6 @@ class AIHubScreen extends StatelessWidget {
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _smallLink(
-    BuildContext context,
-    IconData icon,
-    String label,
-    Widget page,
-  ) {
-    return InkWell(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => page),
-      ),
-      borderRadius: BorderRadius.circular(18),
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: AppColors.border),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, color: AppColors.primary, size: 18),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ],
         ),
       ),
     );
