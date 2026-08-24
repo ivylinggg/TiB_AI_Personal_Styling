@@ -89,7 +89,9 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
       final stylePrefs = results[2] as Map<String, dynamic>?;
 
       setState(() {
-        _isPremium = user?['isPremium'] == true;
+        // Debug builds can exercise the complete Premium flow without
+        // changing the production entitlement stored in Firestore.
+        _isPremium = user?['isPremium'] == true || kDebugMode;
         _wardrobe = results[1] as List<WardrobeItem>;
         _styles = List<String>.from(stylePrefs?['styles'] ?? const []);
         _preferences = List<String>.from(
