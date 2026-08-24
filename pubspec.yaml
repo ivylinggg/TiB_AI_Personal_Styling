@@ -59,6 +59,9 @@ dependencies:
   # AI Runtime
   flutter_onnxruntime: ^1.8.3
 
+  # 3D Avatar / Interactive Model Viewer
+  model_viewer_plus: ^1.10.0
+
   # Calendar
   table_calendar: ^3.2.0
 
