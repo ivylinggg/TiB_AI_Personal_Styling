@@ -46,8 +46,6 @@ class TibPersonalAvatarService {
     final body = profile.bodyFile;
 
     try {
-      await TibAvatarService.markGenerating(profile);
-
       final idToken = await user.getIdToken();
       if (idToken == null || idToken.isEmpty) {
         return const TibPersonalAvatarResult(
@@ -55,6 +53,8 @@ class TibPersonalAvatarService {
           status: 'Could not verify your account. Please try again.',
         );
       }
+
+      await TibAvatarService.markGenerating(profile);
 
       final faceBytes = await face.readAsBytes();
       final bodyBytes = body != null && body.existsSync()
