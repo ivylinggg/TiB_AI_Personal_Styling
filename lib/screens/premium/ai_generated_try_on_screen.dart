@@ -60,10 +60,7 @@ class _AiGeneratedTryOnScreenState extends State<AiGeneratedTryOnScreen> {
     return FirestoreService.getWardrobeItems(uid);
   }
 
-  List<WardrobeItem> get _selectedItems => _wardrobe
-      .where((item) => _selectedIds.contains(item.id))
-      .take(5)
-      .toList();
+  List<WardrobeItem> get _selectedItems => _wardrobe.where((item) => _selectedIds.contains(item.id)).take(5).toList();
 
   void _toggle(WardrobeItem item) {
     if (_generating) return;
@@ -74,9 +71,7 @@ class _AiGeneratedTryOnScreenState extends State<AiGeneratedTryOnScreen> {
         _selectedIds.add(item.id);
       }
       _generatedImageUrl = null;
-      _status = _selectedIds.isEmpty
-          ? ''
-          : '${_selectedIds.length} piece${_selectedIds.length == 1 ? '' : 's'} selected.';
+      _status = _selectedIds.isEmpty ? '' : '${_selectedIds.length} piece${_selectedIds.length == 1 ? '' : 's'} selected.';
     });
   }
 
@@ -85,7 +80,7 @@ class _AiGeneratedTryOnScreenState extends State<AiGeneratedTryOnScreen> {
     final model = _model;
     final items = _selectedItems;
 
-    if (model?.facePath == null || !model!.isComplete) {
+    if (model == null || !model.isComplete || model.facePath == null) {
       setState(() => _status = 'Create your TiB Model first so I can style you.');
       return;
     }
@@ -100,13 +95,7 @@ class _AiGeneratedTryOnScreenState extends State<AiGeneratedTryOnScreen> {
       _status = 'TiB is creating your virtual try-on…';
     });
 
-    final result = await VirtualTryOnResultService.generate(
-      VirtualTryOnRequest(
-        modelPhotoPath: model.facePath!,
-        items: items,
-        occasion: _occasion,
-      ),
-    );
+    final result = await VirtualTryOnResultService.generate(VirtualTryOnRequest(modelPhotoPath: model.facePath!, items: items, occasion: _occasion));
 
     if (!mounted) return;
     setState(() {
@@ -118,22 +107,14 @@ class _AiGeneratedTryOnScreenState extends State<AiGeneratedTryOnScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
-
+    if (_loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
     final modelFile = _model?.faceFile;
 
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('AI Virtual Try-On'),
-        actions: const [
-          Padding(
-            padding: EdgeInsets.only(right: 14),
-            child: PremiumBadge(compact: true),
-          ),
-        ],
+        actions: const [Padding(padding: EdgeInsets.only(right: 14), child: PremiumBadge(compact: true))],
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 34),
@@ -148,23 +129,13 @@ class _AiGeneratedTryOnScreenState extends State<AiGeneratedTryOnScreen> {
             width: double.infinity,
             child: FilledButton.icon(
               onPressed: _generating ? null : _generate,
-              icon: _generating
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.auto_awesome_rounded),
+              icon: _generating ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.auto_awesome_rounded),
               label: Text(_generating ? 'Creating Your Look…' : 'Generate My Try-On'),
             ),
           ),
           if (_status.isNotEmpty) ...[
             const SizedBox(height: 12),
-            Text(
-              _status,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.45),
-            ),
+            Text(_status, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.45)),
           ],
           if (_generatedImageUrl != null) ...[
             const SizedBox(height: 20),
@@ -178,24 +149,15 @@ class _AiGeneratedTryOnScreenState extends State<AiGeneratedTryOnScreen> {
   Widget _buildHero(File? modelFile) {
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: AppColors.border),
-      ),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(28), border: Border.all(color: AppColors.border)),
       child: Row(
         children: [
           Container(
             width: 92,
             height: 112,
-            decoration: BoxDecoration(
-              color: AppColors.primarySoft,
-              borderRadius: BorderRadius.circular(22),
-            ),
+            decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.circular(22)),
             clipBehavior: Clip.antiAlias,
-            child: modelFile != null && modelFile.existsSync()
-                ? Image.file(modelFile, fit: BoxFit.cover)
-                : const Icon(Icons.person_rounded, size: 46, color: AppColors.primary),
+            child: modelFile != null && modelFile.existsSync() ? Image.file(modelFile, fit: BoxFit.cover) : const Icon(Icons.person_rounded, size: 46, color: AppColors.primary),
           ),
           const SizedBox(width: 16),
           const Expanded(
@@ -216,21 +178,13 @@ class _AiGeneratedTryOnScreenState extends State<AiGeneratedTryOnScreen> {
   Widget _buildOccasion() {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.border),
-      ),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text('WHAT ARE YOU DRESSING FOR?', style: TextStyle(fontSize: 9, letterSpacing: 1.2, fontWeight: FontWeight.w900, color: AppColors.textMuted)),
           const SizedBox(height: 9),
-          Wrap(
-            spacing: 7,
-            runSpacing: 7,
-            children: _occasions.map((value) => ChoiceChip(label: Text(value), selected: _occasion == value, onSelected: (_) => setState(() { _occasion = value; _generatedImageUrl = null; }))).toList(),
-          ),
+          Wrap(spacing: 7, runSpacing: 7, children: _occasions.map((value) => ChoiceChip(label: Text(value), selected: _occasion == value, onSelected: (_) => setState(() { _occasion = value; _generatedImageUrl = null; }))).toList()),
         ],
       ),
     );
@@ -270,10 +224,7 @@ class _AiGeneratedTryOnScreenState extends State<AiGeneratedTryOnScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(child: item.imageUrl.isEmpty ? const Center(child: Icon(Icons.checkroom_outlined, size: 36, color: AppColors.primary)) : Image.network(item.imageUrl, width: double.infinity, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Center(child: Icon(Icons.broken_image_outlined, color: AppColors.textMuted)))),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
-                        child: Row(children: [Expanded(child: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800))), if (selected) const Icon(Icons.check_circle_rounded, size: 18, color: AppColors.primary)]),
-                      ),
+                      Padding(padding: const EdgeInsets.fromLTRB(10, 8, 10, 10), child: Row(children: [Expanded(child: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800))), if (selected) const Icon(Icons.check_circle_rounded, size: 18, color: AppColors.primary)])),
                     ],
                   ),
                 ),
@@ -296,12 +247,7 @@ class _AiGeneratedTryOnScreenState extends State<AiGeneratedTryOnScreen> {
           const SizedBox(height: 12),
           ClipRRect(
             borderRadius: BorderRadius.circular(20),
-            child: Image.network(
-              _generatedImageUrl!,
-              width: double.infinity,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(height: 300, alignment: Alignment.center, color: AppColors.surfaceMuted, child: const Text('The generated image could not be displayed.')),
-            ),
+            child: Image.network(_generatedImageUrl!, width: double.infinity, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(height: 300, alignment: Alignment.center, color: AppColors.surfaceMuted, child: const Text('The generated image could not be displayed.'))),
           ),
           const SizedBox(height: 12),
           SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: _generating ? null : _generate, icon: const Icon(Icons.refresh_rounded), label: const Text('Generate Again'))),
