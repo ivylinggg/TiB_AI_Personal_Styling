@@ -34,7 +34,7 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
     try {
       await ColourReportService.saveReport(result: result);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PDF saved to Files > On My iPhone > TiB AI Personal Styling > Reports.'), duration: Duration(seconds: 4)));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PDF saved to Files > On My iPhone > TiB AI Personal Styling > Reports.')));
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not save the PDF report: $error')));
@@ -58,8 +58,7 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
 
   void _removePhotoAndRescan() {
     if (_generatingReport) return;
-    final provider = widget.analysisProvider ?? context.read<AnalysisProvider>();
-    provider.clear();
+    (widget.analysisProvider ?? context.read<AnalysisProvider>()).clear();
     Navigator.pop(context, true);
   }
 
@@ -78,7 +77,11 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
         title: const Text('Your Colour Season'),
         centerTitle: true,
         actions: [
-          IconButton(tooltip: 'Season Guide', onPressed: _generatingReport ? null : () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SeasonColourGuideScreen())), icon: const Icon(Icons.menu_book_outlined)),
+          IconButton(
+            tooltip: 'Season Guide',
+            onPressed: _generatingReport ? null : () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SeasonColourGuideScreen())),
+            icon: const Icon(Icons.menu_book_outlined),
+          ),
         ],
       ),
       body: SafeArea(
@@ -111,9 +114,7 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
             const SizedBox(height: 18),
             _makeupSection('Blush Colour Advise', profile.blushColours, accent),
             const SizedBox(height: 24),
-            _whyItWorks(accent, profile),
             if (result.imageUrl.isNotEmpty) ...[
-              const SizedBox(height: 24),
               const Text('Your Analysis', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
               const SizedBox(height: 12),
               ClipRRect(
@@ -130,7 +131,12 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
               const SizedBox(height: 8),
               Align(
                 alignment: Alignment.center,
-                child: TextButton.icon(onPressed: _generatingReport ? null : _removePhotoAndRescan, icon: const Icon(Icons.delete_outline_rounded, size: 18), label: const Text('Remove Photo & Scan Again'), style: TextButton.styleFrom(foregroundColor: AppColors.primaryDark)),
+                child: TextButton.icon(
+                  onPressed: _generatingReport ? null : _removePhotoAndRescan,
+                  icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                  label: const Text('Remove Photo & Scan Again'),
+                  style: TextButton.styleFrom(foregroundColor: AppColors.primaryDark),
+                ),
               ),
             ],
             const SizedBox(height: 24),
@@ -139,18 +145,45 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
               decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.border)),
               child: Row(
                 children: [
-                  Expanded(child: OutlinedButton.icon(onPressed: _generatingReport ? null : _downloadReport, icon: _generatingReport ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.download_rounded), label: Text(_generatingReport ? 'Saving…' : 'Download PDF'), style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(50)))),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _generatingReport ? null : _downloadReport,
+                      icon: _generatingReport ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.download_rounded),
+                      label: Text(_generatingReport ? 'Saving…' : 'Download PDF'),
+                      style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(50)),
+                    ),
+                  ),
                   const SizedBox(width: 10),
-                  Expanded(child: FilledButton.icon(onPressed: _generatingReport ? null : _shareReport, icon: const Icon(Icons.ios_share_rounded), label: const Text('Share Report'), style: FilledButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white, minimumSize: const Size.fromHeight(50), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))))),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: _generatingReport ? null : _shareReport,
+                      icon: const Icon(Icons.ios_share_rounded),
+                      label: const Text('Share Report'),
+                      style: FilledButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white, minimumSize: const Size.fromHeight(50), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
+                    ),
+                  ),
                 ],
               ),
             ),
             const SizedBox(height: 12),
-            const Padding(padding: EdgeInsets.symmetric(horizontal: 4), child: Text('Tip: On iPhone, open Files → On My iPhone → TiB AI Personal Styling → Reports to find your saved PDF.', style: TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.4))),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 4),
+              child: Text('Tip: On iPhone, open Files → On My iPhone → TiB AI Personal Styling → Reports to find your saved PDF.', style: TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.4)),
+            ),
             const SizedBox(height: 12),
-            FilledButton.icon(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfessionalStyleScreen())), icon: const Icon(Icons.work_outline_rounded), label: const Text('Explore Professional Image'), style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(54), backgroundColor: AppColors.surface, foregroundColor: AppColors.primaryDark, side: const BorderSide(color: AppColors.border), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(17)))),
+            FilledButton.icon(
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfessionalStyleScreen())),
+              icon: const Icon(Icons.work_outline_rounded),
+              label: const Text('Explore Professional Image'),
+              style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(54), backgroundColor: AppColors.surface, foregroundColor: AppColors.primaryDark, side: const BorderSide(color: AppColors.border), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(17))),
+            ),
             const SizedBox(height: 12),
-            FilledButton.icon(onPressed: () => Navigator.pop(context, true), icon: const Icon(Icons.auto_awesome_rounded), label: const Text('Style an Outfit With My Colours'), style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(54), backgroundColor: AppColors.primary, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(17)))),
+            FilledButton.icon(
+              onPressed: () => Navigator.pop(context, true),
+              icon: const Icon(Icons.auto_awesome_rounded),
+              label: const Text('Style an Outfit With My Colours'),
+              style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(54), backgroundColor: AppColors.primary, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(17))),
+            ),
           ],
         ),
       ),
@@ -171,7 +204,7 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
 
   Widget _makeupSection(String title, List<String> colours, Color accent) => Container(padding: const EdgeInsets.all(15), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(19), border: Border.all(color: AppColors.border)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)), const SizedBox(height: 9), Wrap(spacing: 8, runSpacing: 8, children: colours.map((name) => ColourSwatch(name: name, size: 40, showLabel: true)).toList())]));
 
-  Widget _whyItWorks(Color accent, SeasonColourProfile profile) => Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: accent.withValues(alpha: .07), borderRadius: BorderRadius.circular(20), border: Border.all(color: accent.withValues(alpha: .12))), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('Why it works', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)), const SizedBox(height: 6), Text(profile.whyItWorks, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.45))]));
+  Widget _whyItWorks(Color accent, SeasonColourProfile profile) => Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: accent.withValues(alpha: .07), borderRadius: BorderRadius.circular(20), border: Border.all(color: accent.withValues(alpha: .12))), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('Why it works', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)), const SizedBox(height: 6), Text(profile.description, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.45))]));
 
   Widget _palette(List<String> colours) => Wrap(spacing: 9, runSpacing: 9, children: colours.map((name) => ColourSwatch(name: name, size: 62, showLabel: true)).toList());
 
