@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
@@ -17,14 +18,7 @@ class AiGeneratedTryOnScreen extends StatefulWidget {
 }
 
 class _AiGeneratedTryOnScreenState extends State<AiGeneratedTryOnScreen> {
-  static const _occasions = [
-    'Dinner',
-    'Work',
-    'Casual',
-    'Date',
-    'Travel',
-    'Event',
-  ];
+  static const _occasions = ['Dinner', 'Work', 'Casual', 'Date', 'Travel', 'Event'];
 
   bool _loading = true;
   bool _generating = false;
@@ -61,20 +55,9 @@ class _AiGeneratedTryOnScreenState extends State<AiGeneratedTryOnScreen> {
   }
 
   Future<List<WardrobeItem>> _loadWardrobe() async {
-    final user = await _currentUserId();
-    if (user == null) return const [];
-    return FirestoreService.getWardrobeItems(user);
-  }
-
-  Future<String?> _currentUserId() async {
-    // Keep Firebase access inside the existing service layer where possible.
-    // FirestoreService needs the signed-in uid for the wardrobe collection.
-    final model = await TibModelService.load();
-    if (!model.isComplete) return null;
-    // The actual signed-in user is resolved by VirtualTryOnResultService later.
-    // Importing firebase_auth here would duplicate auth handling, so reload the
-    // wardrobe through the existing Firestore API only when the model is ready.
-    return null;
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return const [];
+    return FirestoreService.getWardrobeItems(uid);
   }
 
   List<WardrobeItem> get _selectedItems => _wardrobe
@@ -136,9 +119,7 @@ class _AiGeneratedTryOnScreenState extends State<AiGeneratedTryOnScreen> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     final modelFile = _model?.faceFile;
@@ -174,9 +155,7 @@ class _AiGeneratedTryOnScreenState extends State<AiGeneratedTryOnScreen> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Icon(Icons.auto_awesome_rounded),
-              label: Text(
-                _generating ? 'Creating Your Look…' : 'Generate My Try-On',
-              ),
+              label: Text(_generating ? 'Creating Your Look…' : 'Generate My Try-On'),
             ),
           ),
           if (_status.isNotEmpty) ...[
@@ -184,11 +163,7 @@ class _AiGeneratedTryOnScreenState extends State<AiGeneratedTryOnScreen> {
             Text(
               _status,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 12,
-                height: 1.45,
-              ),
+              style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.45),
             ),
           ],
           if (_generatedImageUrl != null) ...[
@@ -227,15 +202,9 @@ class _AiGeneratedTryOnScreenState extends State<AiGeneratedTryOnScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'See yourself in your own wardrobe.',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, height: 1.08),
-                ),
+                Text('See yourself in your own wardrobe.', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, height: 1.08)),
                 SizedBox(height: 8),
-                Text(
-                  'Choose pieces you already own and TiB will create a personalised try-on image for your selected occasion.',
-                  style: TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.45),
-                ),
+                Text('Choose pieces you already own and TiB will create a personalised try-on image for your selected occasion.', style: TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.45)),
               ],
             ),
           ),
@@ -255,26 +224,12 @@ class _AiGeneratedTryOnScreenState extends State<AiGeneratedTryOnScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'WHAT ARE YOU DRESSING FOR?',
-            style: TextStyle(fontSize: 9, letterSpacing: 1.2, fontWeight: FontWeight.w900, color: AppColors.textMuted),
-          ),
+          const Text('WHAT ARE YOU DRESSING FOR?', style: TextStyle(fontSize: 9, letterSpacing: 1.2, fontWeight: FontWeight.w900, color: AppColors.textMuted)),
           const SizedBox(height: 9),
           Wrap(
             spacing: 7,
             runSpacing: 7,
-            children: _occasions
-                .map(
-                  (value) => ChoiceChip(
-                    label: Text(value),
-                    selected: _occasion == value,
-                    onSelected: (_) => setState(() {
-                      _occasion = value;
-                      _generatedImageUrl = null;
-                    }),
-                  ),
-                )
-                .toList(),
+            children: _occasions.map((value) => ChoiceChip(label: Text(value), selected: _occasion == value, onSelected: (_) => setState(() { _occasion = value; _generatedImageUrl = null; }))).toList(),
           ),
         ],
       ),
@@ -285,86 +240,39 @@ class _AiGeneratedTryOnScreenState extends State<AiGeneratedTryOnScreen> {
     if (_wardrobe.isEmpty) {
       return Container(
         padding: const EdgeInsets.all(22),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: AppColors.border),
-        ),
-        child: const Text(
-          'Your wardrobe is empty. Add some pieces first, then come back and create your virtual look.',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: AppColors.textSecondary, height: 1.45),
-        ),
+        decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)),
+        child: const Text('Your wardrobe is empty. Add some pieces first, then come back and create your virtual look.', textAlign: TextAlign.center, style: TextStyle(color: AppColors.textSecondary, height: 1.45)),
       );
     }
 
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.border),
-      ),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Expanded(
-                child: Text('YOUR WARDROBE', style: TextStyle(fontSize: 11, letterSpacing: 1.1, fontWeight: FontWeight.w900)),
-              ),
-              Text('${_selectedIds.length}/5', style: const TextStyle(color: AppColors.primary, fontSize: 11, fontWeight: FontWeight.w800)),
-            ],
-          ),
+          Row(children: [const Expanded(child: Text('YOUR WARDROBE', style: TextStyle(fontSize: 11, letterSpacing: 1.1, fontWeight: FontWeight.w900))), Text('${_selectedIds.length}/5', style: const TextStyle(color: AppColors.primary, fontSize: 11, fontWeight: FontWeight.w800))]),
           const SizedBox(height: 11),
           GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: _wardrobe.length,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 10,
-              childAspectRatio: .78,
-            ),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: .78),
             itemBuilder: (_, index) {
               final item = _wardrobe[index];
               final selected = _selectedIds.contains(item.id);
               return GestureDetector(
                 onTap: () => _toggle(item),
                 child: Container(
-                  decoration: BoxDecoration(
-                    color: selected ? AppColors.lavenderMist : AppColors.surfaceMuted,
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(
-                      color: selected ? AppColors.primary : AppColors.border,
-                      width: selected ? 2 : 1,
-                    ),
-                  ),
+                  decoration: BoxDecoration(color: selected ? AppColors.lavenderMist : AppColors.surfaceMuted, borderRadius: BorderRadius.circular(18), border: Border.all(color: selected ? AppColors.primary : AppColors.border, width: selected ? 2 : 1)),
                   clipBehavior: Clip.antiAlias,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: item.imageUrl.isEmpty
-                            ? const Center(child: Icon(Icons.checkroom_outlined, size: 36, color: AppColors.primary))
-                            : Image.network(
-                                item.imageUrl,
-                                width: double.infinity,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => const Center(child: Icon(Icons.broken_image_outlined, color: AppColors.textMuted)),
-                              ),
-                      ),
+                      Expanded(child: item.imageUrl.isEmpty ? const Center(child: Icon(Icons.checkroom_outlined, size: 36, color: AppColors.primary)) : Image.network(item.imageUrl, width: double.infinity, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Center(child: Icon(Icons.broken_image_outlined, color: AppColors.textMuted)))),
                       Padding(
                         padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
-                            ),
-                            if (selected) const Icon(Icons.check_circle_rounded, size: 18, color: AppColors.primary),
-                          ],
-                        ),
+                        child: Row(children: [Expanded(child: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800))), if (selected) const Icon(Icons.check_circle_rounded, size: 18, color: AppColors.primary)]),
                       ),
                     ],
                   ),
@@ -380,21 +288,11 @@ class _AiGeneratedTryOnScreenState extends State<AiGeneratedTryOnScreen> {
   Widget _buildResult() {
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(26),
-        border: Border.all(color: AppColors.primarySoft),
-      ),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(26), border: Border.all(color: AppColors.primarySoft)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
-            children: [
-              Icon(Icons.auto_awesome_rounded, size: 18, color: AppColors.primary),
-              SizedBox(width: 8),
-              Text('YOUR AI TRY-ON', style: TextStyle(fontSize: 11, letterSpacing: 1.1, fontWeight: FontWeight.w900)),
-            ],
-          ),
+          const Row(children: [Icon(Icons.auto_awesome_rounded, size: 18, color: AppColors.primary), SizedBox(width: 8), Text('YOUR AI TRY-ON', style: TextStyle(fontSize: 11, letterSpacing: 1.1, fontWeight: FontWeight.w900))]),
           const SizedBox(height: 12),
           ClipRRect(
             borderRadius: BorderRadius.circular(20),
@@ -402,23 +300,11 @@ class _AiGeneratedTryOnScreenState extends State<AiGeneratedTryOnScreen> {
               _generatedImageUrl!,
               width: double.infinity,
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(
-                height: 300,
-                alignment: Alignment.center,
-                color: AppColors.surfaceMuted,
-                child: const Text('The generated image could not be displayed.'),
-              ),
+              errorBuilder: (_, __, ___) => Container(height: 300, alignment: Alignment.center, color: AppColors.surfaceMuted, child: const Text('The generated image could not be displayed.')),
             ),
           ),
           const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: _generating ? null : _generate,
-              icon: const Icon(Icons.refresh_rounded),
-              label: const Text('Generate Again'),
-            ),
-          ),
+          SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: _generating ? null : _generate, icon: const Icon(Icons.refresh_rounded), label: const Text('Generate Again'))),
         ],
       ),
     );
