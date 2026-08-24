@@ -41,17 +41,14 @@ class _AiStyleMeScreenState extends State<AiStyleMeScreen> {
       if (mounted) setState(() => _loading = false);
       return;
     }
-
     try {
       final results = await Future.wait<dynamic>([
         FirestoreService.getWardrobeItems(uid),
         StylePreferenceService.getStylePreferences(uid),
         FirestoreService.getLatestColourAnalysis(uid),
       ]);
-
       final prefs = results[1] as Map<String, dynamic>?;
       if (!mounted) return;
-
       setState(() {
         _wardrobe = results[0] as List<WardrobeItem>;
         _styles = List<String>.from(prefs?['styles'] ?? const []);
@@ -74,13 +71,11 @@ class _AiStyleMeScreenState extends State<AiStyleMeScreen> {
       _show('Complete Colour Analysis first so TiB can personalise the look.');
       return;
     }
-
     setState(() {
       _busy = true;
       _result = null;
       _look = const [];
     });
-
     final result = await AiStylingService.getRecommendation(
       profile: _analysis!,
       wardrobe: _wardrobe,
@@ -88,17 +83,14 @@ class _AiStyleMeScreenState extends State<AiStyleMeScreen> {
       preferences: _preferences,
       occasion: _occasion,
     );
-
     if (!mounted) return;
     if (result == null) {
       setState(() => _busy = false);
       _show('TiB could not reach the AI stylist right now. Try again in a moment.');
       return;
     }
-
     final ids = [result.topId, result.bottomId, result.shoesId, result.accessoryId].whereType<String>();
     final picked = ids.map(_find).whereType<WardrobeItem>().toList();
-
     setState(() {
       _result = result;
       _look = picked;
@@ -138,7 +130,6 @@ class _AiStyleMeScreenState extends State<AiStyleMeScreen> {
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
-
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(title: const Text('Let TiB Style Me')),
@@ -157,9 +148,26 @@ class _AiStyleMeScreenState extends State<AiStyleMeScreen> {
                 const SizedBox(height: 18),
                 const Text('WHAT ARE YOU DRESSING FOR?', style: TextStyle(fontSize: 9, letterSpacing: 1.2, fontWeight: FontWeight.w900, color: AppColors.textMuted)),
                 const SizedBox(height: 9),
-                Wrap(spacing: 7, runSpacing: 7, children: occasions.map((value) => ChoiceChip(label: Text(value), selected: _occasion == value, onSelected: (_) => setState(() => _occasion = value))).toList()),
+                Wrap(
+                  spacing: 7,
+                  runSpacing: 7,
+                  children: occasions.map((value) {
+                    return ChoiceChip(
+                      label: Text(value),
+                      selected: _occasion == value,
+                      onSelected: (_) => setState(() => _occasion = value),
+                    );
+                  }).toList(),
+                ),
                 const SizedBox(height: 16),
-                SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: _busy ? null : _styleMe, icon: _busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.auto_awesome_rounded), label: Text(_busy ? 'Styling you…' : 'Create My Look')),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: _busy ? null : _styleMe,
+                    icon: _busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.auto_awesome_rounded),
+                    label: Text(_busy ? 'Styling you…' : 'Create My Look'),
+                  ),
+                ),
               ],
             ),
           ),
@@ -181,7 +189,7 @@ class _AiStyleMeScreenState extends State<AiStyleMeScreen> {
                       physics: const NeverScrollableScrollPhysics(),
                       itemCount: _look.length,
                       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: .9),
-                      itemBuilder: (_, index) {
+                      itemBuilder: (context, index) {
                         final item = _look[index];
                         return Container(
                           decoration: BoxDecoration(borderRadius: BorderRadius.circular(17), border: Border.all(color: AppColors.border)),
@@ -203,7 +211,13 @@ class _AiStyleMeScreenState extends State<AiStyleMeScreen> {
                     Text(_result!.explanation, style: const TextStyle(fontSize: 12, height: 1.5)),
                   ],
                   const SizedBox(height: 16),
-                  Row(children: [Expanded(child: OutlinedButton.icon(onPressed: _busy ? null : _styleMe, icon: const Icon(Icons.refresh_rounded), label: const Text('Try Another Look'))), const SizedBox(width: 9), Expanded(child: FilledButton.icon(onPressed: _look.isEmpty ? null : _save, icon: const Icon(Icons.bookmark_add_outlined), label: const Text('Save Look')))]),
+                  Row(
+                    children: [
+                      Expanded(child: OutlinedButton.icon(onPressed: _busy ? null : _styleMe, icon: const Icon(Icons.refresh_rounded), label: const Text('Try Another Look'))),
+                      const SizedBox(width: 9),
+                      Expanded(child: FilledButton.icon(onPressed: _look.isEmpty ? null : _save, icon: const Icon(Icons.bookmark_add_outlined), label: const Text('Save Look'))),
+                    ],
+                  ),
                 ],
               ),
             ),
