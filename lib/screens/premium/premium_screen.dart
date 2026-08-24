@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_gradients.dart';
+import 'virtual_try_on_screen.dart';
 
 class PremiumScreen extends StatefulWidget {
   const PremiumScreen({super.key});
@@ -114,6 +115,14 @@ class _PremiumScreenState extends State<PremiumScreen>
     }
   }
 
+  void _openVirtualTryOn() {
+    if (!_isPremium) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const VirtualTryOnScreen()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -152,6 +161,8 @@ class _PremiumScreenState extends State<PremiumScreen>
                   _reveal(_contentReveal, _buildIntro()),
                   const SizedBox(height: 14),
                   _reveal(_contentReveal, _buildBenefits()),
+                  const SizedBox(height: 14),
+                  _reveal(_contentReveal, _buildVirtualTryOnCard()),
                   const SizedBox(height: 20),
                   _reveal(_statusReveal, _buildAccessInfo()),
                   const SizedBox(height: 14),
@@ -379,6 +390,85 @@ class _PremiumScreenState extends State<PremiumScreen>
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildVirtualTryOnCard() {
+    return InkWell(
+      onTap: _isPremium ? _openVirtualTryOn : null,
+      borderRadius: BorderRadius.circular(24),
+      child: Ink(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          gradient: AppGradients.ai,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 52,
+              height: 52,
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.view_in_ar_rounded,
+                color: AppColors.primaryDark,
+                size: 25,
+              ),
+            ),
+            const SizedBox(width: 13),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'TiB Virtual Try-On',
+                          style: TextStyle(
+                            color: _text,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        'NEW',
+                        style: TextStyle(
+                          color: AppColors.primaryDark,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    'Create your TiB Model, choose your own clothes or let AI build a look for you.',
+                    style: TextStyle(
+                      color: _muted,
+                      fontSize: 11.5,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 6),
+            Icon(
+              Icons.arrow_forward_rounded,
+              color: _isPremium
+                  ? AppColors.primaryDark
+                  : AppColors.textMuted,
+            ),
+          ],
+        ),
       ),
     );
   }
