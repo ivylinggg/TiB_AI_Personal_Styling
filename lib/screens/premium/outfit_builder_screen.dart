@@ -15,15 +15,7 @@ class OutfitBuilderScreen extends StatefulWidget {
 }
 
 class _OutfitBuilderScreenState extends State<OutfitBuilderScreen> {
-  final List<String> _slots = const [
-    'Top',
-    'Bottom',
-    'Dress',
-    'Outerwear',
-    'Shoes',
-    'Accessories',
-  ];
-
+  final List<String> _slots = const ['Top', 'Bottom', 'Dress', 'Outerwear', 'Shoes', 'Accessories'];
   List<WardrobeItem> _wardrobe = const [];
   final Map<String, WardrobeItem?> _selected = {};
   TibModelProfile? _model;
@@ -96,9 +88,7 @@ class _OutfitBuilderScreenState extends State<OutfitBuilderScreen> {
     });
   }
 
-  void _clearSlot() {
-    setState(() => _selected[_activeSlot] = null);
-  }
+  void _clearSlot() => setState(() => _selected[_activeSlot] = null);
 
   Future<void> _saveLook() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -158,7 +148,11 @@ class _OutfitBuilderScreenState extends State<OutfitBuilderScreen> {
     return Container(
       height: 340,
       decoration: BoxDecoration(
-        gradient: const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xFFF9E9E7), Color(0xFFF2D4D0)]),
+        gradient: const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFFF9E9E7), Color(0xFFF2D4D0)],
+        ),
         borderRadius: BorderRadius.circular(28),
       ),
       child: Stack(
@@ -172,7 +166,10 @@ class _OutfitBuilderScreenState extends State<OutfitBuilderScreen> {
                 height: 86,
                 child: photo != null && photo.existsSync()
                     ? Image.file(photo, fit: BoxFit.cover)
-                    : const ColoredBox(color: AppColors.primarySoft, child: Icon(Icons.person_rounded, size: 42, color: AppColors.primary)),
+                    : const ColoredBox(
+                        color: AppColors.primarySoft,
+                        child: Icon(Icons.person_rounded, size: 42, color: AppColors.primary),
+                      ),
               ),
             ),
           ),
@@ -189,16 +186,21 @@ class _OutfitBuilderScreenState extends State<OutfitBuilderScreen> {
                   ? const Icon(Icons.checkroom_outlined, size: 42, color: AppColors.primary)
                   : Column(
                       mainAxisAlignment: MainAxisAlignment.center,
-                      children: _selectedItems.take(3).map((item) => Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 2),
-                        child: SizedBox(
-                          width: 108,
-                          height: 42,
-                          child: item.imageUrl.isEmpty
-                              ? const Icon(Icons.checkroom_outlined, color: AppColors.primary)
-                              : ClipRRect(borderRadius: BorderRadius.circular(10), child: CachedNetworkImage(imageUrl: item.imageUrl, fit: BoxFit.cover)),
-                        ),
-                      )).toList(),
+                      children: _selectedItems.take(3).map((item) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 2),
+                          child: SizedBox(
+                            width: 108,
+                            height: 42,
+                            child: item.imageUrl.isEmpty
+                                ? const Icon(Icons.checkroom_outlined, color: AppColors.primary)
+                                : ClipRRect(
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: CachedNetworkImage(imageUrl: item.imageUrl, fit: BoxFit.cover),
+                                  ),
+                          ),
+                        );
+                      }).toList(),
                     ),
             ),
           ),
@@ -211,7 +213,11 @@ class _OutfitBuilderScreenState extends State<OutfitBuilderScreen> {
               child: Text('$_filledSlots pieces selected', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800)),
             ),
           ),
-          const Positioned(right: 16, bottom: 14, child: Text('PREVIEW', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 1, color: AppColors.textMuted))),
+          const Positioned(
+            right: 16,
+            bottom: 14,
+            child: Text('PREVIEW', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 1, color: AppColors.textMuted)),
+          ),
         ],
       ),
     );
@@ -223,8 +229,8 @@ class _OutfitBuilderScreenState extends State<OutfitBuilderScreen> {
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: _slots.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 7),
-        itemBuilder: (_, index) {
+        separatorBuilder: (context, index) => const SizedBox(width: 7),
+        itemBuilder: (context, index) {
           final slot = _slots[index];
           final selected = _activeSlot == slot;
           final filled = _selected[slot] != null;
@@ -246,8 +252,7 @@ class _OutfitBuilderScreenState extends State<OutfitBuilderScreen> {
         Row(
           children: [
             Expanded(child: Text(_activeSlot, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800))),
-            if (_selected[_activeSlot] != null)
-              TextButton(onPressed: _clearSlot, child: const Text('Clear')),
+            if (_selected[_activeSlot] != null) TextButton(onPressed: _clearSlot, child: const Text('Clear')),
           ],
         ),
         const SizedBox(height: 8),
@@ -264,7 +269,7 @@ class _OutfitBuilderScreenState extends State<OutfitBuilderScreen> {
             physics: const NeverScrollableScrollPhysics(),
             itemCount: items.length,
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: .82),
-            itemBuilder: (_, index) {
+            itemBuilder: (context, index) {
               final item = items[index];
               final selected = _selected[_activeSlot]?.id == item.id;
               return InkWell(
@@ -276,11 +281,30 @@ class _OutfitBuilderScreenState extends State<OutfitBuilderScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(child: Stack(fit: StackFit.expand, children: [
-                        item.imageUrl.isEmpty ? const ColoredBox(color: AppColors.surfaceMuted, child: Icon(Icons.checkroom_outlined, color: AppColors.primary)) : CachedNetworkImage(imageUrl: item.imageUrl, fit: BoxFit.cover),
-                        if (selected) const Positioned(top: 8, right: 8, child: CircleAvatar(radius: 13, backgroundColor: AppColors.primary, child: Icon(Icons.check, size: 16, color: Colors.white))),
-                      ])),
-                      Padding(padding: const EdgeInsets.fromLTRB(10, 8, 10, 10), child: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700))),
+                      Expanded(
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            item.imageUrl.isEmpty
+                                ? const ColoredBox(color: AppColors.surfaceMuted, child: Icon(Icons.checkroom_outlined, color: AppColors.primary))
+                                : CachedNetworkImage(imageUrl: item.imageUrl, fit: BoxFit.cover),
+                            if (selected)
+                              const Positioned(
+                                top: 8,
+                                right: 8,
+                                child: CircleAvatar(
+                                  radius: 13,
+                                  backgroundColor: AppColors.primary,
+                                  child: Icon(Icons.check, size: 16, color: Colors.white),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+                        child: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700)),
+                      ),
                     ],
                   ),
                 ),
