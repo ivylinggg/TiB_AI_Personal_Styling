@@ -27,6 +27,7 @@ class _CreateTibModelScreenState extends State<CreateTibModelScreen> {
   bool _busy = false;
   String _status = '';
   String _calculatedShape = 'Not measured';
+  String _calculatedFaceShape = 'Not scanned';
 
   final _formKey = GlobalKey<FormState>();
   final _weightController = TextEditingController();
@@ -75,6 +76,7 @@ class _CreateTibModelScreenState extends State<CreateTibModelScreen> {
       if (profile.waist > 0) _waistController.text = _format(profile.waist);
       if (profile.hips > 0) _hipsController.text = _format(profile.hips);
       _calculatedShape = profile.bodyShape;
+      _calculatedFaceShape = profile.faceShape;
     });
   }
 
@@ -123,7 +125,7 @@ class _CreateTibModelScreenState extends State<CreateTibModelScreen> {
       setState(() {
         if (face) {
           _facePhoto = target;
-          _status = 'Face profile ready.';
+          _status = 'Face profile ready. Saving the model will automatically scan your face shape.';
         } else {
           _bodyPhoto = target;
           _status = 'Full-body reference ready.';
@@ -153,24 +155,37 @@ class _CreateTibModelScreenState extends State<CreateTibModelScreen> {
     final waist = _number(_waistController)!;
     final hips = _number(_hipsController)!;
 
-    final shape = TibModelService.calculateBodyShape(bust: bust, waist: waist, hips: hips);
-    await TibModelService.save(
-      facePath: _facePhoto!.path,
-      bodyPath: _bodyPhoto?.path,
-      weight: weight,
-      height: height,
-      bust: bust,
-      waist: waist,
-      hips: hips,
-    );
-
-    if (!mounted) return;
     setState(() {
-      _calculatedShape = shape;
-      _status = 'Your TiB Model profile is saved as $shape.';
+      _busy = true;
+      _status = 'Building your TiB Model…';
     });
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('TiB Model saved · $shape')));
-    Navigator.pop(context, true);
+
+    try {
+      await TibModelService.save(
+        facePath: _facePhoto!.path,
+        bodyPath: _bodyPhoto?.path,
+        weight: weight,
+        height: height,
+        bust: bust,
+        waist: waist,
+        hips: hips,
+      );
+
+      final profile = await TibModelService.load();
+      if (!mounted) return;
+      setState(() {
+        _calculatedShape = profile.bodyShape;
+        _calculatedFaceShape = profile.faceShape;
+        _status = 'Your TiB Model profile is saved as ${profile.bodyShape} · ${profile.faceShape}.';
+      });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('TiB Model saved · ${profile.bodyShape} · ${profile.faceShape}')));
+      Navigator.pop(context, true);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _status = 'Could not save your TiB Model: $error');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   Widget _photoCard({required bool face}) {
@@ -272,26 +287,18 @@ class _CreateTibModelScreenState extends State<CreateTibModelScreen> {
     );
   }
 
-  Widget _rulesCard() {
+  Widget _faceShapeCard() {
+    final scanned = _calculatedFaceShape != 'Not scanned';
     return Container(
-      padding: const EdgeInsets.all(17),
-      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)),
-      child: const Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('TiB BODY SHAPE RULES', style: TextStyle(fontSize: 9, letterSpacing: 1.2, fontWeight: FontWeight.w900, color: AppColors.textMuted)),
-          SizedBox(height: 12),
-          Text('🍎 Apple  ·  Waist ≥ Bust × 0.90 OR Waist ≥ Hips × 0.90', style: TextStyle(fontSize: 10.5, height: 1.45)),
-          SizedBox(height: 6),
-          Text('🍐 Pear  ·  Hips ≥ Bust × 1.05 AND Hips − Waist ≥ 7.5 cm', style: TextStyle(fontSize: 10.5, height: 1.45)),
-          SizedBox(height: 6),
-          Text('⌛ Hourglass  ·  Bust/Hips difference ≤ 5% AND Waist is ≥25% smaller than both', style: TextStyle(fontSize: 10.5, height: 1.45)),
-          SizedBox(height: 6),
-          Text('▭ Rectangle  ·  Bust/Hips difference ≤ 5% AND Waist is <25% smaller than both', style: TextStyle(fontSize: 10.5, height: 1.45)),
-          SizedBox(height: 6),
-          Text('🔻 Inverted Triangle  ·  Bust ≥ Hips × 1.05 AND Bust − Waist ≥ 7.5 cm', style: TextStyle(fontSize: 10.5, height: 1.45)),
-        ],
-      ),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(gradient: scanned ? AppGradients.soft : null, color: scanned ? null : AppColors.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: scanned ? AppColors.primarySoft : AppColors.border)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Text('YOUR FACE SHAPE', style: TextStyle(fontSize: 9, letterSpacing: 1.3, fontWeight: FontWeight.w900, color: AppColors.textMuted)),
+        const SizedBox(height: 8),
+        Row(children: [const Icon(Icons.face_retouching_natural_rounded, size: 27, color: AppColors.primary), const SizedBox(width: 9), Expanded(child: Text(scanned ? _calculatedFaceShape : 'Scan to analyse your face', style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900)))]),
+        const SizedBox(height: 7),
+        Text(scanned ? 'Detected automatically from your face scan. No face measurements are required.' : 'Face shape is detected automatically from the uploaded face photo.', style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.5, height: 1.4)),
+      ]),
     );
   }
 
@@ -305,7 +312,9 @@ class _CreateTibModelScreenState extends State<CreateTibModelScreen> {
       waist: _number(_waistController) ?? 0,
       hips: _number(_hipsController) ?? 0,
       bodyShape: _calculatedShape,
+      faceShape: _calculatedFaceShape,
       isComplete: _facePhoto != null &&
+          _calculatedFaceShape != 'Not scanned' &&
           (_number(_weightController) ?? 0) > 0 &&
           (_number(_heightController) ?? 0) > 0 &&
           (_number(_bustController) ?? 0) > 0 &&
@@ -318,41 +327,14 @@ class _CreateTibModelScreenState extends State<CreateTibModelScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'YOUR 3D TIΒ MODEL',
-          style: TextStyle(
-            fontSize: 9,
-            letterSpacing: 1.3,
-            fontWeight: FontWeight.w900,
-            color: AppColors.textMuted,
-          ),
-        ),
+        const Text('YOUR 3D TIΒ MODEL', style: TextStyle(fontSize: 9, letterSpacing: 1.3, fontWeight: FontWeight.w900, color: AppColors.textMuted)),
         const SizedBox(height: 9),
         TibVirtualModelPreview(model: profile, height: 430),
         const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: AppColors.border),
-          ),
-          child: const Row(
-            children: [
-              Icon(Icons.info_outline_rounded, size: 17, color: AppColors.primary),
-              SizedBox(width: 9),
-              Expanded(
-                child: Text(
-                  'Drag the model to rotate 360°. Pinch to zoom. Use the pause button to control auto-rotation.',
-                  style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 10.5,
-                    height: 1.4,
-                  ),
-                ),
-              ),
-            ],
-          ),
+          decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border)),
+          child: Row(children: [const Icon(Icons.info_outline_rounded, size: 17, color: AppColors.primary), const SizedBox(width: 9), const Expanded(child: Text('Drag the model to rotate 360°. Pinch to zoom. Use the pause button to control auto-rotation.', style: TextStyle(color: AppColors.textSecondary, fontSize: 10.5, height: 1.4)))]),
         ),
         const SizedBox(height: 18),
       ],
@@ -373,36 +355,47 @@ class _CreateTibModelScreenState extends State<CreateTibModelScreen> {
             Container(
               padding: const EdgeInsets.all(22),
               decoration: BoxDecoration(gradient: AppGradients.premium, borderRadius: BorderRadius.circular(28)),
-              child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('YOUR VIRTUAL MODEL', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1.3)), SizedBox(height: 8), Text('Create a model\nthat feels like you.', style: TextStyle(fontSize: 27, height: 1.05, fontWeight: FontWeight.w900, letterSpacing: -1)), SizedBox(height: 9), Text('Add your face and your body measurements. TiB will calculate your body shape automatically for more personalised styling.', style: TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.45))]),
+              child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('YOUR VIRTUAL MODEL', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1.3)), SizedBox(height: 8), Text('Create a model\nthat feels like you.', style: TextStyle(fontSize: 27, height: 1.05, fontWeight: FontWeight.w900, letterSpacing: -1)), SizedBox(height: 9), Text('Add your face and your body measurements. TiB will calculate your body shape automatically and scan your face shape for more personalised styling.', style: TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.45))]),
             ),
             const SizedBox(height: 18),
             Row(children: [_photoCard(face: true), const SizedBox(width: 10), _photoCard(face: false)]),
             const SizedBox(height: 18),
-            Container(
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Text('Body measurements', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 4),
-                const Text('Please measure yourself and enter your current values. Weight is in kg; all body measurements are in cm.', style: TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.4)),
-                const SizedBox(height: 16),
-                _measurementField(label: 'Weight', hint: 'e.g. 55', unit: 'kg', controller: _weightController, icon: Icons.monitor_weight_outlined),
-                const SizedBox(height: 11),
-                _measurementField(label: 'Height', hint: 'e.g. 165', unit: 'cm', controller: _heightController, icon: Icons.height_rounded),
-                const SizedBox(height: 11),
-                _measurementField(label: 'Bust', hint: 'e.g. 86', unit: 'cm', controller: _bustController, icon: Icons.straighten_rounded),
-                const SizedBox(height: 11),
-                _measurementField(label: 'Waist', hint: 'e.g. 68', unit: 'cm', controller: _waistController, icon: Icons.straighten_rounded),
-                const SizedBox(height: 11),
-                _measurementField(label: 'Hips', hint: 'e.g. 92', unit: 'cm', controller: _hipsController, icon: Icons.straighten_rounded),
-              ]),
-            ),
+            Container(padding: const EdgeInsets.all(18), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('Body measurements', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 4),
+              const Text('Please measure yourself and enter your current values. Weight is in kg; all body measurements are in cm.', style: TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.4)),
+              const SizedBox(height: 16),
+              _measurementField(label: 'Weight', hint: 'e.g. 55', unit: 'kg', controller: _weightController, icon: Icons.monitor_weight_outlined),
+              const SizedBox(height: 11),
+              _measurementField(label: 'Height', hint: 'e.g. 165', unit: 'cm', controller: _heightController, icon: Icons.height_rounded),
+              const SizedBox(height: 11),
+              _measurementField(label: 'Bust', hint: 'e.g. 86', unit: 'cm', controller: _bustController, icon: Icons.straighten_rounded),
+              const SizedBox(height: 11),
+              _measurementField(label: 'Waist', hint: 'e.g. 68', unit: 'cm', controller: _waistController, icon: Icons.straighten_rounded),
+              const SizedBox(height: 11),
+              _measurementField(label: 'Hips', hint: 'e.g. 92', unit: 'cm', controller: _hipsController, icon: Icons.straighten_rounded),
+            ])),
             const SizedBox(height: 16),
             _shapeResultCard(),
             const SizedBox(height: 12),
-            _rulesCard(),
-            const SizedBox(height: 16),
+            _faceShapeCard(),
+            const SizedBox(height: 12),
             _modelReadyPreview(),
+            const SizedBox(height: 12),
+            Container(padding: const EdgeInsets.all(17), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)), child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('TiB BODY SHAPE RULES', style: TextStyle(fontSize: 9, letterSpacing: 1.2, fontWeight: FontWeight.w900, color: AppColors.textMuted)),
+              SizedBox(height: 12),
+              Text('🍎 Apple  ·  Waist ≥ Bust × 0.90 OR Waist ≥ Hips × 0.90', style: TextStyle(fontSize: 10.5, height: 1.45)),
+              SizedBox(height: 6),
+              Text('🍐 Pear  ·  Hips ≥ Bust × 1.05 AND Hips − Waist ≥ 7.5 cm', style: TextStyle(fontSize: 10.5, height: 1.45)),
+              SizedBox(height: 6),
+              Text('⌛ Hourglass  ·  Bust/Hips difference ≤ 5% AND Waist is ≥25% smaller than both', style: TextStyle(fontSize: 10.5, height: 1.45)),
+              SizedBox(height: 6),
+              Text('▭ Rectangle  ·  Bust/Hips difference ≤ 5% AND Waist is <25% smaller than both', style: TextStyle(fontSize: 10.5, height: 1.45)),
+              SizedBox(height: 6),
+              Text('🔻 Inverted Triangle  ·  Bust ≥ Hips × 1.05 AND Bust − Waist ≥ 7.5 cm', style: TextStyle(fontSize: 10.5, height: 1.45)),
+            ])),
+            const SizedBox(height: 12),
             Container(padding: const EdgeInsets.all(15), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.border)), child: const Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(Icons.shield_outlined, color: AppColors.primary, size: 18), SizedBox(width: 10), Expanded(child: Text('Your measurements are stored locally with your TiB Model and are used to personalise styling recommendations and virtual try-on proportions.', style: TextStyle(color: AppColors.textSecondary, fontSize: 10.5, height: 1.4)))])),
             const SizedBox(height: 18),
             FilledButton.icon(onPressed: _busy || !ready ? null : _saveProfile, icon: const Icon(Icons.check_rounded), label: Text(_busy ? 'Preparing…' : 'Save My TiB Model')),
