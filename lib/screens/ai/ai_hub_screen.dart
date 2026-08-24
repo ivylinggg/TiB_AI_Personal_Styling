@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_gradients.dart';
-import '../premium/virtual_try_on_screen.dart';
+import '../premium/ai_virtual_styling_studio_screen.dart';
 import 'ai_outfit_screen.dart';
 import 'ai_stylist_screen.dart';
 import 'style_me_screen.dart';
@@ -62,7 +62,7 @@ class AIHubScreen extends StatelessWidget {
               title: 'Virtual Try-On',
               subtitle: 'Create your TiB Model, choose your own clothes, or let AI style the look.',
               gradient: AppGradients.premium,
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const VirtualTryOnScreen())),
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AIVirtualStylingStudioScreen())),
               primary: true,
               badge: 'PREMIUM',
             ),
