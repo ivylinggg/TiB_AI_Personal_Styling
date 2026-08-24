@@ -185,7 +185,7 @@ class DashboardDesignedScreen extends StatelessWidget {
               const SizedBox(height: 5),
               const Text('Your personal styling space', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
               const SizedBox(height: 18),
-              _todayColourCard(context, result, todayColour),
+              _todayStyleCard(context, result, todayColour),
               const SizedBox(height: 14),
               _styleScoreCard(context, uid, provider),
               const SizedBox(height: 14),
@@ -197,20 +197,69 @@ class DashboardDesignedScreen extends StatelessWidget {
     );
   }
 
-  Widget _todayColourCard(BuildContext context, ColourAnalysisResult? result, String colour) {
-    return _card(context, result == null ? const AnalysisScreen() : AnalysisResultScreen(analysisProvider: context.read<AnalysisProvider>(), result: result), Row(children: [
-      result == null ? Container(width: 62, height: 62, decoration: const BoxDecoration(color: AppColors.primarySoft, shape: BoxShape.circle), child: const Icon(Icons.palette_outlined, color: AppColors.primaryDark, size: 27)) : ColourSwatch(name: colour, size: 62),
-      const SizedBox(width: 13),
-      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [const Expanded(child: Text("TODAY'S COLOUR", style: TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: .7))), if (result != null) Text('${DateTime.now().day}/${DateTime.now().month}', style: const TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w700))]),
-        const SizedBox(height: 3),
-        Text(result == null ? 'Discover your colour' : colour, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900)),
-        const SizedBox(height: 4),
-        Text(result == null ? 'Complete your colour analysis to unlock your daily colour.' : 'From your personal best-colour palette', style: const TextStyle(color: AppColors.primaryDark, fontSize: 10, fontWeight: FontWeight.w700)),
-        if (result != null) ...[const SizedBox(height: 5), Text(_todayColourMessage(colour), style: const TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.4))],
-      ])),
-      const SizedBox(width: 5), const Icon(Icons.chevron_right_rounded, color: AppColors.primary, size: 20),
-    ]));
+  Widget _todayStyleCard(BuildContext context, ColourAnalysisResult? result, String colour) {
+    final message = result == null ? 'Complete your colour analysis to unlock personalised styling.' : _todayColourMessage(colour);
+    return _card(context, result == null ? const AnalysisScreen() : AnalysisResultScreen(analysisProvider: context.read<AnalysisProvider>(), result: result), Container(
+      padding: const EdgeInsets.fromLTRB(16, 16, 14, 17),
+      decoration: BoxDecoration(
+        gradient: AppGradients.soft,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.primarySoft),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(child: Text('TODAY\'S RECOMMENDATION', style: TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: .7))),
+              Text('${DateTime.now().day}/${DateTime.now().month}', style: const TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w700)),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              result == null
+                  ? Container(width: 64, height: 64, decoration: const BoxDecoration(color: AppColors.primarySoft, shape: BoxShape.circle), child: const Icon(Icons.auto_awesome_rounded, color: AppColors.primaryDark, size: 28))
+                  : ColourSwatch(name: colour, size: 64),
+              const SizedBox(width: 13),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(result == null ? 'Your daily style guide' : colour, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900)),
+                    const SizedBox(height: 3),
+                    Text(result == null ? 'Discover a more personalised look today.' : 'Best colour for your palette today', style: const TextStyle(color: AppColors.primaryDark, fontSize: 10, fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 5),
+                    Text(message, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.4)),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 4),
+              const Icon(Icons.chevron_right_rounded, color: AppColors.primary, size: 20),
+            ],
+          ),
+          const SizedBox(height: 14),
+          const Text('Style directions', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900, color: AppColors.textPrimary)),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 7,
+            runSpacing: 7,
+            children: const [
+              _StyleTag('Casual'),
+              _StyleTag('Minimal'),
+              _StyleTag('Smart casual'),
+              _StyleTag('Feminine'),
+              _StyleTag('Elegant'),
+              _StyleTag('Bright'),
+              _StyleTag('Soft'),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Text('TiB adapts these directions to your wardrobe and personal profile.', style: TextStyle(color: AppColors.textMuted, fontSize: 10.5, height: 1.35)),
+        ],
+      ),
+    ));
   }
 
   Widget _styleScoreCard(BuildContext context, String? uid, AnalysisProvider provider) {
@@ -291,4 +340,26 @@ class _DailyChallenge {
   final IconData icon;
 
   const _DailyChallenge(this.category, this.title, this.description, this.howTo, this.icon);
+}
+
+class _StyleTag extends StatelessWidget {
+  const _StyleTag(this.label);
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
+      ),
+    );
+  }
 }
