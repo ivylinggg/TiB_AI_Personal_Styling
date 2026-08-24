@@ -198,7 +198,7 @@ class DashboardDesignedScreen extends StatelessWidget {
   }
 
   Widget _todayColourCard(BuildContext context, ColourAnalysisResult? result, String colour) {
-    return _card(context, result == null ? const AnalysisScreen() : AnalysisResultScreen(result: result), Row(children: [
+    return _card(context, result == null ? const AnalysisScreen() : AnalysisResultScreen(analysisProvider: context.read<AnalysisProvider>(), result: result), Row(children: [
       result == null ? Container(width: 62, height: 62, decoration: const BoxDecoration(color: AppColors.primarySoft, shape: BoxShape.circle), child: const Icon(Icons.palette_outlined, color: AppColors.primaryDark, size: 27)) : ColourSwatch(name: colour, size: 62),
       const SizedBox(width: 13),
       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -222,7 +222,7 @@ class DashboardDesignedScreen extends StatelessWidget {
         if (snapshot.hasError || !snapshot.hasData) return _card(context, null, const Text('Style Score is unavailable right now.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)));
         final score = snapshot.data!;
         final label = _scoreLabel(score.total);
-        return _card(context, const StyleScoreDetailScreen(), Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        return _card(context, StyleScoreDetailScreen(analysisProvider: provider), Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [const Expanded(child: Text('STYLE SCORE', style: TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: .7))), Text(label, style: const TextStyle(color: AppColors.primaryDark, fontSize: 10.5, fontWeight: FontWeight.w800))]),
           const SizedBox(height: 10),
           Row(children: [Text('${score.total}', style: const TextStyle(fontSize: 42, fontWeight: FontWeight.w900, color: AppColors.textPrimary)), const Text('/100', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textMuted)), const Spacer(), SizedBox(width: 95, height: 95, child: CircularProgressIndicator(value: score.total / 100, strokeWidth: 10, color: AppColors.primary, backgroundColor: AppColors.border))]),
@@ -260,7 +260,7 @@ class DashboardDesignedScreen extends StatelessWidget {
           future: uid == null ? Future.value(false) : _isChallengeCompleted(uid, DateTime.now()),
           builder: (context, completedSnapshot) {
             final isCompleted = completedSnapshot.data ?? completed;
-            return _card(context, null, Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: AppColors.lavenderMist.withOpacity(.45), borderRadius: BorderRadius.circular(18)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            return _card(context, null, Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: AppColors.lavenderMist.withValues(alpha: .45), borderRadius: BorderRadius.circular(18)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [const Icon(Icons.auto_awesome_rounded, color: AppColors.primaryDark, size: 20), const SizedBox(width: 9), const Expanded(child: Text('TODAY\'S CHALLENGE', style: TextStyle(color: AppColors.primaryDark, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: .8))), const Text('+10 XP', style: TextStyle(color: AppColors.textMuted, fontSize: 11, fontWeight: FontWeight.w800))]),
               const SizedBox(height: 12),
               Text(challenge.category, style: const TextStyle(color: AppColors.primaryDark, fontSize: 10, fontWeight: FontWeight.w800)),
