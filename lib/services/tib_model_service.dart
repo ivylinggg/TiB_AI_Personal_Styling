@@ -1,5 +1,9 @@
 import 'dart:io';
+
+import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import 'mlkit_service.dart';
 
 class TibModelProfile {
   const TibModelProfile({this.facePath, this.bodyPath, required this.weight, required this.height, required this.bust, required this.waist, required this.hips, required this.bodyShape, required this.faceShape, required this.isComplete});
@@ -40,7 +44,7 @@ class TibModelService {
     return 'Rectangle';
   }
 
-  /// Automatic face-shape classification from the scanned face geometry.
+  /// Face shape is inferred automatically from the ML Kit face scan.
   /// Users never enter face-shape measurements manually.
   static String calculateFaceShape({required double faceWidth, required double faceHeight, double? foreheadWidth, double? cheekboneWidth, double? jawWidth, double? chinRatio}) {
     if (faceWidth <= 0 || faceHeight <= 0) return 'Oval';
@@ -57,6 +61,40 @@ class TibModelService {
     if (foreheadToJaw >= 1.10 && jawToCheek < .90) return 'Heart';
     if (ratio <= 1.25 && foreheadToJaw <= 1.08 && jawToCheek >= .92) return 'Square';
     return 'Oval';
+  }
+
+  /// Runs the actual face scan and derives a face-shape result from the
+  /// detected face geometry. A photo with no/ multiple faces is rejected.
+  static Future<String> scanFaceShape(File image) async {
+    final faces = await MlKitService.detectFace(image);
+    if (faces.length != 1) {
+      throw Exception(faces.isEmpty ? 'No face detected. Use a clear front-facing photo.' : 'Please use a photo with one clearly visible face.');
+    }
+
+    final face = faces.single;
+    final width = face.boundingBox.width;
+    final height = face.boundingBox.height;
+
+    double? contourWidth(FaceContourType type) {
+      final points = face.contours[type]?.points;
+      if (points == null || points.length < 2) return null;
+      var minX = points.first.x.toDouble();
+      var maxX = minX;
+      for (final point in points.skip(1)) {
+        final x = point.x.toDouble();
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+      }
+      return maxX - minX;
+    }
+
+    final faceContour = contourWidth(FaceContourType.face);
+    final result = calculateFaceShape(
+      faceWidth: faceContour ?? width,
+      faceHeight: height,
+      cheekboneWidth: faceContour,
+    );
+    return result;
   }
 
   static Future<TibModelProfile> load() async {
@@ -77,9 +115,10 @@ class TibModelService {
     return TibModelProfile(facePath: faceExists ? facePath : null, bodyPath: bodyExists ? bodyPath : null, weight: weight ?? 0, height: height ?? 0, bust: bust ?? 0, waist: waist ?? 0, hips: hips ?? 0, bodyShape: bodyShape, faceShape: savedFaceShape ?? 'Not scanned', isComplete: faceExists && complete);
   }
 
-  static Future<void> save({required String facePath, String? bodyPath, required double weight, required double height, required double bust, required double waist, required double hips, required String faceShape}) async {
+  static Future<void> save({required String facePath, String? bodyPath, required double weight, required double height, required double bust, required double waist, required double hips, String? faceShape}) async {
     final prefs = await SharedPreferences.getInstance();
     final bodyShape = calculateBodyShape(bust: bust, waist: waist, hips: hips);
+    final scannedFaceShape = faceShape ?? await scanFaceShape(File(facePath));
     await prefs.setString(faceKey, facePath);
     if (bodyPath == null) { await prefs.remove(bodyKey); } else { await prefs.setString(bodyKey, bodyPath); }
     await prefs.setDouble(weightKey, weight);
@@ -88,7 +127,7 @@ class TibModelService {
     await prefs.setDouble(waistKey, waist);
     await prefs.setDouble(hipsKey, hips);
     await prefs.setString(shapeKey, bodyShape);
-    await prefs.setString(faceShapeKey, faceShape);
+    await prefs.setString(faceShapeKey, scannedFaceShape);
     await prefs.setInt(versionKey, 3);
   }
 
