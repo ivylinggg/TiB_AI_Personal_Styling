@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
@@ -10,7 +9,11 @@ import 'tib_avatar_service.dart';
 import 'tib_model_service.dart';
 
 class TibPersonalAvatarResult {
-  const TibPersonalAvatarResult({required this.success, required this.status, this.modelUrl});
+  const TibPersonalAvatarResult({
+    required this.success,
+    required this.status,
+    this.modelUrl,
+  });
 
   final bool success;
   final String status;
@@ -22,62 +25,116 @@ class TibPersonalAvatarService {
 
   static Future<TibPersonalAvatarResult> generate(TibModelProfile profile) async {
     final user = FirebaseAuth.instance.currentUser;
-    final face = profile.faceFile;
 
     if (user == null) {
-      return const TibPersonalAvatarResult(success: false, status: 'Please sign in again before creating your TiB Avatar.');
+      return const TibPersonalAvatarResult(
+        success: false,
+        status: 'Please sign in again before creating your TiB Avatar.',
+      );
     }
-    if (!profile.isComplete || face == null || !face.existsSync()) {
-      return const TibPersonalAvatarResult(success: false, status: 'Complete your TiB Model first.');
+
+    if (!await TibAvatarService.canBuildPersonalAvatar(profile)) {
+      return const TibPersonalAvatarResult(
+        success: false,
+        status: 'Complete your TiB Model first.',
+      );
     }
+
+    final face = profile.faceFile!;
+    final body = profile.bodyFile;
 
     try {
       final idToken = await user.getIdToken();
       if (idToken == null || idToken.isEmpty) {
-        return const TibPersonalAvatarResult(success: false, status: 'Could not verify your account. Please try again.');
+        return const TibPersonalAvatarResult(
+          success: false,
+          status: 'Could not verify your account. Please try again.',
+        );
       }
 
       final faceBytes = await face.readAsBytes();
-      final body = profile.bodyFile;
-      final bodyBytes = body != null && body.existsSync() ? await body.readAsBytes() : null;
+      final bodyBytes = body != null && body.existsSync()
+          ? await body.readAsBytes()
+          : null;
+      final context = await TibAvatarService.buildGenerationContext(profile);
 
       final payload = <String, dynamic>{
         'action': 'generateTiBAvatar',
         'uid': user.uid,
         'idToken': idToken,
-        'tibModel': profile.measurementData,
-        'faceImage': {'mimeType': _mimeType(face.path), 'data': base64Encode(faceBytes)},
-        if (bodyBytes != null) 'bodyImage': {'mimeType': _mimeType(body!.path), 'data': base64Encode(bodyBytes)},
+        'tibModel': context['measurements'],
+        'avatarContext': context,
+        'faceImage': {
+          'mimeType': _mimeType(face.path),
+          'data': base64Encode(faceBytes),
+        },
+        if (bodyBytes != null)
+          'bodyImage': {
+            'mimeType': _mimeType(body!.path),
+            'data': base64Encode(bodyBytes),
+          },
       };
 
       final response = await http
-          .post(Uri.parse(GoogleDriveConfig.uploadUrl), headers: {'Content-Type': 'application/json'}, body: jsonEncode(payload))
+          .post(
+            Uri.parse(GoogleDriveConfig.uploadUrl),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(payload),
+          )
           .timeout(const Duration(seconds: 120));
 
-      if (kDebugMode) debugPrint('generateTiBAvatar status: ${response.statusCode}');
+      if (kDebugMode) {
+        debugPrint('generateTiBAvatar status: ${response.statusCode}');
+      }
+
       if (response.statusCode != 200) {
-        return TibPersonalAvatarResult(success: false, status: 'Avatar generation request failed (${response.statusCode}).');
+        return TibPersonalAvatarResult(
+          success: false,
+          status: 'Avatar generation request failed (${response.statusCode}).',
+        );
       }
 
       final decoded = jsonDecode(response.body);
       if (decoded is! Map<String, dynamic>) {
-        return const TibPersonalAvatarResult(success: false, status: 'Avatar generation returned an invalid response.');
+        return const TibPersonalAvatarResult(
+          success: false,
+          status: 'Avatar generation returned an invalid response.',
+        );
       }
+
       if (decoded['success'] != true) {
         final error = decoded['error']?.toString() ?? '';
-        return TibPersonalAvatarResult(success: false, status: error.isEmpty ? 'Could not create your TiB Avatar right now.' : error);
+        return TibPersonalAvatarResult(
+          success: false,
+          status: error.isEmpty
+              ? 'Could not create your TiB Avatar right now.'
+              : error,
+        );
       }
 
       final modelUrl = decoded['modelUrl']?.toString();
       if (modelUrl == null || modelUrl.isEmpty) {
-        return const TibPersonalAvatarResult(success: false, status: 'Avatar generation completed without returning a GLB model.');
+        return const TibPersonalAvatarResult(
+          success: false,
+          status: 'Avatar generation completed without returning a GLB model.',
+        );
       }
 
       await TibAvatarService.saveGeneratedAvatar(modelUrl: modelUrl);
-      return TibPersonalAvatarResult(success: true, status: 'Your personalised TiB 3D Avatar is ready.', modelUrl: modelUrl);
+
+      return TibPersonalAvatarResult(
+        success: true,
+        status: 'Your personalised TiB 3D Avatar is ready.',
+        modelUrl: modelUrl,
+      );
     } catch (error) {
-      if (kDebugMode) debugPrint('generateTiBAvatar error: $error');
-      return const TibPersonalAvatarResult(success: false, status: 'Could not connect to the TiB Avatar service. Please try again.');
+      if (kDebugMode) {
+        debugPrint('generateTiBAvatar error: $error');
+      }
+      return const TibPersonalAvatarResult(
+        success: false,
+        status: 'Could not connect to the TiB Avatar service. Please try again.',
+      );
     }
   }
 
