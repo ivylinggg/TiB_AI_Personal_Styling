@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_gradients.dart';
+import 'create_tib_model_screen.dart';
 import 'virtual_try_on_screen.dart';
 
 class AIVirtualStylingStudioScreen extends StatelessWidget {
@@ -11,6 +12,13 @@ class AIVirtualStylingStudioScreen extends StatelessWidget {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const VirtualTryOnScreen()),
+    );
+  }
+
+  Future<void> _openModelSetup(BuildContext context) async {
+    await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => const CreateTibModelScreen()),
     );
   }
 
@@ -73,12 +81,7 @@ class AIVirtualStylingStudioScreen extends StatelessWidget {
                   const SizedBox(height: 24),
                   const Text(
                     'See yourself\nin the look.',
-                    style: TextStyle(
-                      fontSize: 31,
-                      height: 1.0,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: -1.1,
-                    ),
+                    style: TextStyle(fontSize: 31, height: 1.0, fontWeight: FontWeight.w900, letterSpacing: -1.1),
                   ),
                   const SizedBox(height: 10),
                   const Text(
@@ -104,10 +107,7 @@ class AIVirtualStylingStudioScreen extends StatelessWidget {
                             child: Container(
                               width: 72,
                               height: 72,
-                              decoration: const BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: AppColors.primarySoft,
-                              ),
+                              decoration: const BoxDecoration(shape: BoxShape.circle, color: AppColors.primarySoft),
                               child: const Icon(Icons.person_rounded, size: 39, color: AppColors.primary),
                             ),
                           ),
@@ -116,13 +116,7 @@ class AIVirtualStylingStudioScreen extends StatelessWidget {
                             child: Container(
                               width: 145,
                               height: 82,
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: .76),
-                                borderRadius: const BorderRadius.vertical(
-                                  top: Radius.circular(65),
-                                  bottom: Radius.circular(22),
-                                ),
-                              ),
+                              decoration: BoxDecoration(color: Colors.white.withValues(alpha: .76), borderRadius: const BorderRadius.vertical(top: Radius.circular(65), bottom: Radius.circular(22))),
                               child: const Icon(Icons.checkroom_rounded, size: 38, color: AppColors.primary),
                             ),
                           ),
@@ -131,10 +125,7 @@ class AIVirtualStylingStudioScreen extends StatelessWidget {
                             bottom: 14,
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(18),
-                              ),
+                              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18)),
                               child: const Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
@@ -153,17 +144,15 @@ class AIVirtualStylingStudioScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 18),
-            const Text(
-              'CHOOSE YOUR EXPERIENCE',
-              style: TextStyle(fontSize: 9, letterSpacing: 1.3, fontWeight: FontWeight.w900, color: AppColors.textMuted),
-            ),
+            const Text('CHOOSE YOUR EXPERIENCE', style: TextStyle(fontSize: 9, letterSpacing: 1.3, fontWeight: FontWeight.w900, color: AppColors.textMuted)),
             const SizedBox(height: 10),
             _actionCard(
               context,
               icon: Icons.face_retouching_natural_rounded,
               title: 'Create My TiB Model',
-              subtitle: 'Scan your face or upload a clear photo.',
-              onTap: () => _openTryOn(context),
+              subtitle: 'Build your reusable face and body profile.',
+              onTap: () => _openModelSetup(context),
+              highlight: true,
             ),
             const SizedBox(height: 10),
             _actionCard(
@@ -184,11 +173,7 @@ class AIVirtualStylingStudioScreen extends StatelessWidget {
             const SizedBox(height: 18),
             Container(
               padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(22),
-                border: Border.all(color: AppColors.border),
-              ),
+              decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)),
               child: const Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -196,7 +181,7 @@ class AIVirtualStylingStudioScreen extends StatelessWidget {
                   SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'Your model photo stays on your device until you choose a future AI try-on provider. TiB only uses your wardrobe data to build styling recommendations.',
+                      'Your model photos stay on your device. TiB uses your saved model details to prepare styling recommendations; photorealistic generation can be connected through the dedicated AI service later.',
                       style: TextStyle(color: AppColors.textSecondary, fontSize: 10.5, height: 1.45),
                     ),
                   ),
@@ -215,6 +200,7 @@ class AIVirtualStylingStudioScreen extends StatelessWidget {
     required String title,
     required String subtitle,
     required VoidCallback onTap,
+    bool highlight = false,
   }) {
     return Material(
       color: Colors.transparent,
@@ -224,19 +210,17 @@ class AIVirtualStylingStudioScreen extends StatelessWidget {
         child: Ink(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: AppColors.surface,
+            gradient: highlight ? AppGradients.soft : null,
+            color: highlight ? null : AppColors.surface,
             borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: AppColors.border),
+            border: Border.all(color: highlight ? AppColors.primarySoft : AppColors.border),
           ),
           child: Row(
             children: [
               Container(
                 width: 46,
                 height: 46,
-                decoration: const BoxDecoration(
-                  color: AppColors.primarySoft,
-                  shape: BoxShape.circle,
-                ),
+                decoration: const BoxDecoration(color: AppColors.primarySoft, shape: BoxShape.circle),
                 child: Icon(icon, color: AppColors.primaryDark, size: 21),
               ),
               const SizedBox(width: 13),
@@ -244,12 +228,23 @@ class AIVirtualStylingStudioScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+                    Row(
+                      children: [
+                        Expanded(child: Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800))),
+                        if (highlight)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+                            decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: .10), borderRadius: BorderRadius.circular(10)),
+                            child: const Text('STEP 1', style: TextStyle(color: AppColors.primaryDark, fontSize: 7.5, fontWeight: FontWeight.w900, letterSpacing: .7)),
+                          ),
+                      ],
+                    ),
                     const SizedBox(height: 3),
                     Text(subtitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.5, height: 1.35)),
                   ],
                 ),
               ),
+              const SizedBox(width: 7),
               const Icon(Icons.arrow_forward_ios_rounded, size: 15, color: AppColors.primary),
             ],
           ),
