@@ -3,6 +3,7 @@ import 'package:model_viewer_plus/model_viewer_plus.dart';
 
 import '../core/constants/app_colors.dart';
 import '../core/constants/app_gradients.dart';
+import '../services/tib_avatar_service.dart';
 import '../services/tib_model_service.dart';
 
 /// Interactive 3D TiB Model preview.
@@ -18,20 +19,54 @@ class TibVirtualModelPreview extends StatefulWidget {
   final double height;
   final String? modelUrl;
 
-  static const String fallbackModelUrl =
-      'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Corset/glTF-Binary/Corset.glb';
-
   @override
   State<TibVirtualModelPreview> createState() => _TibVirtualModelPreviewState();
 }
 
 class _TibVirtualModelPreviewState extends State<TibVirtualModelPreview> {
   bool _autoRotate = true;
+  String? _storedAvatarUrl;
+  String _avatarStatus = TibAvatarService.statusBase;
+  bool _loadingAvatar = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAvatar();
+  }
+
+  @override
+  void didUpdateWidget(covariant TibVirtualModelPreview oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.model.facePath != widget.model.facePath ||
+        oldWidget.model.bodyPath != widget.model.bodyPath ||
+        oldWidget.model.bodyShape != widget.model.bodyShape ||
+        oldWidget.model.faceShape != widget.model.faceShape) {
+      _loadAvatar();
+    }
+  }
+
+  Future<void> _loadAvatar() async {
+    if (mounted) setState(() => _loadingAvatar = true);
+    final url = await TibAvatarService.getAvatarUrl();
+    final status = await TibAvatarService.getStatus();
+    if (!mounted) return;
+    setState(() {
+      _storedAvatarUrl = url;
+      _avatarStatus = status;
+      _loadingAvatar = false;
+    });
+  }
+
+  String get _modelUrl =>
+      widget.modelUrl ?? _storedAvatarUrl ?? TibAvatarService.fallbackAvatarUrl;
+
+  bool get _isPersonalAvatar =>
+      _storedAvatarUrl != null && _storedAvatarUrl!.isNotEmpty;
 
   @override
   Widget build(BuildContext context) {
     final face = widget.model.faceFile;
-    final modelUrl = widget.modelUrl ?? TibVirtualModelPreview.fallbackModelUrl;
     final ready = widget.model.isComplete;
 
     return Container(
@@ -46,8 +81,11 @@ class _TibVirtualModelPreviewState extends State<TibVirtualModelPreview> {
         children: [
           Positioned.fill(
             child: ModelViewer(
-              src: modelUrl,
-              alt: 'Interactive 3D TiB fashion model',
+              key: ValueKey(_modelUrl),
+              src: _modelUrl,
+              alt: _isPersonalAvatar
+                  ? 'Personalised 3D TiB avatar'
+                  : 'Interactive 3D TiB fashion model',
               backgroundColor: Colors.transparent,
               cameraControls: true,
               autoRotate: _autoRotate,
@@ -59,6 +97,10 @@ class _TibVirtualModelPreviewState extends State<TibVirtualModelPreview> {
               orbitSensitivity: 1,
             ),
           ),
+          if (_loadingAvatar)
+            const Positioned.fill(
+              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+            ),
           Positioned(
             top: 16,
             left: 16,
@@ -75,7 +117,11 @@ class _TibVirtualModelPreviewState extends State<TibVirtualModelPreview> {
                 decoration: const BoxDecoration(shape: BoxShape.circle),
                 child: face != null && face.existsSync()
                     ? Image.file(face, fit: BoxFit.cover)
-                    : const Icon(Icons.person_rounded, color: AppColors.primary, size: 28),
+                    : const Icon(
+                        Icons.person_rounded,
+                        color: AppColors.primary,
+                        size: 28,
+                      ),
               ),
             ),
           ),
@@ -85,10 +131,15 @@ class _TibVirtualModelPreviewState extends State<TibVirtualModelPreview> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _pill(icon: Icons.threesixty_rounded, label: '360°'),
+                _pill(
+                  icon: Icons.threesixty_rounded,
+                  label: _isPersonalAvatar ? 'MY 3D' : '360°',
+                ),
                 const SizedBox(width: 7),
                 _iconButton(
-                  icon: _autoRotate ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                  icon: _autoRotate
+                      ? Icons.pause_rounded
+                      : Icons.play_arrow_rounded,
                   tooltip: _autoRotate ? 'Pause rotation' : 'Auto rotate',
                   onPressed: () => setState(() => _autoRotate = !_autoRotate),
                 ),
@@ -108,19 +159,61 @@ class _TibVirtualModelPreviewState extends State<TibVirtualModelPreview> {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.swipe_rounded, size: 18, color: AppColors.primary),
+                  const Icon(
+                    Icons.swipe_rounded,
+                    size: 18,
+                    color: AppColors.primary,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      _autoRotate ? 'Drag to explore your model · auto-rotating' : 'Drag left or right to explore your model',
-                      style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: AppColors.textSecondary),
+                      _isPersonalAvatar
+                          ? 'Your personalised 3D avatar · drag to rotate'
+                          : _avatarStatus == TibAvatarService.statusReady
+                              ? 'Your TiB Avatar is ready · drag to explore'
+                              : 'Drag to explore your TiB model · auto-rotating',
+                      style: const TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textSecondary,
+                      ),
                     ),
                   ),
-                  Text(ready ? widget.model.bodyShape : 'Model setup', style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, color: AppColors.primaryDark)),
+                  Text(
+                    ready ? widget.model.bodyShape : 'Model setup',
+                    style: const TextStyle(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w900,
+                      color: AppColors.primaryDark,
+                    ),
+                  ),
                 ],
               ),
             ),
           ),
+          if (ready && !_isPersonalAvatar)
+            Positioned(
+              left: 16,
+              right: 16,
+              top: 82,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.surface.withValues(alpha: .9),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: Text(
+                  'Base 3D preview · ${widget.model.faceShape} face · ${widget.model.bodyShape} body',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -129,12 +222,30 @@ class _TibVirtualModelPreviewState extends State<TibVirtualModelPreview> {
   Widget _pill({required IconData icon, required String label}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
-      decoration: BoxDecoration(color: AppColors.surface.withValues(alpha: .94), borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border)),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(icon, size: 14, color: AppColors.primaryDark), const SizedBox(width: 5), Text(label, style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900))]),
+      decoration: BoxDecoration(
+        color: AppColors.surface.withValues(alpha: .94),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: AppColors.primaryDark),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _iconButton({required IconData icon, required String tooltip, required VoidCallback onPressed}) {
+  Widget _iconButton({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onPressed,
+  }) {
     return Tooltip(
       message: tooltip,
       child: Material(
@@ -143,7 +254,10 @@ class _TibVirtualModelPreviewState extends State<TibVirtualModelPreview> {
         child: InkWell(
           customBorder: const CircleBorder(),
           onTap: onPressed,
-          child: Padding(padding: const EdgeInsets.all(8), child: Icon(icon, size: 17, color: AppColors.primaryDark)),
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: Icon(icon, size: 17, color: AppColors.primaryDark),
+          ),
         ),
       ),
     );
