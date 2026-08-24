@@ -9,6 +9,7 @@ import '../../core/constants/app_gradients.dart';
 import '../../services/image_picker_service.dart';
 import '../../services/mlkit_service.dart';
 import '../../services/tib_model_service.dart';
+import '../../widgets/tib_avatar_generation_card.dart';
 import '../../widgets/tib_virtual_model_preview.dart';
 
 class CreateTibModelScreen extends StatefulWidget {
@@ -331,10 +332,12 @@ class _CreateTibModelScreenState extends State<CreateTibModelScreen> {
         const SizedBox(height: 9),
         TibVirtualModelPreview(model: profile, height: 430),
         const SizedBox(height: 12),
+        TibAvatarGenerationCard(profile: profile),
+        const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border)),
-          child: const Row(children: [Icon(Icons.info_outline_rounded, size: 17, color: AppColors.primary), SizedBox(width: 9), Expanded(child: Text('Drag the model to rotate 360°. Pinch to zoom. Use the pause button to control auto-rotation.', style: TextStyle(color: AppColors.textSecondary, fontSize: 10.5, height: 1.4)))]),
+          child: const Row(children: [Icon(Icons.info_outline_rounded, size: 17, color: AppColors.primary), SizedBox(width: 9), Expanded(child: Text('Drag the model to rotate 360°. Pinch to zoom. Generate your Personal 3D Avatar to replace the base model with your saved avatar.', style: TextStyle(color: AppColors.textSecondary, fontSize: 10.5, height: 1.4)))]),
         ),
         const SizedBox(height: 18),
       ],
