@@ -190,23 +190,167 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
     );
   }
 
-  Widget _hero(Color accent, SeasonColourProfile profile) => Container(padding: const EdgeInsets.fromLTRB(20, 20, 20, 18), decoration: BoxDecoration(gradient: AppGradients.season(result.season), borderRadius: BorderRadius.circular(26), boxShadow: [BoxShadow(color: accent.withValues(alpha: .18), blurRadius: 24, offset: const Offset(0, 10))]), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('YOUR PALETTE', style: TextStyle(color: Colors.white70, fontSize: 9.5, fontWeight: FontWeight.w800, letterSpacing: 1.1)), const SizedBox(height: 10), Text(result.season, style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w800)), const SizedBox(height: 5), Text(profile.description, style: const TextStyle(color: Colors.white70, fontSize: 12.5, height: 1.4)), const SizedBox(height: 12), Text(profile.dimension, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w800)), if (profile.bestColours.isNotEmpty) ...[const SizedBox(height: 18), SizedBox(height: 42, child: ListView.separated(scrollDirection: Axis.horizontal, itemCount: profile.bestColours.take(7).length, separatorBuilder: (context, index) => const SizedBox(width: 7), itemBuilder: (context, index) => ColourSwatch(name: profile.bestColours[index], size: 42)))]]));
+  Widget _hero(Color accent, SeasonColourProfile profile) => Container(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
+        decoration: BoxDecoration(
+          gradient: AppGradients.season(result.season),
+          borderRadius: BorderRadius.circular(26),
+          boxShadow: [BoxShadow(color: accent.withValues(alpha: .18), blurRadius: 24, offset: const Offset(0, 10))],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('YOUR PALETTE', style: TextStyle(color: Colors.white70, fontSize: 9.5, fontWeight: FontWeight.w800, letterSpacing: 1.1)),
+            const SizedBox(height: 10),
+            Text(result.season, style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 5),
+            Text(profile.description, style: const TextStyle(color: Colors.white70, fontSize: 12.5, height: 1.4)),
+            const SizedBox(height: 12),
+            Text(profile.dimension, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w800)),
+            if (profile.bestColours.isNotEmpty) ...[
+              const SizedBox(height: 18),
+              SizedBox(
+                height: 42,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: profile.bestColours.take(7).length,
+                  separatorBuilder: (context, index) => const SizedBox(width: 7),
+                  itemBuilder: (context, index) => ColourSwatch(name: profile.bestColours[index], size: 42),
+                ),
+              ),
+            ],
+          ],
+        ),
+      );
 
-  Widget _guideSummary(SeasonColourProfile profile, Color accent) => Container(padding: const EdgeInsets.all(17), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(21), border: Border.all(color: AppColors.border)), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Container(width: 42, height: 42, decoration: BoxDecoration(color: accent.withValues(alpha: .12), shape: BoxShape.circle), child: Icon(Icons.auto_awesome_rounded, color: accent, size: 20)), const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('Your seasonal direction', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)), const SizedBox(height: 4), Text(profile.keywords.take(6).join(' • '), style: TextStyle(color: accent, fontSize: 11, fontWeight: FontWeight.w700)), const SizedBox(height: 5), const Text('TiB uses this season reference for your wardrobe matching, makeup colour advice and AI styling prompts.', style: TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.4))]))]));
+  Widget _guideSummary(SeasonColourProfile profile, Color accent) => Container(
+        padding: const EdgeInsets.all(17),
+        decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(21), border: Border.all(color: AppColors.border)),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(width: 42, height: 42, decoration: BoxDecoration(color: accent.withValues(alpha: .12), shape: BoxShape.circle), child: Icon(Icons.auto_awesome_rounded, color: accent, size: 20)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Your seasonal direction', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 4),
+                  Text(profile.keywords.take(6).join(' • '), style: TextStyle(color: accent, fontSize: 11, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 5),
+                  const Text('TiB uses this season reference for your wardrobe matching, makeup colour advice and AI styling prompts.', style: TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.4)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
 
-  Widget _avoidSection(List<String> colours, Color accent) => Container(padding: const EdgeInsets.all(17), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.border)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('Less-Flattering Colours', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)), const SizedBox(height: 5), const Text('Use these colours more carefully when they sit close to your face or dominate the outfit.', style: TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.4)), const SizedBox(height: 10), Wrap(spacing: 8, runSpacing: 7, children: colours.map((name) => Chip(avatar: const Icon(Icons.remove_circle_outline_rounded, size: 16), label: Text(name, style: const TextStyle(fontSize: 10.5)), side: BorderSide(color: accent.withValues(alpha: .16)), backgroundColor: AppColors.surfaceMuted)).toList())]));
+  Widget _avoidSection(List<String> colours, Color accent) => Container(
+        padding: const EdgeInsets.all(17),
+        decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.border)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Less-Flattering Colours', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 5),
+            const Text('Use these colours more carefully when they sit close to your face or dominate the outfit.', style: TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.4)),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 7,
+              children: colours.map((name) => Chip(
+                avatar: const Icon(Icons.remove_circle_outline_rounded, size: 16),
+                label: Text(name, style: const TextStyle(fontSize: 10.5)),
+                side: BorderSide(color: accent.withValues(alpha: .16)),
+                backgroundColor: AppColors.surfaceMuted,
+              )).toList(),
+            ),
+          ],
+        ),
+      );
 
-  Widget _colourPsychologyPreview(Color accent) { final cues = ProfessionalStyleData.colourPsychology.take(3).toList(); return Container(padding: const EdgeInsets.all(17), decoration: BoxDecoration(gradient: const LinearGradient(colors: [AppColors.lavenderMist, Colors.white], begin: Alignment.topLeft, end: Alignment.bottomRight), borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.border)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('Colour Psychology', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)), const SizedBox(height: 5), const Text('Colour can help shape the impression you want to create.', style: TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.4)), const SizedBox(height: 10), ...cues.map((cue) => Padding(padding: const EdgeInsets.only(bottom: 6), child: Row(children: [Icon(Icons.auto_awesome_rounded, size: 14, color: accent), const SizedBox(width: 7), Expanded(child: Text('${cue.colour}  •  ${cue.impression}', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700)))]))), const SizedBox(height: 4), Align(alignment: Alignment.centerRight, child: TextButton(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfessionalStyleScreen())), child: const Text('Explore professional styling')))])); }
+  Widget _colourPsychologyPreview(Color accent) {
+    final cues = ProfessionalStyleData.colourPsychology.take(3).toList();
+    return Container(
+      padding: const EdgeInsets.all(17),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(colors: [AppColors.lavenderMist, Colors.white], begin: Alignment.topLeft, end: Alignment.bottomRight),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Colour Psychology', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 5),
+          const Text('Colour can help shape the impression you want to create.', style: TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.4)),
+          const SizedBox(height: 10),
+          ...cues.map((cue) => Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Row(
+                  children: [
+                    Icon(Icons.auto_awesome_rounded, size: 14, color: accent),
+                    const SizedBox(width: 7),
+                    Expanded(child: Text('${cue.colour}  •  ${cue.impression}', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700))),
+                  ],
+                ),
+              )),
+          const SizedBox(height: 4),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfessionalStyleScreen())),
+              child: const Text('Explore professional styling'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-  Widget _attributeRow(Color accent) => Row(children: [_attribute('Undertone', result.undertone, Icons.thermostat_outlined, accent), _attribute('Brightness', result.brightness, Icons.wb_sunny_outlined, accent), _attribute('Contrast', result.contrast, Icons.contrast_rounded, accent)]);
+  Widget _attributeRow(Color accent) => Row(children: [
+        _attribute('Undertone', result.undertone, Icons.thermostat_outlined, accent),
+        _attribute('Brightness', result.brightness, Icons.wb_sunny_outlined, accent),
+        _attribute('Contrast', result.contrast, Icons.contrast_rounded, accent),
+      ]);
 
-  Widget _attribute(String label, String value, IconData icon, Color accent) => Expanded(child: Container(margin: const EdgeInsets.only(right: 7), padding: const EdgeInsets.fromLTRB(9, 13, 9, 13), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(17), border: Border.all(color: AppColors.border)), child: Column(children: [Icon(icon, color: accent, size: 18), const SizedBox(height: 7), Text(label, style: const TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w800)), const SizedBox(height: 3), Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800))]));
+  Widget _attribute(String label, String value, IconData icon, Color accent) => Expanded(
+        child: Container(
+          margin: const EdgeInsets.only(right: 7),
+          padding: const EdgeInsets.fromLTRB(9, 13, 9, 13),
+          decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(17), border: Border.all(color: AppColors.border)),
+          child: Column(
+            children: [
+              Icon(icon, color: accent, size: 18),
+              const SizedBox(height: 7),
+              Text(label, style: const TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 3),
+              Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800)),
+            ],
+          ),
+        ),
+      );
 
-  Widget _makeupSection(String title, List<String> colours, Color accent) => Container(padding: const EdgeInsets.all(15), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(19), border: Border.all(color: AppColors.border)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)), const SizedBox(height: 9), Wrap(spacing: 8, runSpacing: 8, children: colours.map((name) => ColourSwatch(name: name, size: 40, showLabel: true)).toList())]));
-
-  Widget _whyItWorks(Color accent, SeasonColourProfile profile) => Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: accent.withValues(alpha: .07), borderRadius: BorderRadius.circular(20), border: Border.all(color: accent.withValues(alpha: .12))), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('Why it works', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)), const SizedBox(height: 6), Text(profile.description, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.45))]));
+  Widget _makeupSection(String title, List<String> colours, Color accent) => Container(
+        padding: const EdgeInsets.all(15),
+        decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(19), border: Border.all(color: AppColors.border)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 9),
+            Wrap(spacing: 8, runSpacing: 8, children: colours.map((name) => ColourSwatch(name: name, size: 40, showLabel: true)).toList()),
+          ],
+        ),
+      );
 
   Widget _palette(List<String> colours) => Wrap(spacing: 9, runSpacing: 9, children: colours.map((name) => ColourSwatch(name: name, size: 62, showLabel: true)).toList());
 
-  Widget _emptyPalette() => Container(padding: const EdgeInsets.all(18), decoration: BoxDecoration(color: AppColors.surfaceMuted, borderRadius: BorderRadius.circular(18)), child: const Text('Your personalised palette will appear here after analysis.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)));
+  Widget _emptyPalette() => Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(color: AppColors.surfaceMuted, borderRadius: BorderRadius.circular(18)),
+        child: const Text('Your personalised palette will appear here after analysis.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+      );
 }
