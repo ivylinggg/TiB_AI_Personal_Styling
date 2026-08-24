@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_gradients.dart';
+import '../premium/virtual_try_on_screen.dart';
 import 'ai_outfit_screen.dart';
 import 'ai_stylist_screen.dart';
 import 'style_me_screen.dart';
@@ -20,112 +21,60 @@ class AIHubScreen extends StatelessWidget {
           children: [
             const Text(
               'YOUR PERSONAL STYLIST',
-              style: TextStyle(
-                fontSize: 9,
-                letterSpacing: 1.4,
-                fontWeight: FontWeight.w800,
-                color: AppColors.textMuted,
-              ),
+              style: TextStyle(fontSize: 9, letterSpacing: 1.4, fontWeight: FontWeight.w800, color: AppColors.textMuted),
             ),
             const SizedBox(height: 5),
-            const Text(
-              'What are we wearing?',
-              style: TextStyle(
-                fontSize: 29,
-                fontWeight: FontWeight.w800,
-                letterSpacing: -1,
-              ),
-            ),
+            const Text('What are we wearing?', style: TextStyle(fontSize: 29, fontWeight: FontWeight.w800, letterSpacing: -1)),
             const SizedBox(height: 8),
             const Text(
               'TiB combines your colours, personality and wardrobe to make getting dressed feel easier.',
-              style: TextStyle(
-                color: AppColors.textSecondary,
-                height: 1.45,
-                fontSize: 12.5,
-              ),
+              style: TextStyle(color: AppColors.textSecondary, height: 1.45, fontSize: 12.5),
             ),
             const SizedBox(height: 20),
             Container(
               padding: const EdgeInsets.fromLTRB(19, 19, 19, 18),
-              decoration: BoxDecoration(
-                gradient: AppGradients.primary,
-                borderRadius: BorderRadius.circular(28),
-              ),
+              decoration: BoxDecoration(gradient: AppGradients.primary, borderRadius: BorderRadius.circular(28)),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
-                      Container(
-                        width: 43,
-                        height: 43,
-                        decoration: const BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.auto_awesome_rounded,
-                          color: AppColors.primaryDark,
-                          size: 21,
-                        ),
-                      ),
+                      Container(width: 43, height: 43, decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle), child: const Icon(Icons.auto_awesome_rounded, color: AppColors.primaryDark, size: 21)),
                       const Spacer(),
                       Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 9,
-                          vertical: 5,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: .18),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: const Text(
-                          'TIB AI',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 8,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 1,
-                          ),
-                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                        decoration: BoxDecoration(color: Colors.white.withValues(alpha: .18), borderRadius: BorderRadius.circular(20)),
+                        child: const Text('TIB AI', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 1)),
                       ),
                     ],
                   ),
                   const SizedBox(height: 24),
-                  const Text(
-                    'Your style,\nwithout the guesswork.',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 24,
-                      height: 1.05,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -.6,
-                    ),
-                  ),
+                  const Text('Your style,\nwithout the guesswork.', style: TextStyle(color: Colors.white, fontSize: 24, height: 1.05, fontWeight: FontWeight.w800, letterSpacing: -.6)),
                   const SizedBox(height: 9),
-                  const Text(
-                    'Start with what you need today.',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 11.5,
-                    ),
-                  ),
+                  const Text('Start with what you need today.', style: TextStyle(color: Colors.white70, fontSize: 11.5)),
                 ],
               ),
             ),
             const SizedBox(height: 18),
             _featureCard(
               context,
+              icon: Icons.view_in_ar_rounded,
+              title: 'Virtual Try-On',
+              subtitle: 'Create your TiB Model, choose your own clothes, or let AI style the look.',
+              gradient: AppGradients.premium,
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const VirtualTryOnScreen())),
+              primary: true,
+              badge: 'PREMIUM',
+            ),
+            const SizedBox(height: 11),
+            _featureCard(
+              context,
               icon: Icons.auto_awesome_rounded,
               title: 'Style Me',
               subtitle: 'A personalised look using your real wardrobe.',
               gradient: AppGradients.ai,
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const StyleMeScreen()),
-              ),
-              primary: true,
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StyleMeScreen())),
+              primary: false,
             ),
             const SizedBox(height: 11),
             _featureCard(
@@ -134,10 +83,7 @@ class AIHubScreen extends StatelessWidget {
               title: 'AI Outfit',
               subtitle: 'Build a complete outfit for the occasion.',
               gradient: AppGradients.blush,
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const AIOutfitScreen()),
-              ),
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AIOutfitScreen())),
               primary: false,
             ),
             const SizedBox(height: 11),
@@ -147,10 +93,7 @@ class AIHubScreen extends StatelessWidget {
               title: 'Talk to TiB',
               subtitle: 'Ask your stylist anything, naturally.',
               gradient: AppGradients.soft,
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const AIStylistScreen()),
-              ),
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AIStylistScreen())),
               primary: false,
             ),
           ],
@@ -167,6 +110,7 @@ class AIHubScreen extends StatelessWidget {
     required LinearGradient gradient,
     required VoidCallback onTap,
     required bool primary,
+    String? badge,
   }) {
     return Material(
       color: Colors.transparent,
@@ -176,57 +120,35 @@ class AIHubScreen extends StatelessWidget {
         borderRadius: BorderRadius.circular(24),
         child: Ink(
           padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            gradient: gradient,
-            borderRadius: BorderRadius.circular(24),
-          ),
+          decoration: BoxDecoration(gradient: gradient, borderRadius: BorderRadius.circular(24)),
           child: Row(
             children: [
-              Container(
-                width: 46,
-                height: 46,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: primary ? .95 : .78),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  icon,
-                  color: AppColors.primaryDark,
-                  size: 21,
-                ),
-              ),
+              Container(width: 46, height: 46, decoration: BoxDecoration(color: Colors.white.withValues(alpha: primary ? .95 : .78), shape: BoxShape.circle), child: Icon(icon, color: AppColors.primaryDark, size: 21)),
               const SizedBox(width: 13),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        color: primary ? Colors.white : AppColors.textPrimary,
-                        fontSize: 17,
-                        fontWeight: FontWeight.w800,
-                      ),
+                    Row(
+                      children: [
+                        Expanded(child: Text(title, style: TextStyle(color: primary ? Colors.white : AppColors.textPrimary, fontSize: 17, fontWeight: FontWeight.w800))),
+                        if (badge != null) ...[
+                          const SizedBox(width: 7),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+                            decoration: BoxDecoration(color: Colors.white.withValues(alpha: .72), borderRadius: BorderRadius.circular(10)),
+                            child: Text(badge, style: const TextStyle(color: AppColors.primaryDark, fontSize: 7.5, fontWeight: FontWeight.w900, letterSpacing: .7)),
+                          ),
+                        ],
+                      ],
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        color: primary
-                            ? Colors.white70
-                            : AppColors.textSecondary,
-                        fontSize: 11,
-                        height: 1.35,
-                      ),
-                    ),
+                    Text(subtitle, style: TextStyle(color: primary ? Colors.white70 : AppColors.textSecondary, fontSize: 11, height: 1.35)),
                   ],
                 ),
               ),
               const SizedBox(width: 7),
-              Icon(
-                Icons.arrow_forward_rounded,
-                color: primary ? Colors.white : AppColors.primary,
-              ),
+              Icon(Icons.arrow_forward_rounded, color: primary ? Colors.white : AppColors.primary),
             ],
           ),
         ),
