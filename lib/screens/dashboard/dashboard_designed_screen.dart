@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -15,8 +14,6 @@ import 'style_score_detail_screen.dart';
 
 class DashboardDesignedScreen extends StatelessWidget {
   const DashboardDesignedScreen({super.key});
-
-  static const _challenges = <_DailyChallenge>[];
 
   int _dayOfYear(DateTime date) => date.difference(DateTime(date.year, 1, 1)).inDays + 1;
   String _normaliseColour(String value) => value.toLowerCase().replaceAll('-', ' ').replaceAll('_', ' ').trim();
@@ -47,21 +44,11 @@ class DashboardDesignedScreen extends StatelessWidget {
   _TodayStyle _todayStyle(ColourAnalysisResult? result) {
     final day = DateTime.now().weekday;
     final colourKey = _normaliseColour(_todayColourName(result));
-    if (colourKey.contains('pink') || colourKey.contains('rose') || colourKey.contains('red')) {
-      return const _TodayStyle('Soft & Romantic', ['Feminine', 'Sweet', 'Elegant']);
-    }
-    if (colourKey.contains('black') || colourKey.contains('grey') || colourKey.contains('gray') || colourKey.contains('white')) {
-      return const _TodayStyle('Minimal Chic', ['Simple', 'Clean', 'Polished']);
-    }
-    if (colourKey.contains('blue') || colourKey.contains('teal')) {
-      return const _TodayStyle('Smart Casual', ['Relaxed', 'Refined', 'Confident']);
-    }
-    if (colourKey.contains('orange') || colourKey.contains('yellow')) {
-      return const _TodayStyle('Bright & Playful', ['Sunny', 'Fresh', 'Energetic']);
-    }
-    if (colourKey.contains('purple') || colourKey.contains('lavender')) {
-      return const _TodayStyle('Soft Creative', ['Gentle', 'Creative', 'Unique']);
-    }
+    if (colourKey.contains('pink') || colourKey.contains('rose') || colourKey.contains('red')) return const _TodayStyle('Soft & Romantic', ['Feminine', 'Sweet', 'Elegant']);
+    if (colourKey.contains('black') || colourKey.contains('grey') || colourKey.contains('gray') || colourKey.contains('white')) return const _TodayStyle('Minimal Chic', ['Simple', 'Clean', 'Polished']);
+    if (colourKey.contains('blue') || colourKey.contains('teal')) return const _TodayStyle('Smart Casual', ['Relaxed', 'Refined', 'Confident']);
+    if (colourKey.contains('orange') || colourKey.contains('yellow')) return const _TodayStyle('Bright & Playful', ['Sunny', 'Fresh', 'Energetic']);
+    if (colourKey.contains('purple') || colourKey.contains('lavender')) return const _TodayStyle('Soft Creative', ['Gentle', 'Creative', 'Unique']);
     return switch (day) {
       DateTime.monday => const _TodayStyle('Clean Start', ['Simple', 'Fresh', 'Put-together']),
       DateTime.tuesday => const _TodayStyle('Easy Smart', ['Casual', 'Neat', 'Versatile']),
@@ -111,52 +98,27 @@ class DashboardDesignedScreen extends StatelessWidget {
     final target = result == null ? const AnalysisScreen() : AnalysisResultScreen(analysisProvider: context.read<AnalysisProvider>(), result: result);
 
     return _card(context, target, Container(
-      decoration: BoxDecoration(
-        gradient: AppGradients.soft,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.primarySoft),
-      ),
+      decoration: BoxDecoration(gradient: AppGradients.soft, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.primarySoft)),
       padding: const EdgeInsets.fromLTRB(16, 16, 14, 17),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(children: [
-            const Expanded(child: Text("TODAY'S RECOMMENDATION", style: TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: .7))),
-            Text('${DateTime.now().day}/${DateTime.now().month}', style: const TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w700)),
-          ]),
-          const SizedBox(height: 10),
-          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Container(width: 62, height: 62, decoration: const BoxDecoration(color: AppColors.primarySoft, shape: BoxShape.circle), child: const Icon(Icons.auto_awesome_rounded, color: AppColors.primaryDark, size: 27)),
-            const SizedBox(width: 13),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(style.name, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
-              const SizedBox(height: 6),
-              Wrap(spacing: 6, runSpacing: 6, children: style.tags.map(_styleTag).toList()),
-              const SizedBox(height: 7),
-              Text(message, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.4)),
-            ])),
-          ]),
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
-            decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
-            child: Row(children: [
-              ColourSwatch(name: colour, size: 22),
-              const SizedBox(width: 8),
-              Expanded(child: Text(result == null ? 'Complete your colour analysis to personalise today\'s recommendation.' : 'Best colour today: $colour', style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: AppColors.textSecondary))),
-              const Icon(Icons.chevron_right_rounded, color: AppColors.primary, size: 20),
-            ]),
-          ),
-        ],
-      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [const Expanded(child: Text("TODAY'S RECOMMENDATION", style: TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: .7))), Text('${DateTime.now().day}/${DateTime.now().month}', style: const TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w700))]),
+        const SizedBox(height: 10),
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Container(width: 62, height: 62, decoration: const BoxDecoration(color: AppColors.primarySoft, shape: BoxShape.circle), child: const Icon(Icons.auto_awesome_rounded, color: AppColors.primaryDark, size: 27)),
+          const SizedBox(width: 13),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(style.name, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)), const SizedBox(height: 6), Wrap(spacing: 6, runSpacing: 6, children: style.tags.map(_styleTag).toList()), const SizedBox(height: 7), Text(message, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.4))])),
+        ]),
+        const SizedBox(height: 10),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+          decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
+          child: Row(children: [ColourSwatch(name: colour, size: 22), const SizedBox(width: 8), Expanded(child: Text(result == null ? 'Complete your colour analysis to personalise today\'s recommendation.' : 'Best colour today: $colour', style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: AppColors.textSecondary))), const Icon(Icons.chevron_right_rounded, color: AppColors.primary, size: 20)]),
+        ),
+      ]),
     ));
   }
 
-  Widget _styleTag(String label) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-    decoration: BoxDecoration(color: AppColors.primarySoft.withValues(alpha: .65), borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.primarySoft)),
-    child: Text(label, style: const TextStyle(fontSize: 8.8, fontWeight: FontWeight.w800, color: AppColors.primaryDark)),
-  );
+  Widget _styleTag(String label) => Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5), decoration: BoxDecoration(color: AppColors.primarySoft.withValues(alpha: .65), borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.primarySoft)), child: Text(label, style: const TextStyle(fontSize: 8.8, fontWeight: FontWeight.w800, color: AppColors.primaryDark)));
 
   Widget _styleScoreCard(BuildContext context, String? uid, AnalysisProvider provider) {
     if (uid == null) return _card(context, null, const Text('Sign in to build your Style Score', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)));
@@ -193,15 +155,6 @@ class DashboardDesignedScreen extends StatelessWidget {
   }
 
   Widget _card(BuildContext context, Widget? target, Widget child) => Material(color: AppColors.surface, borderRadius: BorderRadius.circular(20), child: InkWell(borderRadius: BorderRadius.circular(20), onTap: target == null ? null : () => Navigator.push(context, MaterialPageRoute(builder: (_) => target)), child: Padding(padding: const EdgeInsets.all(16), child: child)));
-}
-
-class _DailyChallenge {
-  final String category;
-  final String title;
-  final String description;
-  final String howTo;
-  final IconData icon;
-  const _DailyChallenge(this.category, this.title, this.description, this.howTo, this.icon);
 }
 
 class _TodayStyle {
