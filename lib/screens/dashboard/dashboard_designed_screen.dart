@@ -16,6 +16,7 @@ class DashboardDesignedScreen extends StatelessWidget {
   const DashboardDesignedScreen({super.key});
 
   int _dayOfYear(DateTime date) => date.difference(DateTime(date.year, 1, 1)).inDays + 1;
+
   String _normaliseColour(String value) => value.toLowerCase().replaceAll('-', ' ').replaceAll('_', ' ').trim();
 
   String _todayColourName(ColourAnalysisResult? result) {
@@ -97,28 +98,62 @@ class DashboardDesignedScreen extends StatelessWidget {
     final message = result == null ? 'Complete your colour analysis to unlock personalised styling.' : _todayColourMessage(colour);
     final target = result == null ? const AnalysisScreen() : AnalysisResultScreen(analysisProvider: context.read<AnalysisProvider>(), result: result);
 
-    return _card(context, target, Container(
-      decoration: BoxDecoration(gradient: AppGradients.soft, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.primarySoft)),
-      padding: const EdgeInsets.fromLTRB(16, 16, 14, 17),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [const Expanded(child: Text("TODAY'S RECOMMENDATION", style: TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: .7))), Text('${DateTime.now().day}/${DateTime.now().month}', style: const TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w700))]),
-        const SizedBox(height: 10),
-        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Container(width: 62, height: 62, decoration: const BoxDecoration(color: AppColors.primarySoft, shape: BoxShape.circle), child: const Icon(Icons.auto_awesome_rounded, color: AppColors.primaryDark, size: 27)),
-          const SizedBox(width: 13),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(style.name, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)), const SizedBox(height: 6), Wrap(spacing: 6, runSpacing: 6, children: style.tags.map(_styleTag).toList()), const SizedBox(height: 7), Text(message, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.4))])),
-        ]),
-        const SizedBox(height: 10),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
-          decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
-          child: Row(children: [ColourSwatch(name: colour, size: 22), const SizedBox(width: 8), Expanded(child: Text(result == null ? 'Complete your colour analysis to personalise today\'s recommendation.' : 'Best colour today: $colour', style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: AppColors.textSecondary))), const Icon(Icons.chevron_right_rounded, color: AppColors.primary, size: 20)]),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(24),
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => target)),
+        child: Ink(
+          decoration: BoxDecoration(
+            gradient: AppGradients.soft,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: AppColors.primarySoft),
+            boxShadow: [BoxShadow(color: AppColors.primary.withValues(alpha: .06), blurRadius: 18, offset: const Offset(0, 7))],
+          ),
+          padding: const EdgeInsets.fromLTRB(18, 17, 18, 17),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              const Expanded(child: Text("TODAY'S RECOMMENDATION", style: TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: .75))),
+              Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5), decoration: BoxDecoration(color: AppColors.background.withValues(alpha: .72), borderRadius: BorderRadius.circular(10)), child: Text('${DateTime.now().day}/${DateTime.now().month}', style: const TextStyle(color: AppColors.textMuted, fontSize: 9, fontWeight: FontWeight.w800))),
+            ]),
+            const SizedBox(height: 16),
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Container(width: 58, height: 58, decoration: const BoxDecoration(color: AppColors.primarySoft, shape: BoxShape.circle), child: const Icon(Icons.auto_awesome_rounded, color: AppColors.primaryDark, size: 25)),
+              const SizedBox(width: 13),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(style.name, style: const TextStyle(fontSize: 20, height: 1.1, fontWeight: FontWeight.w900, color: AppColors.textPrimary)),
+                const SizedBox(height: 8),
+                Wrap(spacing: 6, runSpacing: 6, children: style.tags.map(_styleTag).toList()),
+              ])),
+            ]),
+            const SizedBox(height: 13),
+            Text(message, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.45)),
+            const SizedBox(height: 13),
+            Container(
+              padding: const EdgeInsets.fromLTRB(10, 9, 9, 9),
+              decoration: BoxDecoration(color: AppColors.background.withValues(alpha: .76), borderRadius: BorderRadius.circular(15), border: Border.all(color: AppColors.border)),
+              child: Row(children: [
+                ColourSwatch(name: colour, size: 24),
+                const SizedBox(width: 9),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  const Text("TODAY'S COLOUR", style: TextStyle(color: AppColors.textMuted, fontSize: 7.8, fontWeight: FontWeight.w900, letterSpacing: .55)),
+                  const SizedBox(height: 2),
+                  Text(result == null ? 'Complete your colour analysis' : colour, style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+                ])),
+                const Icon(Icons.arrow_forward_ios_rounded, color: AppColors.primary, size: 14),
+              ]),
+            ),
+          ]),
         ),
-      ]),
-    ));
+      ),
+    );
   }
 
-  Widget _styleTag(String label) => Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5), decoration: BoxDecoration(color: AppColors.primarySoft.withValues(alpha: .65), borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.primarySoft)), child: Text(label, style: const TextStyle(fontSize: 8.8, fontWeight: FontWeight.w800, color: AppColors.primaryDark)));
+  Widget _styleTag(String label) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+    decoration: BoxDecoration(color: AppColors.primarySoft.withValues(alpha: .68), borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.primarySoft)),
+    child: Text(label, style: const TextStyle(fontSize: 8.8, fontWeight: FontWeight.w800, color: AppColors.primaryDark)),
+  );
 
   Widget _styleScoreCard(BuildContext context, String? uid, AnalysisProvider provider) {
     if (uid == null) return _card(context, null, const Text('Sign in to build your Style Score', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)));
