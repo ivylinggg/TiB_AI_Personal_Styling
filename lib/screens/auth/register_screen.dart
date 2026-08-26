@@ -25,21 +25,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool obscurePassword = true;
   bool obscureConfirmPassword = true;
   bool isLoading = false;
-  bool hasMinLength = false;
-  bool hasUppercase = false;
-  bool hasLowercase = false;
-  bool hasNumber = false;
-  bool hasSpecial = false;
-
-  @override
-  void initState() {
-    super.initState();
-    passwordController.addListener(_checkPassword);
-  }
 
   @override
   void dispose() {
-    passwordController.removeListener(_checkPassword);
     nameController.dispose();
     emailController.dispose();
     passwordController.dispose();
@@ -47,27 +35,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
-  void _checkPassword() {
-    final password = passwordController.text;
-    if (!mounted) return;
-    setState(() {
-      hasMinLength = password.length >= 8;
-      hasUppercase = RegExp(r'[A-Z]').hasMatch(password);
-      hasLowercase = RegExp(r'[a-z]').hasMatch(password);
-      hasNumber = RegExp(r'[0-9]').hasMatch(password);
-      hasSpecial = RegExp(r'[!@#\$%^&*(),.?":{}|<>]').hasMatch(password);
-    });
-  }
-
-  bool get isPasswordValid => hasMinLength && hasUppercase && hasLowercase && hasNumber && hasSpecial;
-
   Future<void> register() async {
     FocusScope.of(context).unfocus();
     final name = nameController.text.trim();
     final email = emailController.text.trim();
     final password = passwordController.text;
+    final confirmation = confirmPasswordController.text;
 
-    if (name.isEmpty || email.isEmpty || password.isEmpty || confirmPasswordController.text.isEmpty) {
+    if (name.isEmpty || email.isEmpty || password.isEmpty || confirmation.isEmpty) {
       _message('Tell us your name, email and password to get started.');
       return;
     }
@@ -75,11 +50,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       _message('Please enter a valid email address.');
       return;
     }
-    if (!isPasswordValid) {
-      _message('Please complete the password requirements.');
-      return;
-    }
-    if (password != confirmPasswordController.text) {
+    if (password != confirmation) {
       _message('Your passwords do not match.');
       return;
     }
@@ -116,7 +87,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           _message('Please enter a valid email address.');
           break;
         case 'weak-password':
-          _message('The password is too weak.');
+          _message('Please choose a slightly stronger password.');
           break;
         case 'operation-not-allowed':
           _message('Email/password registration is not enabled.');
@@ -141,19 +112,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
       ..showSnackBar(SnackBar(content: Text(message), behavior: SnackBarBehavior.floating));
   }
 
-  Widget _requirement(bool passed, String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 7),
-      child: Row(
-        children: [
-          Icon(passed ? Icons.check_circle : Icons.circle_outlined, color: passed ? AppColors.success : AppColors.textMuted, size: 17),
-          const SizedBox(width: 8),
-          Expanded(child: Text(text, style: TextStyle(color: passed ? AppColors.success : AppColors.textSecondary, fontSize: 12))),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -164,7 +122,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(children: [IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18)), const Spacer(), const Text('CREATE PROFILE', style: TextStyle(fontSize: 9, letterSpacing: 1.2, fontWeight: FontWeight.w800, color: AppColors.textMuted)), const SizedBox(width: 8)]),
+              Row(children: [
+                IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18)),
+                const Spacer(),
+                const Text('CREATE PROFILE', style: TextStyle(fontSize: 9, letterSpacing: 1.2, fontWeight: FontWeight.w800, color: AppColors.textMuted)),
+                const SizedBox(width: 8),
+              ]),
               const SizedBox(height: 13),
               Container(
                 width: double.infinity,
@@ -190,15 +153,30 @@ class _RegisterScreenState extends State<RegisterScreen> {
               const SizedBox(height: 17),
               const Text('PASSWORD', style: TextStyle(fontSize: 9.5, letterSpacing: 1, fontWeight: FontWeight.w800, color: AppColors.textMuted)),
               const SizedBox(height: 7),
-              TextField(controller: passwordController, obscureText: obscurePassword, textInputAction: TextInputAction.next, decoration: InputDecoration(hintText: 'Create a secure password', prefixIcon: const Icon(Icons.lock_outline_rounded), suffixIcon: IconButton(onPressed: () => setState(() => obscurePassword = !obscurePassword), icon: Icon(obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined)))),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.fromLTRB(14, 13, 14, 8),
-                decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(17), border: Border.all(color: AppColors.border)),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('Make it secure', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12)), const SizedBox(height: 10), _requirement(hasMinLength, 'At least 8 characters'), _requirement(hasUppercase, 'One uppercase letter'), _requirement(hasLowercase, 'One lowercase letter'), _requirement(hasNumber, 'One number'), _requirement(hasSpecial, 'One special character')]),
+              TextField(
+                controller: passwordController,
+                obscureText: obscurePassword,
+                textInputAction: TextInputAction.next,
+                decoration: InputDecoration(
+                  hintText: 'Create a password',
+                  prefixIcon: const Icon(Icons.lock_outline_rounded),
+                  suffixIcon: IconButton(onPressed: () => setState(() => obscurePassword = !obscurePassword), icon: Icon(obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined)),
+                ),
               ),
               const SizedBox(height: 17),
-              TextField(controller: confirmPasswordController, obscureText: obscureConfirmPassword, textInputAction: TextInputAction.done, onSubmitted: (_) { if (!isLoading) register(); }, decoration: InputDecoration(hintText: 'Confirm your password', prefixIcon: const Icon(Icons.lock_outline_rounded), suffixIcon: IconButton(onPressed: () => setState(() => obscureConfirmPassword = !obscureConfirmPassword), icon: Icon(obscureConfirmPassword ? Icons.visibility_off_outlined : Icons.visibility_outlined)))),
+              const Text('CONFIRM PASSWORD', style: TextStyle(fontSize: 9.5, letterSpacing: 1, fontWeight: FontWeight.w800, color: AppColors.textMuted)),
+              const SizedBox(height: 7),
+              TextField(
+                controller: confirmPasswordController,
+                obscureText: obscureConfirmPassword,
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) { if (!isLoading) register(); },
+                decoration: InputDecoration(
+                  hintText: 'Enter the password again',
+                  prefixIcon: const Icon(Icons.lock_outline_rounded),
+                  suffixIcon: IconButton(onPressed: () => setState(() => obscureConfirmPassword = !obscureConfirmPassword), icon: Icon(obscureConfirmPassword ? Icons.visibility_off_outlined : Icons.visibility_outlined)),
+                ),
+              ),
               const SizedBox(height: 25),
               SizedBox(width: double.infinity, child: PrimaryButton(text: isLoading ? 'Creating your profile…' : 'Create My Profile', icon: Icons.arrow_forward_rounded, onPressed: isLoading ? null : register)),
               const SizedBox(height: 15),
