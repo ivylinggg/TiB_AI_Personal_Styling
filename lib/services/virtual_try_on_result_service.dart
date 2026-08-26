@@ -42,28 +42,29 @@ class VirtualTryOnResultService {
 
   static const int _maxRedirects = 5;
 
-  /// Sends the Virtual Try-On request to the Google Apps Script Web App.
-  ///
-  /// Apps Script Web Apps commonly answer the initial /exec request with a
-  /// 301/302 redirect to a temporary googleusercontent.com execution URL.
-  /// The Dart HTTP client must not turn that redirected POST into a GET,
-  /// otherwise the request body is lost and the Apps Script doPost() handler
-  /// never receives the Virtual Try-On payload.
+  /// Google Apps Script Web Apps commonly return a 302/303 after accepting
+  /// the POST. The redirect target is a temporary googleusercontent.com URL
+  /// that should be fetched with GET. For 307/308, the HTTP specification
+  /// requires the original POST method and body to be preserved.
   static Future<http.Response> _postJsonFollowingRedirects({
     required Uri uri,
     required String body,
   }) async {
     var currentUri = uri;
+    var method = 'POST';
 
     for (var redirectCount = 0;
         redirectCount <= _maxRedirects;
         redirectCount++) {
-      final request = http.Request('POST', currentUri)
+      final request = http.Request(method, currentUri)
         ..followRedirects = false
         ..maxRedirects = 0
-        ..headers['Content-Type'] = 'application/json'
-        ..headers['Accept'] = 'application/json'
-        ..body = body;
+        ..headers['Accept'] = 'application/json';
+
+      if (method == 'POST') {
+        request.headers['Content-Type'] = 'application/json';
+        request.body = body;
+      }
 
       final streamed = await request.send().timeout(
         const Duration(seconds: 120),
@@ -72,15 +73,16 @@ class VirtualTryOnResultService {
 
       if (kDebugMode) {
         debugPrint(
-          'virtualTryOn HTTP ${response.statusCode} ${response.request?.url}',
+          'virtualTryOn HTTP ${response.statusCode} $method ${response.request?.url}',
         );
       }
 
-      final isRedirect = response.statusCode == 301 ||
-          response.statusCode == 302 ||
-          response.statusCode == 303 ||
-          response.statusCode == 307 ||
-          response.statusCode == 308;
+      final status = response.statusCode;
+      final isRedirect = status == 301 ||
+          status == 302 ||
+          status == 303 ||
+          status == 307 ||
+          status == 308;
 
       if (!isRedirect) return response;
 
@@ -97,11 +99,19 @@ class VirtualTryOnResultService {
         );
       }
 
-      // Resolve both absolute and relative Location headers safely.
       currentUri = currentUri.resolve(location.trim());
 
+      // Apps Script uses 302/303 to hand the completed POST response to a
+      // temporary URL. Do NOT POST the original JSON to that URL: it results
+      // in HTTP 405 Method Not Allowed. Only 307/308 preserve POST + body.
+      if (status == 301 || status == 302 || status == 303) {
+        method = 'GET';
+      } else {
+        method = 'POST';
+      }
+
       if (kDebugMode) {
-        debugPrint('virtualTryOn redirect → $currentUri');
+        debugPrint('virtualTryOn redirect → $method $currentUri');
       }
     }
 
@@ -192,9 +202,6 @@ class VirtualTryOnResultService {
       }
 
       if (response.statusCode != 200) {
-        // Surface a useful server message when one exists. This makes future
-        // Apps Script / AI errors diagnosable instead of hiding them behind
-        // only the HTTP status code.
         try {
           final serverBody = jsonDecode(response.body);
           if (serverBody is Map<String, dynamic>) {
@@ -207,7 +214,7 @@ class VirtualTryOnResultService {
             }
           }
         } catch (_) {
-          // Keep the friendly HTTP fallback below for non-JSON responses.
+          // Keep the friendly HTTP fallback for non-JSON responses.
         }
 
         return VirtualTryOnResult(
@@ -263,7 +270,8 @@ class VirtualTryOnResultService {
       if (error is SocketException || error is HttpException) {
         return VirtualTryOnResult(
           imageUrl: null,
-          status: 'Could not reach the virtual try-on service. ${error.toString().replaceFirst('Exception: ', '')}',
+          status:
+              'Could not reach the virtual try-on service. ${error.toString().replaceFirst('Exception: ', '')}',
         );
       }
 
