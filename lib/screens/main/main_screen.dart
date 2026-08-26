@@ -138,20 +138,54 @@ class _MainScreenState extends State<MainScreen> {
     final greeting = displayName?.isNotEmpty == true ? 'Hi, $displayName' : 'Welcome back';
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 2),
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Expanded(
-            child: Text(
-              greeting,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textSecondary),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  greeting,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 30,
+                    height: 1.12,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textPrimary,
+                    letterSpacing: -0.7,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Your personal styling space',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 18,
+                    height: 1.2,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
             ),
           ),
-          _topActionButton(icon: Icons.notifications_none_rounded, tooltip: 'Notifications', onTap: _showNotifications),
-          const SizedBox(width: 8),
-          _topActionButton(icon: Icons.logout_rounded, tooltip: 'Log out', onTap: _logout),
+          const SizedBox(width: 14),
+          _topActionButton(
+            icon: Icons.notifications_none_rounded,
+            tooltip: 'Notifications',
+            onTap: _showNotifications,
+          ),
+          const SizedBox(width: 12),
+          _topActionButton(
+            icon: Icons.logout_rounded,
+            tooltip: 'Log out',
+            onTap: _logout,
+          ),
         ],
       ),
     );
@@ -162,15 +196,20 @@ class _MainScreenState extends State<MainScreen> {
       message: tooltip,
       child: Material(
         color: AppColors.surface,
+        elevation: 1.5,
+        shadowColor: Colors.black.withValues(alpha: .08),
         shape: const CircleBorder(),
         child: InkWell(
           onTap: onTap,
           customBorder: const CircleBorder(),
           child: Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: AppColors.border)),
-            child: Icon(icon, color: AppColors.primary, size: 21),
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Icon(icon, color: AppColors.primary, size: 29),
           ),
         ),
       ),
