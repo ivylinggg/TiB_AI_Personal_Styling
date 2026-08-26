@@ -87,17 +87,15 @@ class TodayRecommendationService {
       final profile = await _loadProfile(user.uid);
       final colour = _todayColour(analysis);
 
-      final profilePayload = <String, dynamic>{
-        ...profile,
-        if (bodyShape != null) 'bodyShape': bodyShape,
-        if (faceShape != null) 'faceShape': faceShape,
-        if (weight != null) 'weight': weight,
-        if (height != null) 'height': height,
-        if (bust != null) 'bust': bust,
-        if (waist != null) 'waist': waist,
-        if (hips != null) 'hips': hips,
-        if (personalStyle != null) 'personalStyle': personalStyle,
-      };
+      final profilePayload = <String, dynamic>{...profile};
+      if (bodyShape != null) profilePayload['bodyShape'] = bodyShape;
+      if (faceShape != null) profilePayload['faceShape'] = faceShape;
+      if (weight != null) profilePayload['weight'] = weight;
+      if (height != null) profilePayload['height'] = height;
+      if (bust != null) profilePayload['bust'] = bust;
+      if (waist != null) profilePayload['waist'] = waist;
+      if (hips != null) profilePayload['hips'] = hips;
+      if (personalStyle != null) profilePayload['personalStyle'] = personalStyle;
 
       final response = await http
           .post(
@@ -111,11 +109,7 @@ class TodayRecommendationService {
               'todayColour': colour,
               'occasion': occasion ?? 'Everyday',
               'profile': profilePayload,
-              'colourAnalysis': analysis == null
-                  ? null
-                  : {
-                      'colours': analysis.colours,
-                    },
+              'colourAnalysis': analysis == null ? null : {'colours': analysis.colours},
               'wardrobe': wardrobe,
             }),
           )
@@ -130,17 +124,11 @@ class TodayRecommendationService {
 
       final data = decoded['data'];
       if (data is Map<String, dynamic>) {
-        return TodayRecommendation.fromJson(
-          data,
-          fallbackColour: colour,
-        );
+        return TodayRecommendation.fromJson(data, fallbackColour: colour);
       }
 
       if (decoded['styleDirection'] != null) {
-        return TodayRecommendation.fromJson(
-          decoded,
-          fallbackColour: colour,
-        );
+        return TodayRecommendation.fromJson(decoded, fallbackColour: colour);
       }
 
       return fallback;
@@ -151,10 +139,7 @@ class TodayRecommendationService {
 
   static Future<Map<String, dynamic>> _loadProfile(String uid) async {
     try {
-      final snapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .get();
+      final snapshot = await FirebaseFirestore.instance.collection('users').doc(uid).get();
       return snapshot.data() ?? <String, dynamic>{};
     } catch (_) {
       return <String, dynamic>{};
