@@ -128,6 +128,9 @@ class DailyChallengeService {
       return false;
     }
 
+    // Firestore does not support serverTimestamp() nested inside an array.
+    // Use a concrete Timestamp so the whole challenge history entry can be
+    // safely written with arrayUnion().
     await ref.set({
       'dailyChallengeHistory': FieldValue.arrayUnion([
         {
@@ -135,7 +138,7 @@ class DailyChallengeService {
           'challengeId': selectedChallenge.id,
           'title': selectedChallenge.title,
           'points': selectedChallenge.points,
-          'completedAt': FieldValue.serverTimestamp(),
+          'completedAt': Timestamp.now(),
         },
       ]),
       'challengePoints': FieldValue.increment(selectedChallenge.points),
