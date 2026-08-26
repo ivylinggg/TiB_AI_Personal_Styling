@@ -9,7 +9,6 @@ import '../../services/daily_challenge_service.dart';
 import '../../services/tib_style_journey_service.dart';
 import '../../services/today_recommendation_service.dart';
 import '../../widgets/colour_swatch.dart';
-import 'daily_challenge_screen.dart';
 import 'tib_style_journey_screen.dart';
 
 class DashboardDesignedScreen extends StatefulWidget {
