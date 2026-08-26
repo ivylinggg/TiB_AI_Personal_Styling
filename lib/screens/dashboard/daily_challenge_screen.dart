@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/constants/app_colors.dart';
-import '../../models/colour_analysis_result.dart';
 import '../../providers/analysis_provider.dart';
 import '../../services/daily_challenge_service.dart';
 
