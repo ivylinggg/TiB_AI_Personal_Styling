@@ -16,10 +16,6 @@ class AuthService {
 
   static User? get currentUser => _auth.currentUser;
 
-  // ============================================================
-  // EMAIL + PASSWORD LOGIN
-  // ============================================================
-
   static Future<UserCredential> login({
     required String email,
     required String password,
@@ -27,19 +23,10 @@ class AuthService {
     return _auth.signInWithEmailAndPassword(email: email, password: password);
   }
 
-  // ============================================================
-  // GOOGLE SIGN-IN
-  // ============================================================
-
   static Future<void> _initializeGoogleSignIn() async {
-    if (_googleInitialized) {
-      return;
-    }
-
+    if (_googleInitialized) return;
     _googleInitialization ??= GoogleSignIn.instance.initialize();
-
     await _googleInitialization;
-
     _googleInitialized = true;
   }
 
@@ -47,9 +34,7 @@ class AuthService {
     await _initializeGoogleSignIn();
 
     final googleUser = await GoogleSignIn.instance.authenticate();
-
     final googleAuth = googleUser.authentication;
-
     final idToken = googleAuth.idToken;
 
     if (idToken == null || idToken.isEmpty) {
@@ -60,47 +45,21 @@ class AuthService {
     }
 
     final credential = GoogleAuthProvider.credential(idToken: idToken);
-
     final userCredential = await _auth.signInWithCredential(credential);
-
     await _ensureFirestoreProfile(userCredential.user);
-
     return userCredential;
   }
-
-  // ============================================================
-  // APPLE SIGN-IN
-  // ============================================================
-
-  static Future<UserCredential?> loginWithApple() async {
-    final appleProvider = AppleAuthProvider();
-    appleProvider.addScope('email');
-    appleProvider.addScope('name');
-
-    final userCredential = await _auth.signInWithProvider(appleProvider);
-
-    await _ensureFirestoreProfile(userCredential.user);
-
-    return userCredential;
-  }
-
-  // ============================================================
-  // OAUTH PROFILE
-  // ============================================================
 
   static Future<void> _ensureFirestoreProfile(User? user) async {
     if (user == null) {
       throw FirebaseAuthException(
         code: 'social-user-missing',
-        message: 'Social sign-in did not return a Firebase user.',
+        message: 'Sign-in did not return a Firebase user.',
       );
     }
 
     final existingProfile = await FirestoreService.getUser(user.uid);
-
-    if (existingProfile != null) {
-      return;
-    }
+    if (existingProfile != null) return;
 
     final profile = UserModel(
       uid: user.uid,
@@ -114,13 +73,8 @@ class AuthService {
     await FirestoreService.createUser(profile);
   }
 
-  // ============================================================
-  // CURRENT USER PROFILE
-  // ============================================================
-
   static Future<Map<String, dynamic>> getCurrentUserProfile() async {
     final user = _auth.currentUser;
-
     if (user == null) {
       throw FirebaseAuthException(
         code: 'no-current-user',
@@ -129,7 +83,6 @@ class AuthService {
     }
 
     final document = await _firestore.collection('users').doc(user.uid).get();
-
     if (!document.exists) {
       throw FirebaseException(
         plugin: 'cloud_firestore',
@@ -141,33 +94,19 @@ class AuthService {
     return document.data() ?? <String, dynamic>{};
   }
 
-  // ============================================================
-  // CURRENT USER ROLE
-  // ============================================================
-
   static Future<String> getCurrentUserRole() async {
     final data = await getCurrentUserProfile();
     final role = data['role'];
-
     if (role is String && role.trim().isNotEmpty) {
       return role.trim().toLowerCase();
     }
-
     return 'customer';
   }
-
-  // ============================================================
-  // ACCOUNT STATUS
-  // ============================================================
 
   static Future<bool> isCurrentUserActive() async {
     final data = await getCurrentUserProfile();
     return data['isActive'] as bool? ?? true;
   }
-
-  // ============================================================
-  // REGISTER
-  // ============================================================
 
   static Future<UserCredential> register({
     required String email,
@@ -179,30 +118,44 @@ class AuthService {
     );
   }
 
-  // ============================================================
-  // PASSWORD RESET
-  // ============================================================
+  static Future<void> sendEmailVerification() async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw FirebaseAuthException(
+        code: 'no-current-user',
+        message: 'No authenticated user found.',
+      );
+    }
 
-  static Future<void> resetPassword({required String email}) async {
-    await _auth.sendPasswordResetEmail(email: email);
+    await user.sendEmailVerification();
   }
 
-  // ============================================================
-  // LOGOUT
-  // ============================================================
+  static Future<bool> reloadAndCheckEmailVerified() async {
+    await _auth.currentUser?.reload();
+    return _auth.currentUser?.emailVerified ?? false;
+  }
+
+  static Future<void> resetPassword({required String email}) async {
+    final normalizedEmail = email.trim();
+    if (normalizedEmail.isEmpty || !normalizedEmail.contains('@')) {
+      throw FirebaseAuthException(
+        code: 'invalid-email',
+        message: 'Please enter a valid email address.',
+      );
+    }
+
+    await _auth.sendPasswordResetEmail(email: normalizedEmail);
+  }
 
   static Future<void> logout() async {
     await _auth.signOut();
 
-    if (!_googleInitialized) {
-      return;
-    }
+    if (!_googleInitialized) return;
 
     try {
       await GoogleSignIn.instance.signOut();
     } catch (_) {
-      // Ignore Google sign-out errors when the user is using
-      // email/password or Apple authentication.
+      // Google sign-out can fail after email/password authentication.
     }
   }
 }
