@@ -13,13 +13,15 @@ class AuthService {
   static final FirebaseAuth _auth = FirebaseAuth.instance;
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  static bool _googleInitialized = false;
-  static Future<void>? _googleInitialization;
-
-  // Android reads the OAuth configuration from google-services.json.
-  // The Web client is kept explicit so Firebase receives the correct ID token audience.
   static const String _googleWebClientId =
       '494434706372-jdg9h3re1bdc6idecjumdavdmbh3eai8.apps.googleusercontent.com';
+
+  // Keep Google authentication on the legacy Google Sign-In Android flow.
+  // The newer Credential Manager flow is the source of the [16] reauth failure
+  // seen in the current Android environment.
+  static final GoogleSignIn _googleSignIn = GoogleSignIn(
+    serverClientId: _googleWebClientId,
+  );
 
   static User? get currentUser => _auth.currentUser;
 
@@ -30,22 +32,11 @@ class AuthService {
     return _auth.signInWithEmailAndPassword(email: email, password: password);
   }
 
-  static Future<void> _initializeGoogleSignIn() async {
-    if (_googleInitialized) return;
-
-    _googleInitialization ??= GoogleSignIn.instance.initialize(
-      serverClientId: _googleWebClientId,
-    );
-
-    await _googleInitialization;
-    _googleInitialized = true;
-  }
-
   static Future<UserCredential?> loginWithGoogle() async {
-    await _initializeGoogleSignIn();
+    final googleUser = await _googleSignIn.signIn();
+    if (googleUser == null) return null;
 
-    final googleUser = await GoogleSignIn.instance.authenticate();
-    final googleAuth = googleUser.authentication;
+    final googleAuth = await googleUser.authentication;
     final idToken = googleAuth.idToken;
 
     if (idToken == null || idToken.isEmpty) {
@@ -166,10 +157,8 @@ class AuthService {
   static Future<void> logout() async {
     await _auth.signOut();
 
-    if (!_googleInitialized) return;
-
     try {
-      await GoogleSignIn.instance.signOut();
+      await _googleSignIn.signOut();
     } catch (_) {
       // Google sign-out can fail after email/password authentication.
     }
