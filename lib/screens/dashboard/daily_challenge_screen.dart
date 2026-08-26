@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
 import '../../providers/analysis_provider.dart';
 import '../../services/daily_challenge_service.dart';
+import 'tib_style_journey_screen.dart';
 
 class DailyChallengeScreen extends StatefulWidget {
   const DailyChallengeScreen({super.key});
@@ -88,6 +89,13 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
     }
   }
 
+  void _openJourney() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const TibStyleJourneyScreen()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -145,6 +153,34 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
                       style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white, disabledBackgroundColor: AppColors.primarySoft, disabledForegroundColor: AppColors.primaryDark, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
                     )),
                   ]),
+                ),
+                const SizedBox(height: 16),
+                InkWell(
+                  onTap: _openJourney,
+                  borderRadius: BorderRadius.circular(20),
+                  child: Ink(
+                    padding: const EdgeInsets.fromLTRB(16, 15, 14, 15),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: Row(children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: const BoxDecoration(color: AppColors.primarySoft, shape: BoxShape.circle),
+                        child: const Icon(Icons.auto_awesome_rounded, color: AppColors.primaryDark, size: 21),
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text('YOUR STYLE JOURNEY', style: TextStyle(color: AppColors.textMuted, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: .7)),
+                        SizedBox(height: 4),
+                        Text('See your XP, level, streak & badges', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: AppColors.textPrimary)),
+                      ])),
+                      const Icon(Icons.arrow_forward_ios_rounded, color: AppColors.primary, size: 14),
+                    ]),
+                  ),
                 ),
                 const SizedBox(height: 18),
                 const Text('Your progress', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: AppColors.textPrimary)),
