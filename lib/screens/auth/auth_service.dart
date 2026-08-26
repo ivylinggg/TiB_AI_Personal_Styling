@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -118,6 +120,8 @@ class AuthService {
     );
   }
 
+  /// Sends the verification email with a bounded timeout so the registration
+  /// screen can never remain stuck on "Creating your profile..." forever.
   static Future<void> sendEmailVerification() async {
     final user = _auth.currentUser;
     if (user == null) {
@@ -127,7 +131,12 @@ class AuthService {
       );
     }
 
-    await user.sendEmailVerification();
+    await user.sendEmailVerification().timeout(
+      const Duration(seconds: 15),
+      onTimeout: () => throw TimeoutException(
+        'Sending the verification email timed out. Please try again.',
+      ),
+    );
   }
 
   static Future<bool> reloadAndCheckEmailVerified() async {
