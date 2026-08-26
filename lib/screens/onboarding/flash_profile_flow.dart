@@ -34,6 +34,40 @@ class _FlashProfileFlowState extends State<FlashProfileFlow> {
     'Mixed / Multiracial',
     'Other',
   ];
+  static const _occupations = [
+    'Student',
+    'Office / Corporate',
+    'Business Owner',
+    'Healthcare',
+    'Education / Teacher',
+    'Hospitality / Service',
+    'Creative / Design',
+    'Beauty / Fashion',
+    'Sales / Retail',
+    'Freelancer',
+    'Homemaker',
+    'Retired',
+    'Currently looking for work',
+    'Other',
+  ];
+
+  static const _occupationEmojis = [
+    '🎓',
+    '💼',
+    '🏢',
+    '🩺',
+    '📚',
+    '☕',
+    '🎨',
+    '💄',
+    '🛍️',
+    '💻',
+    '🏠',
+    '🌿',
+    '🔎',
+    '✨',
+  ];
+
   static const _brands = [
     'Zara',
     'Uniqlo',
@@ -58,23 +92,36 @@ class _FlashProfileFlowState extends State<FlashProfileFlow> {
   String? _gender;
   String? _ageRange;
   String? _ethnicity;
+  String? _occupation;
+  final TextEditingController _occupationOtherController =
+      TextEditingController();
   final List<String> _preferredBrands = [];
   File? _scanImage;
   bool _saving = false;
 
-  double get _progress => (_step + 1) / 5;
+  double get _progress => (_step + 1) / 6;
 
   bool get _canContinue => switch (_step) {
-        0 => _gender != null,
-        1 => _ageRange != null,
-        2 => _ethnicity != null,
-        3 => _preferredBrands.isNotEmpty,
-        _ => false,
-      };
+    0 => _gender != null,
+    1 => _ageRange != null,
+    2 => _ethnicity != null,
+    3 => _preferredBrands.isNotEmpty,
+    4 =>
+      _occupation != null &&
+          (_occupation != 'Other' ||
+              _occupationOtherController.text.trim().isNotEmpty),
+    _ => false,
+  };
 
   Future<void> _continue() async {
-    if (!_canContinue || _saving || _step >= 4) return;
+    if (!_canContinue || _saving || _step >= 5) return;
     setState(() => _step += 1);
+  }
+
+  @override
+  void dispose() {
+    _occupationOtherController.dispose();
+    super.dispose();
   }
 
   Future<void> _handleFaceScan(File file) async {
@@ -101,11 +148,18 @@ class _FlashProfileFlowState extends State<FlashProfileFlow> {
         'ageRange': _ageRange,
         'ethnicity': _ethnicity,
         'preferredBrands': List<String>.from(_preferredBrands),
+        'occupation': _occupation == 'Other'
+            ? _occupationOtherController.text.trim()
+            : _occupation,
         'onboardingProfile': {
           'gender': _gender,
           'ageRange': _ageRange,
           'ethnicity': _ethnicity,
           'preferredBrands': List<String>.from(_preferredBrands),
+          'occupation': _occupation == 'Other'
+              ? _occupationOtherController.text.trim()
+              : _occupation,
+          'occupationCategory': _occupation,
           'source': 'flash_questions',
         },
       });
@@ -132,10 +186,8 @@ class _FlashProfileFlowState extends State<FlashProfileFlow> {
       final action = await Navigator.push<FlashScanResultAction>(
         context,
         MaterialPageRoute(
-          builder: (_) => FlashScanResultScreen(
-            result: result,
-            scanImage: scanImage,
-          ),
+          builder: (_) =>
+              FlashScanResultScreen(result: result, scanImage: scanImage),
         ),
       );
 
@@ -162,9 +214,7 @@ class _FlashProfileFlowState extends State<FlashProfileFlow> {
     } catch (_) {
       if (!mounted) return;
       setState(() => _saving = false);
-      _message(
-        'Your colour profile could not be generated. Please try again.',
-      );
+      _message('Your colour profile could not be generated. Please try again.');
     }
   }
 
@@ -187,7 +237,7 @@ class _FlashProfileFlowState extends State<FlashProfileFlow> {
     } else {
       setState(() {
         _step -= 1;
-        if (_step < 4) _scanImage = null;
+        if (_step < 5) _scanImage = null;
       });
     }
   }
@@ -197,10 +247,7 @@ class _FlashProfileFlowState extends State<FlashProfileFlow> {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        SnackBar(
-          content: Text(message),
-          behavior: SnackBarBehavior.floating,
-        ),
+        SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
       );
   }
 
@@ -235,7 +282,7 @@ class _FlashProfileFlowState extends State<FlashProfileFlow> {
                     ),
                   ),
                 ),
-                if (_step < 4)
+                if (_step < 5)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(22, 4, 22, 22),
                     child: PrimaryButton(
@@ -244,7 +291,7 @@ class _FlashProfileFlowState extends State<FlashProfileFlow> {
                       onPressed: _saving || !_canContinue ? null : _continue,
                     ),
                   ),
-                if (_step == 4 && _saving)
+                if (_step == 5 && _saving)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(22, 4, 22, 22),
                     child: PrimaryButton(
@@ -261,34 +308,35 @@ class _FlashProfileFlowState extends State<FlashProfileFlow> {
   }
 
   Widget _buildStep() => switch (_step) {
-        0 => _choiceStep(
-            'What’s your gender? ✨',
-            'This helps us personalize your style recommendations',
-            _genders,
-            _gender,
-            (v) => setState(() => _gender = v),
-            ['👩🏻', '👨🏻', '🌈', '🔒'],
-          ),
-        1 => _choiceStep(
-            'What’s your age range? 📅',
-            'We’ll tailor style tips to your life stage',
-            _ages,
-            _ageRange,
-            (v) => setState(() => _ageRange = v),
-            ['🧸', '🌸', '✨', '🌿', '💜', '🔵'],
-          ),
-        2 => _choiceStep(
-            'What’s your ethnicity? 🌎',
-            'Helps us understand your unique coloring',
-            _ethnicities,
-            _ethnicity,
-            (v) => setState(() => _ethnicity = v),
-            ['🤍', '👩🏻', '👩🏽', '🧑🏻', '👩🏻', '🧑🏽', '🧑🏿', '🤎', '🌈'],
-          ),
-        3 => _brandStep(),
-        4 => _scanStep(),
-        _ => const SizedBox.shrink(),
-      };
+    0 => _choiceStep(
+      'What’s your gender? ✨',
+      'This helps us personalize your style recommendations',
+      _genders,
+      _gender,
+      (v) => setState(() => _gender = v),
+      ['👩🏻', '👨🏻', '🌈', '🔒'],
+    ),
+    1 => _choiceStep(
+      'What’s your age range? 📅',
+      'We’ll tailor style tips to your life stage',
+      _ages,
+      _ageRange,
+      (v) => setState(() => _ageRange = v),
+      ['🧸', '🌸', '✨', '🌿', '💜', '🔵'],
+    ),
+    2 => _choiceStep(
+      'What’s your ethnicity? 🌎',
+      'Helps us understand your unique coloring',
+      _ethnicities,
+      _ethnicity,
+      (v) => setState(() => _ethnicity = v),
+      ['🤍', '👩🏻', '👩🏽', '🧑🏻', '👩🏻', '🧑🏽', '🧑🏿', '🤎', '🌈'],
+    ),
+    3 => _brandStep(),
+    4 => _occupationStep(),
+    5 => _scanStep(),
+    _ => const SizedBox.shrink(),
+  };
 
   Widget _choiceStep(
     String title,
@@ -538,6 +586,93 @@ class _FlashProfileFlowState extends State<FlashProfileFlow> {
     );
   }
 
+  Widget _occupationStep() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 8),
+        const Center(
+          child: Text(
+            'What do you do? 💼',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 26,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -.5,
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        const Center(
+          child: Text(
+            'Your daily life helps us understand how\nyou actually dress and style yourself',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 13,
+              height: 1.45,
+            ),
+          ),
+        ),
+        const SizedBox(height: 22),
+        Expanded(
+          child: ListView.separated(
+            padding: const EdgeInsets.only(bottom: 10),
+            itemCount: _occupations.length + (_occupation == 'Other' ? 1 : 0),
+            separatorBuilder: (_, index) => const SizedBox(height: 10),
+            itemBuilder: (_, index) {
+              if (_occupation == 'Other' && index == _occupations.length) {
+                return TextField(
+                  controller: _occupationOtherController,
+                  enabled: !_saving,
+                  textInputAction: TextInputAction.done,
+                  onChanged: (_) => setState(() {}),
+                  decoration: InputDecoration(
+                    labelText: 'Tell us what you do',
+                    hintText: 'e.g. Content creator, Engineer...',
+                    prefixIcon: const Icon(Icons.edit_rounded),
+                    filled: true,
+                    fillColor: Colors.white.withValues(alpha: .95),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(18),
+                      borderSide: const BorderSide(color: AppColors.border),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(18),
+                      borderSide: const BorderSide(color: AppColors.border),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(18),
+                      borderSide: BorderSide(
+                        color: AppColors.primary.withValues(alpha: .55),
+                        width: 1.3,
+                      ),
+                    ),
+                  ),
+                );
+              }
+
+              final occupation = _occupations[index];
+              return _selectCard(
+                occupation,
+                emoji: _occupationEmojis[index],
+                selected: _occupation == occupation,
+                onTap: () {
+                  setState(() {
+                    _occupation = occupation;
+                    if (occupation != 'Other') {
+                      _occupationOtherController.clear();
+                    }
+                  });
+                },
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _scanStep() {
     return Column(
       children: [
@@ -563,10 +698,7 @@ class _FlashProfileFlowState extends State<FlashProfileFlow> {
         ),
         const SizedBox(height: 16),
         Expanded(
-          child: FlashFaceScanPanel(
-            busy: _saving,
-            onCaptured: _handleFaceScan,
-          ),
+          child: FlashFaceScanPanel(busy: _saving, onCaptured: _handleFaceScan),
         ),
       ],
     );
@@ -597,7 +729,7 @@ class _FlashProfileFlowState extends State<FlashProfileFlow> {
           ),
           const Spacer(),
           Text(
-            '${_step + 1} of 5',
+            '${_step + 1} of 6',
             style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
           ),
           const Spacer(),
