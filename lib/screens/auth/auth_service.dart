@@ -16,6 +16,11 @@ class AuthService {
   static bool _googleInitialized = false;
   static Future<void>? _googleInitialization;
 
+  static const String _googleAndroidClientId =
+      '494434706372-v6hesgilp7rraa12pg2khg3cbe740rpl.apps.googleusercontent.com';
+  static const String _googleWebClientId =
+      '494434706372-jdg9h3re1bdc6idecjumdavdmbh3eai8.apps.googleusercontent.com';
+
   static User? get currentUser => _auth.currentUser;
 
   static Future<UserCredential> login({
@@ -28,8 +33,8 @@ class AuthService {
   static Future<void> _initializeGoogleSignIn() async {
     if (_googleInitialized) return;
     _googleInitialization ??= GoogleSignIn.instance.initialize(
-      serverClientId:
-          '494434706372-jdg9h3re1bdc6idecjumdavdmbh3eai8.apps.googleusercontent.com',
+      clientId: _googleAndroidClientId,
+      serverClientId: _googleWebClientId,
     );
     await _googleInitialization;
     _googleInitialized = true;
@@ -123,8 +128,6 @@ class AuthService {
     );
   }
 
-  /// Sends the verification email with a bounded timeout so the registration
-  /// screen can never remain stuck on "Creating your profile..." forever.
   static Future<void> sendEmailVerification() async {
     final user = _auth.currentUser;
     if (user == null) {
