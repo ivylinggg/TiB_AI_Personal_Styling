@@ -35,7 +35,7 @@ dependencies:
   image_background_remover: ^2.0.1
 
   # Authentication
-  google_sign_in: ^7.2.0
+  google_sign_in: ^6.3.0
 
   # Local Storage
   shared_preferences: ^2.5.3
