@@ -1,0 +1,45 @@
+name: Unify dashboard headings
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: ${{ !contains(github.event.head_commit.message, 'style: unify dashboard headings') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Update dashboard heading typography
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('lib/screens/dashboard/dashboard_designed_screen.dart')
+          text = path.read_text()
+
+          replacements = {
+              """fontSize: 27,\n                    height: 1.05,\n                    fontWeight: FontWeight.w500,\n                    fontStyle: FontStyle.italic,""": """fontSize: 27,\n                    height: 1.05,\n                    fontWeight: FontWeight.w700,""",
+              """fontSize: 21,\n                          fontWeight: FontWeight.w600,\n                          fontStyle: FontStyle.italic,""": """fontSize: 21,\n                          fontWeight: FontWeight.w700,""",
+          }
+
+          original = text
+          for old, new in replacements.items():
+              text = text.replace(old, new)
+
+          if text == original:
+              raise SystemExit('No dashboard heading typography changes were found.')
+
+          path.write_text(text)
+          PY
+
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add lib/screens/dashboard/dashboard_designed_screen.dart
+          git commit -m "style: unify dashboard headings"
+          git push
