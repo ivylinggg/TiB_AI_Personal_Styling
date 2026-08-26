@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/analysis_model.dart';
@@ -26,8 +28,22 @@ class FirestoreService {
 
   static final FirebaseFirestore _db = FirebaseFirestore.instance;
 
+  /// Creates the user's Firestore profile.
+  ///
+  /// Registration must never remain on an infinite loading state if
+  /// Firestore is unavailable, blocked by rules, or the network is stuck.
+  /// A bounded timeout lets the auth flow recover and show a useful error.
   static Future<void> createUser(UserModel user) async {
-    await _db.collection('users').doc(user.uid).set(user.toMap());
+    await _db
+        .collection('users')
+        .doc(user.uid)
+        .set(user.toMap())
+        .timeout(
+          const Duration(seconds: 15),
+          onTimeout: () => throw TimeoutException(
+            'Creating your profile timed out. Please check your connection and try again.',
+          ),
+        );
   }
 
   static Future<UserModel?> getUser(String uid) async {
