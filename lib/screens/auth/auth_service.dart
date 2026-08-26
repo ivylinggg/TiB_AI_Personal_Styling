@@ -16,8 +16,8 @@ class AuthService {
   static bool _googleInitialized = false;
   static Future<void>? _googleInitialization;
 
-  static const String _googleAndroidClientId =
-      '494434706372-v6hesgilp7rraa12pg2khg3cbe740rpl.apps.googleusercontent.com';
+  // Android reads the OAuth configuration from google-services.json.
+  // The Web client is kept explicit so Firebase receives the correct ID token audience.
   static const String _googleWebClientId =
       '494434706372-jdg9h3re1bdc6idecjumdavdmbh3eai8.apps.googleusercontent.com';
 
@@ -32,10 +32,11 @@ class AuthService {
 
   static Future<void> _initializeGoogleSignIn() async {
     if (_googleInitialized) return;
+
     _googleInitialization ??= GoogleSignIn.instance.initialize(
-      clientId: _googleAndroidClientId,
       serverClientId: _googleWebClientId,
     );
+
     await _googleInitialization;
     _googleInitialized = true;
   }
