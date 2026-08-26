@@ -7,6 +7,7 @@ import '../../core/constants/app_gradients.dart';
 import '../../models/colour_analysis_result.dart';
 import '../../providers/analysis_provider.dart';
 import '../../services/daily_challenge_service.dart';
+import '../../services/tib_style_journey_service.dart';
 import '../../services/today_recommendation_service.dart';
 import '../../widgets/colour_swatch.dart';
 import '../analysis/analysis_result_screen.dart';
@@ -213,10 +214,10 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
   Widget _styleJourneyCard(BuildContext context, String? uid) {
     if (uid == null) return const SizedBox.shrink();
 
-    return FutureBuilder<TibStyleJourneyPreview>(
-      future: TibStyleJourneyPreview.load(uid),
+    return FutureBuilder<TibStyleJourney>(
+      future: TibStyleJourneyService.load(uid),
       builder: (context, snapshot) {
-        final preview = snapshot.data;
+        final journey = snapshot.data;
         return Material(
           color: Colors.transparent,
           child: InkWell(
@@ -224,11 +225,7 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
             onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TibStyleJourneyScreen())),
             child: Ink(
               padding: const EdgeInsets.fromLTRB(17, 16, 17, 16),
-              decoration: BoxDecoration(
-                gradient: AppGradients.soft,
-                borderRadius: BorderRadius.circular(22),
-                border: Border.all(color: AppColors.primarySoft),
-              ),
+              decoration: BoxDecoration(gradient: AppGradients.soft, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.primarySoft)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(children: [
                   Container(width: 44, height: 44, decoration: const BoxDecoration(color: AppColors.primarySoft, shape: BoxShape.circle), child: const Icon(Icons.auto_awesome_rounded, color: AppColors.primaryDark, size: 21)),
@@ -237,16 +234,13 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
                   const Icon(Icons.arrow_forward_ios_rounded, size: 13, color: AppColors.primary),
                 ]),
                 const SizedBox(height: 14),
-                if (preview == null) const LinearProgressIndicator(minHeight: 6, backgroundColor: AppColors.primarySoft, valueColor: AlwaysStoppedAnimation(AppColors.primary)) else ...[
-                  Row(children: [
-                    Expanded(child: Text('Level ${preview.level} · ${preview.levelTitle}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: AppColors.textPrimary))),
-                    Text('${preview.points} XP', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: AppColors.primaryDark)),
-                  ]),
+                if (snapshot.connectionState == ConnectionState.waiting) const LinearProgressIndicator(minHeight: 6, backgroundColor: AppColors.primarySoft, valueColor: AlwaysStoppedAnimation(AppColors.primary)) else if (journey != null) ...[
+                  Row(children: [Expanded(child: Text('Level ${journey.level} · ${journey.levelTitle}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: AppColors.textPrimary))), Text('${journey.points} XP', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: AppColors.primaryDark))]),
                   const SizedBox(height: 8),
-                  ClipRRect(borderRadius: BorderRadius.circular(20), child: LinearProgressIndicator(minHeight: 7, value: preview.progress, backgroundColor: AppColors.primarySoft, valueColor: const AlwaysStoppedAnimation(AppColors.primary))),
+                  ClipRRect(borderRadius: BorderRadius.circular(20), child: LinearProgressIndicator(minHeight: 7, value: journey.progress, backgroundColor: AppColors.primarySoft, valueColor: const AlwaysStoppedAnimation(AppColors.primary))),
                   const SizedBox(height: 9),
-                  Row(children: [Text('🔥 ${preview.streak} day streak', style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, color: AppColors.textSecondary)), const Spacer(), Text('${preview.completedChallenges} completed', style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, color: AppColors.textSecondary))]),
-                ],
+                  Row(children: [Text('🔥 ${journey.streak} day streak', style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, color: AppColors.textSecondary)), const Spacer(), Text('${journey.completedChallenges} completed', style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, color: AppColors.textSecondary))]),
+                ] else const Text('Complete your first challenge to start your journey.', style: TextStyle(fontSize: 10.5, height: 1.4, color: AppColors.textSecondary)),
               ]),
             ),
           ),
