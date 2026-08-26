@@ -89,14 +89,14 @@ class TodayRecommendationService {
 
       final profilePayload = <String, dynamic>{
         ...profile,
-        ?'bodyShape': bodyShape,
-        ?'faceShape': faceShape,
-        ?'weight': weight,
-        ?'height': height,
-        ?'bust': bust,
-        ?'waist': waist,
-        ?'hips': hips,
-        ?'personalStyle': personalStyle,
+        if (bodyShape != null) 'bodyShape': bodyShape,
+        if (faceShape != null) 'faceShape': faceShape,
+        if (weight != null) 'weight': weight,
+        if (height != null) 'height': height,
+        if (bust != null) 'bust': bust,
+        if (waist != null) 'waist': waist,
+        if (hips != null) 'hips': hips,
+        if (personalStyle != null) 'personalStyle': personalStyle,
       };
 
       final response = await http
