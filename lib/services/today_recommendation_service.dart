@@ -87,6 +87,18 @@ class TodayRecommendationService {
       final profile = await _loadProfile(user.uid);
       final colour = _todayColour(analysis);
 
+      final profilePayload = <String, dynamic>{
+        ...profile,
+        if (bodyShape != null) 'bodyShape': bodyShape,
+        if (faceShape != null) 'faceShape': faceShape,
+        if (weight != null) 'weight': weight,
+        if (height != null) 'height': height,
+        if (bust != null) 'bust': bust,
+        if (waist != null) 'waist': waist,
+        if (hips != null) 'hips': hips,
+        if (personalStyle != null) 'personalStyle': personalStyle,
+      };
+
       final response = await http
           .post(
             Uri.parse(_endpoint),
@@ -98,17 +110,7 @@ class TodayRecommendationService {
               'idToken': token,
               'todayColour': colour,
               'occasion': occasion ?? 'Everyday',
-              'profile': {
-                ...profile,
-                if (bodyShape != null) 'bodyShape': bodyShape,
-                if (faceShape != null) 'faceShape': faceShape,
-                if (weight != null) 'weight': weight,
-                if (height != null) 'height': height,
-                if (bust != null) 'bust': bust,
-                if (waist != null) 'waist': waist,
-                if (hips != null) 'hips': hips,
-                if (personalStyle != null) 'personalStyle': personalStyle,
-              },
+              'profile': profilePayload,
               'colourAnalysis': analysis == null
                   ? null
                   : {
