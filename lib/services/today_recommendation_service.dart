@@ -1,3 +1,9 @@
+import 'dart:convert';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:http/http.dart' as http;
+
 import '../models/colour_analysis_result.dart';
 
 class TodayRecommendation {
@@ -6,6 +12,8 @@ class TodayRecommendation {
   final String colour;
   final String outfit;
   final String reason;
+  final String stylingTip;
+  final bool isAiGenerated;
 
   const TodayRecommendation({
     required this.style,
@@ -13,11 +21,143 @@ class TodayRecommendation {
     required this.colour,
     required this.outfit,
     required this.reason,
+    this.stylingTip = '',
+    this.isAiGenerated = false,
   });
+
+  factory TodayRecommendation.fromJson(
+    Map<String, dynamic> json, {
+    String fallbackColour = '—',
+  }) {
+    List<String> readTags(dynamic value) {
+      if (value is List) {
+        return value
+            .map((item) => item.toString().trim())
+            .where((item) => item.isNotEmpty)
+            .take(5)
+            .toList();
+      }
+      return const [];
+    }
+
+    String read(String key, String fallback) {
+      final value = json[key];
+      final text = value?.toString().trim() ?? '';
+      return text.isEmpty ? fallback : text;
+    }
+
+    return TodayRecommendation(
+      style: read('styleDirection', 'Personal Style'),
+      tags: readTags(json['styleTags']),
+      colour: read('recommendedColour', fallbackColour),
+      outfit: read('outfitFormula', 'A balanced outfit built around your personal proportions.'),
+      reason: read('whyItWorks', 'This recommendation is tailored to your TiB profile.'),
+      stylingTip: read('stylingTip', ''),
+      isAiGenerated: true,
+    );
+  }
 }
 
 class TodayRecommendationService {
   const TodayRecommendationService._();
+
+  static const String _endpoint =
+      'https://script.google.com/macros/s/AKfycbwWXoyKGqkMfM9XDRQuFidMv5ZGxwqIqGjAVv-qTvdTiJM2xUqlfOyXfsestk9uqazN3g/exec';
+
+  static Future<TodayRecommendation> getRecommendation({
+    ColourAnalysisResult? analysis,
+    String? bodyShape,
+    String? faceShape,
+    double? weight,
+    double? height,
+    double? bust,
+    double? waist,
+    double? hips,
+    String? personalStyle,
+    List<Map<String, dynamic>> wardrobe = const [],
+    String? occasion,
+  }) async {
+    final fallback = build(analysis: analysis);
+
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return fallback;
+
+      final token = await user.getIdToken();
+      final profile = await _loadProfile(user.uid);
+      final colour = _todayColour(analysis);
+
+      final response = await http
+          .post(
+            Uri.parse(_endpoint),
+            headers: const {
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode({
+              'action': 'todayRecommendation',
+              'idToken': token,
+              'todayColour': colour,
+              'occasion': occasion ?? 'Everyday',
+              'profile': {
+                ...profile,
+                if (bodyShape != null) 'bodyShape': bodyShape,
+                if (faceShape != null) 'faceShape': faceShape,
+                if (weight != null) 'weight': weight,
+                if (height != null) 'height': height,
+                if (bust != null) 'bust': bust,
+                if (waist != null) 'waist': waist,
+                if (hips != null) 'hips': hips,
+                if (personalStyle != null) 'personalStyle': personalStyle,
+              },
+              'colourAnalysis': analysis == null
+                  ? null
+                  : {
+                      'colours': analysis.colours,
+                    },
+              'wardrobe': wardrobe,
+            }),
+          )
+          .timeout(const Duration(seconds: 25));
+
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        return fallback;
+      }
+
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map<String, dynamic>) return fallback;
+
+      final data = decoded['data'];
+      if (data is Map<String, dynamic>) {
+        return TodayRecommendation.fromJson(
+          data,
+          fallbackColour: colour,
+        );
+      }
+
+      if (decoded['styleDirection'] != null) {
+        return TodayRecommendation.fromJson(
+          decoded,
+          fallbackColour: colour,
+        );
+      }
+
+      return fallback;
+    } catch (_) {
+      return fallback;
+    }
+  }
+
+  static Future<Map<String, dynamic>> _loadProfile(String uid) async {
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
+      return snapshot.data() ?? <String, dynamic>{};
+    } catch (_) {
+      return <String, dynamic>{};
+    }
+  }
 
   static TodayRecommendation build({ColourAnalysisResult? analysis}) {
     final colour = _todayColour(analysis);
