@@ -318,8 +318,7 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
                   style: const TextStyle(
                     fontSize: 27,
                     height: 1.05,
-                    fontWeight: FontWeight.w500,
-                    fontStyle: FontStyle.italic,
+                    fontWeight: FontWeight.w700,
                     color: AppColors.textPrimary,
                   ),
                 ),
@@ -430,8 +429,7 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
                         'Your style journey ✦',
                         style: TextStyle(
                           fontSize: 21,
-                          fontWeight: FontWeight.w600,
-                          fontStyle: FontStyle.italic,
+                          fontWeight: FontWeight.w700,
                           color: AppColors.primaryDark,
                         ),
                       ),
@@ -516,8 +514,7 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
                       'Today Task ✦',
                       style: TextStyle(
                         fontSize: 21,
-                        fontWeight: FontWeight.w600,
-                        fontStyle: FontStyle.italic,
+                        fontWeight: FontWeight.w700,
                         color: AppColors.primaryDark,
                       ),
                     ),
