@@ -40,7 +40,77 @@ class VirtualTryOnResult {
 class VirtualTryOnResultService {
   VirtualTryOnResultService._();
 
-  static Future<VirtualTryOnResult> generate(VirtualTryOnRequest request) async {
+  static const int _maxRedirects = 5;
+
+  /// Sends the Virtual Try-On request to the Google Apps Script Web App.
+  ///
+  /// Apps Script Web Apps commonly answer the initial /exec request with a
+  /// 301/302 redirect to a temporary googleusercontent.com execution URL.
+  /// The Dart HTTP client must not turn that redirected POST into a GET,
+  /// otherwise the request body is lost and the Apps Script doPost() handler
+  /// never receives the Virtual Try-On payload.
+  static Future<http.Response> _postJsonFollowingRedirects({
+    required Uri uri,
+    required String body,
+  }) async {
+    var currentUri = uri;
+
+    for (var redirectCount = 0;
+        redirectCount <= _maxRedirects;
+        redirectCount++) {
+      final request = http.Request('POST', currentUri)
+        ..followRedirects = false
+        ..maxRedirects = 0
+        ..headers['Content-Type'] = 'application/json'
+        ..headers['Accept'] = 'application/json'
+        ..body = body;
+
+      final streamed = await request.send().timeout(
+        const Duration(seconds: 120),
+      );
+      final response = await http.Response.fromStream(streamed);
+
+      if (kDebugMode) {
+        debugPrint(
+          'virtualTryOn HTTP ${response.statusCode} ${response.request?.url}',
+        );
+      }
+
+      final isRedirect = response.statusCode == 301 ||
+          response.statusCode == 302 ||
+          response.statusCode == 303 ||
+          response.statusCode == 307 ||
+          response.statusCode == 308;
+
+      if (!isRedirect) return response;
+
+      final location = response.headers['location'];
+      if (location == null || location.trim().isEmpty) {
+        throw const HttpException(
+          'Virtual Try-On service returned a redirect without a location.',
+        );
+      }
+
+      if (redirectCount == _maxRedirects) {
+        throw const HttpException(
+          'Virtual Try-On service redirected too many times.',
+        );
+      }
+
+      // Resolve both absolute and relative Location headers safely.
+      currentUri = currentUri.resolve(location.trim());
+
+      if (kDebugMode) {
+        debugPrint('virtualTryOn redirect → $currentUri');
+      }
+    }
+
+    throw const HttpException('Virtual Try-On redirect handling failed.');
+  }
+
+  static Future<VirtualTryOnResult> generate(
+    VirtualTryOnRequest request,
+  ) async {
     if (!request.model.isComplete || request.model.facePath == null) {
       return const VirtualTryOnResult(
         imageUrl: null,
@@ -108,17 +178,38 @@ class VirtualTryOnResultService {
         }).toList(),
       };
 
-      final response = await http
-          .post(
-            Uri.parse(GoogleDriveConfig.uploadUrl),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode(body),
-          )
-          .timeout(const Duration(seconds: 120));
+      final encodedBody = jsonEncode(body);
+      final response = await _postJsonFollowingRedirects(
+        uri: Uri.parse(GoogleDriveConfig.uploadUrl),
+        body: encodedBody,
+      );
 
-      if (kDebugMode) debugPrint('virtualTryOn status: ${response.statusCode}');
+      if (kDebugMode) {
+        debugPrint('virtualTryOn final status: ${response.statusCode}');
+        if (response.body.isNotEmpty) {
+          debugPrint('virtualTryOn response: ${response.body}');
+        }
+      }
 
       if (response.statusCode != 200) {
+        // Surface a useful server message when one exists. This makes future
+        // Apps Script / AI errors diagnosable instead of hiding them behind
+        // only the HTTP status code.
+        try {
+          final serverBody = jsonDecode(response.body);
+          if (serverBody is Map<String, dynamic>) {
+            final error = serverBody['error'];
+            if (error is String && error.trim().isNotEmpty) {
+              return VirtualTryOnResult(
+                imageUrl: null,
+                status: 'Virtual try-on failed: ${error.trim()}',
+              );
+            }
+          }
+        } catch (_) {
+          // Keep the friendly HTTP fallback below for non-JSON responses.
+        }
+
         return VirtualTryOnResult(
           imageUrl: null,
           status: 'Virtual try-on request failed (${response.statusCode}).',
@@ -134,7 +225,9 @@ class VirtualTryOnResultService {
       }
 
       if (decoded['success'] != true) {
-        final error = decoded['error'] is String ? decoded['error'] as String : '';
+        final error = decoded['error'] is String
+            ? decoded['error'] as String
+            : '';
         if (error == 'not_premium') {
           return const VirtualTryOnResult(
             imageUrl: null,
@@ -143,11 +236,15 @@ class VirtualTryOnResultService {
         }
         return VirtualTryOnResult(
           imageUrl: null,
-          status: error.isEmpty ? 'Could not generate the try-on right now.' : error,
+          status: error.isEmpty
+              ? 'Could not generate the try-on right now.'
+              : error,
         );
       }
 
-      final imageUrl = decoded['imageUrl'] is String ? decoded['imageUrl'] as String : '';
+      final imageUrl = decoded['imageUrl'] is String
+          ? decoded['imageUrl'] as String
+          : '';
       if (imageUrl.isEmpty) {
         return const VirtualTryOnResult(
           imageUrl: null,
@@ -162,6 +259,14 @@ class VirtualTryOnResultService {
       );
     } catch (error) {
       if (kDebugMode) debugPrint('virtualTryOn error: $error');
+
+      if (error is SocketException || error is HttpException) {
+        return VirtualTryOnResult(
+          imageUrl: null,
+          status: 'Could not reach the virtual try-on service. ${error.toString().replaceFirst('Exception: ', '')}',
+        );
+      }
+
       return const VirtualTryOnResult(
         imageUrl: null,
         status: 'Could not reach the virtual try-on service. Please try again.',
