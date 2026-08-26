@@ -53,10 +53,6 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
     final userName = FirebaseAuth.instance.currentUser?.displayName?.trim();
     final greeting = userName?.isNotEmpty == true ? 'Hi, $userName' : 'Welcome back';
 
-    if (_recommendationFuture == null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _loadRecommendation());
-    }
-
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -72,9 +68,7 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
               const SizedBox(height: 18),
               _todayRecommendationCard(context, result),
               const SizedBox(height: 14),
-              _dailyChallengeCard(context, uid),
-              const SizedBox(height: 14),
-              _styleJourneyCard(context, uid),
+              _challengeJourneyCard(context, uid),
             ],
           ),
         ),
@@ -176,74 +170,79 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
 
   Widget _styleTag(String label) => Container(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5), decoration: BoxDecoration(color: AppColors.primarySoft.withValues(alpha: .68), borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.primarySoft)), child: Text(label, style: const TextStyle(fontSize: 8.8, fontWeight: FontWeight.w800, color: AppColors.primaryDark)));
 
-  Widget _dailyChallengeCard(BuildContext context, String? uid) {
-    final challenge = DailyChallengeService.today();
-    return FutureBuilder<bool>(
-      future: uid == null ? Future.value(false) : DailyChallengeService.isCompleted(uid),
-      builder: (context, snapshot) {
-        final completed = snapshot.data == true;
-        return Material(
-          color: Colors.transparent,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(22),
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DailyChallengeScreen())),
-            child: Ink(
-              padding: const EdgeInsets.fromLTRB(17, 16, 17, 16),
-              decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(children: [
-                  Container(width: 44, height: 44, decoration: const BoxDecoration(color: AppColors.primarySoft, shape: BoxShape.circle), child: Icon(completed ? Icons.check_rounded : Icons.bolt_rounded, color: AppColors.primaryDark, size: 22)),
-                  const SizedBox(width: 12),
-                  const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('DAILY CHALLENGE', style: TextStyle(color: AppColors.textMuted, fontSize: 8.5, fontWeight: FontWeight.w900, letterSpacing: .7)), SizedBox(height: 4), Text('One small action. Better style.', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: AppColors.textPrimary))])),
-                  Text('+${challenge.points} XP', style: const TextStyle(color: AppColors.primaryDark, fontSize: 10, fontWeight: FontWeight.w900)),
-                ]),
-                const SizedBox(height: 14),
-                Text(challenge.title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: AppColors.textPrimary)),
-                const SizedBox(height: 5),
-                Text(challenge.description, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, height: 1.4, color: AppColors.textSecondary)),
-                const SizedBox(height: 12),
-                Row(children: [Expanded(child: Text(completed ? 'Completed today ✓' : 'Tap to complete today’s task', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: completed ? AppColors.primaryDark : AppColors.textMuted))), const Icon(Icons.arrow_forward_ios_rounded, size: 13, color: AppColors.primary)]),
-              ]),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _styleJourneyCard(BuildContext context, String? uid) {
+  Widget _challengeJourneyCard(BuildContext context, String? uid) {
     if (uid == null) return const SizedBox.shrink();
+    final challenge = DailyChallengeService.today();
 
-    return FutureBuilder<TibStyleJourney>(
-      future: TibStyleJourneyService.load(uid),
-      builder: (context, snapshot) {
-        final journey = snapshot.data;
-        return Material(
-          color: Colors.transparent,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(22),
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TibStyleJourneyScreen())),
-            child: Ink(
-              padding: const EdgeInsets.fromLTRB(17, 16, 17, 16),
-              decoration: BoxDecoration(gradient: AppGradients.soft, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.primarySoft)),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(children: [
-                  Container(width: 44, height: 44, decoration: const BoxDecoration(color: AppColors.primarySoft, shape: BoxShape.circle), child: const Icon(Icons.auto_awesome_rounded, color: AppColors.primaryDark, size: 21)),
-                  const SizedBox(width: 12),
-                  const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('YOUR STYLE JOURNEY', style: TextStyle(color: AppColors.textMuted, fontSize: 8.5, fontWeight: FontWeight.w900, letterSpacing: .7)), SizedBox(height: 4), Text('Build your style through small wins', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: AppColors.textPrimary))])),
-                  const Icon(Icons.arrow_forward_ios_rounded, size: 13, color: AppColors.primary),
+    return FutureBuilder<bool>(
+      future: DailyChallengeService.isCompleted(uid),
+      builder: (context, challengeSnapshot) {
+        final completed = challengeSnapshot.data == true;
+        return FutureBuilder<TibStyleJourney>(
+          future: TibStyleJourneyService.load(uid),
+          builder: (context, journeySnapshot) {
+            final journey = journeySnapshot.data;
+            return Material(
+              color: Colors.transparent,
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: AppGradients.soft,
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: AppColors.primarySoft),
+                  boxShadow: [BoxShadow(color: AppColors.primary.withValues(alpha: .05), blurRadius: 16, offset: const Offset(0, 6))],
+                ),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  InkWell(
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DailyChallengeScreen())),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(17, 17, 17, 16),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Row(children: [
+                          Container(width: 44, height: 44, decoration: const BoxDecoration(color: AppColors.primarySoft, shape: BoxShape.circle), child: Icon(completed ? Icons.check_rounded : Icons.bolt_rounded, color: AppColors.primaryDark, size: 22)),
+                          const SizedBox(width: 12),
+                          const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('TODAY’S CHALLENGE', style: TextStyle(color: AppColors.textMuted, fontSize: 8.5, fontWeight: FontWeight.w900, letterSpacing: .7)), SizedBox(height: 4), Text('One small action. Better style.', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: AppColors.textPrimary))])),
+                          Text('+${challenge.points} XP', style: const TextStyle(color: AppColors.primaryDark, fontSize: 10, fontWeight: FontWeight.w900)),
+                        ]),
+                        const SizedBox(height: 14),
+                        Text(challenge.title, style: const TextStyle(fontSize: 18, height: 1.15, fontWeight: FontWeight.w900, color: AppColors.textPrimary)),
+                        const SizedBox(height: 5),
+                        Text(challenge.description, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, height: 1.4, color: AppColors.textSecondary)),
+                        const SizedBox(height: 12),
+                        Row(children: [Expanded(child: Text(completed ? 'Completed today ✓' : 'Tap to complete today’s task', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: completed ? AppColors.primaryDark : AppColors.textMuted))), const Icon(Icons.arrow_forward_ios_rounded, size: 13, color: AppColors.primary)]),
+                      ]),
+                    ),
+                  ),
+                  const Divider(height: 1, color: AppColors.border),
+                  InkWell(
+                    borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),
+                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TibStyleJourneyScreen())),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(17, 16, 17, 16),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Row(children: [
+                          Container(width: 44, height: 44, decoration: const BoxDecoration(color: AppColors.primarySoft, shape: BoxShape.circle), child: const Icon(Icons.auto_awesome_rounded, color: AppColors.primaryDark, size: 21)),
+                          const SizedBox(width: 12),
+                          const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('YOUR STYLE JOURNEY', style: TextStyle(color: AppColors.textMuted, fontSize: 8.5, fontWeight: FontWeight.w900, letterSpacing: .7)), SizedBox(height: 4), Text('Build your style through small wins', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: AppColors.textPrimary))])),
+                          const Icon(Icons.arrow_forward_ios_rounded, size: 13, color: AppColors.primary),
+                        ]),
+                        const SizedBox(height: 13),
+                        if (journeySnapshot.connectionState == ConnectionState.waiting)
+                          const LinearProgressIndicator(minHeight: 7, backgroundColor: AppColors.primarySoft, valueColor: AlwaysStoppedAnimation(AppColors.primary))
+                        else if (journey != null) ...[
+                          Row(children: [Expanded(child: Text('Level ${journey.level} · ${journey.levelTitle}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: AppColors.textPrimary))), Text('${journey.points} XP', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: AppColors.primaryDark))]),
+                          const SizedBox(height: 8),
+                          ClipRRect(borderRadius: BorderRadius.circular(20), child: LinearProgressIndicator(minHeight: 7, value: journey.progress, backgroundColor: AppColors.primarySoft, valueColor: const AlwaysStoppedAnimation(AppColors.primary))),
+                          const SizedBox(height: 9),
+                          Row(children: [Expanded(child: Text('🔥 ${journey.streak} day streak', style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, color: AppColors.textMuted))), Text('${journey.completedChallenges} completed', style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, color: AppColors.textMuted))]),
+                        ],
+                      ]),
+                    ),
+                  ),
                 ]),
-                const SizedBox(height: 14),
-                if (snapshot.connectionState == ConnectionState.waiting) const LinearProgressIndicator(minHeight: 6, backgroundColor: AppColors.primarySoft, valueColor: AlwaysStoppedAnimation(AppColors.primary)) else if (journey != null) ...[
-                  Row(children: [Expanded(child: Text('Level ${journey.level} · ${journey.levelTitle}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: AppColors.textPrimary))), Text('${journey.points} XP', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: AppColors.primaryDark))]),
-                  const SizedBox(height: 8),
-                  ClipRRect(borderRadius: BorderRadius.circular(20), child: LinearProgressIndicator(minHeight: 7, value: journey.progress, backgroundColor: AppColors.primarySoft, valueColor: const AlwaysStoppedAnimation(AppColors.primary))),
-                  const SizedBox(height: 9),
-                  Row(children: [Text('🔥 ${journey.streak} day streak', style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, color: AppColors.textSecondary)), const Spacer(), Text('${journey.completedChallenges} completed', style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, color: AppColors.textSecondary))]),
-                ] else const Text('Complete your first challenge to start your journey.', style: TextStyle(fontSize: 10.5, height: 1.4, color: AppColors.textSecondary)),
-              ]),
-            ),
-          ),
+              ),
+            );
+          },
         );
       },
     );
