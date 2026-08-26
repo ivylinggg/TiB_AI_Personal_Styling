@@ -50,8 +50,14 @@ class TodayRecommendation {
       style: read('styleDirection', 'Personal Style'),
       tags: readTags(json['styleTags']),
       colour: read('recommendedColour', fallbackColour),
-      outfit: read('outfitFormula', 'A balanced outfit built around your personal proportions.'),
-      reason: read('whyItWorks', 'This recommendation is tailored to your TiB profile.'),
+      outfit: read(
+        'outfitFormula',
+        'A balanced outfit built around your personal proportions.',
+      ),
+      reason: read(
+        'whyItWorks',
+        'This recommendation is tailored to your TiB profile.',
+      ),
       stylingTip: read('stylingTip', ''),
       isAiGenerated: true,
     );
@@ -100,16 +106,16 @@ class TodayRecommendationService {
       final response = await http
           .post(
             Uri.parse(_endpoint),
-            headers: const {
-              'Content-Type': 'application/json',
-            },
+            headers: const {'Content-Type': 'application/json'},
             body: jsonEncode({
               'action': 'todayRecommendation',
               'idToken': token,
               'todayColour': colour,
               'occasion': occasion ?? 'Everyday',
               'profile': profilePayload,
-              'colourAnalysis': analysis == null ? null : {'colours': analysis.colours},
+              'colourAnalysis': analysis == null
+                  ? null
+                  : {'colours': analysis.colours},
               'wardrobe': wardrobe,
             }),
           )
@@ -124,11 +130,17 @@ class TodayRecommendationService {
 
       final data = decoded['data'];
       if (data is Map<String, dynamic>) {
-        return TodayRecommendation.fromJson(data, fallbackColour: colour);
+        return _forceDailyColour(
+          TodayRecommendation.fromJson(data, fallbackColour: colour),
+          colour,
+        );
       }
 
       if (decoded['styleDirection'] != null) {
-        return TodayRecommendation.fromJson(decoded, fallbackColour: colour);
+        return _forceDailyColour(
+          TodayRecommendation.fromJson(decoded, fallbackColour: colour),
+          colour,
+        );
       }
 
       return fallback;
@@ -137,9 +149,29 @@ class TodayRecommendationService {
     }
   }
 
+  static TodayRecommendation _forceDailyColour(
+    TodayRecommendation recommendation,
+    String colour,
+  ) {
+    if (colour == '—' || colour.isEmpty) return recommendation;
+
+    return TodayRecommendation(
+      style: recommendation.style,
+      tags: recommendation.tags,
+      colour: colour,
+      outfit: recommendation.outfit,
+      reason: recommendation.reason,
+      stylingTip: recommendation.stylingTip,
+      isAiGenerated: recommendation.isAiGenerated,
+    );
+  }
+
   static Future<Map<String, dynamic>> _loadProfile(String uid) async {
     try {
-      final snapshot = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      final snapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
       return snapshot.data() ?? <String, dynamic>{};
     } catch (_) {
       return <String, dynamic>{};
@@ -156,7 +188,8 @@ class TodayRecommendationService {
         tags: const ['Feminine', 'Sweet', 'Elegant'],
         colour: colour,
         outfit: 'A soft blouse with a flattering skirt and simple heels.',
-        reason: 'A gentle colour story helps create a polished, feminine look without feeling overdone.',
+        reason:
+            'A gentle colour story helps create a polished, feminine look without feeling overdone.',
       );
     }
 
@@ -165,8 +198,10 @@ class TodayRecommendationService {
         style: 'Smart Casual',
         tags: const ['Relaxed', 'Refined', 'Confident'],
         colour: colour,
-        outfit: 'A clean top with tailored trousers, loafers or minimal sneakers.',
-        reason: 'Cool tones pair naturally with clean silhouettes for an effortless but put-together look.',
+        outfit:
+            'A clean top with tailored trousers, loafers or minimal sneakers.',
+        reason:
+            'Cool tones pair naturally with clean silhouettes for an effortless but put-together look.',
       );
     }
 
@@ -175,8 +210,10 @@ class TodayRecommendationService {
         style: 'Minimal Chic',
         tags: const ['Simple', 'Clean', 'Polished'],
         colour: colour,
-        outfit: 'A clean monochrome base with one structured statement piece.',
-        reason: 'A restrained palette lets your silhouette and styling details become the focus.',
+        outfit:
+            'A clean monochrome base with one structured statement piece.',
+        reason:
+            'A restrained palette lets your silhouette and styling details become the focus.',
       );
     }
 
@@ -185,8 +222,10 @@ class TodayRecommendationService {
         style: 'Bright & Playful',
         tags: const ['Sunny', 'Fresh', 'Energetic'],
         colour: colour,
-        outfit: 'A light top with relaxed bottoms and one playful accessory.',
-        reason: 'A brighter colour works best when balanced with simple shapes and an easy silhouette.',
+        outfit:
+            'A light top with relaxed bottoms and one playful accessory.',
+        reason:
+            'A brighter colour works best when balanced with simple shapes and an easy silhouette.',
       );
     }
 
@@ -195,21 +234,66 @@ class TodayRecommendationService {
         style: 'Soft Creative',
         tags: const ['Gentle', 'Creative', 'Unique'],
         colour: colour,
-        outfit: 'A soft-toned top with a clean bottom and delicate accessories.',
-        reason: 'The softer palette gives you room to show personality while keeping the outfit refined.',
+        outfit:
+            'A soft-toned top with a clean bottom and delicate accessories.',
+        reason:
+            'The softer palette gives you room to show personality while keeping the outfit refined.',
       );
     }
 
     final weekday = DateTime.now().weekday;
     final styles = <TodayRecommendation>[
-      const TodayRecommendation(style: 'Clean Start', tags: ['Simple', 'Fresh', 'Put-together'], colour: '—', outfit: 'A fresh everyday outfit built around one clean, versatile piece.', reason: 'Simple foundations make it easier to look polished with less effort.'),
-      const TodayRecommendation(style: 'Easy Smart', tags: ['Casual', 'Neat', 'Versatile'], colour: '—', outfit: 'A neat top with comfortable tailored bottoms and simple shoes.', reason: 'A balanced casual-smart formula works across most everyday plans.'),
-      const TodayRecommendation(style: 'Balanced Chic', tags: ['Simple', 'Elegant', 'Comfortable'], colour: '—', outfit: 'A comfortable base with one elegant finishing detail.', reason: 'Keeping the base easy lets one polished detail elevate the whole look.'),
-      const TodayRecommendation(style: 'Modern Feminine', tags: ['Soft', 'Stylish', 'Polished'], colour: '—', outfit: 'A softly fitted top with a clean skirt or tailored trousers.', reason: 'A soft silhouette with structure creates an easy modern feminine balance.'),
-      const TodayRecommendation(style: 'Casual Glow', tags: ['Relaxed', 'Bright', 'Fun'], colour: '—', outfit: 'A relaxed outfit with one brighter accent or accessory.', reason: 'One playful detail keeps a casual look intentional and fresh.'),
-      const TodayRecommendation(style: 'Effortless Weekend', tags: ['Casual', 'Easy', 'Cool'], colour: '—', outfit: 'An easy top, relaxed bottoms and comfortable statement shoes.', reason: 'Comfort-first styling can still look considered when proportions stay clean.'),
-      const TodayRecommendation(style: 'Soft Sunday', tags: ['Comfortable', 'Calm', 'Clean'], colour: '—', outfit: 'A soft, comfortable outfit in a calm neutral or muted tone.', reason: 'A relaxed palette and comfortable silhouette create an effortless finish.'),
+      const TodayRecommendation(
+        style: 'Clean Start',
+        tags: ['Simple', 'Fresh', 'Put-together'],
+        colour: '—',
+        outfit: 'A fresh everyday outfit built around one clean, versatile piece.',
+        reason: 'Simple foundations make it easier to look polished with less effort.',
+      ),
+      const TodayRecommendation(
+        style: 'Easy Smart',
+        tags: ['Casual', 'Neat', 'Versatile'],
+        colour: '—',
+        outfit: 'A neat top with comfortable tailored bottoms and simple shoes.',
+        reason: 'A balanced casual-smart formula works across most everyday plans.',
+      ),
+      const TodayRecommendation(
+        style: 'Balanced Chic',
+        tags: ['Simple', 'Elegant', 'Comfortable'],
+        colour: '—',
+        outfit: 'A comfortable base with one elegant finishing detail.',
+        reason: 'Keeping the base easy lets one polished detail elevate the whole look.',
+      ),
+      const TodayRecommendation(
+        style: 'Modern Feminine',
+        tags: ['Soft', 'Stylish', 'Polished'],
+        colour: '—',
+        outfit: 'A softly fitted top with a clean skirt or tailored trousers.',
+        reason: 'A soft silhouette with structure creates an easy modern feminine balance.',
+      ),
+      const TodayRecommendation(
+        style: 'Casual Glow',
+        tags: ['Relaxed', 'Bright', 'Fun'],
+        colour: '—',
+        outfit: 'A relaxed outfit with one brighter accent or accessory.',
+        reason: 'One playful detail keeps a casual look intentional and fresh.',
+      ),
+      const TodayRecommendation(
+        style: 'Effortless Weekend',
+        tags: ['Casual', 'Easy', 'Cool'],
+        colour: '—',
+        outfit: 'An easy top, relaxed bottoms and comfortable statement shoes.',
+        reason: 'Comfort-first styling can still look considered when proportions stay clean.',
+      ),
+      const TodayRecommendation(
+        style: 'Soft Sunday',
+        tags: ['Comfortable', 'Calm', 'Clean'],
+        colour: '—',
+        outfit: 'A soft, comfortable outfit in a calm neutral or muted tone.',
+        reason: 'A relaxed palette and comfortable silhouette create an effortless finish.',
+      ),
     ];
+
     final fallback = styles[weekday - 1];
     return TodayRecommendation(
       style: fallback.style,
@@ -222,10 +306,21 @@ class TodayRecommendationService {
 
   static String _todayColour(ColourAnalysisResult? result) {
     if (result == null || result.colours.isEmpty) return '—';
+
+    final colours = result.colours
+        .map((colour) => colour.trim())
+        .where((colour) => colour.isNotEmpty)
+        .toList();
+    if (colours.isEmpty) return '—';
+
+    // One colour per day, cycling through the user's own palette. This keeps
+    // the recommendation stable for the whole day and avoids repeats until
+    // every colour in the palette has had its turn.
     final start = DateTime(DateTime.now().year, 1, 1);
     final day = DateTime.now().difference(start).inDays;
-    return result.colours[day % result.colours.length];
+    return colours[day % colours.length];
   }
 
-  static bool _contains(String value, List<String> values) => values.any(value.contains);
+  static bool _contains(String value, List<String> values) =>
+      values.any(value.contains);
 }
