@@ -97,8 +97,6 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
   Widget build(BuildContext context) {
     final provider = context.watch<AnalysisProvider>();
     final result = provider.result;
-    final userName = FirebaseAuth.instance.currentUser?.displayName?.trim();
-    final greeting = userName?.isNotEmpty == true ? 'Hi, $userName' : 'Welcome back';
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -109,8 +107,6 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(20, 24, 20, 34),
             children: [
-              _header(greeting),
-              const SizedBox(height: 24),
               _todayRecommendation(result),
               const SizedBox(height: 16),
               _colourProfileCard(result),
@@ -122,56 +118,6 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
           ),
         ),
       ),
-    );
-  }
-
-  Widget _header(String greeting) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                greeting,
-                style: const TextStyle(
-                  fontSize: 25,
-                  height: 1.1,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 7),
-              const Text(
-                'Your personal styling space',
-                style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 14,
-                  height: 1.2,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-        ),
-        _headerButton(Icons.notifications_none_rounded),
-        const SizedBox(width: 10),
-        _headerButton(Icons.logout_rounded),
-      ],
-    );
-  }
-
-  Widget _headerButton(IconData icon) {
-    return Container(
-      width: 48,
-      height: 48,
-      decoration: BoxDecoration(
-        color: AppColors.background,
-        shape: BoxShape.circle,
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Icon(icon, color: AppColors.primary, size: 23),
     );
   }
 
