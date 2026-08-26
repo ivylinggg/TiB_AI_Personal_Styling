@@ -3,13 +3,13 @@ import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_gradients.dart';
+import '../admin/admin_main_screen.dart';
+import '../main/main_screen.dart';
 import '../onboarding/flash_profile_flow.dart';
 import 'auth_service.dart';
 
 class EmailVerificationScreen extends StatefulWidget {
-  const EmailVerificationScreen({super.key, this.fromLogin = false});
-
-  final bool fromLogin;
+  const EmailVerificationScreen({super.key});
 
   @override
   State<EmailVerificationScreen> createState() => _EmailVerificationScreenState();
@@ -34,13 +34,24 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
 
       final profile = await AuthService.getCurrentUserProfile();
       if (!mounted) return;
+
+      final role = await AuthService.getCurrentUserRole();
+      if (!mounted) return;
+
       final onboardingComplete = profile['onboardingComplete'] == true;
+      final Widget destination;
+
+      if (role == 'admin') {
+        destination = const AdminMainScreen();
+      } else if (onboardingComplete) {
+        destination = const MainScreen();
+      } else {
+        destination = const FlashProfileFlow();
+      }
 
       Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(
-          builder: (_) => onboardingComplete ? const _VerificationCompletePlaceholder() : const FlashProfileFlow(),
-        ),
+        MaterialPageRoute(builder: (_) => destination),
         (_) => false,
       );
     } on FirebaseAuthException catch (e) {
@@ -98,10 +109,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.fromLTRB(24, 27, 24, 27),
-                decoration: BoxDecoration(
-                  gradient: AppGradients.soft,
-                  borderRadius: BorderRadius.circular(28),
-                ),
+                decoration: BoxDecoration(gradient: AppGradients.soft, borderRadius: BorderRadius.circular(28)),
                 child: Column(
                   children: [
                     Container(
@@ -130,14 +138,5 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
         ),
       ),
     );
-  }
-}
-
-class _VerificationCompletePlaceholder extends StatelessWidget {
-  const _VerificationCompletePlaceholder();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(body: Center(child: CircularProgressIndicator()));
   }
 }
