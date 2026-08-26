@@ -143,9 +143,9 @@ class DailyChallengeService {
 
   static Future<int> totalPoints(String uid) async {
     final entries = await history(uid);
-    return entries.fold<int>(0, (sum, entry) {
+    return entries.fold<int>(0, (total, entry) {
       final value = entry['points'];
-      return sum + (value is num ? value.toInt() : 0);
+      return total + (value is num ? value.toInt() : 0);
     });
   }
 
