@@ -1,6 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_gradients.dart';
@@ -74,12 +73,6 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
       await _routeAuthenticatedUser();
-    } on GoogleSignInException catch (e) {
-      final description = e.description?.trim();
-      final detail = description == null || description.isEmpty
-          ? e.code.name
-          : '${e.code.name}: $description';
-      _showMessage('Google sign-in failed — $detail');
     } on FirebaseAuthException catch (e) {
       _showMessage(_authErrorMessage(e));
     } catch (e) {
