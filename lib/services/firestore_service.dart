@@ -28,11 +28,6 @@ class FirestoreService {
 
   static final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  /// Creates the user's Firestore profile.
-  ///
-  /// Registration must never remain on an infinite loading state if
-  /// Firestore is unavailable, blocked by rules, or the network is stuck.
-  /// A bounded timeout lets the auth flow recover and show a useful error.
   static Future<void> createUser(UserModel user) async {
     await _db
         .collection('users')
@@ -46,10 +41,32 @@ class FirestoreService {
         );
   }
 
+  /// Reads the profile from the server when possible and falls back to the
+  /// local Firestore cache when the device is temporarily offline.
+  ///
+  /// The cached profile is especially important for the Profile tab: being
+  /// offline should not turn an already-created profile into a blank error
+  /// screen.
   static Future<UserModel?> getUser(String uid) async {
-    final doc = await _db.collection('users').doc(uid).get();
-    if (!doc.exists) return null;
-    return UserModel.fromFirestore(doc);
+    final ref = _db.collection('users').doc(uid);
+
+    try {
+      final doc = await ref.get();
+      if (!doc.exists) return null;
+      return UserModel.fromFirestore(doc);
+    } on FirebaseException catch (error) {
+      if (error.code != 'unavailable') rethrow;
+
+      try {
+        final cachedDoc = await ref.get(
+          const GetOptions(source: Source.cache),
+        );
+        if (!cachedDoc.exists) return null;
+        return UserModel.fromFirestore(cachedDoc);
+      } on FirebaseException {
+        rethrow;
+      }
+    }
   }
 
   static Future<void> updateUser(String uid, Map<String, dynamic> data) async {
@@ -191,10 +208,6 @@ class FirestoreService {
     await _wardrobe(uid).doc(itemId).delete();
   }
 
-  /// Saves an AI-generated outfit under the signed-in user's private data.
-  /// Only wardrobe item IDs and display metadata are stored, so the saved
-  /// look continues to reference the user's existing wardrobe instead of
-  /// duplicating the wardrobe documents.
   static Future<String> saveOutfitLook({
     required String uid,
     required String occasion,
@@ -207,12 +220,12 @@ class FirestoreService {
         .doc(uid)
         .collection('savedLooks')
         .add({
-      'occasion': occasion,
-      'itemIds': itemIds,
-      'matchScore': matchScore,
-      'season': season,
-      'createdAt': FieldValue.serverTimestamp(),
-    });
+          'occasion': occasion,
+          'itemIds': itemIds,
+          'matchScore': matchScore,
+          'season': season,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
     return ref.id;
   }
 
