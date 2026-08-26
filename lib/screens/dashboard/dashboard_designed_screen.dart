@@ -10,8 +10,6 @@ import '../../services/daily_challenge_service.dart';
 import '../../services/tib_style_journey_service.dart';
 import '../../services/today_recommendation_service.dart';
 import '../../widgets/colour_swatch.dart';
-import '../analysis/analysis_result_screen.dart';
-import '../analysis/analysis_screen.dart';
 import 'daily_challenge_screen.dart';
 import 'tib_style_journey_screen.dart';
 
@@ -67,7 +65,7 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
               const SizedBox(height: 5),
               const Text('Your personal styling space', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
               const SizedBox(height: 18),
-              _todayRecommendationCard(context, result),
+              _todayRecommendationCard(result),
               const SizedBox(height: 14),
               _challengeJourneyCard(context, uid),
             ],
@@ -77,7 +75,7 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
     );
   }
 
-  Widget _todayRecommendationCard(BuildContext context, ColourAnalysisResult? result) {
+  Widget _todayRecommendationCard(ColourAnalysisResult? result) {
     if (_recommendationFuture == null) return _recommendationLoadingCard();
 
     return FutureBuilder<TodayRecommendation>(
@@ -136,7 +134,7 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
                       const SizedBox(height: 9),
                       _recommendationColour(result, recommendation.colour),
                       const SizedBox(height: 10),
-                      Row(children: [const Icon(Icons.touch_app_rounded, color: AppColors.primary, size: 15), const SizedBox(width: 6), Text(result == null ? 'Tap to complete your colour analysis' : 'Tap again to collapse', style: const TextStyle(color: AppColors.textMuted, fontSize: 9, fontWeight: FontWeight.w700))]),
+                      Row(children: [const Icon(Icons.touch_app_rounded, color: AppColors.primary, size: 15), const SizedBox(width: 6), Text(result == null ? 'Complete your colour analysis to unlock more' : 'Tap again to collapse', style: const TextStyle(color: AppColors.textMuted, fontSize: 9, fontWeight: FontWeight.w700))]),
                     ],
                   ]),
                 ),
