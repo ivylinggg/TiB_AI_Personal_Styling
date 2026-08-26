@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_gradients.dart';
@@ -73,10 +74,16 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
       await _routeAuthenticatedUser();
+    } on GoogleSignInException catch (e) {
+      final description = e.description?.trim();
+      final detail = description == null || description.isEmpty
+          ? e.code.name
+          : '${e.code.name}: $description';
+      _showMessage('Google sign-in failed — $detail');
     } on FirebaseAuthException catch (e) {
       _showMessage(_authErrorMessage(e));
-    } catch (_) {
-      _showMessage('Google sign-in failed. Please try again.');
+    } catch (e) {
+      _showMessage('Google sign-in failed — ${e.toString()}');
     } finally {
       if (mounted) setState(() => isLoading = false);
     }
@@ -125,6 +132,8 @@ class _LoginScreenState extends State<LoginScreen> {
         return 'This sign-in method is not enabled yet.';
       case 'account-exists-with-different-credential':
         return 'An account already exists with a different sign-in method.';
+      case 'google-id-token-missing':
+        return 'Google did not return a valid sign-in token.';
       default:
         return e.message ?? 'Authentication failed.';
     }
