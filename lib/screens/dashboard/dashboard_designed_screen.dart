@@ -12,6 +12,7 @@ import '../../widgets/colour_swatch.dart';
 import '../analysis/analysis_result_screen.dart';
 import '../analysis/analysis_screen.dart';
 import 'daily_challenge_screen.dart';
+import 'tib_style_journey_screen.dart';
 
 class DashboardDesignedScreen extends StatefulWidget {
   const DashboardDesignedScreen({super.key});
@@ -71,6 +72,8 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
               _todayRecommendationCard(context, result),
               const SizedBox(height: 14),
               _dailyChallengeCard(context, uid),
+              const SizedBox(height: 14),
+              _styleJourneyCard(context, uid),
             ],
           ),
         ),
@@ -199,6 +202,51 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
                 Text(challenge.description, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, height: 1.4, color: AppColors.textSecondary)),
                 const SizedBox(height: 12),
                 Row(children: [Expanded(child: Text(completed ? 'Completed today ✓' : 'Tap to complete today’s task', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: completed ? AppColors.primaryDark : AppColors.textMuted))), const Icon(Icons.arrow_forward_ios_rounded, size: 13, color: AppColors.primary)]),
+              ]),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _styleJourneyCard(BuildContext context, String? uid) {
+    if (uid == null) return const SizedBox.shrink();
+
+    return FutureBuilder<TibStyleJourneyPreview>(
+      future: TibStyleJourneyPreview.load(uid),
+      builder: (context, snapshot) {
+        final preview = snapshot.data;
+        return Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(22),
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TibStyleJourneyScreen())),
+            child: Ink(
+              padding: const EdgeInsets.fromLTRB(17, 16, 17, 16),
+              decoration: BoxDecoration(
+                gradient: AppGradients.soft,
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(color: AppColors.primarySoft),
+              ),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Container(width: 44, height: 44, decoration: const BoxDecoration(color: AppColors.primarySoft, shape: BoxShape.circle), child: const Icon(Icons.auto_awesome_rounded, color: AppColors.primaryDark, size: 21)),
+                  const SizedBox(width: 12),
+                  const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('YOUR STYLE JOURNEY', style: TextStyle(color: AppColors.textMuted, fontSize: 8.5, fontWeight: FontWeight.w900, letterSpacing: .7)), SizedBox(height: 4), Text('Build your style through small wins', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: AppColors.textPrimary))])),
+                  const Icon(Icons.arrow_forward_ios_rounded, size: 13, color: AppColors.primary),
+                ]),
+                const SizedBox(height: 14),
+                if (preview == null) const LinearProgressIndicator(minHeight: 6, backgroundColor: AppColors.primarySoft, valueColor: AlwaysStoppedAnimation(AppColors.primary)) else ...[
+                  Row(children: [
+                    Expanded(child: Text('Level ${preview.level} · ${preview.levelTitle}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: AppColors.textPrimary))),
+                    Text('${preview.points} XP', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: AppColors.primaryDark)),
+                  ]),
+                  const SizedBox(height: 8),
+                  ClipRRect(borderRadius: BorderRadius.circular(20), child: LinearProgressIndicator(minHeight: 7, value: preview.progress, backgroundColor: AppColors.primarySoft, valueColor: const AlwaysStoppedAnimation(AppColors.primary))),
+                  const SizedBox(height: 9),
+                  Row(children: [Text('🔥 ${preview.streak} day streak', style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, color: AppColors.textSecondary)), const Spacer(), Text('${preview.completedChallenges} completed', style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, color: AppColors.textSecondary))]),
+                ],
               ]),
             ),
           ),
