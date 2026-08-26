@@ -13,8 +13,37 @@ import '../analysis/analysis_result_screen.dart';
 import '../analysis/analysis_screen.dart';
 import 'style_score_detail_screen.dart';
 
-class DashboardDesignedScreen extends StatelessWidget {
+class DashboardDesignedScreen extends StatefulWidget {
   const DashboardDesignedScreen({super.key});
+
+  @override
+  State<DashboardDesignedScreen> createState() => _DashboardDesignedScreenState();
+}
+
+class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
+  Future<TodayRecommendation>? _recommendationFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadRecommendation());
+  }
+
+  void _loadRecommendation() {
+    if (!mounted) return;
+    final provider = context.read<AnalysisProvider>();
+    _recommendationFuture = TodayRecommendationService.getRecommendation(
+      analysis: provider.result,
+    );
+    setState(() {});
+  }
+
+  Future<void> _refresh(AnalysisProvider provider) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null) await provider.loadLatestResult(uid);
+    if (!mounted) return;
+    _loadRecommendation();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -24,13 +53,15 @@ class DashboardDesignedScreen extends StatelessWidget {
     final userName = FirebaseAuth.instance.currentUser?.displayName?.trim();
     final greeting = userName?.isNotEmpty == true ? 'Hi, $userName' : 'Welcome back';
 
+    if (_recommendationFuture == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _loadRecommendation());
+    }
+
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: RefreshIndicator(
-          onRefresh: () async {
-            if (uid != null) await provider.loadLatestResult(uid);
-          },
+          onRefresh: () => _refresh(provider),
           child: ListView(
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
@@ -50,50 +81,106 @@ class DashboardDesignedScreen extends StatelessWidget {
   }
 
   Widget _todayRecommendationCard(BuildContext context, ColourAnalysisResult? result) {
-    final recommendation = TodayRecommendationService.build(analysis: result);
     final target = result == null
         ? const AnalysisScreen()
         : AnalysisResultScreen(analysisProvider: context.read<AnalysisProvider>(), result: result);
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(24),
-        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => target)),
-        child: Ink(
-          decoration: BoxDecoration(
-            gradient: AppGradients.soft,
+    if (_recommendationFuture == null) {
+      return _recommendationLoadingCard();
+    }
+
+    return FutureBuilder<TodayRecommendation>(
+      future: _recommendationFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return _recommendationLoadingCard();
+        }
+
+        final recommendation = snapshot.data ?? TodayRecommendationService.build(analysis: result);
+        final aiReady = recommendation.isAiGenerated;
+
+        return Material(
+          color: Colors.transparent,
+          child: InkWell(
             borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: AppColors.primarySoft),
-            boxShadow: [BoxShadow(color: AppColors.primary.withValues(alpha: .06), blurRadius: 18, offset: const Offset(0, 7))],
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => target)),
+            child: Ink(
+              decoration: BoxDecoration(
+                gradient: AppGradients.soft,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: AppColors.primarySoft),
+                boxShadow: [BoxShadow(color: AppColors.primary.withValues(alpha: .06), blurRadius: 18, offset: const Offset(0, 7))],
+              ),
+              padding: const EdgeInsets.fromLTRB(18, 17, 18, 17),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  const Expanded(child: Text("TODAY'S RECOMMENDATION", style: TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: .75))),
+                  if (aiReady)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+                      decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: .10), borderRadius: BorderRadius.circular(9)),
+                      child: const Text('AI', style: TextStyle(color: AppColors.primaryDark, fontSize: 7.5, fontWeight: FontWeight.w900, letterSpacing: .7)),
+                    ),
+                  const SizedBox(width: 7),
+                  Text('${DateTime.now().day}/${DateTime.now().month}', style: const TextStyle(color: AppColors.textMuted, fontSize: 9, fontWeight: FontWeight.w800)),
+                ]),
+                const SizedBox(height: 16),
+                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Container(width: 58, height: 58, decoration: const BoxDecoration(color: AppColors.primarySoft, shape: BoxShape.circle), child: Icon(aiReady ? Icons.auto_awesome_rounded : Icons.checkroom_rounded, color: AppColors.primaryDark, size: 25)),
+                  const SizedBox(width: 13),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(recommendation.style, style: const TextStyle(fontSize: 20, height: 1.1, fontWeight: FontWeight.w900, color: AppColors.textPrimary)),
+                    const SizedBox(height: 8),
+                    Wrap(spacing: 6, runSpacing: 6, children: recommendation.tags.map(_styleTag).toList()),
+                  ])),
+                ]),
+                const SizedBox(height: 13),
+                Text(result == null ? 'Complete your colour analysis to unlock personalised styling.' : recommendation.reason, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.45)),
+                const SizedBox(height: 13),
+                _recommendationOutfit(recommendation),
+                if (recommendation.stylingTip.isNotEmpty) ...[
+                  const SizedBox(height: 9),
+                  _recommendationTip(recommendation.stylingTip),
+                ],
+                const SizedBox(height: 9),
+                _recommendationColour(result, recommendation.colour),
+              ]),
+            ),
           ),
-          padding: const EdgeInsets.fromLTRB(18, 17, 18, 17),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              const Expanded(child: Text("TODAY'S RECOMMENDATION", style: TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: .75))),
-              Text('${DateTime.now().day}/${DateTime.now().month}', style: const TextStyle(color: AppColors.textMuted, fontSize: 9, fontWeight: FontWeight.w800)),
-            ]),
-            const SizedBox(height: 16),
-            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Container(width: 58, height: 58, decoration: const BoxDecoration(color: AppColors.primarySoft, shape: BoxShape.circle), child: const Icon(Icons.auto_awesome_rounded, color: AppColors.primaryDark, size: 25)),
-              const SizedBox(width: 13),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(recommendation.style, style: const TextStyle(fontSize: 20, height: 1.1, fontWeight: FontWeight.w900, color: AppColors.textPrimary)),
-                const SizedBox(height: 8),
-                Wrap(spacing: 6, runSpacing: 6, children: recommendation.tags.map(_styleTag).toList()),
-              ])),
-            ]),
-            const SizedBox(height: 13),
-            Text(result == null ? 'Complete your colour analysis to unlock personalised styling.' : recommendation.reason, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.45)),
-            const SizedBox(height: 13),
-            _recommendationOutfit(recommendation),
-            const SizedBox(height: 9),
-            _recommendationColour(result, recommendation.colour),
-          ]),
-        ),
-      ),
+        );
+      },
     );
   }
+
+  Widget _recommendationLoadingCard() => Material(
+    color: Colors.transparent,
+    child: Ink(
+      decoration: BoxDecoration(
+        gradient: AppGradients.soft,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.primarySoft),
+      ),
+      padding: const EdgeInsets.fromLTRB(18, 17, 18, 17),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Expanded(child: Text("TODAY'S RECOMMENDATION", style: TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: .75))),
+          SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 1.8, color: AppColors.primary)),
+        ]),
+        const SizedBox(height: 18),
+        const Row(children: [
+          SizedBox(width: 58, height: 58, child: DecoratedBox(decoration: BoxDecoration(color: AppColors.primarySoft, shape: BoxShape.circle))),
+          SizedBox(width: 13),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            SizedBox(width: 150, height: 17, child: DecoratedBox(decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.all(Radius.circular(8))))),
+            SizedBox(height: 9),
+            SizedBox(width: 190, height: 12, child: DecoratedBox(decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.all(Radius.circular(8))))),
+          ])),
+        ]),
+        const SizedBox(height: 16),
+        const Text('Creating a recommendation around your personal profile…', style: TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.45)),
+      ]),
+    ),
+  );
 
   Widget _recommendationOutfit(TodayRecommendation recommendation) => Container(
     padding: const EdgeInsets.fromLTRB(11, 10, 11, 10),
@@ -105,6 +192,20 @@ class DashboardDesignedScreen extends StatelessWidget {
         const Text("TRY THIS TODAY", style: TextStyle(color: AppColors.textMuted, fontSize: 7.8, fontWeight: FontWeight.w900, letterSpacing: .55)),
         const SizedBox(height: 3),
         Text(recommendation.outfit, style: const TextStyle(fontSize: 10.5, height: 1.35, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+      ])),
+    ]),
+  );
+
+  Widget _recommendationTip(String tip) => Container(
+    padding: const EdgeInsets.fromLTRB(11, 10, 11, 10),
+    decoration: BoxDecoration(color: AppColors.background.withValues(alpha: .55), borderRadius: BorderRadius.circular(15), border: Border.all(color: AppColors.border)),
+    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const Icon(Icons.lightbulb_outline_rounded, color: AppColors.primary, size: 18),
+      const SizedBox(width: 9),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Text('STYLING TIP', style: TextStyle(color: AppColors.textMuted, fontSize: 7.8, fontWeight: FontWeight.w900, letterSpacing: .55)),
+        const SizedBox(height: 3),
+        Text(tip, style: const TextStyle(fontSize: 10.2, height: 1.35, color: AppColors.textSecondary)),
       ])),
     ]),
   );
