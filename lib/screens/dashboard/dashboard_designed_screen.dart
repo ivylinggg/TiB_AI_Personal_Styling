@@ -24,6 +24,7 @@ class DashboardDesignedScreen extends StatefulWidget {
 
 class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
   Future<TodayRecommendation>? _recommendationFuture;
+  bool _recommendationExpanded = false;
 
   @override
   void initState() {
@@ -77,10 +78,6 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
   }
 
   Widget _todayRecommendationCard(BuildContext context, ColourAnalysisResult? result) {
-    final target = result == null
-        ? const AnalysisScreen()
-        : AnalysisResultScreen(analysisProvider: context.read<AnalysisProvider>(), result: result);
-
     if (_recommendationFuture == null) return _recommendationLoadingCard();
 
     return FutureBuilder<TodayRecommendation>(
@@ -94,40 +91,56 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
           color: Colors.transparent,
           child: InkWell(
             borderRadius: BorderRadius.circular(24),
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => target)),
+            onTap: () => setState(() => _recommendationExpanded = !_recommendationExpanded),
             child: Ink(
               decoration: BoxDecoration(
                 gradient: AppGradients.soft,
                 borderRadius: BorderRadius.circular(24),
                 border: Border.all(color: AppColors.primarySoft),
-                boxShadow: [BoxShadow(color: AppColors.primary.withValues(alpha: .06), blurRadius: 18, offset: const Offset(0, 7))],
+                boxShadow: [BoxShadow(color: AppColors.primary.withValues(alpha: .05), blurRadius: 16, offset: const Offset(0, 6))],
               ),
-              padding: const EdgeInsets.fromLTRB(18, 17, 18, 17),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(children: [
-                  const Expanded(child: Text("TODAY'S RECOMMENDATION", style: TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: .75))),
-                  if (aiReady) Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4), decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: .10), borderRadius: BorderRadius.circular(9)), child: const Text('AI', style: TextStyle(color: AppColors.primaryDark, fontSize: 7.5, fontWeight: FontWeight.w900, letterSpacing: .7))),
-                  const SizedBox(width: 7),
-                  Text('${DateTime.now().day}/${DateTime.now().month}', style: const TextStyle(color: AppColors.textMuted, fontSize: 9, fontWeight: FontWeight.w800)),
-                ]),
-                const SizedBox(height: 16),
-                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Container(width: 58, height: 58, decoration: const BoxDecoration(color: AppColors.primarySoft, shape: BoxShape.circle), child: Icon(aiReady ? Icons.auto_awesome_rounded : Icons.checkroom_rounded, color: AppColors.primaryDark, size: 25)),
-                  const SizedBox(width: 13),
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(recommendation.style, style: const TextStyle(fontSize: 20, height: 1.1, fontWeight: FontWeight.w900, color: AppColors.textPrimary)),
-                    const SizedBox(height: 8),
-                    Wrap(spacing: 6, runSpacing: 6, children: recommendation.tags.map(_styleTag).toList()),
-                  ])),
-                ]),
-                const SizedBox(height: 13),
-                Text(result == null ? 'Complete your colour analysis to unlock personalised styling.' : recommendation.reason, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.45)),
-                const SizedBox(height: 13),
-                _recommendationOutfit(recommendation),
-                if (recommendation.stylingTip.isNotEmpty) ...[const SizedBox(height: 9), _recommendationTip(recommendation.stylingTip)],
-                const SizedBox(height: 9),
-                _recommendationColour(result, recommendation.colour),
-              ]),
+              child: AnimatedSize(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                alignment: Alignment.topCenter,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Row(children: [
+                      Container(width: 42, height: 42, decoration: const BoxDecoration(color: AppColors.primarySoft, shape: BoxShape.circle), child: Icon(aiReady ? Icons.auto_awesome_rounded : Icons.checkroom_rounded, color: AppColors.primaryDark, size: 21)),
+                      const SizedBox(width: 11),
+                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Row(children: [
+                          const Expanded(child: Text("TODAY'S RECOMMENDATION", style: TextStyle(color: AppColors.textMuted, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: .7))),
+                          if (aiReady) Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3), decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: .10), borderRadius: BorderRadius.circular(8)), child: const Text('AI', style: TextStyle(color: AppColors.primaryDark, fontSize: 7, fontWeight: FontWeight.w900))),
+                        ]),
+                        const SizedBox(height: 4),
+                        Text(recommendation.style, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 18, height: 1.1, fontWeight: FontWeight.w900, color: AppColors.textPrimary)),
+                      ])),
+                      const SizedBox(width: 8),
+                      AnimatedRotation(turns: _recommendationExpanded ? .5 : 0, duration: const Duration(milliseconds: 220), child: const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.primary, size: 24)),
+                    ]),
+                    const SizedBox(height: 11),
+                    Row(children: [
+                      Expanded(child: Wrap(spacing: 6, runSpacing: 5, children: recommendation.tags.take(3).map(_styleTag).toList())),
+                      Text('${DateTime.now().day}/${DateTime.now().month}', style: const TextStyle(color: AppColors.textMuted, fontSize: 9, fontWeight: FontWeight.w800)),
+                    ]),
+                    if (_recommendationExpanded) ...[
+                      const SizedBox(height: 14),
+                      const Divider(height: 1, color: AppColors.border),
+                      const SizedBox(height: 14),
+                      Text(result == null ? 'Complete your colour analysis to unlock personalised styling.' : recommendation.reason, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.45)),
+                      const SizedBox(height: 12),
+                      _recommendationOutfit(recommendation),
+                      if (recommendation.stylingTip.isNotEmpty) ...[const SizedBox(height: 9), _recommendationTip(recommendation.stylingTip)],
+                      const SizedBox(height: 9),
+                      _recommendationColour(result, recommendation.colour),
+                      const SizedBox(height: 10),
+                      Row(children: [const Icon(Icons.touch_app_rounded, color: AppColors.primary, size: 15), const SizedBox(width: 6), Text(result == null ? 'Tap to complete your colour analysis' : 'Tap again to collapse', style: const TextStyle(color: AppColors.textMuted, fontSize: 9, fontWeight: FontWeight.w700))]),
+                    ],
+                  ]),
+                ),
+              ),
             ),
           ),
         );
@@ -139,13 +152,12 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
     color: Colors.transparent,
     child: Ink(
       decoration: BoxDecoration(gradient: AppGradients.soft, borderRadius: BorderRadius.circular(24), border: Border.all(color: AppColors.primarySoft)),
-      padding: const EdgeInsets.fromLTRB(18, 17, 18, 17),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [const Expanded(child: Text("TODAY'S RECOMMENDATION", style: TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: .75))), SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 1.8, color: AppColors.primary))]),
-        const SizedBox(height: 18),
-        const Row(children: [SizedBox(width: 58, height: 58, child: DecoratedBox(decoration: BoxDecoration(color: AppColors.primarySoft, shape: BoxShape.circle))), SizedBox(width: 13), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [SizedBox(width: 150, height: 17, child: DecoratedBox(decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.all(Radius.circular(8))))), SizedBox(height: 9), SizedBox(width: 190, height: 12, child: DecoratedBox(decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.all(Radius.circular(8)))))]))]),
-        const SizedBox(height: 16),
-        const Text('Creating a recommendation around your personal profile…', style: TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.45)),
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+      child: Row(children: [
+        const SizedBox(width: 42, height: 42, child: DecoratedBox(decoration: BoxDecoration(color: AppColors.primarySoft, shape: BoxShape.circle))),
+        const SizedBox(width: 11),
+        const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text("TODAY'S RECOMMENDATION", style: TextStyle(color: AppColors.textMuted, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: .7)), SizedBox(height: 6), SizedBox(width: 150, height: 16, child: DecoratedBox(decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.all(Radius.circular(8)))))])),
+        const SizedBox(width: 15, height: 15, child: CircularProgressIndicator(strokeWidth: 1.8, color: AppColors.primary)),
       ]),
     ),
   );
@@ -153,7 +165,7 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
   Widget _recommendationOutfit(TodayRecommendation recommendation) => Container(
     padding: const EdgeInsets.fromLTRB(11, 10, 11, 10),
     decoration: BoxDecoration(color: AppColors.background.withValues(alpha: .72), borderRadius: BorderRadius.circular(15), border: Border.all(color: AppColors.border)),
-    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [const Icon(Icons.checkroom_rounded, color: AppColors.primary, size: 19), const SizedBox(width: 9), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text("TRY THIS TODAY", style: TextStyle(color: AppColors.textMuted, fontSize: 7.8, fontWeight: FontWeight.w900, letterSpacing: .55)), const SizedBox(height: 3), Text(recommendation.outfit, style: const TextStyle(fontSize: 10.5, height: 1.35, fontWeight: FontWeight.w700, color: AppColors.textPrimary))]))]),
+    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [const Icon(Icons.checkroom_rounded, color: AppColors.primary, size: 19), const SizedBox(width: 9), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('TRY THIS TODAY', style: TextStyle(color: AppColors.textMuted, fontSize: 7.8, fontWeight: FontWeight.w900, letterSpacing: .55)), const SizedBox(height: 3), Text(recommendation.outfit, style: const TextStyle(fontSize: 10.5, height: 1.35, fontWeight: FontWeight.w700, color: AppColors.textPrimary))]))]),
   );
 
   Widget _recommendationTip(String tip) => Container(
@@ -165,7 +177,7 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
   Widget _recommendationColour(ColourAnalysisResult? result, String colour) => Container(
     padding: const EdgeInsets.fromLTRB(10, 9, 9, 9),
     decoration: BoxDecoration(color: AppColors.background.withValues(alpha: .72), borderRadius: BorderRadius.circular(15), border: Border.all(color: AppColors.border)),
-    child: Row(children: [ColourSwatch(name: colour, size: 24), const SizedBox(width: 9), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text("TODAY'S COLOUR", style: TextStyle(color: AppColors.textMuted, fontSize: 7.8, fontWeight: FontWeight.w900, letterSpacing: .55)), const SizedBox(height: 2), Text(result == null ? 'Complete your colour analysis' : colour, style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: AppColors.textPrimary))])), const Icon(Icons.arrow_forward_ios_rounded, color: AppColors.primary, size: 14)]),
+    child: Row(children: [ColourSwatch(name: colour, size: 24), const SizedBox(width: 9), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text("TODAY'S COLOUR", style: TextStyle(color: AppColors.textMuted, fontSize: 7.8, fontWeight: FontWeight.w900, letterSpacing: .55)), const SizedBox(height: 2), Text(result == null ? 'Complete your colour analysis' : colour, style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: AppColors.textPrimary))]))]),
   );
 
   Widget _styleTag(String label) => Container(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5), decoration: BoxDecoration(color: AppColors.primarySoft.withValues(alpha: .68), borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.primarySoft)), child: Text(label, style: const TextStyle(fontSize: 8.8, fontWeight: FontWeight.w800, color: AppColors.primaryDark)));
@@ -173,7 +185,6 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
   Widget _challengeJourneyCard(BuildContext context, String? uid) {
     if (uid == null) return const SizedBox.shrink();
     final challenge = DailyChallengeService.today();
-
     return FutureBuilder<bool>(
       future: DailyChallengeService.isCompleted(uid),
       builder: (context, challengeSnapshot) {
@@ -185,12 +196,7 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
             return Material(
               color: Colors.transparent,
               child: Container(
-                decoration: BoxDecoration(
-                  gradient: AppGradients.soft,
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: AppColors.primarySoft),
-                  boxShadow: [BoxShadow(color: AppColors.primary.withValues(alpha: .05), blurRadius: 16, offset: const Offset(0, 6))],
-                ),
+                decoration: BoxDecoration(gradient: AppGradients.soft, borderRadius: BorderRadius.circular(24), border: Border.all(color: AppColors.primarySoft), boxShadow: [BoxShadow(color: AppColors.primary.withValues(alpha: .05), blurRadius: 16, offset: const Offset(0, 6))]),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   InkWell(
                     borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
@@ -198,12 +204,7 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(17, 17, 17, 16),
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Row(children: [
-                          Container(width: 44, height: 44, decoration: const BoxDecoration(color: AppColors.primarySoft, shape: BoxShape.circle), child: Icon(completed ? Icons.check_rounded : Icons.bolt_rounded, color: AppColors.primaryDark, size: 22)),
-                          const SizedBox(width: 12),
-                          const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('TODAY’S CHALLENGE', style: TextStyle(color: AppColors.textMuted, fontSize: 8.5, fontWeight: FontWeight.w900, letterSpacing: .7)), SizedBox(height: 4), Text('One small action. Better style.', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: AppColors.textPrimary))])),
-                          Text('+${challenge.points} XP', style: const TextStyle(color: AppColors.primaryDark, fontSize: 10, fontWeight: FontWeight.w900)),
-                        ]),
+                        Row(children: [Container(width: 44, height: 44, decoration: const BoxDecoration(color: AppColors.primarySoft, shape: BoxShape.circle), child: Icon(completed ? Icons.check_rounded : Icons.bolt_rounded, color: AppColors.primaryDark, size: 22)), const SizedBox(width: 12), const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('TODAY’S CHALLENGE', style: TextStyle(color: AppColors.textMuted, fontSize: 8.5, fontWeight: FontWeight.w900, letterSpacing: .7)), SizedBox(height: 4), Text('One small action. Better style.', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: AppColors.textPrimary))])), Text('+${challenge.points} XP', style: const TextStyle(color: AppColors.primaryDark, fontSize: 10, fontWeight: FontWeight.w900))]),
                         const SizedBox(height: 14),
                         Text(challenge.title, style: const TextStyle(fontSize: 18, height: 1.15, fontWeight: FontWeight.w900, color: AppColors.textPrimary)),
                         const SizedBox(height: 5),
@@ -220,12 +221,7 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(17, 16, 17, 16),
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Row(children: [
-                          Container(width: 44, height: 44, decoration: const BoxDecoration(color: AppColors.primarySoft, shape: BoxShape.circle), child: const Icon(Icons.auto_awesome_rounded, color: AppColors.primaryDark, size: 21)),
-                          const SizedBox(width: 12),
-                          const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('YOUR STYLE JOURNEY', style: TextStyle(color: AppColors.textMuted, fontSize: 8.5, fontWeight: FontWeight.w900, letterSpacing: .7)), SizedBox(height: 4), Text('Build your style through small wins', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: AppColors.textPrimary))])),
-                          const Icon(Icons.arrow_forward_ios_rounded, size: 13, color: AppColors.primary),
-                        ]),
+                        Row(children: [Container(width: 44, height: 44, decoration: const BoxDecoration(color: AppColors.primarySoft, shape: BoxShape.circle), child: const Icon(Icons.auto_awesome_rounded, color: AppColors.primaryDark, size: 21)), const SizedBox(width: 12), const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('YOUR STYLE JOURNEY', style: TextStyle(color: AppColors.textMuted, fontSize: 8.5, fontWeight: FontWeight.w900, letterSpacing: .7)), SizedBox(height: 4), Text('Build your style through small wins', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: AppColors.textPrimary))])), const Icon(Icons.arrow_forward_ios_rounded, size: 13, color: AppColors.primary)]),
                         const SizedBox(height: 13),
                         if (journeySnapshot.connectionState == ConnectionState.waiting)
                           const LinearProgressIndicator(minHeight: 7, backgroundColor: AppColors.primarySoft, valueColor: AlwaysStoppedAnimation(AppColors.primary))
