@@ -6,12 +6,12 @@ import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_gradients.dart';
 import '../../models/colour_analysis_result.dart';
 import '../../providers/analysis_provider.dart';
-import '../../services/style_score_service.dart';
+import '../../services/daily_challenge_service.dart';
 import '../../services/today_recommendation_service.dart';
 import '../../widgets/colour_swatch.dart';
 import '../analysis/analysis_result_screen.dart';
 import '../analysis/analysis_screen.dart';
-import 'style_score_detail_screen.dart';
+import 'daily_challenge_screen.dart';
 
 class DashboardDesignedScreen extends StatefulWidget {
   const DashboardDesignedScreen({super.key});
@@ -32,9 +32,7 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
   void _loadRecommendation() {
     if (!mounted) return;
     final provider = context.read<AnalysisProvider>();
-    _recommendationFuture = TodayRecommendationService.getRecommendation(
-      analysis: provider.result,
-    );
+    _recommendationFuture = TodayRecommendationService.getRecommendation(analysis: provider.result);
     setState(() {});
   }
 
@@ -72,7 +70,7 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
               const SizedBox(height: 18),
               _todayRecommendationCard(context, result),
               const SizedBox(height: 14),
-              _styleScoreCard(context, uid, provider),
+              _dailyChallengeCard(context, uid),
             ],
           ),
         ),
@@ -85,17 +83,12 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
         ? const AnalysisScreen()
         : AnalysisResultScreen(analysisProvider: context.read<AnalysisProvider>(), result: result);
 
-    if (_recommendationFuture == null) {
-      return _recommendationLoadingCard();
-    }
+    if (_recommendationFuture == null) return _recommendationLoadingCard();
 
     return FutureBuilder<TodayRecommendation>(
       future: _recommendationFuture,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return _recommendationLoadingCard();
-        }
-
+        if (snapshot.connectionState == ConnectionState.waiting) return _recommendationLoadingCard();
         final recommendation = snapshot.data ?? TodayRecommendationService.build(analysis: result);
         final aiReady = recommendation.isAiGenerated;
 
@@ -115,12 +108,7 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(children: [
                   const Expanded(child: Text("TODAY'S RECOMMENDATION", style: TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: .75))),
-                  if (aiReady)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-                      decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: .10), borderRadius: BorderRadius.circular(9)),
-                      child: const Text('AI', style: TextStyle(color: AppColors.primaryDark, fontSize: 7.5, fontWeight: FontWeight.w900, letterSpacing: .7)),
-                    ),
+                  if (aiReady) Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4), decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: .10), borderRadius: BorderRadius.circular(9)), child: const Text('AI', style: TextStyle(color: AppColors.primaryDark, fontSize: 7.5, fontWeight: FontWeight.w900, letterSpacing: .7))),
                   const SizedBox(width: 7),
                   Text('${DateTime.now().day}/${DateTime.now().month}', style: const TextStyle(color: AppColors.textMuted, fontSize: 9, fontWeight: FontWeight.w800)),
                 ]),
@@ -138,10 +126,7 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
                 Text(result == null ? 'Complete your colour analysis to unlock personalised styling.' : recommendation.reason, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.45)),
                 const SizedBox(height: 13),
                 _recommendationOutfit(recommendation),
-                if (recommendation.stylingTip.isNotEmpty) ...[
-                  const SizedBox(height: 9),
-                  _recommendationTip(recommendation.stylingTip),
-                ],
+                if (recommendation.stylingTip.isNotEmpty) ...[const SizedBox(height: 9), _recommendationTip(recommendation.stylingTip)],
                 const SizedBox(height: 9),
                 _recommendationColour(result, recommendation.colour),
               ]),
@@ -155,27 +140,12 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
   Widget _recommendationLoadingCard() => Material(
     color: Colors.transparent,
     child: Ink(
-      decoration: BoxDecoration(
-        gradient: AppGradients.soft,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.primarySoft),
-      ),
+      decoration: BoxDecoration(gradient: AppGradients.soft, borderRadius: BorderRadius.circular(24), border: Border.all(color: AppColors.primarySoft)),
       padding: const EdgeInsets.fromLTRB(18, 17, 18, 17),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          const Expanded(child: Text("TODAY'S RECOMMENDATION", style: TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: .75))),
-          SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 1.8, color: AppColors.primary)),
-        ]),
+        Row(children: [const Expanded(child: Text("TODAY'S RECOMMENDATION", style: TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: .75))), SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 1.8, color: AppColors.primary))]),
         const SizedBox(height: 18),
-        const Row(children: [
-          SizedBox(width: 58, height: 58, child: DecoratedBox(decoration: BoxDecoration(color: AppColors.primarySoft, shape: BoxShape.circle))),
-          SizedBox(width: 13),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            SizedBox(width: 150, height: 17, child: DecoratedBox(decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.all(Radius.circular(8))))),
-            SizedBox(height: 9),
-            SizedBox(width: 190, height: 12, child: DecoratedBox(decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.all(Radius.circular(8))))),
-          ])),
-        ]),
+        const Row(children: [SizedBox(width: 58, height: 58, child: DecoratedBox(decoration: BoxDecoration(color: AppColors.primarySoft, shape: BoxShape.circle))), SizedBox(width: 13), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [SizedBox(width: 150, height: 17, child: DecoratedBox(decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.all(Radius.circular(8))))), SizedBox(height: 9), SizedBox(width: 190, height: 12, child: DecoratedBox(decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.all(Radius.circular(8)))))]))]),
         const SizedBox(height: 16),
         const Text('Creating a recommendation around your personal profile…', style: TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.45)),
       ]),
@@ -185,84 +155,55 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
   Widget _recommendationOutfit(TodayRecommendation recommendation) => Container(
     padding: const EdgeInsets.fromLTRB(11, 10, 11, 10),
     decoration: BoxDecoration(color: AppColors.background.withValues(alpha: .72), borderRadius: BorderRadius.circular(15), border: Border.all(color: AppColors.border)),
-    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      const Icon(Icons.checkroom_rounded, color: AppColors.primary, size: 19),
-      const SizedBox(width: 9),
-      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Text("TRY THIS TODAY", style: TextStyle(color: AppColors.textMuted, fontSize: 7.8, fontWeight: FontWeight.w900, letterSpacing: .55)),
-        const SizedBox(height: 3),
-        Text(recommendation.outfit, style: const TextStyle(fontSize: 10.5, height: 1.35, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
-      ])),
-    ]),
+    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [const Icon(Icons.checkroom_rounded, color: AppColors.primary, size: 19), const SizedBox(width: 9), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text("TRY THIS TODAY", style: TextStyle(color: AppColors.textMuted, fontSize: 7.8, fontWeight: FontWeight.w900, letterSpacing: .55)), const SizedBox(height: 3), Text(recommendation.outfit, style: const TextStyle(fontSize: 10.5, height: 1.35, fontWeight: FontWeight.w700, color: AppColors.textPrimary))]))]),
   );
 
   Widget _recommendationTip(String tip) => Container(
     padding: const EdgeInsets.fromLTRB(11, 10, 11, 10),
     decoration: BoxDecoration(color: AppColors.background.withValues(alpha: .55), borderRadius: BorderRadius.circular(15), border: Border.all(color: AppColors.border)),
-    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      const Icon(Icons.lightbulb_outline_rounded, color: AppColors.primary, size: 18),
-      const SizedBox(width: 9),
-      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Text('STYLING TIP', style: TextStyle(color: AppColors.textMuted, fontSize: 7.8, fontWeight: FontWeight.w900, letterSpacing: .55)),
-        const SizedBox(height: 3),
-        Text(tip, style: const TextStyle(fontSize: 10.2, height: 1.35, color: AppColors.textSecondary)),
-      ])),
-    ]),
+    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [const Icon(Icons.lightbulb_outline_rounded, color: AppColors.primary, size: 18), const SizedBox(width: 9), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('STYLING TIP', style: TextStyle(color: AppColors.textMuted, fontSize: 7.8, fontWeight: FontWeight.w900, letterSpacing: .55)), const SizedBox(height: 3), Text(tip, style: const TextStyle(fontSize: 10.2, height: 1.35, color: AppColors.textSecondary))]))]),
   );
 
   Widget _recommendationColour(ColourAnalysisResult? result, String colour) => Container(
     padding: const EdgeInsets.fromLTRB(10, 9, 9, 9),
     decoration: BoxDecoration(color: AppColors.background.withValues(alpha: .72), borderRadius: BorderRadius.circular(15), border: Border.all(color: AppColors.border)),
-    child: Row(children: [
-      ColourSwatch(name: colour, size: 24),
-      const SizedBox(width: 9),
-      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Text("TODAY'S COLOUR", style: TextStyle(color: AppColors.textMuted, fontSize: 7.8, fontWeight: FontWeight.w900, letterSpacing: .55)),
-        const SizedBox(height: 2),
-        Text(result == null ? 'Complete your colour analysis' : colour, style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
-      ])),
-      const Icon(Icons.arrow_forward_ios_rounded, color: AppColors.primary, size: 14),
-    ]),
+    child: Row(children: [ColourSwatch(name: colour, size: 24), const SizedBox(width: 9), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text("TODAY'S COLOUR", style: TextStyle(color: AppColors.textMuted, fontSize: 7.8, fontWeight: FontWeight.w900, letterSpacing: .55)), const SizedBox(height: 2), Text(result == null ? 'Complete your colour analysis' : colour, style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: AppColors.textPrimary))])), const Icon(Icons.arrow_forward_ios_rounded, color: AppColors.primary, size: 14)]),
   );
 
-  Widget _styleTag(String label) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-    decoration: BoxDecoration(color: AppColors.primarySoft.withValues(alpha: .68), borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.primarySoft)),
-    child: Text(label, style: const TextStyle(fontSize: 8.8, fontWeight: FontWeight.w800, color: AppColors.primaryDark)),
-  );
+  Widget _styleTag(String label) => Container(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5), decoration: BoxDecoration(color: AppColors.primarySoft.withValues(alpha: .68), borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.primarySoft)), child: Text(label, style: const TextStyle(fontSize: 8.8, fontWeight: FontWeight.w800, color: AppColors.primaryDark)));
 
-  Widget _styleScoreCard(BuildContext context, String? uid, AnalysisProvider provider) {
-    if (uid == null) return _card(context, null, const Text('Sign in to build your Style Score', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)));
-    return FutureBuilder<StyleScoreSnapshot>(
-      future: StyleScoreService.calculate(uid: uid, analysis: provider.result),
+  Widget _dailyChallengeCard(BuildContext context, String? uid) {
+    final challenge = DailyChallengeService.today();
+    return FutureBuilder<bool>(
+      future: uid == null ? Future.value(false) : DailyChallengeService.isCompleted(uid),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) return _card(context, null, const Text('Updating your Style Score…', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)));
-        if (snapshot.hasError || !snapshot.hasData) return _card(context, null, const Text('Style Score is unavailable right now.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)));
-        final score = snapshot.data!;
-        return _card(context, StyleScoreDetailScreen(analysisProvider: provider), Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [const Expanded(child: Text('STYLE SCORE', style: TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: .7))), Text(_scoreLabel(score.total), style: const TextStyle(color: AppColors.primaryDark, fontSize: 10.5, fontWeight: FontWeight.w800))]),
-          const SizedBox(height: 10),
-          Row(children: [Text('${score.total}', style: const TextStyle(fontSize: 42, fontWeight: FontWeight.w900, color: AppColors.textPrimary)), const Text('/100', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textMuted)), const Spacer(), SizedBox(width: 95, height: 95, child: CircularProgressIndicator(value: score.total / 100, strokeWidth: 10, color: AppColors.primary, backgroundColor: AppColors.border))]),
-          const SizedBox(height: 9),
-          ClipRRect(borderRadius: BorderRadius.circular(20), child: LinearProgressIndicator(value: score.total / 100, minHeight: 6, color: AppColors.primary, backgroundColor: AppColors.border)),
-          const SizedBox(height: 11),
-          Wrap(spacing: 7, runSpacing: 7, children: [_scoreChip('A', score.appearance, 40), _scoreChip('B', score.behavior, 25), _scoreChip('C', score.communication, 20), _scoreChip('D', score.digitalEtiquette, 15)]),
-          const SizedBox(height: 9),
-          const Text('Tap to see your full Style Score breakdown.', style: TextStyle(color: AppColors.textMuted, fontSize: 10.5)),
-        ]));
+        final completed = snapshot.data == true;
+        return Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(22),
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DailyChallengeScreen())),
+            child: Ink(
+              padding: const EdgeInsets.fromLTRB(17, 16, 17, 16),
+              decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Container(width: 44, height: 44, decoration: const BoxDecoration(color: AppColors.primarySoft, shape: BoxShape.circle), child: Icon(completed ? Icons.check_rounded : Icons.bolt_rounded, color: AppColors.primaryDark, size: 22)),
+                  const SizedBox(width: 12),
+                  const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('DAILY CHALLENGE', style: TextStyle(color: AppColors.textMuted, fontSize: 8.5, fontWeight: FontWeight.w900, letterSpacing: .7)), SizedBox(height: 4), Text('One small action. Better style.', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: AppColors.textPrimary))])),
+                  Text('+${challenge.points} XP', style: const TextStyle(color: AppColors.primaryDark, fontSize: 10, fontWeight: FontWeight.w900)),
+                ]),
+                const SizedBox(height: 14),
+                Text(challenge.title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: AppColors.textPrimary)),
+                const SizedBox(height: 5),
+                Text(challenge.description, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, height: 1.4, color: AppColors.textSecondary)),
+                const SizedBox(height: 12),
+                Row(children: [Expanded(child: Text(completed ? 'Completed today ✓' : 'Tap to complete today’s task', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: completed ? AppColors.primaryDark : AppColors.textMuted))), const Icon(Icons.arrow_forward_ios_rounded, size: 13, color: AppColors.primary)]),
+              ]),
+            ),
+          ),
+        );
       },
     );
   }
-
-  Widget _scoreChip(String label, int value, int max) => Container(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7), decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.border)), child: Text('$label  $value/$max', style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800)));
-
-  String _scoreLabel(int score) {
-    if (score >= 90) return 'Signature ready';
-    if (score >= 75) return 'Well styled';
-    if (score >= 55) return 'Good foundation';
-    if (score >= 35) return 'Building your style';
-    return 'Start your style journey';
-  }
-
-  Widget _card(BuildContext context, Widget? target, Widget child) => Material(color: AppColors.surface, borderRadius: BorderRadius.circular(20), child: InkWell(borderRadius: BorderRadius.circular(20), onTap: target == null ? null : () => Navigator.push(context, MaterialPageRoute(builder: (_) => target)), child: Padding(padding: const EdgeInsets.all(16), child: child)));
 }
