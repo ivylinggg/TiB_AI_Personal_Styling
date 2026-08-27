@@ -42,11 +42,6 @@ class VirtualTryOnResultService {
 
   static const int _maxRedirects = 5;
 
-  /// Pre-launch access policy:
-  /// the Flutter client never checks Premium entitlement before generating.
-  /// Premium can be reintroduced later at the backend/product-access layer.
-  static const bool preLaunchAllUsers = true;
-
   static Future<http.Response> _postJsonFollowingRedirects({
     required Uri uri,
     required String body,
@@ -102,10 +97,6 @@ class VirtualTryOnResultService {
 
       currentUri = currentUri.resolve(location.trim());
       method = status == 301 || status == 302 || status == 303 ? 'GET' : 'POST';
-
-      if (kDebugMode) {
-        debugPrint('virtualTryOn redirect → $method $currentUri');
-      }
     }
 
     throw const HttpException('Virtual Try-On redirect handling failed.');
@@ -120,6 +111,7 @@ class VirtualTryOnResultService {
         status: 'Create your complete TiB Model first.',
       );
     }
+
     if (request.items.isEmpty) {
       return const VirtualTryOnResult(
         imageUrl: null,
@@ -135,17 +127,24 @@ class VirtualTryOnResultService {
       );
     }
 
-    final faceFile = File(request.model.facePath!);
-    final bodyPath = request.model.bodyPath;
-    final bodyFile = bodyPath == null ? null : File(bodyPath);
-
-    if (!faceFile.existsSync()) {
+    final facePath = request.model.facePath;
+    if (facePath == null || facePath.isEmpty) {
       return const VirtualTryOnResult(
         imageUrl: null,
-        status: 'Your face scan is missing. Please scan your face again.',
+        status: 'Your TiB face reference is missing. Please recreate your TiB Model.',
       );
     }
 
+    final faceFile = File(facePath);
+    if (!faceFile.existsSync()) {
+      return const VirtualTryOnResult(
+        imageUrl: null,
+        status: 'Your TiB face reference is missing. Please recreate your TiB Model.',
+      );
+    }
+
+    final bodyPath = request.model.bodyPath;
+    final bodyFile = bodyPath == null ? null : File(bodyPath);
     if (bodyFile == null || !bodyFile.existsSync()) {
       return const VirtualTryOnResult(
         imageUrl: null,
@@ -178,6 +177,7 @@ class VirtualTryOnResultService {
 
       final faceImage = await encodeImage(faceFile);
       final bodyImage = await encodeImage(bodyFile);
+      final tibModel = request.model.measurementData;
 
       final body = <String, dynamic>{
         'action': 'virtualTryOn',
@@ -185,12 +185,10 @@ class VirtualTryOnResultService {
         'idToken': idToken,
         'occasion': request.occasion,
         'stylingBrief': request.stylingBrief,
-        'tibModel': request.model.measurementData,
-        // Reference 1: user's face / identity.
+        'tibModel': tibModel,
+        // Unified personal identity references.
         'modelImage': faceImage,
-        // Reference 2: user's real full-body silhouette / proportions.
         'bodyImage': bodyImage,
-        // Only the user's selected wardrobe is sent as clothing references.
         'items': request.items.take(6).map((item) => {
           'id': item.id,
           'name': item.name,
@@ -208,20 +206,18 @@ class VirtualTryOnResultService {
 
       if (kDebugMode) {
         debugPrint('virtualTryOn final status: ${response.statusCode}');
-        if (response.body.isNotEmpty) {
-          debugPrint('virtualTryOn response: ${response.body}');
-        }
+        debugPrint('virtualTryOn response: ${response.body}');
       }
 
       if (response.statusCode != 200) {
         try {
-          final serverBody = jsonDecode(response.body);
-          if (serverBody is Map<String, dynamic>) {
-            final error = serverBody['error'];
-            if (error is String && error.trim().isNotEmpty) {
+          final decodedError = jsonDecode(response.body);
+          if (decodedError is Map<String, dynamic>) {
+            final serverError = decodedError['error'];
+            if (serverError is String && serverError.trim().isNotEmpty) {
               return VirtualTryOnResult(
                 imageUrl: null,
-                status: 'Virtual try-on failed: ${error.trim()}',
+                status: 'Virtual try-on failed: ${serverError.trim()}',
               );
             }
           }
@@ -243,28 +239,21 @@ class VirtualTryOnResultService {
 
       if (decoded['success'] != true) {
         final error = decoded['error'] is String
-            ? decoded['error'] as String
+            ? (decoded['error'] as String).trim()
             : '';
-
-        // Never present Premium as a Flutter-side requirement during pre-launch.
-        if (preLaunchAllUsers && error == 'not_premium') {
-          return const VirtualTryOnResult(
-            imageUrl: null,
-            status: 'The connected AI service is still using an older deployment. Update the Virtual Try-On backend deployment and try again.',
-          );
-        }
 
         return VirtualTryOnResult(
           imageUrl: null,
           status: error.isEmpty
-              ? 'Could not generate the try-on right now.'
+              ? 'Could not generate your Virtual You right now.'
               : error,
         );
       }
 
       final imageUrl = decoded['imageUrl'] is String
-          ? decoded['imageUrl'] as String
+          ? (decoded['imageUrl'] as String).trim()
           : '';
+
       if (imageUrl.isEmpty) {
         return const VirtualTryOnResult(
           imageUrl: null,
