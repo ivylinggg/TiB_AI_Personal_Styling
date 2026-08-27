@@ -42,6 +42,11 @@ class VirtualTryOnResultService {
 
   static const int _maxRedirects = 5;
 
+  /// Pre-launch access policy:
+  /// the Flutter client never checks Premium entitlement before generating.
+  /// Premium can be reintroduced later at the backend/product-access layer.
+  static const bool preLaunchAllUsers = true;
+
   static Future<http.Response> _postJsonFollowingRedirects({
     required Uri uri,
     required String body,
@@ -179,8 +184,8 @@ class VirtualTryOnResultService {
         'tibModel': request.model.measurementData,
         // Identity reference: user's scanned face.
         'modelImage': faceImage,
-        // Optional full-body reference: preserves the user's real proportions,
-        // silhouette and overall appearance instead of using a generic model.
+        // Full-body reference: preserves the user's real silhouette,
+        // proportions and appearance instead of a generic model.
         'bodyImage': bodyImage,
         'items': request.items.take(6).map((item) => {
           'id': item.id,
@@ -236,12 +241,17 @@ class VirtualTryOnResultService {
         final error = decoded['error'] is String
             ? decoded['error'] as String
             : '';
-        if (error == 'not_premium') {
+
+        // Do not present Premium as an access requirement during pre-launch.
+        // If an older deployed backend still returns not_premium, surface a
+        // neutral service message instead of misleading Free users.
+        if (preLaunchAllUsers && error == 'not_premium') {
           return const VirtualTryOnResult(
             imageUrl: null,
-            status: 'Virtual Try-On is available for Premium users.',
+            status: 'The AI try-on service needs its latest pre-launch configuration. Please try again after the service is updated.',
           );
         }
+
         return VirtualTryOnResult(
           imageUrl: null,
           status: error.isEmpty
