@@ -70,83 +70,49 @@ class VirtualTryOnResultService {
       final response = await http.Response.fromStream(streamed);
 
       if (kDebugMode) {
-        debugPrint(
-          'virtualTryOn HTTP ${response.statusCode} POST ${response.request?.url}',
-        );
-        debugPrint(
-          'virtualTryOn content-type: ${response.headers['content-type']}',
-        );
-        debugPrint(
-          'virtualTryOn location: ${response.headers['location']}',
-        );
+        debugPrint('virtualTryOn HTTP ${response.statusCode} POST ${response.request?.url}');
+        debugPrint('virtualTryOn content-type: ${response.headers['content-type']}');
+        debugPrint('virtualTryOn location: ${response.headers['location']}');
       }
 
       final status = response.statusCode;
-      final isRedirect = status == 301 ||
-          status == 302 ||
-          status == 303 ||
-          status == 307 ||
-          status == 308;
-
+      final isRedirect = status == 301 || status == 302 || status == 303 || status == 307 || status == 308;
       if (!isRedirect) return response;
 
       final location = response.headers['location'];
       if (location == null || location.trim().isEmpty) {
-        throw const HttpException(
-          'Virtual Try-On service returned a redirect without a location.',
-        );
+        throw const HttpException('Virtual Try-On service returned a redirect without a location.');
       }
-
       if (redirectCount == _maxRedirects) {
-        throw const HttpException(
-          'Virtual Try-On service redirected too many times.',
-        );
+        throw const HttpException('Virtual Try-On service redirected too many times.');
       }
 
       currentUri = currentUri.resolve(location.trim());
 
-      // Apps Script uses 302/303 to hand the POST response to a temporary
-      // googleusercontent endpoint. Those redirects must be followed as GET.
       if (status == 301 || status == 302 || status == 303) {
         final getRequest = http.Request('GET', currentUri)
           ..followRedirects = false
           ..maxRedirects = 0
           ..headers['Accept'] = 'application/json';
-
         final getStreamed = await getRequest.send().timeout(_requestTimeout);
         final getResponse = await http.Response.fromStream(getStreamed);
 
         if (kDebugMode) {
-          debugPrint(
-            'virtualTryOn redirect GET ${getResponse.statusCode} ${getResponse.request?.url}',
-          );
-          debugPrint(
-            'virtualTryOn redirect content-type: ${getResponse.headers['content-type']}',
-          );
-          debugPrint(
-            'virtualTryOn redirect location: ${getResponse.headers['location']}',
-          );
+          debugPrint('virtualTryOn redirect GET ${getResponse.statusCode} ${getResponse.request?.url}');
+          debugPrint('virtualTryOn redirect content-type: ${getResponse.headers['content-type']}');
+          debugPrint('virtualTryOn redirect location: ${getResponse.headers['location']}');
         }
 
         final getStatus = getResponse.statusCode;
-        final getIsRedirect = getStatus == 301 ||
-            getStatus == 302 ||
-            getStatus == 303 ||
-            getStatus == 307 ||
-            getStatus == 308;
-
+        final getIsRedirect = getStatus == 301 || getStatus == 302 || getStatus == 303 || getStatus == 307 || getStatus == 308;
         if (!getIsRedirect) return getResponse;
 
         final getLocation = getResponse.headers['location'];
         if (getLocation == null || getLocation.trim().isEmpty) {
-          throw const HttpException(
-            'Virtual Try-On redirect did not provide a final location.',
-          );
+          throw const HttpException('Virtual Try-On redirect did not provide a final location.');
         }
 
         currentUri = currentUri.resolve(getLocation.trim());
-        // Continue the loop. A temporary redirect chain can contain another
-        // 302, which will again be converted to GET on the next iteration.
         if (getStatus == 301 || getStatus == 302 || getStatus == 303) {
           final finalRequest = http.Request('GET', currentUri)
             ..followRedirects = false
@@ -154,25 +120,14 @@ class VirtualTryOnResultService {
             ..headers['Accept'] = 'application/json';
           final finalStreamed = await finalRequest.send().timeout(_requestTimeout);
           final finalResponse = await http.Response.fromStream(finalStreamed);
-
           if (kDebugMode) {
-            debugPrint(
-              'virtualTryOn final GET ${finalResponse.statusCode} ${finalResponse.request?.url}',
-            );
-            debugPrint(
-              'virtualTryOn final content-type: ${finalResponse.headers['content-type']}',
-            );
+            debugPrint('virtualTryOn final GET ${finalResponse.statusCode} ${finalResponse.request?.url}');
+            debugPrint('virtualTryOn final content-type: ${finalResponse.headers['content-type']}');
           }
-
           return finalResponse;
         }
-
-        // 307/308 preserve POST semantics, so continue the outer loop with
-        // the original JSON body.
         continue;
       }
-
-      // 307/308 explicitly preserve the original POST method and body.
     }
 
     throw const HttpException('Virtual Try-On redirect handling failed.');
@@ -181,16 +136,10 @@ class VirtualTryOnResultService {
   static Future<Map<String, String>> _encodeImage(File file) async {
     final originalBytes = await file.readAsBytes();
     final decoded = img.decodeImage(originalBytes);
-
-    if (decoded == null) {
-      throw const FormatException('Could not read one of the model images.');
-    }
+    if (decoded == null) throw const FormatException('Could not read one of the model images.');
 
     final oriented = img.bakeOrientation(decoded);
-    final longestSide = oriented.width > oriented.height
-        ? oriented.width
-        : oriented.height;
-
+    final longestSide = oriented.width > oriented.height ? oriented.width : oriented.height;
     final prepared = longestSide > _maxImageDimension
         ? img.copyResize(
             oriented,
@@ -200,86 +149,58 @@ class VirtualTryOnResultService {
           )
         : oriented;
 
-    final jpegBytes = img.encodeJpg(prepared, quality: _jpegQuality);
-
-    return {
-      'mimeType': 'image/jpeg',
-      'data': base64Encode(jpegBytes),
-    };
+    return {'mimeType': 'image/jpeg', 'data': base64Encode(img.encodeJpg(prepared, quality: _jpegQuality))};
   }
 
-  static Future<VirtualTryOnResult> generate(
-    VirtualTryOnRequest request,
-  ) async {
-    if (!request.model.isComplete || request.model.facePath == null) {
+  static Future<VirtualTryOnResult> generate(VirtualTryOnRequest request) async {
+    final model = request.model;
+
+    if (!model.isComplete || model.facePath == null || model.bodyPath == null) {
       return const VirtualTryOnResult(
         imageUrl: null,
-        status: 'Create your complete TiB Model first.',
+        status: 'Complete your Personal TiB Model first: face, full-body reference and real measurements are required.',
       );
     }
-
     if (request.items.isEmpty) {
-      return const VirtualTryOnResult(
-        imageUrl: null,
-        status: 'Choose at least one wardrobe piece first.',
-      );
+      return const VirtualTryOnResult(imageUrl: null, status: 'Choose at least one wardrobe piece first.');
     }
 
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      return const VirtualTryOnResult(
-        imageUrl: null,
-        status: 'Please sign in again before generating a try-on.',
-      );
+      return const VirtualTryOnResult(imageUrl: null, status: 'Please sign in again before generating a try-on.');
     }
 
-    final facePath = request.model.facePath;
-    if (facePath == null || facePath.isEmpty) {
-      return const VirtualTryOnResult(
-        imageUrl: null,
-        status: 'Your TiB face reference is missing. Please recreate your TiB Model.',
-      );
-    }
-
-    final faceFile = File(facePath);
+    final faceFile = File(model.facePath!);
+    final bodyFile = File(model.bodyPath!);
     if (!faceFile.existsSync()) {
-      return const VirtualTryOnResult(
-        imageUrl: null,
-        status: 'Your TiB face reference is missing. Please recreate your TiB Model.',
-      );
+      return const VirtualTryOnResult(imageUrl: null, status: 'Your face reference is missing. Please update your Personal TiB Model.');
     }
-
-    final bodyPath = request.model.bodyPath;
-    final bodyFile = bodyPath == null ? null : File(bodyPath);
-    if (bodyFile == null || !bodyFile.existsSync()) {
-      return const VirtualTryOnResult(
-        imageUrl: null,
-        status: 'Add your full-body photo to your TiB Model so Virtual You can match your real body shape and proportions.',
-      );
+    if (!bodyFile.existsSync()) {
+      return const VirtualTryOnResult(imageUrl: null, status: 'Your full-body reference is missing. Please update your Personal TiB Model.');
     }
 
     try {
       final idToken = await user.getIdToken();
       if (idToken == null || idToken.isEmpty) {
-        return const VirtualTryOnResult(
-          imageUrl: null,
-          status: 'Could not verify your account. Please try again.',
-        );
+        return const VirtualTryOnResult(imageUrl: null, status: 'Could not verify your account. Please try again.');
       }
 
       final faceImage = await _encodeImage(faceFile);
       final bodyImage = await _encodeImage(bodyFile);
-      final tibModel = request.model.measurementData;
+      final tibModel = model.measurementData;
 
       final body = <String, dynamic>{
         'action': 'virtualTryOn',
         'uid': user.uid,
         'idToken': idToken,
         'occasion': request.occasion,
-        'stylingBrief': request.stylingBrief,
+        'stylingBrief': request.stylingBrief ?? 'Dress my Personal TiB Model using the selected wardrobe only. Preserve the real person identity and real body proportions.',
         'tibModel': tibModel,
+        'personalModel': model.personalIdentityData,
         'modelImage': faceImage,
         'bodyImage': bodyImage,
+        'modelReferencePriority': 'full_body_then_face_then_measurements',
+        'outputRequirement': 'head_to_toe_full_body',
         'items': request.items.take(6).map((item) => {
           'id': item.id,
           'name': item.name,
@@ -301,110 +222,63 @@ class VirtualTryOnResultService {
       }
 
       final responseText = response.body.trim();
-
       Map<String, dynamic>? decoded;
       try {
         final candidate = jsonDecode(responseText);
-        if (candidate is Map<String, dynamic>) {
-          decoded = candidate;
-        }
-      } catch (_) {
-        decoded = null;
-      }
+        if (candidate is Map<String, dynamic>) decoded = candidate;
+      } catch (_) {}
 
       if (decoded != null) {
         if (decoded['success'] != true) {
-          final error = decoded['error'] is String
-              ? (decoded['error'] as String).trim()
-              : '';
-
-          if (error == 'not_premium') {
-            return const VirtualTryOnResult(
-              imageUrl: null,
-              status: 'Virtual Try-On is temporarily unavailable because the connected backend is still using the old Premium access rule. Redeploy the latest Code.gs.',
-            );
+          final errorCode = decoded['errorCode']?.toString().trim() ?? '';
+          final error = decoded['error'] is String ? (decoded['error'] as String).trim() : '';
+          if (errorCode == 'not_premium') {
+            return const VirtualTryOnResult(imageUrl: null, status: 'Virtual Try-On requires the Premium plan.');
           }
-
+          final detail = error.isEmpty ? errorCode : error;
           return VirtualTryOnResult(
             imageUrl: null,
-            status: error.isEmpty
-                ? 'Could not generate your Virtual You right now.'
-                : 'Virtual Try-On failed: $error',
+            requestId: decoded['requestId']?.toString(),
+            status: detail.isEmpty ? 'Could not generate your Personal Virtual You right now.' : 'Virtual Try-On failed: $detail',
           );
         }
 
-        final imageUrl = decoded['imageUrl'] is String
-            ? (decoded['imageUrl'] as String).trim()
-            : '';
-
+        final imageUrl = decoded['imageUrl'] is String ? (decoded['imageUrl'] as String).trim() : '';
         if (imageUrl.isEmpty) {
-          return const VirtualTryOnResult(
-            imageUrl: null,
-            status: 'The AI completed without returning an image.',
-          );
+          return const VirtualTryOnResult(imageUrl: null, status: 'The AI completed without returning an image.');
         }
 
         return VirtualTryOnResult(
           imageUrl: imageUrl,
           requestId: decoded['requestId']?.toString(),
-          status: 'Your personalised AI Virtual You is ready.',
+          status: 'Your Personal TiB Model is now wearing your selected look.',
         );
       }
 
       final contentType = response.headers['content-type'] ?? '';
-      final preview = responseText.length > 180
-          ? responseText.substring(0, 180)
-          : responseText;
-
+      final preview = responseText.length > 180 ? responseText.substring(0, 180) : responseText;
       if (response.statusCode != 200) {
-        return VirtualTryOnResult(
-          imageUrl: null,
-          status: 'Virtual Try-On backend returned HTTP ${response.statusCode}. $preview',
-        );
+        return VirtualTryOnResult(imageUrl: null, status: 'Virtual Try-On backend returned HTTP ${response.statusCode}. $preview');
       }
-
-      if (contentType.contains('text/html') ||
-          responseText.toLowerCase().contains('<html')) {
-        return const VirtualTryOnResult(
-          imageUrl: null,
-          status: 'The Apps Script Web App returned an HTML page instead of JSON. Set the deployment access to Anyone, deploy a new version, and keep the /exec URL in the app.',
-        );
+      if (contentType.contains('text/html') || responseText.toLowerCase().contains('<html')) {
+        return const VirtualTryOnResult(imageUrl: null, status: 'The Apps Script Web App returned an HTML page instead of JSON. Check the deployment and /exec URL.');
       }
-
-      return VirtualTryOnResult(
-        imageUrl: null,
-        status: 'Virtual Try-On returned an unreadable response. Content-Type: $contentType. Response: $preview',
-      );
+      return VirtualTryOnResult(imageUrl: null, status: 'Virtual Try-On returned an unreadable response. Content-Type: $contentType. Response: $preview');
     } on SocketException catch (error) {
       if (kDebugMode) debugPrint('virtualTryOn socket error: $error');
-      return const VirtualTryOnResult(
-        imageUrl: null,
-        status: 'Could not connect to the Virtual Try-On backend. Check the Apps Script deployment and internet connection.',
-      );
+      return const VirtualTryOnResult(imageUrl: null, status: 'Could not connect to the Virtual Try-On backend. Check the internet connection and Apps Script deployment.');
     } on TimeoutException catch (error) {
       if (kDebugMode) debugPrint('virtualTryOn timeout: $error');
-      return const VirtualTryOnResult(
-        imageUrl: null,
-        status: 'Virtual Try-On is taking longer than expected. The AI generation may still be processing. Please try again after the backend deployment is confirmed.',
-      );
+      return const VirtualTryOnResult(imageUrl: null, status: 'Virtual Try-On is taking longer than expected. Please try again.');
     } on FormatException catch (error) {
       if (kDebugMode) debugPrint('virtualTryOn format error: $error');
-      return VirtualTryOnResult(
-        imageUrl: null,
-        status: 'The Virtual Try-On request could not read an image: ${error.message}',
-      );
+      return VirtualTryOnResult(imageUrl: null, status: 'The Virtual Try-On request could not read an image: ${error.message}');
     } on HttpException catch (error) {
       if (kDebugMode) debugPrint('virtualTryOn HTTP error: $error');
-      return VirtualTryOnResult(
-        imageUrl: null,
-        status: 'Virtual Try-On backend error: ${error.message}',
-      );
+      return VirtualTryOnResult(imageUrl: null, status: 'Virtual Try-On backend error: ${error.message}');
     } catch (error) {
       if (kDebugMode) debugPrint('virtualTryOn error: $error');
-      return VirtualTryOnResult(
-        imageUrl: null,
-        status: 'Virtual Try-On failed: $error',
-      );
+      return VirtualTryOnResult(imageUrl: null, status: 'Virtual Try-On failed: $error');
     }
   }
 }
