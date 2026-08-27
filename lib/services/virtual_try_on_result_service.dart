@@ -47,6 +47,9 @@ class VirtualTryOnResultService {
   static const int _maxImageDimension = 1600;
   static const int _jpegQuality = 82;
 
+  /// Apps Script Web Apps normally redirect the initial /exec POST to a
+  /// googleusercontent URL. Never let the HTTP client automatically turn a
+  /// 302/303 POST into a GET; manually repeat the POST with the same JSON body.
   static Future<http.Response> _postJsonFollowingRedirects({
     required Uri uri,
     required String body,
@@ -55,10 +58,10 @@ class VirtualTryOnResultService {
 
     for (var redirectCount = 0; redirectCount <= _maxRedirects; redirectCount++) {
       final request = http.Request('POST', currentUri)
-        ..followRedirects = true
-        ..maxRedirects = _maxRedirects
+        ..followRedirects = false
+        ..maxRedirects = 0
         ..headers['Accept'] = 'application/json'
-        ..headers['Content-Type'] = 'application/json'
+        ..headers['Content-Type'] = 'application/json; charset=utf-8'
         ..body = body;
 
       final streamed = await request.send().timeout(_requestTimeout);
@@ -68,6 +71,7 @@ class VirtualTryOnResultService {
         debugPrint(
           'virtualTryOn HTTP ${response.statusCode} POST ${response.request?.url}',
         );
+        debugPrint('virtualTryOn content-type: ${response.headers['content-type']}');
       }
 
       final status = response.statusCode;
@@ -114,12 +118,8 @@ class VirtualTryOnResultService {
     final prepared = longestSide > _maxImageDimension
         ? img.copyResize(
             oriented,
-            width: oriented.width >= oriented.height
-                ? _maxImageDimension
-                : null,
-            height: oriented.height > oriented.width
-                ? _maxImageDimension
-                : null,
+            width: oriented.width >= oriented.height ? _maxImageDimension : null,
+            height: oriented.height > oriented.width ? _maxImageDimension : null,
             interpolation: img.Interpolation.linear,
           )
         : oriented;
@@ -224,77 +224,80 @@ class VirtualTryOnResultService {
         debugPrint('virtualTryOn response: ${response.body}');
       }
 
-      if (response.statusCode != 200) {
-        try {
-          final decodedError = jsonDecode(response.body);
-          if (decodedError is Map<String, dynamic>) {
-            final serverError = decodedError['error'];
-            if (serverError is String && serverError.trim().isNotEmpty) {
-              return VirtualTryOnResult(
-                imageUrl: null,
-                status: 'Virtual try-on failed: ${serverError.trim()}',
-              );
-            }
+      final responseText = response.body.trim();
+
+      Map<String, dynamic>? decoded;
+      try {
+        final candidate = jsonDecode(responseText);
+        if (candidate is Map<String, dynamic>) {
+          decoded = candidate;
+        }
+      } catch (_) {
+        decoded = null;
+      }
+
+      if (decoded != null) {
+        if (decoded['success'] != true) {
+          final error = decoded['error'] is String
+              ? (decoded['error'] as String).trim()
+              : '';
+
+          if (error == 'not_premium') {
+            return const VirtualTryOnResult(
+              imageUrl: null,
+              status: 'Virtual Try-On is temporarily unavailable because the connected backend is still using the old Premium access rule. Redeploy the latest Code.gs.',
+            );
           }
-        } catch (_) {}
 
-        return VirtualTryOnResult(
-          imageUrl: null,
-          status: 'Virtual try-on request failed (${response.statusCode}).',
-        );
-      }
+          return VirtualTryOnResult(
+            imageUrl: null,
+            status: error.isEmpty
+                ? 'Could not generate your Virtual You right now.'
+                : 'Virtual Try-On failed: $error',
+          );
+        }
 
-      final contentType = response.headers['content-type'] ?? '';
-      if (!contentType.contains('json')) {
-        return const VirtualTryOnResult(
-          imageUrl: null,
-          status: 'The Virtual Try-On deployment returned an invalid response. Please redeploy the latest Apps Script version.',
-        );
-      }
-
-      final decoded = jsonDecode(response.body);
-      if (decoded is! Map<String, dynamic>) {
-        return const VirtualTryOnResult(
-          imageUrl: null,
-          status: 'Virtual try-on returned an invalid response.',
-        );
-      }
-
-      if (decoded['success'] != true) {
-        final error = decoded['error'] is String
-            ? (decoded['error'] as String).trim()
+        final imageUrl = decoded['imageUrl'] is String
+            ? (decoded['imageUrl'] as String).trim()
             : '';
 
-        if (error == 'not_premium') {
+        if (imageUrl.isEmpty) {
           return const VirtualTryOnResult(
             imageUrl: null,
-            status: 'Virtual Try-On is temporarily unavailable because the connected backend is still using the old Premium access rule. Redeploy the latest Code.gs.',
+            status: 'The AI completed without returning an image.',
           );
         }
 
         return VirtualTryOnResult(
-          imageUrl: null,
-          status: error.isEmpty
-              ? 'Could not generate your Virtual You right now.'
-              : error,
+          imageUrl: imageUrl,
+          requestId: decoded['requestId']?.toString(),
+          status: 'Your personalised AI Virtual You is ready.',
         );
       }
 
-      final imageUrl = decoded['imageUrl'] is String
-          ? (decoded['imageUrl'] as String).trim()
-          : '';
+      final contentType = response.headers['content-type'] ?? '';
+      final preview = responseText.length > 180
+          ? responseText.substring(0, 180)
+          : responseText;
 
-      if (imageUrl.isEmpty) {
+      if (response.statusCode != 200) {
+        return VirtualTryOnResult(
+          imageUrl: null,
+          status: 'Virtual Try-On backend returned HTTP ${response.statusCode}. $preview',
+        );
+      }
+
+      if (contentType.contains('text/html') ||
+          responseText.toLowerCase().contains('<html')) {
         return const VirtualTryOnResult(
           imageUrl: null,
-          status: 'The AI completed without returning an image.',
+          status: 'The Apps Script Web App returned an HTML page instead of JSON. Set the deployment access to Anyone, deploy a new version, and keep the /exec URL in the app.',
         );
       }
 
       return VirtualTryOnResult(
-        imageUrl: imageUrl,
-        requestId: decoded['requestId']?.toString(),
-        status: 'Your personalised AI Virtual You is ready.',
+        imageUrl: null,
+        status: 'Virtual Try-On returned an unreadable response. Content-Type: $contentType. Response: $preview',
       );
     } on SocketException catch (error) {
       if (kDebugMode) debugPrint('virtualTryOn socket error: $error');
@@ -310,9 +313,9 @@ class VirtualTryOnResultService {
       );
     } on FormatException catch (error) {
       if (kDebugMode) debugPrint('virtualTryOn format error: $error');
-      return const VirtualTryOnResult(
+      return VirtualTryOnResult(
         imageUrl: null,
-        status: 'The Virtual Try-On backend returned an unreadable response. Please redeploy the latest Apps Script Code.gs.',
+        status: 'The Virtual Try-On request could not read an image: ${error.message}',
       );
     } on HttpException catch (error) {
       if (kDebugMode) debugPrint('virtualTryOn HTTP error: $error');
