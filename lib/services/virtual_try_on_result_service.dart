@@ -42,10 +42,6 @@ class VirtualTryOnResultService {
 
   static const int _maxRedirects = 5;
 
-  /// Google Apps Script Web Apps commonly return a 302/303 after accepting
-  /// the POST. The redirect target is a temporary googleusercontent.com URL
-  /// that should be fetched with GET. For 307/308, the HTTP specification
-  /// requires the original POST method and body to be preserved.
   static Future<http.Response> _postJsonFollowingRedirects({
     required Uri uri,
     required String body,
@@ -100,15 +96,7 @@ class VirtualTryOnResultService {
       }
 
       currentUri = currentUri.resolve(location.trim());
-
-      // Apps Script uses 302/303 to hand the completed POST response to a
-      // temporary URL. Do NOT POST the original JSON to that URL: it results
-      // in HTTP 405 Method Not Allowed. Only 307/308 preserve POST + body.
-      if (status == 301 || status == 302 || status == 303) {
-        method = 'GET';
-      } else {
-        method = 'POST';
-      }
+      method = status == 301 || status == 302 || status == 303 ? 'GET' : 'POST';
 
       if (kDebugMode) {
         debugPrint('virtualTryOn redirect → $method $currentUri');
@@ -142,11 +130,15 @@ class VirtualTryOnResultService {
       );
     }
 
-    final modelFile = File(request.model.facePath!);
-    if (!modelFile.existsSync()) {
+    final faceFile = File(request.model.facePath!);
+    final bodyFile = request.model.bodyPath == null
+        ? null
+        : File(request.model.bodyPath!);
+
+    if (!faceFile.existsSync()) {
       return const VirtualTryOnResult(
         imageUrl: null,
-        status: 'Your TiB Model photo is missing. Please scan your face again.',
+        status: 'Your face scan is missing. Please scan your face again.',
       );
     }
 
@@ -159,13 +151,24 @@ class VirtualTryOnResultService {
         );
       }
 
-      final modelBytes = await modelFile.readAsBytes();
-      final path = modelFile.path.toLowerCase();
-      final mimeType = path.endsWith('.png')
-          ? 'image/png'
-          : path.endsWith('.webp')
-              ? 'image/webp'
-              : 'image/jpeg';
+      Future<Map<String, String>> encodeImage(File file) async {
+        final bytes = await file.readAsBytes();
+        final path = file.path.toLowerCase();
+        final mimeType = path.endsWith('.png')
+            ? 'image/png'
+            : path.endsWith('.webp')
+                ? 'image/webp'
+                : 'image/jpeg';
+        return {
+          'mimeType': mimeType,
+          'data': base64Encode(bytes),
+        };
+      }
+
+      final faceImage = await encodeImage(faceFile);
+      final bodyImage = bodyFile != null && bodyFile.existsSync()
+          ? await encodeImage(bodyFile)
+          : null;
 
       final body = <String, dynamic>{
         'action': 'virtualTryOn',
@@ -174,10 +177,11 @@ class VirtualTryOnResultService {
         'occasion': request.occasion,
         'stylingBrief': request.stylingBrief,
         'tibModel': request.model.measurementData,
-        'modelImage': {
-          'mimeType': mimeType,
-          'data': base64Encode(modelBytes),
-        },
+        // Identity reference: user's scanned face.
+        'modelImage': faceImage,
+        // Optional full-body reference: preserves the user's real proportions,
+        // silhouette and overall appearance instead of using a generic model.
+        'bodyImage': bodyImage,
         'items': request.items.take(6).map((item) => {
           'id': item.id,
           'name': item.name,
@@ -188,10 +192,9 @@ class VirtualTryOnResultService {
         }).toList(),
       };
 
-      final encodedBody = jsonEncode(body);
       final response = await _postJsonFollowingRedirects(
         uri: Uri.parse(GoogleDriveConfig.uploadUrl),
-        body: encodedBody,
+        body: jsonEncode(body),
       );
 
       if (kDebugMode) {
@@ -213,9 +216,7 @@ class VirtualTryOnResultService {
               );
             }
           }
-        } catch (_) {
-          // Keep the friendly HTTP fallback for non-JSON responses.
-        }
+        } catch (_) {}
 
         return VirtualTryOnResult(
           imageUrl: null,
