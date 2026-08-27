@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:image/image.dart' as img;
 
 import '../config/google_drive_config.dart';
 import '../models/wardrobe_item.dart';
@@ -41,35 +42,30 @@ class VirtualTryOnResultService {
   VirtualTryOnResultService._();
 
   static const int _maxRedirects = 5;
+  static const Duration _requestTimeout = Duration(seconds: 360);
+  static const int _maxImageDimension = 1600;
+  static const int _jpegQuality = 82;
 
   static Future<http.Response> _postJsonFollowingRedirects({
     required Uri uri,
     required String body,
   }) async {
     var currentUri = uri;
-    var method = 'POST';
 
-    for (var redirectCount = 0;
-        redirectCount <= _maxRedirects;
-        redirectCount++) {
-      final request = http.Request(method, currentUri)
-        ..followRedirects = false
-        ..maxRedirects = 0
-        ..headers['Accept'] = 'application/json';
+    for (var redirectCount = 0; redirectCount <= _maxRedirects; redirectCount++) {
+      final request = http.Request('POST', currentUri)
+        ..followRedirects = true
+        ..maxRedirects = _maxRedirects
+        ..headers['Accept'] = 'application/json'
+        ..headers['Content-Type'] = 'application/json'
+        ..body = body;
 
-      if (method == 'POST') {
-        request.headers['Content-Type'] = 'application/json';
-        request.body = body;
-      }
-
-      final streamed = await request.send().timeout(
-        const Duration(seconds: 180),
-      );
+      final streamed = await request.send().timeout(_requestTimeout);
       final response = await http.Response.fromStream(streamed);
 
       if (kDebugMode) {
         debugPrint(
-          'virtualTryOn HTTP ${response.statusCode} $method ${response.request?.url}',
+          'virtualTryOn HTTP ${response.statusCode} POST ${response.request?.url}',
         );
       }
 
@@ -96,10 +92,43 @@ class VirtualTryOnResultService {
       }
 
       currentUri = currentUri.resolve(location.trim());
-      method = status == 301 || status == 302 || status == 303 ? 'GET' : 'POST';
     }
 
     throw const HttpException('Virtual Try-On redirect handling failed.');
+  }
+
+  static Future<Map<String, String>> _encodeImage(File file) async {
+    final originalBytes = await file.readAsBytes();
+    final decoded = img.decodeImage(originalBytes);
+
+    if (decoded == null) {
+      throw const FormatException('Could not read one of the model images.');
+    }
+
+    final oriented = img.bakeOrientation(decoded);
+    final longestSide = oriented.width > oriented.height
+        ? oriented.width
+        : oriented.height;
+
+    final prepared = longestSide > _maxImageDimension
+        ? img.copyResize(
+            oriented,
+            width: oriented.width >= oriented.height
+                ? _maxImageDimension
+                : null,
+            height: oriented.height > oriented.width
+                ? _maxImageDimension
+                : null,
+            interpolation: img.Interpolation.linear,
+          )
+        : oriented;
+
+    final jpegBytes = img.encodeJpg(prepared, quality: _jpegQuality);
+
+    return {
+      'mimeType': 'image/jpeg',
+      'data': base64Encode(jpegBytes),
+    };
   }
 
   static Future<VirtualTryOnResult> generate(
@@ -161,22 +190,8 @@ class VirtualTryOnResultService {
         );
       }
 
-      Future<Map<String, String>> encodeImage(File file) async {
-        final bytes = await file.readAsBytes();
-        final path = file.path.toLowerCase();
-        final mimeType = path.endsWith('.png')
-            ? 'image/png'
-            : path.endsWith('.webp')
-                ? 'image/webp'
-                : 'image/jpeg';
-        return {
-          'mimeType': mimeType,
-          'data': base64Encode(bytes),
-        };
-      }
-
-      final faceImage = await encodeImage(faceFile);
-      final bodyImage = await encodeImage(bodyFile);
+      final faceImage = await _encodeImage(faceFile);
+      final bodyImage = await _encodeImage(bodyFile);
       final tibModel = request.model.measurementData;
 
       final body = <String, dynamic>{
@@ -186,7 +201,6 @@ class VirtualTryOnResultService {
         'occasion': request.occasion,
         'stylingBrief': request.stylingBrief,
         'tibModel': tibModel,
-        // Unified personal identity references.
         'modelImage': faceImage,
         'bodyImage': bodyImage,
         'items': request.items.take(6).map((item) => {
@@ -229,6 +243,14 @@ class VirtualTryOnResultService {
         );
       }
 
+      final contentType = response.headers['content-type'] ?? '';
+      if (!contentType.contains('json')) {
+        return VirtualTryOnResult(
+          imageUrl: null,
+          status: 'The Virtual Try-On deployment returned an invalid response. Please redeploy the latest Apps Script version.',
+        );
+      }
+
       final decoded = jsonDecode(response.body);
       if (decoded is! Map<String, dynamic>) {
         return const VirtualTryOnResult(
@@ -241,6 +263,13 @@ class VirtualTryOnResultService {
         final error = decoded['error'] is String
             ? (decoded['error'] as String).trim()
             : '';
+
+        if (error == 'not_premium') {
+          return const VirtualTryOnResult(
+            imageUrl: null,
+            status: 'Virtual Try-On is temporarily unavailable because the connected backend is still using the old Premium access rule. Redeploy the latest Code.gs.',
+          );
+        }
 
         return VirtualTryOnResult(
           imageUrl: null,
@@ -266,20 +295,35 @@ class VirtualTryOnResultService {
         requestId: decoded['requestId']?.toString(),
         status: 'Your personalised AI Virtual You is ready.',
       );
-    } catch (error) {
-      if (kDebugMode) debugPrint('virtualTryOn error: $error');
-
-      if (error is SocketException || error is HttpException) {
-        return VirtualTryOnResult(
-          imageUrl: null,
-          status:
-              'Could not reach the virtual try-on service. ${error.toString().replaceFirst('Exception: ', '')}',
-        );
-      }
-
+    } on SocketException catch (error) {
+      if (kDebugMode) debugPrint('virtualTryOn socket error: $error');
+      return VirtualTryOnResult(
+        imageUrl: null,
+        status: 'Could not connect to the Virtual Try-On backend. Check the Apps Script deployment and internet connection.',
+      );
+    } on TimeoutException catch (error) {
+      if (kDebugMode) debugPrint('virtualTryOn timeout: $error');
       return const VirtualTryOnResult(
         imageUrl: null,
-        status: 'Could not reach the virtual try-on service. Please try again.',
+        status: 'Virtual Try-On is taking longer than expected. The AI generation may still be processing. Please try again after the backend deployment is confirmed.',
+      );
+    } on FormatException catch (error) {
+      if (kDebugMode) debugPrint('virtualTryOn format error: $error');
+      return VirtualTryOnResult(
+        imageUrl: null,
+        status: 'The Virtual Try-On backend returned an unreadable response. Please redeploy the latest Apps Script Code.gs.',
+      );
+    } on HttpException catch (error) {
+      if (kDebugMode) debugPrint('virtualTryOn HTTP error: $error');
+      return VirtualTryOnResult(
+        imageUrl: null,
+        status: 'Virtual Try-On backend error: ${error.message}',
+      );
+    } catch (error) {
+      if (kDebugMode) debugPrint('virtualTryOn error: $error');
+      return VirtualTryOnResult(
+        imageUrl: null,
+        status: 'Virtual Try-On failed: $error',
       );
     }
   }
