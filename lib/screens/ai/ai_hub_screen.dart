@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_gradients.dart';
 import '../premium/ai_virtual_styling_studio_screen.dart';
+import '../premium/personal_tib_model_screen.dart';
 import 'ai_outfit_screen.dart';
 import 'ai_stylist_screen.dart';
 import 'style_me_screen.dart';
 
-/// TiB's central styling hub: one place for every AI styling action.
+/// TiB's central styling hub: the Personal TiB Model is the identity layer,
+/// while the other experiences are ways of styling that same person.
 class AIHubScreen extends StatelessWidget {
   const AIHubScreen({super.key});
 
@@ -27,51 +29,28 @@ class AIHubScreen extends StatelessWidget {
             const Text('What are we wearing?', style: TextStyle(fontSize: 29, fontWeight: FontWeight.w800, letterSpacing: -1)),
             const SizedBox(height: 8),
             const Text(
-              'TiB combines your colours, personality and wardrobe to make getting dressed feel easier.',
+              'TiB starts with one person: you. Build your Personal TiB Model once, then use it across your styling experiences.',
               style: TextStyle(color: AppColors.textSecondary, height: 1.45, fontSize: 12.5),
             ),
             const SizedBox(height: 20),
-            Container(
-              padding: const EdgeInsets.fromLTRB(19, 19, 19, 18),
-              decoration: BoxDecoration(gradient: AppGradients.primary, borderRadius: BorderRadius.circular(28)),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(width: 43, height: 43, decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle), child: const Icon(Icons.auto_awesome_rounded, color: AppColors.primaryDark, size: 21)),
-                      const Spacer(),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-                        decoration: BoxDecoration(color: Colors.white.withValues(alpha: .18), borderRadius: BorderRadius.circular(20)),
-                        child: const Text('TIB AI', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 1)),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                  const Text('Your style,\nwithout the guesswork.', style: TextStyle(color: Colors.white, fontSize: 24, height: 1.05, fontWeight: FontWeight.w800, letterSpacing: -.6)),
-                  const SizedBox(height: 9),
-                  const Text('Start with what you need today.', style: TextStyle(color: Colors.white70, fontSize: 11.5)),
-                ],
-              ),
-            ),
+            _personalModelCard(context),
             const SizedBox(height: 18),
             _featureCard(
               context,
               icon: Icons.view_in_ar_rounded,
-              title: 'Virtual Try-On',
-              subtitle: 'Create your TiB Model, choose your own clothes, or let AI style the look.',
+              title: 'Dress My TiB Model',
+              subtitle: 'Choose clothes from your wardrobe and put them on your Personal TiB Model.',
               gradient: AppGradients.premium,
               onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AIVirtualStylingStudioScreen())),
               primary: true,
-              badge: 'PREMIUM',
+              badge: 'VIRTUAL FITTING ROOM',
             ),
             const SizedBox(height: 11),
             _featureCard(
               context,
               icon: Icons.auto_awesome_rounded,
               title: 'Style Me',
-              subtitle: 'A personalised look using your real wardrobe.',
+              subtitle: 'Let TiB choose a complete look using your real wardrobe, colours and preferences.',
               gradient: AppGradients.ai,
               onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StyleMeScreen())),
               primary: false,
@@ -81,7 +60,7 @@ class AIHubScreen extends StatelessWidget {
               context,
               icon: Icons.checkroom_rounded,
               title: 'AI Outfit',
-              subtitle: 'Build a complete outfit for the occasion.',
+              subtitle: 'Build a complete outfit around your occasion and personal styling profile.',
               gradient: AppGradients.blush,
               onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AIOutfitScreen())),
               primary: false,
@@ -91,12 +70,93 @@ class AIHubScreen extends StatelessWidget {
               context,
               icon: Icons.chat_bubble_outline_rounded,
               title: 'Talk to TiB',
-              subtitle: 'Ask your stylist anything, naturally.',
+              subtitle: 'Ask your stylist anything and keep the conversation personal.',
               gradient: AppGradients.soft,
               onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AIStylistScreen())),
               primary: false,
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _personalModelCard(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(28),
+      child: InkWell(
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const PersonalTibModelScreen()),
+        ),
+        borderRadius: BorderRadius.circular(28),
+        child: Ink(
+          padding: const EdgeInsets.all(19),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(color: AppColors.primarySoft),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.primary.withValues(alpha: .06),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 66,
+                height: 78,
+                decoration: BoxDecoration(
+                  gradient: AppGradients.soft,
+                  borderRadius: BorderRadius.circular(21),
+                ),
+                child: const Icon(
+                  Icons.person_rounded,
+                  color: AppColors.primary,
+                  size: 34,
+                ),
+              ),
+              const SizedBox(width: 14),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'MY TIΒ MODEL',
+                      style: TextStyle(
+                        color: AppColors.primary,
+                        fontSize: 9,
+                        letterSpacing: 1.2,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    SizedBox(height: 5),
+                    Text(
+                      'Your real self,\nready to be styled.',
+                      style: TextStyle(
+                        fontSize: 19,
+                        height: 1.05,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    SizedBox(height: 5),
+                    Text(
+                      'Face + full-body reference + real measurements.',
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 10.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.arrow_forward_rounded, color: AppColors.primary),
+            ],
+          ),
         ),
       ),
     );
