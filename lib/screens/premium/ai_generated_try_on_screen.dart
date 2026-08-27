@@ -11,6 +11,12 @@ import '../../services/tib_model_service.dart';
 import '../../services/virtual_try_on_result_service.dart';
 import '../../widgets/premium_badge.dart';
 
+/// TiB's AI fitting room.
+///
+/// The important product rule is that this screen never presents the AI as
+/// generating a generic fashion model. The user first establishes a Personal
+/// TiB Model, then chooses real pieces from My Wardrobe, and the AI dresses
+/// that personal reference.
 class AiGeneratedTryOnScreen extends StatefulWidget {
   const AiGeneratedTryOnScreen({super.key});
 
@@ -19,14 +25,14 @@ class AiGeneratedTryOnScreen extends StatefulWidget {
 }
 
 class _AiGeneratedTryOnScreenState extends State<AiGeneratedTryOnScreen> {
-  static const _occasions = ['Dinner', 'Work', 'Casual', 'Date', 'Travel', 'Event'];
+  static const _occasions = ['Everyday', 'Work', 'Dinner', 'Date', 'Travel', 'Event'];
 
   bool _loading = true;
   bool _generating = false;
   TibModelProfile? _model;
   List<WardrobeItem> _wardrobe = const [];
   final Set<String> _selectedIds = {};
-  String _occasion = 'Dinner';
+  String _occasion = 'Everyday';
   String _status = '';
   String? _generatedImageUrl;
 
@@ -39,18 +45,18 @@ class _AiGeneratedTryOnScreenState extends State<AiGeneratedTryOnScreen> {
   Future<void> _load() async {
     try {
       final model = await TibModelService.load();
-      final items = await _loadWardrobe();
+      final wardrobe = await _loadWardrobe();
       if (!mounted) return;
       setState(() {
         _model = model;
-        _wardrobe = items;
+        _wardrobe = wardrobe;
         _loading = false;
       });
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _status = 'Could not load your styling data. Please try again.';
+        _status = 'Could not load your Personal TiB Model or wardrobe.';
       });
     }
   }
@@ -66,6 +72,8 @@ class _AiGeneratedTryOnScreenState extends State<AiGeneratedTryOnScreen> {
       .take(6)
       .toList();
 
+  bool get _modelReady => _model?.isComplete == true;
+
   void _toggle(WardrobeItem item) {
     if (_generating) return;
     setState(() {
@@ -77,7 +85,7 @@ class _AiGeneratedTryOnScreenState extends State<AiGeneratedTryOnScreen> {
       _generatedImageUrl = null;
       _status = _selectedIds.isEmpty
           ? ''
-          : '${_selectedIds.length} piece${_selectedIds.length == 1 ? '' : 's'} selected.';
+          : '${_selectedIds.length} ${_selectedIds.length == 1 ? 'piece' : 'pieces'} selected.';
     });
   }
 
@@ -95,19 +103,19 @@ class _AiGeneratedTryOnScreenState extends State<AiGeneratedTryOnScreen> {
     final model = _model;
     final items = _selectedItems;
 
-    if (model == null || !model.isComplete || model.facePath == null) {
-      setState(() => _status = 'Create your complete TiB Model first so I can style you accurately.');
+    if (model == null || !model.isComplete || model.facePath == null || model.bodyPath == null) {
+      setState(() => _status = 'Complete your Personal TiB Model first: face, full-body reference and real measurements are required.');
       return;
     }
     if (items.isEmpty) {
-      setState(() => _status = 'Choose at least one wardrobe piece first.');
+      setState(() => _status = 'Choose at least one piece from My Wardrobe.');
       return;
     }
 
     setState(() {
       _generating = true;
       _generatedImageUrl = null;
-      _status = 'TiB is analysing your model, wardrobe and occasion…';
+      _status = 'TiB is dressing your Personal Model…';
     });
 
     final result = await VirtualTryOnResultService.generate(
@@ -115,7 +123,14 @@ class _AiGeneratedTryOnScreenState extends State<AiGeneratedTryOnScreen> {
         model: model,
         items: items,
         occasion: _occasion,
-        stylingBrief: 'Preserve the person identity and natural body proportions. Use the selected wardrobe pieces as the clothing source. Create a realistic, tasteful full-body fashion try-on for the selected occasion. Do not invent unrelated garments or change the person\'s face.',
+        stylingBrief: [
+          'This is a personal AI fitting-room request, not a generic fashion model request.',
+          'Use the supplied full-body reference as the primary silhouette and proportion reference.',
+          'Keep the same face, body proportions, height impression, shoulder width, waist, hips and leg proportions.',
+          'Dress the person using only the selected My Wardrobe references.',
+          'Show a natural head-to-toe standing fashion image whenever possible.',
+          'Do not beautify, slim, lengthen, reshape or replace the person with another model.',
+        ].join(' '),
       ),
     );
 
@@ -129,125 +144,130 @@ class _AiGeneratedTryOnScreenState extends State<AiGeneratedTryOnScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    final modelFile = _model?.faceFile;
-    final model = _model;
-    final ready = model?.isComplete == true;
+    if (_loading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
 
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('AI Virtual Try-On'),
-        actions: const [
-          Padding(
-            padding: EdgeInsets.only(right: 14),
-            child: PremiumBadge(compact: true),
-          ),
-        ],
+        title: const Text('AI Fitting Room', style: TextStyle(fontWeight: FontWeight.w800)),
+        actions: const [Padding(padding: EdgeInsets.only(right: 14), child: PremiumBadge(compact: true))],
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 34),
+        padding: const EdgeInsets.fromLTRB(18, 8, 18, 36),
         children: [
-          _buildHero(modelFile, ready),
+          _hero(),
           const SizedBox(height: 14),
-          _buildModelSummary(model),
+          _modelCard(),
           const SizedBox(height: 14),
-          _buildOccasion(),
+          _occasionCard(),
           const SizedBox(height: 14),
-          _buildSelectedStrip(),
-          const SizedBox(height: 14),
-          _buildWardrobe(),
+          _wardrobeCard(),
           const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: _generating ? null : _generate,
-              icon: _generating
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.auto_awesome_rounded),
-              label: Text(
-                _generating ? 'Creating Your Look…' : 'Generate My Try-On',
-              ),
-            ),
-          ),
+          _generateButton(),
           if (_status.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Text(
-              _status,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 11.5,
-                height: 1.45,
-              ),
-            ),
+            const SizedBox(height: 11),
+            _statusCard(),
           ],
           if (_generatedImageUrl != null) ...[
-            const SizedBox(height: 20),
-            _buildResult(),
+            const SizedBox(height: 18),
+            _resultCard(),
           ],
         ],
       ),
     );
   }
 
-  Widget _buildHero(File? modelFile, bool ready) {
+  Widget _hero() {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(20, 21, 20, 20),
+      decoration: BoxDecoration(
+        gradient: AppGradients.premium,
+        borderRadius: BorderRadius.circular(30),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: .72),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Text(
+                  'YOUR AI FITTING ROOM',
+                  style: TextStyle(fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 1),
+                ),
+              ),
+              const Spacer(),
+              const Icon(Icons.auto_awesome_rounded, size: 20),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'See yourself\nin your clothes.',
+            style: TextStyle(fontSize: 29, height: .98, fontWeight: FontWeight.w900, letterSpacing: -.8),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            _modelReady
+                ? 'Your real face + full-body reference + measurements become the model. Your wardrobe becomes the outfit.'
+                : 'Build your Personal TiB Model first. TiB needs your real body reference before it can create a personal try-on.',
+            style: const TextStyle(fontSize: 11, height: 1.45, color: AppColors.textSecondary),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _modelCard() {
+    final model = _model;
+    final face = model?.faceFile;
+    final body = model?.bodyFile;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(26),
         border: Border.all(color: AppColors.border),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 92,
-            height: 112,
-            decoration: BoxDecoration(
-              color: AppColors.primarySoft,
-              borderRadius: BorderRadius.circular(22),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: modelFile != null && modelFile.existsSync()
-                ? Image.file(modelFile, fit: BoxFit.cover)
-                : const Icon(Icons.person_rounded, size: 46, color: AppColors.primary),
+          Row(
+            children: [
+              const Expanded(child: Text('MY PERSONAL TIΒ MODEL', style: TextStyle(fontSize: 10, letterSpacing: 1.15, fontWeight: FontWeight.w900))),
+              _readyPill(_modelReady),
+            ],
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              _referenceImage(face, 'FACE', Icons.face_retouching_natural_rounded),
+              const SizedBox(width: 10),
+              _referenceImage(body, 'FULL BODY', Icons.accessibility_new_rounded),
+              const SizedBox(width: 10),
+              Expanded(child: _modelFacts(model)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(11),
+            decoration: BoxDecoration(
+              color: AppColors.primarySoft.withValues(alpha: .45),
+              borderRadius: BorderRadius.circular(15),
+            ),
+            child: const Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: ready ? AppColors.primarySoft : AppColors.surfaceMuted,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    ready ? 'TIΒ MODEL READY' : 'MODEL REQUIRED',
-                    style: TextStyle(
-                      color: ready ? AppColors.primaryDark : AppColors.textMuted,
-                      fontSize: 8,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: .9,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                const Text(
-                  'Try your clothes\nbefore you wear them.',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, height: 1.05),
-                ),
-                const SizedBox(height: 7),
-                const Text(
-                  'TiB uses your model profile, selected wardrobe and occasion to create the look.',
-                  style: TextStyle(color: AppColors.textSecondary, fontSize: 10.5, height: 1.4),
-                ),
+                Icon(Icons.lock_person_rounded, size: 16, color: AppColors.primaryDark),
+                SizedBox(width: 7),
+                Expanded(child: Text('This is the person TiB is dressing. The full-body reference is the primary silhouette reference; measurements provide real fit context.', style: TextStyle(fontSize: 9.5, height: 1.4, color: AppColors.primaryDark, fontWeight: FontWeight.w600))),
               ],
             ),
           ),
@@ -256,287 +276,197 @@ class _AiGeneratedTryOnScreenState extends State<AiGeneratedTryOnScreen> {
     );
   }
 
-  Widget _buildModelSummary(TibModelProfile? model) {
-    if (model == null) return const SizedBox.shrink();
-    return Container(
-      padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'PERSONAL FIT CONTEXT',
-            style: TextStyle(fontSize: 9, letterSpacing: 1.2, fontWeight: FontWeight.w900, color: AppColors.textMuted),
-          ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 7,
-            runSpacing: 7,
-            children: [
-              _profileChip('Face', model.faceShape),
-              _profileChip('Body', model.bodyShape),
-              _profileChip('Height', model.height > 0 ? '${_num(model.height)} cm' : '—'),
-              _profileChip('Bust', model.bust > 0 ? '${_num(model.bust)} cm' : '—'),
-              _profileChip('Waist', model.waist > 0 ? '${_num(model.waist)} cm' : '—'),
-              _profileChip('Hips', model.hips > 0 ? '${_num(model.hips)} cm' : '—'),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _num(double value) => value == value.roundToDouble() ? value.toInt().toString() : value.toStringAsFixed(1);
-
-  Widget _profileChip(String label, String value) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
-        decoration: BoxDecoration(color: AppColors.surfaceMuted, borderRadius: BorderRadius.circular(13)),
-        child: Text('$label · $value', style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800)),
-      );
-
-  Widget _buildOccasion() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'WHAT ARE YOU DRESSING FOR?',
-            style: TextStyle(fontSize: 9, letterSpacing: 1.2, fontWeight: FontWeight.w900, color: AppColors.textMuted),
-          ),
-          const SizedBox(height: 9),
-          Wrap(
-            spacing: 7,
-            runSpacing: 7,
-            children: _occasions.map((value) {
-              return ChoiceChip(
-                label: Text(value),
-                selected: _occasion == value,
-                onSelected: _generating
-                    ? null
-                    : (_) {
-                        setState(() {
-                          _occasion = value;
-                          _generatedImageUrl = null;
-                        });
-                      },
-              );
-            }).toList(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSelectedStrip() {
-    final items = _selectedItems;
-    if (items.isEmpty) return const SizedBox.shrink();
-    return Container(
-      padding: const EdgeInsets.all(13),
-      decoration: BoxDecoration(
-        gradient: AppGradients.soft,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.primarySoft),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.checkroom_rounded, size: 18, color: AppColors.primaryDark),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              '${items.length} selected for this look',
-              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
-            ),
-          ),
-          TextButton(onPressed: _clearSelection, child: const Text('Clear')),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildWardrobe() {
-    if (_wardrobe.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(22),
+  Widget _referenceImage(File? file, String label, IconData icon) {
+    return SizedBox(
+      width: 86,
+      height: 128,
+      child: Container(
         decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(22),
+          color: AppColors.surfaceMuted,
+          borderRadius: BorderRadius.circular(18),
           border: Border.all(color: AppColors.border),
         ),
-        child: const Text(
-          'Your wardrobe is empty. Add some pieces first, then come back and create your virtual look.',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: AppColors.textSecondary, height: 1.45),
+        clipBehavior: Clip.antiAlias,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (file != null && file.existsSync()) Image.file(file, fit: BoxFit.cover) else Center(child: Icon(icon, size: 30, color: AppColors.primary)),
+            Positioned(
+              left: 7,
+              right: 7,
+              bottom: 7,
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                decoration: BoxDecoration(color: Colors.black.withValues(alpha: .56), borderRadius: BorderRadius.circular(9)),
+                child: Text(label, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 7, fontWeight: FontWeight.w900, letterSpacing: .7)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _modelFacts(TibModelProfile? model) {
+    if (model == null) return const Text('Create your Personal TiB Model.', style: TextStyle(fontSize: 11, color: AppColors.textSecondary));
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _fact('Body', model.bodyShape),
+        _fact('Face', model.faceShape),
+        _fact('Height', model.height > 0 ? '${_num(model.height)} cm' : '—'),
+        _fact('Fit', '${_num(model.bust)} / ${_num(model.waist)} / ${_num(model.hips)}'),
+      ],
+    );
+  }
+
+  Widget _fact(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label.toUpperCase(), style: const TextStyle(fontSize: 7, letterSpacing: .8, color: AppColors.textMuted, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 2),
+          Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900)),
+        ],
+      ),
+    );
+  }
+
+  Widget _readyPill(bool ready) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(color: ready ? AppColors.primarySoft : AppColors.surfaceMuted, borderRadius: BorderRadius.circular(20)),
+      child: Text(ready ? 'READY' : 'INCOMPLETE', style: TextStyle(fontSize: 7.5, letterSpacing: .7, fontWeight: FontWeight.w900, color: ready ? AppColors.primaryDark : AppColors.textMuted)),
+    );
+  }
+
+  Widget _occasionCard() {
+    return _section(
+      title: 'WHAT ARE YOU DRESSING FOR?',
+      child: Wrap(
+        spacing: 7,
+        runSpacing: 7,
+        children: _occasions.map((occasion) {
+          return ChoiceChip(
+            label: Text(occasion),
+            selected: _occasion == occasion,
+            onSelected: _generating ? null : (_) => setState(() { _occasion = occasion; _generatedImageUrl = null; }),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _wardrobeCard() {
+    if (_wardrobe.isEmpty) {
+      return _section(
+        title: 'MY WARDROBE',
+        child: const Padding(
+          padding: EdgeInsets.symmetric(vertical: 16),
+          child: Text('Your wardrobe is empty. Add your real clothing pieces first so TiB can dress your Personal Model.', textAlign: TextAlign.center, style: TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.45)),
         ),
       );
     }
 
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.border),
-      ),
+    return _section(
+      title: 'CHOOSE WHAT YOUR MODEL WILL WEAR',
+      trailing: Text('${_selectedIds.length}/6', style: const TextStyle(color: AppColors.primary, fontSize: 11, fontWeight: FontWeight.w900)),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Expanded(
-                child: Text(
-                  'SELECT FROM MY WARDROBE',
-                  style: TextStyle(fontSize: 11, letterSpacing: 1.1, fontWeight: FontWeight.w900),
-                ),
-              ),
-              Text('${_selectedIds.length}/6', style: const TextStyle(color: AppColors.primary, fontSize: 11, fontWeight: FontWeight.w800)),
-            ],
-          ),
-          const SizedBox(height: 5),
-          const Text(
-            'Choose the pieces you want TiB to use. For the most realistic result, include the main outfit pieces.',
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 10, height: 1.35),
-          ),
-          const SizedBox(height: 11),
+          const Align(alignment: Alignment.centerLeft, child: Text('Select the actual pieces from My Wardrobe. TiB will use these images as garment references.', style: TextStyle(color: AppColors.textSecondary, fontSize: 10, height: 1.35))),
+          const SizedBox(height: 12),
           GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: _wardrobe.length,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 10,
-              childAspectRatio: .78,
-            ),
-            itemBuilder: (context, index) {
-              final item = _wardrobe[index];
-              final selected = _selectedIds.contains(item.id);
-              return GestureDetector(
-                onTap: () => _toggle(item),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  decoration: BoxDecoration(
-                    color: selected ? AppColors.lavenderMist : AppColors.surfaceMuted,
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(
-                      color: selected ? AppColors.primary : AppColors.border,
-                      width: selected ? 2 : 1,
-                    ),
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: item.imageUrl.isEmpty
-                            ? const Center(child: Icon(Icons.checkroom_outlined, size: 36, color: AppColors.primary))
-                            : Image.network(
-                                item.imageUrl,
-                                width: double.infinity,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stack) => const Center(
-                                  child: Icon(Icons.broken_image_outlined, color: AppColors.textMuted),
-                                ),
-                              ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                item.name,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
-                              ),
-                            ),
-                            if (selected) const Icon(Icons.check_circle_rounded, size: 18, color: AppColors.primary),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 9, mainAxisSpacing: 9, childAspectRatio: .74),
+            itemBuilder: (context, index) => _wardrobeItem(_wardrobe[index]),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildResult() {
+  Widget _wardrobeItem(WardrobeItem item) {
+    final selected = _selectedIds.contains(item.id);
+    return GestureDetector(
+      onTap: () => _toggle(item),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.lavenderMist : AppColors.surfaceMuted,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: selected ? AppColors.primary : AppColors.border, width: selected ? 2 : 1),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: item.imageUrl.isEmpty
+                  ? const Center(child: Icon(Icons.checkroom_outlined, size: 38, color: AppColors.primary))
+                  : Image.network(item.imageUrl, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Center(child: Icon(Icons.broken_image_outlined, color: AppColors.textMuted))),
+            Positioned(left: 8, right: 8, bottom: 8, child: Container(padding: const EdgeInsets.fromLTRB(9, 7, 7, 7), decoration: BoxDecoration(color: Colors.white.withValues(alpha: .9), borderRadius: BorderRadius.circular(12)), child: Row(children: [Expanded(child: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900))), if (selected) const Icon(Icons.check_circle_rounded, size: 18, color: AppColors.primary)]))),
+            if (selected) Positioned(top: 8, right: 8, child: Container(padding: const EdgeInsets.all(5), decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle), child: const Icon(Icons.check, color: Colors.white, size: 13))),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _generateButton() {
+    final enabled = !_generating && _modelReady && _selectedItems.isNotEmpty;
+    return SizedBox(
+      width: double.infinity,
+      height: 56,
+      child: FilledButton.icon(
+        onPressed: enabled ? _generate : null,
+        icon: _generating ? const SizedBox(width: 19, height: 19, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.auto_awesome_rounded),
+        label: Text(_generating ? 'Dressing Your TiB Model…' : 'Generate My Personal Try-On'),
+      ),
+    );
+  }
+
+  Widget _statusCard() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [const Icon(Icons.info_outline_rounded, size: 17, color: AppColors.primary), const SizedBox(width: 8), Expanded(child: Text(_status, textAlign: TextAlign.left, style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.5, height: 1.4)))]),
+    );
+  }
+
+  Widget _resultCard() {
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(26),
-        border: Border.all(color: AppColors.primarySoft),
-      ),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(27), border: Border.all(color: AppColors.primarySoft, width: 1.4)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
-            children: [
-              Icon(Icons.auto_awesome_rounded, size: 18, color: AppColors.primary),
-              SizedBox(width: 8),
-              Text('YOUR AI TRY-ON', style: TextStyle(fontSize: 11, letterSpacing: 1.1, fontWeight: FontWeight.w900)),
-            ],
+          Row(children: [const Icon(Icons.auto_awesome_rounded, size: 18, color: AppColors.primary), const SizedBox(width: 7), const Expanded(child: Text('THIS IS YOUR LOOK', style: TextStyle(fontSize: 11, letterSpacing: 1.1, fontWeight: FontWeight.w900))), TextButton(onPressed: _generating ? null : _generate, child: const Text('Regenerate'))]),
+          const SizedBox(height: 9),
+          ClipRRect(borderRadius: BorderRadius.circular(21), child: Image.network(_generatedImageUrl!, width: double.infinity, fit: BoxFit.contain, errorBuilder: (_, __, ___) => Container(height: 360, alignment: Alignment.center, color: AppColors.surfaceMuted, child: const Text('The generated image could not be displayed.')))),
+          const SizedBox(height: 11),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: AppColors.primarySoft.withValues(alpha: .4), borderRadius: BorderRadius.circular(16)),
+            child: const Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(Icons.person_pin_rounded, size: 17, color: AppColors.primaryDark), SizedBox(width: 7), Expanded(child: Text('TiB generated this look from your Personal TiB Model and the selected pieces in My Wardrobe. The goal is to show you — not a replacement model.', style: TextStyle(fontSize: 9.5, height: 1.4, color: AppColors.primaryDark, fontWeight: FontWeight.w600)))]),
           ),
-          const SizedBox(height: 12),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(20),
-            child: Image.network(
-              _generatedImageUrl!,
-              width: double.infinity,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stack) => Container(
-                height: 300,
-                alignment: Alignment.center,
-                color: AppColors.surfaceMuted,
-                child: const Text('The generated image could not be displayed.'),
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: _generating ? null : _generate,
-                  icon: const Icon(Icons.refresh_rounded),
-                  label: const Text('Try Again'),
-                ),
-              ),
-              const SizedBox(width: 9),
-              Expanded(
-                child: FilledButton.icon(
-                  onPressed: _generating
-                      ? null
-                      : () {
-                          setState(() {
-                            _generatedImageUrl = null;
-                            _status = '';
-                          });
-                        },
-                  icon: const Icon(Icons.checkroom_rounded),
-                  label: const Text('Change Look'),
-                ),
-              ),
-            ],
-          ),
+          const SizedBox(height: 10),
+          SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: _generating ? null : _clearSelection, icon: const Icon(Icons.checkroom_rounded), label: const Text('Create Another Look'))),
         ],
       ),
     );
   }
+
+  Widget _section({required String title, Widget? trailing, required Widget child}) {
+    return Container(
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(24), border: Border.all(color: AppColors.border)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [Expanded(child: Text(title, style: const TextStyle(fontSize: 9.5, letterSpacing: 1.1, fontWeight: FontWeight.w900, color: AppColors.textMuted))), if (trailing != null) trailing]), const SizedBox(height: 10), child]),
+    );
+  }
+
+  String _num(double value) => value <= 0 ? '—' : value == value.roundToDouble() ? value.toInt().toString() : value.toStringAsFixed(1);
 }
