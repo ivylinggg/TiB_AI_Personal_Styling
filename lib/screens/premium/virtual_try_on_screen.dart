@@ -38,14 +38,7 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
   String? _requestId;
   _TryOnMode _mode = _TryOnMode.choose;
 
-  static const _occasions = [
-    'Dinner',
-    'Work',
-    'Casual',
-    'Date',
-    'Travel',
-    'Event',
-  ];
+  static const _occasions = ['Dinner', 'Work', 'Casual', 'Date', 'Travel', 'Event'];
 
   @override
   void initState() {
@@ -76,7 +69,7 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
       if (!mounted) return;
       final prefs = results[2] as Map<String, dynamic>?;
       setState(() {
-        _tibModel = results[0] as TibModelProfile;
+        _tibModel = results[0] as TibModelProfile?;
         _wardrobe = results[1] as List<WardrobeItem>;
         _styles = List<String>.from(prefs?['styles'] ?? const []);
         _preferences = List<String>.from(prefs?['preferences'] ?? const []);
@@ -120,8 +113,7 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
       setState(() => _status = 'Add some wardrobe pieces first.');
       return;
     }
-    final profile = _analysis;
-    if (profile == null) {
+    if (_analysis == null) {
       setState(() => _status = 'Complete Colour Analysis first so TiB can style you accurately.');
       return;
     }
@@ -137,7 +129,7 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
 
     try {
       final result = await AiStylingService.getRecommendation(
-        profile: profile,
+        profile: _analysis!,
         wardrobe: _wardrobe,
         styles: _styles,
         preferences: _preferences,
@@ -148,45 +140,35 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
       if (result == null) {
         setState(() {
           _busy = false;
-          _status = 'TiB could not find a complete outfit from your current wardrobe. Choose pieces manually or add more wardrobe items.';
+          _status = 'TiB could not find a complete outfit from your current wardrobe.';
         });
         return;
       }
 
-      final ids = <String?>[
-        result.topId,
-        result.bottomId,
-        result.shoesId,
-        result.accessoryId,
-      ];
+      final ids = <String?>[result.topId, result.bottomId, result.shoesId, result.accessoryId];
       final picks = ids.whereType<String>().map(_find).whereType<WardrobeItem>().toList();
-
       setState(() {
         _selectedIds = picks.map((item) => item.id).toSet();
         _status = picks.isEmpty
-            ? 'TiB returned a styling recommendation without matching wardrobe images.'
-            : 'TiB selected ${picks.length} pieces from your real wardrobe. Generating your Virtual You…';
+            ? 'TiB returned a recommendation without matching wardrobe images.'
+            : 'TiB selected ${picks.length} pieces. Creating your Virtual You…';
       });
 
       if (picks.isEmpty) {
         setState(() => _busy = false);
         return;
       }
-
       await _generateTryOn(itemsOverride: picks, autoSave: true);
     } catch (_) {
       if (!mounted) return;
       setState(() {
         _busy = false;
-        _status = 'TiB could not build the look right now. You can choose your wardrobe manually.';
+        _status = 'TiB could not build the look right now. Choose your wardrobe manually.';
       });
     }
   }
 
-  Future<void> _generateTryOn({
-    List<WardrobeItem>? itemsOverride,
-    bool autoSave = false,
-  }) async {
+  Future<void> _generateTryOn({List<WardrobeItem>? itemsOverride, bool autoSave = false}) async {
     if (_busy && itemsOverride == null) return;
 
     final model = _tibModel;
@@ -205,20 +187,12 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
       return;
     }
 
-    if (!_busy) {
-      setState(() {
-        _busy = true;
-        _generatedImageUrl = null;
-        _requestId = null;
-        _status = 'Creating your Virtual You…\nTiB is matching your face, body and selected wardrobe.';
-      });
-    } else {
-      setState(() {
-        _generatedImageUrl = null;
-        _requestId = null;
-        _status = 'Creating your Virtual You…\nTiB is matching your face, body and selected wardrobe.';
-      });
-    }
+    setState(() {
+      _busy = true;
+      _generatedImageUrl = null;
+      _requestId = null;
+      _status = 'Creating your Virtual You…\nTiB is matching your face, body and selected wardrobe.';
+    });
 
     try {
       final result = await VirtualTryOnResultService.generate(
@@ -255,10 +229,9 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
   String _buildStylingBrief() {
     final model = _tibModel!;
     final profile = _analysis;
-    final selected = _selectedItems;
-    final items = selected.map((item) {
-      return '${item.name} | category=${item.category} | colour=${item.colour} | style=${item.style}';
-    }).join('\n');
+    final items = _selectedItems
+        .map((item) => '${item.name} | category=${item.category} | colour=${item.colour} | style=${item.style}')
+        .join('\n');
 
     return '''Create the user's Virtual You for a $_occasion look.
 
@@ -374,13 +347,17 @@ Generate one realistic full-body fashion image of the same user wearing the sele
   Widget build(BuildContext context) {
     if (_loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
     final selected = _selectedItems;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(title: const Text('AI Virtual Try-On')),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 34),
         children: [
-          if (_generatedImageUrl != null) ...[_buildGeneratedResult(), const SizedBox(height: 16)],
+          if (_generatedImageUrl != null) ...[
+            _buildGeneratedResult(),
+            const SizedBox(height: 16),
+          ],
           _buildModelCard(_tibModel),
           const SizedBox(height: 16),
           _buildModeSwitch(),
@@ -396,7 +373,9 @@ Generate one realistic full-body fashion image of the same user wearing the sele
               width: double.infinity,
               child: FilledButton.icon(
                 onPressed: _busy ? null : _generateTryOn,
-                icon: _busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.auto_awesome_rounded),
+                icon: _busy
+                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.auto_awesome_rounded),
                 label: Text(_busy ? 'Creating Your Virtual You…' : 'Generate My Try-On'),
               ),
             ),
@@ -420,7 +399,11 @@ Generate one realistic full-body fashion image of the same user wearing the sele
                 borderRadius: BorderRadius.circular(18),
                 border: Border.all(color: AppColors.border),
               ),
-              child: Text(_status, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.textSecondary, height: 1.45, fontSize: 11.5)),
+              child: Text(
+                _status,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: AppColors.textSecondary, height: 1.45, fontSize: 11.5),
+              ),
             ),
           ],
         ],
@@ -428,113 +411,193 @@ Generate one realistic full-body fashion image of the same user wearing the sele
     );
   }
 
-  Widget _buildGeneratedResult() => Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(gradient: AppGradients.soft, borderRadius: BorderRadius.circular(26), border: Border.all(color: AppColors.primarySoft)),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(6, 4, 6, 10),
-              child: Row(children: [Icon(Icons.person_rounded, size: 18, color: AppColors.primaryDark), SizedBox(width: 7), Text('Your Virtual You', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900))]),
+  Widget _buildGeneratedResult() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        gradient: AppGradients.soft,
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: AppColors.primarySoft),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(6, 4, 6, 10),
+            child: Row(
+              children: [
+                Icon(Icons.auto_awesome_rounded, color: AppColors.primaryDark, size: 19),
+                SizedBox(width: 7),
+                Text('YOUR VIRTUAL YOU', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900)),
+              ],
             ),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(18),
-              child: CachedNetworkImage(
-                imageUrl: _generatedImageUrl!,
-                width: double.infinity,
-                fit: BoxFit.cover,
-                placeholder: (_, __) => const AspectRatio(aspectRatio: .75, child: Center(child: CircularProgressIndicator())),
-                errorWidget: (_, __, ___) => const Padding(padding: EdgeInsets.all(24), child: Text('The generated image could not be displayed.')),
+          ),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(18),
+            child: CachedNetworkImage(
+              imageUrl: _generatedImageUrl!,
+              width: double.infinity,
+              fit: BoxFit.cover,
+              placeholder: (_, __) => const AspectRatio(
+                aspectRatio: .75,
+                child: Center(child: CircularProgressIndicator()),
+              ),
+              errorWidget: (_, __, ___) => const Padding(
+                padding: EdgeInsets.all(24),
+                child: Text('The generated image could not be displayed.'),
               ),
             ),
-            if (_requestId != null) Padding(padding: const EdgeInsets.only(top: 6), child: Text('Generation ID: $_requestId', style: const TextStyle(color: AppColors.textMuted, fontSize: 9))),
-          ],
-        ),
-      );
-
-  Widget _buildModelCard(TibModelProfile? model) => Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)),
-        child: Row(
-          children: [
-            Container(
-              width: 58,
-              height: 70,
-              decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.circular(17)),
-              clipBehavior: Clip.antiAlias,
-              child: model?.faceFile != null && model!.faceFile!.existsSync() ? Image.file(model.faceFile!, fit: BoxFit.cover) : const Icon(Icons.face_retouching_natural_rounded, color: AppColors.primaryDark, size: 28),
+          ),
+          if (_requestId != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text('Generation ID: $_requestId', style: const TextStyle(color: AppColors.textMuted, fontSize: 9)),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('YOUR AI VIRTUAL YOU', style: TextStyle(fontSize: 9, letterSpacing: 1.2, fontWeight: FontWeight.w900, color: AppColors.textMuted)),
-                  const SizedBox(height: 5),
-                  Text(model?.bodyShape ?? 'TiB Model', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
-                  const SizedBox(height: 4),
-                  Text('Face + body profile + proportions + wardrobe', style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.5, height: 1.35)),
-                ],
-              ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildModelCard(TibModelProfile? model) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 58,
+            height: 70,
+            decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.circular(17)),
+            clipBehavior: Clip.antiAlias,
+            child: model?.faceFile != null && model!.faceFile!.existsSync()
+                ? Image.file(model.faceFile!, fit: BoxFit.cover)
+                : const Icon(Icons.face_retouching_natural_rounded, color: AppColors.primaryDark, size: 28),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('YOUR AI VIRTUAL YOU', style: TextStyle(fontSize: 9, letterSpacing: 1.2, fontWeight: FontWeight.w900, color: AppColors.textMuted)),
+                const SizedBox(height: 5),
+                Text(model?.bodyShape ?? 'TiB Model', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
+                const SizedBox(height: 4),
+                const Text('Face + body profile + proportions + wardrobe', style: TextStyle(color: AppColors.textSecondary, fontSize: 10.5, height: 1.35)),
+              ],
             ),
-          ],
-        ),
-      );
+          ),
+        ],
+      ),
+    );
+  }
 
-  Widget _buildModeSwitch() => Container(
-        padding: const EdgeInsets.all(5),
-        decoration: BoxDecoration(color: AppColors.surfaceMuted, borderRadius: BorderRadius.circular(16)),
+  Widget _buildModeSwitch() {
+    return Container(
+      padding: const EdgeInsets.all(5),
+      decoration: BoxDecoration(color: AppColors.surfaceMuted, borderRadius: BorderRadius.circular(16)),
+      child: Row(
+        children: [
+          Expanded(child: _modeButton(_TryOnMode.choose, 'Choose My Outfit', Icons.checkroom_rounded)),
+          Expanded(child: _modeButton(_TryOnMode.ai, 'Let TiB Style Me', Icons.auto_awesome_rounded)),
+        ],
+      ),
+    );
+  }
+
+  Widget _modeButton(_TryOnMode mode, String label, IconData icon) {
+    return GestureDetector(
+      onTap: _busy
+          ? null
+          : () => setState(() {
+                _mode = mode;
+                _generatedImageUrl = null;
+                _requestId = null;
+                _status = '';
+              }),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 8),
+        decoration: BoxDecoration(
+          color: _mode == mode ? AppColors.surface : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+        ),
         child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Expanded(child: _modeButton(_TryOnMode.choose, 'Choose My Outfit', Icons.checkroom_rounded)),
-            Expanded(child: _modeButton(_TryOnMode.ai, 'Let TiB Style Me', Icons.auto_awesome_rounded)),
+            Icon(icon, size: 16, color: AppColors.primaryDark),
+            const SizedBox(width: 6),
+            Flexible(child: Text(label, textAlign: TextAlign.center, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800))),
           ],
         ),
-      );
+      ),
+    );
+  }
 
-  Widget _modeButton(_TryOnMode mode, String label, IconData icon) => GestureDetector(
-        onTap: _busy ? null : () => setState(() {
-          _mode = mode;
-          _generatedImageUrl = null;
-          _requestId = null;
-          _status = '';
-        }),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 8),
-          decoration: BoxDecoration(color: _mode == mode ? AppColors.surface : Colors.transparent, borderRadius: BorderRadius.circular(12)),
-          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(icon, size: 16, color: AppColors.primaryDark), const SizedBox(width: 6), Flexible(child: Text(label, textAlign: TextAlign.center, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800)))]),
-        ),
-      );
-
-  Widget _buildOccasions() => Container(
-        padding: const EdgeInsets.all(15),
-        decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.border)),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+  Widget _buildOccasions() {
+    return Container(
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.border)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
           const Text('WHAT ARE YOU DRESSING FOR?', style: TextStyle(fontSize: 9, letterSpacing: 1.2, fontWeight: FontWeight.w900, color: AppColors.textMuted)),
           const SizedBox(height: 8),
-          Wrap(spacing: 7, runSpacing: 7, children: _occasions.map((value) => ChoiceChip(label: Text(value), selected: _occasion == value, onSelected: _busy ? null : (_) => setState(() { _occasion = value; _generatedImageUrl = null; _requestId = null; _status = ''; })).toList()),
-        ]),
-      );
+          Wrap(
+            spacing: 7,
+            runSpacing: 7,
+            children: _occasions.map((value) {
+              return ChoiceChip(
+                label: Text(value),
+                selected: _occasion == value,
+                onSelected: _busy
+                    ? null
+                    : (_) => setState(() {
+                          _occasion = value;
+                          _generatedImageUrl = null;
+                          _requestId = null;
+                          _status = '';
+                        }),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
 
-  Widget _buildAiPanel() => Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(gradient: AppGradients.ai, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+  Widget _buildAiPanel() {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(gradient: AppGradients.ai, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
           const Row(children: [Icon(Icons.auto_awesome_rounded, color: AppColors.primaryDark), SizedBox(width: 8), Text('Let TiB Style Me', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900))]),
           const SizedBox(height: 7),
           const Text('TiB will choose the most suitable clothes and shoes from your wardrobe using your Colour Analysis, body shape and personal style, then create your Virtual You.', style: TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.45)),
           const SizedBox(height: 13),
           SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: _busy ? null : _letTiBStyleMe, icon: const Icon(Icons.auto_awesome), label: const Text('Find My Best Look'))),
-        ]),
-      );
+        ],
+      ),
+    );
+  }
 
-  Widget _buildWardrobePicker() => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+  Widget _buildWardrobePicker() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
         const Text('YOUR WARDROBE', style: TextStyle(fontSize: 10, letterSpacing: 1.3, fontWeight: FontWeight.w900, color: AppColors.textMuted)),
         const SizedBox(height: 9),
         if (_wardrobe.isEmpty)
-          Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.border)), child: const Center(child: Text('Your wardrobe is empty. Add clothes first.')))
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.border)),
+            child: const Center(child: Text('Your wardrobe is empty. Add clothes first.')),
+          )
         else
           GridView.builder(
             shrinkWrap: true,
@@ -550,26 +613,81 @@ Generate one realistic full-body fashion image of the same user wearing the sele
                   duration: const Duration(milliseconds: 180),
                   decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(20), border: Border.all(color: selected ? AppColors.primaryDark : AppColors.border, width: selected ? 2 : 1)),
                   clipBehavior: Clip.antiAlias,
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Expanded(child: Stack(children: [Positioned.fill(child: CachedNetworkImage(imageUrl: item.imageUrl, fit: BoxFit.cover, errorWidget: (_, __, ___) => const Icon(Icons.image_not_supported_outlined)),), if (selected) Positioned(top: 9, right: 9, child: Container(width: 27, height: 27, decoration: const BoxDecoration(color: AppColors.primaryDark, shape: BoxShape.circle), child: const Icon(Icons.check, color: Colors.white, size: 16))),]),
-                    Padding(padding: const EdgeInsets.fromLTRB(11, 8, 11, 11), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800)), const SizedBox(height: 3), Text('${item.category} • ${item.colour}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.textSecondary, fontSize: 9.5))]),
-                  ]),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Stack(
+                          children: [
+                            Positioned.fill(child: CachedNetworkImage(imageUrl: item.imageUrl, fit: BoxFit.cover, errorWidget: (_, __, ___) => const Icon(Icons.image_not_supported_outlined))),
+                            if (selected)
+                              Positioned(
+                                top: 9,
+                                right: 9,
+                                child: Container(
+                                  width: 27,
+                                  height: 27,
+                                  decoration: const BoxDecoration(color: AppColors.primaryDark, shape: BoxShape.circle),
+                                  child: const Icon(Icons.check, color: Colors.white, size: 16),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(11, 8, 11, 11),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
+                            const SizedBox(height: 3),
+                            Text('${item.category} • ${item.colour}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.textSecondary, fontSize: 9.5)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               );
             },
           ),
-      ]);
+      ],
+    );
+  }
 
-  Widget _buildSelectedLook(List<WardrobeItem> items) => Container(
-        padding: const EdgeInsets.all(15),
-        decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.border)),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+  Widget _buildSelectedLook(List<WardrobeItem> items) {
+    return Container(
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.border)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
           const Text('SELECTED LOOK', style: TextStyle(fontSize: 9, letterSpacing: 1.2, fontWeight: FontWeight.w900, color: AppColors.textMuted)),
           const SizedBox(height: 10),
-          SizedBox(height: 92, child: ListView.separated(scrollDirection: Axis.horizontal, itemCount: items.length, separatorBuilder: (_, __) => const SizedBox(width: 9), itemBuilder: (_, index) {
-            final item = items[index];
-            return SizedBox(width: 72, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(child: ClipRRect(borderRadius: BorderRadius.circular(13), child: CachedNetworkImage(imageUrl: item.imageUrl, width: double.infinity, fit: BoxFit.cover, errorWidget: (_, __, ___) => const Icon(Icons.image_not_supported_outlined)))), const SizedBox(height: 4), Text(item.category, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 8.5, fontWeight: FontWeight.w800))]);
-          })),
-        ]),
-      );
+          SizedBox(
+            height: 92,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: items.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 9),
+              itemBuilder: (_, index) {
+                final item = items[index];
+                return SizedBox(
+                  width: 72,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: ClipRRect(borderRadius: BorderRadius.circular(13), child: CachedNetworkImage(imageUrl: item.imageUrl, width: double.infinity, fit: BoxFit.cover, errorWidget: (_, __, ___) => const Icon(Icons.image_not_supported_outlined)))),
+                      const SizedBox(height: 4),
+                      Text(item.category, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 8.5, fontWeight: FontWeight.w800)),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
