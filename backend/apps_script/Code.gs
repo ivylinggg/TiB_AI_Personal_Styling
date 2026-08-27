@@ -8,9 +8,7 @@ const GEMINI_IMAGE_MODEL = "gemini-3.1-flash-image";
 
 function doPost(e) {
   try {
-    if (!e || !e.postData || !e.postData.contents) {
-      return jsonResponse({success:false,error:"No request body received."});
-    }
+    if (!e || !e.postData || !e.postData.contents) return jsonResponse({success:false,error:"No request body received."});
     const body = JSON.parse(e.postData.contents);
     if (body.action === "delete") return handleDelete(body);
     if (body.action === "aiStyling") return handleAiStyling(body);
@@ -50,7 +48,7 @@ function handleAiStyling(body) {
     const wardrobe = Array.isArray(body.wardrobe) ? body.wardrobe : [];
     if (wardrobe.length === 0) return jsonResponse({success:false,error:"No wardrobe items to style."});
     const response = UrlFetchApp.fetch("https://api.anthropic.com/v1/messages", {
-      method:"post",contentType:"application/json",
+      method:"post", contentType:"application/json",
       headers:{"x-api-key":apiKey,"anthropic-version":"2023-06-01"},
       payload:JSON.stringify({model:CLAUDE_MODEL,max_tokens:500,messages:[{role:"user",content:buildStylingPrompt(body,wardrobe)}]}),
       muteHttpExceptions:true
@@ -76,7 +74,7 @@ function handleTodayRecommendation(body) {
     const apiKey = PropertiesService.getScriptProperties().getProperty("ANTHROPIC_API_KEY");
     if (!apiKey) return jsonResponse({success:false,error:"AI recommendation is not configured."});
     const response = UrlFetchApp.fetch("https://api.anthropic.com/v1/messages", {
-      method:"post",contentType:"application/json",
+      method:"post", contentType:"application/json",
       headers:{"x-api-key":apiKey,"anthropic-version":"2023-06-01"},
       payload:JSON.stringify({model:CLAUDE_MODEL,max_tokens:700,messages:[{role:"user",content:buildTodayRecommendationPrompt(body)}]}),
       muteHttpExceptions:true
@@ -102,6 +100,7 @@ function isVerifiedUser(uid,idToken) {
     return response.getResponseCode() === 200;
   } catch (error) { return false; }
 }
+
 function isVerifiedPremiumUser(uid,idToken) {
   try {
     const url = "https://firestore.googleapis.com/v1/projects/" + FIREBASE_PROJECT_ID + "/databases/(default)/documents/users/" + encodeURIComponent(uid);
@@ -112,7 +111,13 @@ function isVerifiedPremiumUser(uid,idToken) {
     return !!(fields.isPremium && fields.isPremium.booleanValue === true);
   } catch (error) { return false; }
 }
-function hasAiAccess(uid,idToken) { return PRE_LAUNCH_MODE ? isVerifiedUser(uid,idToken) : isVerifiedPremiumUser(uid,idToken); }
+
+function hasAiAccess(uid,idToken) {
+  // Pre-launch: every authenticated app account, including Free accounts, can use AI.
+  // Production: restore the Premium entitlement check.
+  if (PRE_LAUNCH_MODE) return !!uid && !!idToken;
+  return isVerifiedPremiumUser(uid,idToken);
+}
 
 function buildStylingPrompt(body,wardrobe) {
   const profile = body.profile || {};
@@ -132,6 +137,7 @@ function buildTodayRecommendationPrompt(body) {
   const lines = wardrobe.slice(0,30).map(function(item){return "- " + (item.name || "unnamed") + " | category: " + (item.category || "unknown") + " | colour: " + (item.colour || "unknown") + " | style: " + (item.style || "unknown");}).join("\n");
   return "You are TiB, a warm and practical personal fashion stylist. Create ONE useful recommendation. Use only supplied facts. Occasion: " + occasion + "\nToday's colour: " + colour + "\nBody shape: " + (tib.bodyShape || "unknown") + "\nFace shape: " + (tib.faceShape || "unknown") + "\nSeason: " + (profile.season || "unknown") + "\nRecommended colours: " + ((profile.colours || []).join(", ") || "none") + "\nWardrobe:\n" + (lines || "No wardrobe items supplied.") + "\nReturn ONLY JSON with styleDirection,styleTags,recommendedColour,outfitFormula,whyItWorks,stylingTip.";
 }
+
 function sanitizeTodayRecommendation(parsed,body) {
   function text(value,fallback){return typeof value === "string" ? value.trim() : fallback;}
   const tags = Array.isArray(parsed.styleTags) ? parsed.styleTags.filter(function(tag){return typeof tag === "string" && tag.trim();}).slice(0,4).map(function(tag){return tag.trim();}) : [];
@@ -140,6 +146,7 @@ function sanitizeTodayRecommendation(parsed,body) {
   const fallbackColour = todayColour || ((Array.isArray(profile.colours) && profile.colours.length > 0) ? String(profile.colours[0]) : "Your best colour");
   return {styleDirection:text(parsed.styleDirection,"Effortless Style"),styleTags:tags.length ? tags : ["Personal","Polished","Easy"],recommendedColour:text(parsed.recommendedColour,fallbackColour),outfitFormula:text(parsed.outfitFormula,"Choose a balanced outfit in your recommended colours."),whyItWorks:text(parsed.whyItWorks,"This look is designed around your personal styling profile and today's context."),stylingTip:text(parsed.stylingTip,"Keep one element simple so the overall look feels effortless.")};
 }
+
 function parseStylingJson(text) {
   try {
     var cleaned = String(text).trim();
@@ -186,11 +193,9 @@ function handleVirtualTryOn(body) {
         continue;
       }
       inputParts.push({inline_data:{mime_type:garment.mimeType,data:garment.data}});
-      garmentDescriptions.push("Reference garment " + (garmentDescriptions.length+1) + ": category=" + (item.category || "item") + ", name=" + (item.name || "unnamed") + ", colour=" + (item.colour || "unknown") + ", style=" + (item.style || "unknown"));
+      garmentDescriptions.push("Reference garment " + (garmentDescriptions.length + 1) + ": category=" + (item.category || "item") + ", name=" + (item.name || "unnamed") + ", colour=" + (item.colour || "unknown") + ", style=" + (item.style || "unknown"));
     }
-    if (garmentDescriptions.length === 0) {
-      return jsonResponse({success:false,error:"The selected wardrobe images could not be loaded.",details:garmentErrors.join("; ")});
-    }
+    if (garmentDescriptions.length === 0) return jsonResponse({success:false,error:"The selected wardrobe images could not be loaded.",details:garmentErrors.join("; ")});
 
     const tib = body.tibModel || {};
     const occasion = body.occasion || "Everyday";
@@ -263,22 +268,15 @@ function fetchRemoteImage(url) {
         const file = DriveApp.getFileById(driveFileId);
         const direct = imageBlobToData(file.getBlob());
         if (direct) return direct;
-      } catch (driveError) {
-        // Fall through to HTTP fetching for URLs that are not accessible through DriveApp.
-      }
+      } catch (driveError) {}
     }
-
-    const response = UrlFetchApp.fetch(url,{
-      method:"get",
-      followRedirects:true,
-      muteHttpExceptions:true,
-      headers:{"User-Agent":"Mozilla/5.0 TiB-AI-Personal-Styling"}
-    });
+    const response = UrlFetchApp.fetch(url,{method:"get",followRedirects:true,muteHttpExceptions:true,headers:{"User-Agent":"Mozilla/5.0 TiB-AI-Personal-Styling"}});
     const status = response.getResponseCode();
     if (status < 200 || status >= 300) return null;
     return imageBlobToData(response.getBlob());
   } catch (error) { return null; }
 }
+
 function extractGeneratedImagePart(data) {
   try {
     const candidates = data.candidates || [];
@@ -293,6 +291,7 @@ function extractGeneratedImagePart(data) {
   } catch (error) {}
   return null;
 }
+
 function getVirtualTryOnFolder() {
   const parent = DriveApp.getFolderById(PROFILE_FOLDER_ID);
   const folders = parent.getFoldersByName("virtual_try_on");
