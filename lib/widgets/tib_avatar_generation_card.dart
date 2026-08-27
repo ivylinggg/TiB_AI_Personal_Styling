@@ -6,6 +6,11 @@ import '../screens/premium/ai_avatar_styling_screen.dart';
 import '../services/tib_avatar_service.dart';
 import '../services/tib_model_service.dart';
 
+/// Entry point for the user's AI Virtual You experience.
+///
+/// The old GLB avatar is no longer the product-facing goal. This card keeps
+/// the existing widget contract intact while sending the user into the AI
+/// face/body/wardrobe styling flow.
 class TibAvatarGenerationCard extends StatefulWidget {
   const TibAvatarGenerationCard({super.key, required this.profile});
 
@@ -18,7 +23,6 @@ class TibAvatarGenerationCard extends StatefulWidget {
 class _TibAvatarGenerationCardState extends State<TibAvatarGenerationCard> {
   bool _loading = true;
   String _status = TibAvatarService.statusBase;
-  bool _needsUpdate = false;
 
   @override
   void initState() {
@@ -27,12 +31,12 @@ class _TibAvatarGenerationCardState extends State<TibAvatarGenerationCard> {
   }
 
   Future<void> _refresh() async {
+    // Keep the existing avatar-state service alive for backwards compatibility,
+    // but do not use its old GLB readiness as an access gate for AI Virtual You.
     final status = await TibAvatarService.getStatus();
-    final needs = await TibAvatarService.needsRegeneration(widget.profile);
     if (!mounted) return;
     setState(() {
       _status = status;
-      _needsUpdate = needs;
       _loading = false;
     });
   }
@@ -41,7 +45,7 @@ class _TibAvatarGenerationCardState extends State<TibAvatarGenerationCard> {
     if (!await TibAvatarService.canBuildPersonalAvatar(widget.profile)) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Complete your TiB Model first.')),
+        const SnackBar(content: Text('Complete your face scan and TiB Model first.')),
       );
       return;
     }
@@ -61,12 +65,6 @@ class _TibAvatarGenerationCardState extends State<TibAvatarGenerationCard> {
         child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
       );
     }
-
-    final ready = _status == TibAvatarService.statusReady && !_needsUpdate;
-    final title = ready ? 'Create another AI look' : 'Create your AI TiB Avatar';
-    final subtitle = ready
-        ? 'Use your scanned face, wardrobe and style profile to create a new virtual look.'
-        : 'Your face scan becomes the identity of a virtual styling model. TiB finds clothes and shoes that suit you and shows the result on your virtual person.';
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -88,27 +86,24 @@ class _TibAvatarGenerationCardState extends State<TibAvatarGenerationCard> {
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
-                  Icons.auto_awesome_rounded,
+                  Icons.face_retouching_natural_rounded,
                   color: AppColors.primaryDark,
                   size: 22,
                 ),
               ),
               const SizedBox(width: 11),
-              Expanded(
+              const Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w900,
-                      ),
+                      'Your AI Virtual You',
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
                     ),
-                    const SizedBox(height: 3),
+                    SizedBox(height: 3),
                     Text(
-                      subtitle,
-                      style: const TextStyle(
+                      'See your own face, body shape and proportions wearing clothes from your wardrobe.',
+                      style: TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 10.5,
                         height: 1.4,
@@ -124,10 +119,11 @@ class _TibAvatarGenerationCardState extends State<TibAvatarGenerationCard> {
             spacing: 7,
             runSpacing: 7,
             children: [
-              _chip('Face · ${widget.profile.faceShape}'),
-              _chip('Body · ${widget.profile.bodyShape}'),
-              _chip('Colour-aware'),
-              _chip('Clothes + Shoes'),
+              _chip('Your face'),
+              _chip('Your body shape'),
+              _chip('Your proportions'),
+              _chip('Your wardrobe'),
+              _chip('AI styling'),
             ],
           ),
           const SizedBox(height: 14),
@@ -135,10 +131,8 @@ class _TibAvatarGenerationCardState extends State<TibAvatarGenerationCard> {
             width: double.infinity,
             child: FilledButton.icon(
               onPressed: _openAiAvatar,
-              icon: const Icon(Icons.face_retouching_natural_rounded),
-              label: Text(
-                ready ? 'Create New Virtual Look' : 'Create My AI Avatar',
-              ),
+              icon: const Icon(Icons.auto_awesome_rounded),
+              label: const Text('Create My Virtual You'),
             ),
           ),
         ],
