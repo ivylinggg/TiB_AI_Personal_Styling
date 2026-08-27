@@ -1,11 +1,6 @@
-import 'dart:io';
-
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_gradients.dart';
@@ -13,9 +8,9 @@ import '../../models/colour_analysis_result.dart';
 import '../../models/wardrobe_item.dart';
 import '../../services/ai_styling_service.dart';
 import '../../services/firestore_service.dart';
-import '../../services/image_picker_service.dart';
-import '../../services/mlkit_service.dart';
 import '../../services/style_preference_service.dart';
+import '../../services/tib_model_service.dart';
+import '../../services/virtual_try_on_result_service.dart';
 
 class VirtualTryOnScreen extends StatefulWidget {
   const VirtualTryOnScreen({super.key});
@@ -27,13 +22,11 @@ class VirtualTryOnScreen extends StatefulWidget {
 enum _TryOnMode { choose, ai }
 
 class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
-  static const _modelKey = 'tib_virtual_model_path';
-
   bool _loading = true;
   bool _busy = false;
   bool _saving = false;
 
-  File? _modelPhoto;
+  TibModelProfile? _tibModel;
   List<WardrobeItem> _wardrobe = const [];
   Set<String> _selectedIds = {};
   ColourAnalysisResult? _analysis;
@@ -41,6 +34,8 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
   List<String> _preferences = const [];
   String _occasion = 'Dinner';
   String _status = '';
+  String? _generatedImageUrl;
+  String? _requestId;
   _TryOnMode _mode = _TryOnMode.choose;
 
   static const _occasions = [
@@ -61,144 +56,88 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
   Future<void> _load() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _status = 'Please sign in again before using Virtual Try-On.';
+        });
+      }
       return;
     }
 
     try {
       final results = await Future.wait<dynamic>([
+        TibModelService.load(),
         FirestoreService.getWardrobeItems(uid),
         StylePreferenceService.getStylePreferences(uid),
         FirestoreService.getLatestColourAnalysis(uid),
       ]);
 
-      final prefs = await SharedPreferences.getInstance();
-      final storedPath = prefs.getString(_modelKey);
-      final model = storedPath == null
-          ? null
-          : File(storedPath).existsSync()
-          ? File(storedPath)
-          : null;
-
       if (!mounted) return;
-      final stylePrefs = results[1] as Map<String, dynamic>?;
+      final prefs = results[2] as Map<String, dynamic>?;
 
       setState(() {
-        _wardrobe = results[0] as List<WardrobeItem>;
-        _styles = List<String>.from(stylePrefs?['styles'] ?? const []);
-        _preferences = List<String>.from(
-          stylePrefs?['preferences'] ?? const [],
-        );
-        _analysis = results[2] as ColourAnalysisResult?;
-        _modelPhoto = model;
+        _tibModel = results[0] as TibModelProfile;
+        _wardrobe = results[1] as List<WardrobeItem>;
+        _styles = List<String>.from(prefs?['styles'] ?? const []);
+        _preferences = List<String>.from(prefs?['preferences'] ?? const []);
+        _analysis = results[3] as ColourAnalysisResult?;
         _loading = false;
-      });
-    } catch (_) {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  Future<void> _chooseModel({required bool camera}) async {
-    if (_busy) return;
-
-    setState(() {
-      _busy = true;
-      _status = 'Checking your photo…';
-    });
-
-    try {
-      final image = camera
-          ? await ImagePickerService.pickCamera()
-          : await ImagePickerService.pickGallery();
-      if (image == null) return;
-
-      final faces = await MlKitService.detectFace(image);
-      if (faces.length != 1) {
-        throw Exception(
-          faces.isEmpty
-              ? 'No face detected. Please use a clear front-facing photo.'
-              : 'Please use a photo with one clearly visible face.',
-        );
-      }
-
-      final directory = await getApplicationDocumentsDirectory();
-      final target = File('${directory.path}/tib_virtual_model.jpg');
-      await image.copy(target.path);
-
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_modelKey, target.path);
-
-      if (!mounted) return;
-      setState(() {
-        _modelPhoto = target;
-        _status = 'Your TiB Model is ready.';
       });
     } catch (error) {
       if (!mounted) return;
-      setState(
-        () => _status = error.toString().replaceFirst('Exception: ', ''),
-      );
-    } finally {
-      if (mounted) setState(() => _busy = false);
+      setState(() {
+        _loading = false;
+        _status = 'Could not load your TiB Model and wardrobe. Please try again.';
+      });
     }
-  }
-
-  Future<void> _removeModel() async {
-    final prefs = await SharedPreferences.getInstance();
-    final path = prefs.getString(_modelKey);
-    if (path != null) {
-      final file = File(path);
-      if (file.existsSync()) await file.delete();
-    }
-    await prefs.remove(_modelKey);
-    if (!mounted) return;
-    setState(() {
-      _modelPhoto = null;
-      _selectedIds = {};
-      _status = 'Your TiB Model photo was removed.';
-    });
   }
 
   void _toggleItem(WardrobeItem item) {
-    if (_saving) return;
+    if (_busy || _saving) return;
+
     final next = {..._selectedIds};
     if (next.contains(item.id)) {
       next.remove(item.id);
     } else {
-      if (next.length >= 5) {
+      if (next.length >= 6) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Choose up to 5 pieces for one look.')),
+          const SnackBar(content: Text('Choose up to 6 pieces for one virtual look.')),
         );
         return;
       }
       next.add(item.id);
     }
+
     setState(() {
       _selectedIds = next;
-      _status = next.isEmpty ? '' : '${next.length} pieces selected.';
+      _generatedImageUrl = null;
+      _requestId = null;
+      _status = next.isEmpty ? '' : '${next.length} wardrobe pieces selected.';
     });
   }
 
   Future<void> _letTiBStyleMe() async {
     if (_busy) return;
+
     if (_wardrobe.isEmpty) {
       setState(() => _status = 'Add some wardrobe pieces first.');
       return;
     }
+
     final profile = _analysis;
     if (profile == null) {
-      setState(
-        () => _status =
-            'Complete Colour Analysis first so TiB can style you accurately.',
-      );
+      setState(() => _status = 'Complete Colour Analysis first so TiB can style you accurately.');
       return;
     }
 
     setState(() {
       _busy = true;
       _mode = _TryOnMode.ai;
-      _status = 'TiB is styling your wardrobe…';
       _selectedIds = {};
+      _generatedImageUrl = null;
+      _requestId = null;
+      _status = 'TiB is finding the best outfit from your wardrobe…';
     });
 
     try {
@@ -210,40 +149,160 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
         occasion: _occasion,
       );
 
-      if (result != null) {
-        final ids = <String?>[
-          result.topId,
-          result.bottomId,
-          result.shoesId,
-          result.accessoryId,
-        ];
-        final picks = ids
-            .whereType<String>()
-            .map((id) => _find(id))
-            .whereType<WardrobeItem>()
-            .toList();
+      if (!mounted) return;
+
+      if (result == null) {
         setState(() {
-          _selectedIds = picks.map((item) => item.id).toSet();
-          _status = 'AI look built from your real wardrobe.';
+          _busy = false;
+          _status = 'TiB could not find a complete outfit from your current wardrobe. Choose pieces manually or add more wardrobe items.';
         });
-      } else {
-        final fallback = _buildFallback(profile);
-        setState(() {
-          _selectedIds = fallback.map((item) => item.id).toSet();
-          _status = fallback.isEmpty
-              ? 'TiB could not find a complete look from your current wardrobe.'
-              : 'Here is a transparent wardrobe match while AI is unavailable.';
-        });
+        return;
       }
-    } catch (_) {
-      final fallback = _buildFallback(profile);
+
+      final ids = <String?>[
+        result.topId,
+        result.bottomId,
+        result.shoesId,
+        result.accessoryId,
+      ];
+      final picks = ids
+          .whereType<String>()
+          .map(_find)
+          .whereType<WardrobeItem>()
+          .toList();
+
       setState(() {
-        _selectedIds = fallback.map((item) => item.id).toSet();
-        _status =
-            'AI is unavailable right now, so TiB prepared a wardrobe fallback.';
+        _selectedIds = picks.map((item) => item.id).toSet();
+        _status = picks.isEmpty
+            ? 'TiB returned a styling recommendation without matching wardrobe images.'
+            : 'TiB selected ${picks.length} pieces from your real wardrobe. Tap Generate My Try-On to see them on you.';
+        _busy = false;
       });
-    } finally {
-      if (mounted) setState(() => _busy = false);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _status = 'TiB could not build the look right now. You can choose your wardrobe manually.';
+      });
+    }
+  }
+
+  Future<void> _generateTryOn() async {
+    if (_busy) return;
+
+    final model = _tibModel;
+    final selected = _selectedItems;
+
+    if (model == null || !model.isComplete) {
+      setState(() => _status = 'Complete your TiB Model first: face scan + body measurements are required.');
+      return;
+    }
+
+    if (model.faceFile == null || !model.faceFile!.existsSync()) {
+      setState(() => _status = 'Your TiB face scan is missing. Please recreate your TiB Model.');
+      return;
+    }
+
+    if (selected.isEmpty) {
+      setState(() => _status = 'Select at least one wardrobe piece first.');
+      return;
+    }
+
+    setState(() {
+      _busy = true;
+      _generatedImageUrl = null;
+      _requestId = null;
+      _status = 'Creating your Virtual You…\nTiB is matching your face, body and selected wardrobe.';
+    });
+
+    try {
+      final result = await VirtualTryOnResultService.generate(
+        VirtualTryOnRequest(
+          model: model,
+          items: selected,
+          occasion: _occasion,
+          stylingBrief: _buildStylingBrief(),
+        ),
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _busy = false;
+        _generatedImageUrl = result.imageUrl;
+        _requestId = result.requestId;
+        _status = result.isGenerated
+            ? 'Your Virtual You is ready — wearing your selected wardrobe.'
+            : result.status;
+      });
+
+      if (result.isGenerated) {
+        await _saveGeneratedLook(selected);
+      }
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _status = 'Virtual Try-On failed. Please try again.';
+      });
+    }
+  }
+
+  String _buildStylingBrief() {
+    final model = _tibModel!;
+    final profile = _analysis;
+    final selected = _selectedItems;
+
+    final items = selected.map((item) {
+      return '${item.name} | category=${item.category} | colour=${item.colour} | style=${item.style}';
+    }).join('\n');
+
+    return '''Create the user's Virtual You for a $_occasion look.
+
+IDENTITY:
+Use the supplied TiB face reference as the user's identity. Preserve recognizable facial features, natural skin tone, hair and overall appearance.
+
+BODY:
+Use the supplied TiB body reference when available. Preserve the user's natural silhouette and proportions. Do not create a generic fashion model and do not idealize, slim, lengthen or reshape the body.
+
+TIB BODY PROFILE:
+Body shape: ${model.bodyShape}
+Face shape: ${model.faceShape}
+Height: ${model.height} cm
+Weight: ${model.weight} kg
+Bust: ${model.bust} cm
+Waist: ${model.waist} cm
+Hips: ${model.hips} cm
+
+COLOUR PROFILE:
+Season: ${profile?.season ?? 'unknown'}
+Recommended colours: ${profile?.colours.join(', ') ?? 'unknown'}
+
+SELECTED REAL WARDROBE:
+$items
+
+WARDROBE RULE:
+Use the selected wardrobe reference images as the exact clothing sources. Preserve their real colours, silhouettes, textures, patterns and important details. Do not replace them with invented garments.
+
+RESULT:
+Generate one realistic full-body fashion image of the same user wearing the selected wardrobe. Keep the person clearly recognizable as the user's Virtual You. Show the complete outfit, including shoes when selected, with natural proportions, realistic garment fit, folds and lighting.''';
+  }
+
+  Future<void> _saveGeneratedLook(List<WardrobeItem> items) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null || items.isEmpty) return;
+
+    try {
+      await FirestoreService.saveOutfitLook(
+        uid: uid,
+        occasion: _occasion,
+        itemIds: items.map((item) => item.id).toList(),
+        matchScore: _matchScore(items),
+        season: _analysis?.season ?? 'Unknown',
+      );
+    } catch (_) {
+      // Generation succeeded; saving is only a convenience and must not
+      // turn a successful Virtual Try-On into an error state.
     }
   }
 
@@ -252,18 +311,10 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
       var value = item.isFavourite ? 8 : 0;
       final colour = item.colour.toLowerCase();
       final style = item.style.toLowerCase();
-      if (_styles.any((item) => style.contains(item.toLowerCase()))) value += 8;
-      if (_preferences.any((item) => style.contains(item.toLowerCase())))
-        value += 4;
-      if (profile.colours.any((item) => _sameColourFamily(item, colour)))
-        value += 12;
-      if (item.season == profile.season || item.season == 'All seasons')
-        value += 8;
-      if (_occasion == 'Work' && style.contains('smart')) value += 10;
-      if ((_occasion == 'Date' || _occasion == 'Dinner') &&
-          (style.contains('elegant') || style.contains('feminine'))) {
-        value += 10;
-      }
+      if (_styles.any((s) => style.contains(s.toLowerCase()))) value += 8;
+      if (_preferences.any((p) => style.contains(p.toLowerCase()))) value += 4;
+      if (profile.colours.any((c) => _sameColourFamily(c, colour))) value += 12;
+      if (item.season == profile.season || item.season == 'All seasons') value += 8;
       return value;
     }
 
@@ -271,22 +322,14 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
     final result = <WardrobeItem>[];
 
     if (_occasion == 'Date' || _occasion == 'Dinner' || _occasion == 'Event') {
-      final dress = sorted
-          .where((item) => item.category == 'Dresses')
-          .firstOrNull;
+      final dress = sorted.where((item) => item.category == 'Dresses').firstOrNull;
       if (dress != null) result.add(dress);
     }
 
     if (result.isEmpty) {
       for (final item in sorted) {
-        if (item.category == 'Tops' &&
-            !result.any((x) => x.category == 'Tops')) {
-          result.add(item);
-        }
-        if (item.category == 'Bottoms' &&
-            !result.any((x) => x.category == 'Bottoms')) {
-          result.add(item);
-        }
+        if (item.category == 'Tops' && !result.any((x) => x.category == 'Tops')) result.add(item);
+        if (item.category == 'Bottoms' && !result.any((x) => x.category == 'Bottoms')) result.add(item);
       }
     }
 
@@ -296,19 +339,22 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
         break;
       }
     }
+
     for (final item in sorted) {
       if (item.category == 'Accessories' && !result.contains(item)) {
         result.add(item);
         break;
       }
     }
-    return result.take(5).toList();
+
+    return result.take(6).toList();
   }
 
   bool _sameColourFamily(String preferred, String wardrobeColour) {
     final a = preferred.toLowerCase();
     final b = wardrobeColour.toLowerCase();
     if (a == b || a.contains(b) || b.contains(a)) return true;
+
     const families = <String, List<String>>{
       'pink': ['pink', 'rose', 'coral', 'peach'],
       'brown': ['brown', 'camel', 'tan', 'chocolate'],
@@ -319,6 +365,7 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
       'red': ['red', 'ruby', 'burgundy', 'wine'],
       'yellow': ['yellow', 'gold', 'mustard'],
     };
+
     for (final family in families.values) {
       if (family.any(a.contains) && family.any(b.contains)) return true;
     }
@@ -341,19 +388,14 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
     if (profile == null) return 70;
     var score = 70;
     for (final item in items) {
-      if (profile.colours.any((c) => _sameColourFamily(c, item.colour)))
-        score += 4;
-      if (item.season == profile.season || item.season == 'All seasons')
-        score += 3;
-      if (_styles.any(
-        (s) => item.style.toLowerCase().contains(s.toLowerCase()),
-      ))
-        score += 2;
+      if (profile.colours.any((c) => _sameColourFamily(c, item.colour))) score += 4;
+      if (item.season == profile.season || item.season == 'All seasons') score += 3;
+      if (_styles.any((s) => item.style.toLowerCase().contains(s.toLowerCase()))) score += 2;
     }
     return score.clamp(0, 100);
   }
 
-  Future<void> _saveLook() async {
+  Future<void> _saveManualLook() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     final items = _selectedItems;
     if (uid == null || items.isEmpty || _saving) return;
@@ -388,14 +430,19 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
     }
 
     final selected = _selectedItems;
+    final model = _tibModel;
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(title: const Text('Virtual Try-On')),
+      appBar: AppBar(title: const Text('AI Virtual Try-On')),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 34),
         children: [
-          _buildModelCard(),
+          if (_generatedImageUrl != null) ...[
+            _buildGeneratedResult(),
+            const SizedBox(height: 16),
+          ],
+          _buildModelCard(model),
           const SizedBox(height: 16),
           _buildModeSwitch(),
           const SizedBox(height: 16),
@@ -403,32 +450,53 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
           const SizedBox(height: 16),
           _mode == _TryOnMode.ai ? _buildAiPanel() : _buildWardrobePicker(),
           if (selected.isNotEmpty) ...[
-            const SizedBox(height: 20),
-            _buildPreview(selected),
+            const SizedBox(height: 16),
+            _buildSelectedLook(selected),
             const SizedBox(height: 14),
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
-                onPressed: _saving ? null : _saveLook,
-                icon: _saving
+                onPressed: _busy ? null : _generateTryOn,
+                icon: _busy
                     ? const SizedBox(
                         width: 18,
                         height: 18,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Icon(Icons.bookmark_add_outlined),
-                label: Text(_saving ? 'Saving…' : 'Save Look'),
+                    : const Icon(Icons.auto_awesome_rounded),
+                label: Text(_busy ? 'Creating Your Virtual You…' : 'Generate My Try-On'),
               ),
             ),
+            const SizedBox(height: 8),
+            if (_mode == _TryOnMode.choose)
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _saving ? null : _saveManualLook,
+                  icon: const Icon(Icons.bookmark_add_outlined),
+                  label: const Text('Save Look Without Generating'),
+                ),
+              ),
           ],
           if (_status.isNotEmpty) ...[
             const SizedBox(height: 14),
-            Text(
-              _status,
-              style: const TextStyle(
-                color: AppColors.textSecondary,
-                height: 1.45,
-                fontSize: 12,
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: _generatedImageUrl != null
+                    ? AppColors.primarySoft
+                    : AppColors.surface,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Text(
+                _status,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  height: 1.45,
+                  fontSize: 11.5,
+                ),
               ),
             ),
           ],
@@ -437,8 +505,66 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
     );
   }
 
-  Widget _buildModelCard() {
-    final photo = _modelPhoto;
+  Widget _buildGeneratedResult() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        gradient: AppGradients.soft,
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: AppColors.primarySoft),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(6, 4, 6, 10),
+            child: Row(
+              children: [
+                Icon(Icons.person_rounded, color: AppColors.primaryDark, size: 20),
+                SizedBox(width: 7),
+                Expanded(
+                  child: Text(
+                    'YOUR VIRTUAL YOU',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: .5),
+                  ),
+                ),
+                Icon(Icons.auto_awesome_rounded, color: AppColors.primary, size: 18),
+              ],
+            ),
+          ),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: CachedNetworkImage(
+              imageUrl: _generatedImageUrl!,
+              width: double.infinity,
+              fit: BoxFit.cover,
+              placeholder: (_, __) => const AspectRatio(
+                aspectRatio: .72,
+                child: Center(child: CircularProgressIndicator()),
+              ),
+              errorWidget: (_, __, ___) => const Padding(
+                padding: EdgeInsets.all(28),
+                child: Center(child: Text('The generated Virtual You could not be displayed.')),
+              ),
+            ),
+          ),
+          if (_requestId != null) ...[
+            const SizedBox(height: 7),
+            Text(
+              'Try-On ready • ${_requestId!}',
+              style: const TextStyle(color: AppColors.textMuted, fontSize: 9),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildModelCard(TibModelProfile? model) {
+    final face = model?.faceFile;
+    final body = model?.bodyFile;
+    final complete = model?.isComplete == true;
+
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -448,21 +574,43 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
       ),
       child: Row(
         children: [
-          Container(
-            width: 86,
-            height: 108,
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: photo != null && photo.existsSync()
-                ? Image.file(photo, fit: BoxFit.cover)
-                : const Icon(
-                    Icons.person_rounded,
-                    size: 42,
-                    color: AppColors.primary,
+          SizedBox(
+            width: 92,
+            height: 116,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: face != null && face.existsSync()
+                      ? Image.file(face, fit: BoxFit.cover)
+                      : Container(
+                          color: AppColors.surface,
+                          child: const Icon(Icons.face_retouching_natural_rounded, size: 40, color: AppColors.primary),
+                        ),
+                ),
+                if (body != null && body.existsSync())
+                  Positioned(
+                    right: 6,
+                    bottom: 6,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.accessibility_new_rounded, size: 12, color: AppColors.primaryDark),
+                          SizedBox(width: 3),
+                          Text('BODY', style: TextStyle(fontSize: 7, fontWeight: FontWeight.w900)),
+                        ],
+                      ),
+                    ),
                   ),
+              ],
+            ),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -470,50 +618,20 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'MY TIΒ MODEL',
-                  style: TextStyle(
-                    fontSize: 9,
-                    letterSpacing: 1.2,
-                    fontWeight: FontWeight.w900,
-                    color: AppColors.textMuted,
-                  ),
+                  'YOUR AI MODEL',
+                  style: TextStyle(fontSize: 9, letterSpacing: 1.2, fontWeight: FontWeight.w900, color: AppColors.textMuted),
                 ),
                 const SizedBox(height: 7),
                 Text(
-                  photo == null
-                      ? 'Add your model photo'
-                      : 'Your TiB Model is ready',
-                  style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w900,
-                  ),
+                  complete ? 'Ready to become Virtual You' : 'Complete your TiB Model first',
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
                 ),
-                const SizedBox(height: 5),
-                const Text(
-                  'Use your own model with your wardrobe for a more personal try-on.',
-                  style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 10.5,
-                    height: 1.4,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    OutlinedButton.icon(
-                      onPressed: _busy
-                          ? null
-                          : () => _chooseModel(camera: true),
-                      icon: const Icon(Icons.camera_alt_outlined, size: 16),
-                      label: Text(photo == null ? 'Scan' : 'Rescan'),
-                    ),
-                    const SizedBox(width: 8),
-                    if (photo != null)
-                      TextButton(
-                        onPressed: _busy ? null : _removeModel,
-                        child: const Text('Remove'),
-                      ),
-                  ],
+                const SizedBox(height: 6),
+                Text(
+                  complete
+                      ? '${model!.bodyShape} • ${model.height.toStringAsFixed(0)} cm • Face + body reference ready'
+                      : 'Face scan and body measurements are required so the AI can keep your identity and proportions.',
+                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.5, height: 1.4),
                 ),
               ],
             ),
@@ -538,13 +656,17 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
         ),
       ],
       selected: {_mode},
-      onSelectionChanged: (selection) {
-        setState(() {
-          _mode = selection.first;
-          _status = '';
-        });
-        if (_mode == _TryOnMode.ai) _letTiBStyleMe();
-      },
+      onSelectionChanged: _busy
+          ? null
+          : (selection) {
+              setState(() {
+                _mode = selection.first;
+                _generatedImageUrl = null;
+                _requestId = null;
+                _status = '';
+              });
+              if (_mode == _TryOnMode.ai) _letTiBStyleMe();
+            },
     );
   }
 
@@ -561,28 +683,26 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
         children: [
           const Text(
             'WHAT ARE YOU DRESSING FOR?',
-            style: TextStyle(
-              fontSize: 9,
-              letterSpacing: 1.2,
-              fontWeight: FontWeight.w900,
-              color: AppColors.textMuted,
-            ),
+            style: TextStyle(fontSize: 9, letterSpacing: 1.2, fontWeight: FontWeight.w900, color: AppColors.textMuted),
           ),
           const SizedBox(height: 9),
           Wrap(
             spacing: 7,
             runSpacing: 7,
-            children: _occasions
-                .map(
-                  (value) => ChoiceChip(
-                    label: Text(value),
-                    selected: _occasion == value,
-                    onSelected: _busy
-                        ? null
-                        : (_) => setState(() => _occasion = value),
-                  ),
-                )
-                .toList(),
+            children: _occasions.map((value) {
+              return ChoiceChip(
+                label: Text(value),
+                selected: _occasion == value,
+                onSelected: _busy
+                    ? null
+                    : (_) => setState(() {
+                        _occasion = value;
+                        _generatedImageUrl = null;
+                        _requestId = null;
+                        _status = '';
+                      }),
+              );
+            }).toList(),
           ),
         ],
       ),
@@ -601,29 +721,20 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'AI WARDROBE STYLING',
-            style: TextStyle(
-              fontSize: 9,
-              letterSpacing: 1.2,
-              fontWeight: FontWeight.w900,
-              color: AppColors.textMuted,
-            ),
+            'AI PERSONAL STYLIST',
+            style: TextStyle(fontSize: 9, letterSpacing: 1.2, fontWeight: FontWeight.w900, color: AppColors.textMuted),
           ),
           const SizedBox(height: 8),
           const Text(
-            'Let TiB choose the best pieces from what you already own.',
+            'Find the look that suits your Virtual You.',
             style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 7),
           Text(
             _selectedIds.isEmpty
-                ? 'TiB will consider your colour profile, preferences and occasion.'
-                : '${_selectedIds.length} pieces selected from your wardrobe.',
-            style: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 10.5,
-              height: 1.4,
-            ),
+                ? 'TiB will use your colour profile, style preferences, occasion and real wardrobe.'
+                : '${_selectedIds.length} pieces selected from your real wardrobe.',
+            style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.5, height: 1.4),
           ),
           const SizedBox(height: 12),
           SizedBox(
@@ -631,13 +742,9 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
             child: FilledButton.icon(
               onPressed: _busy ? null : _letTiBStyleMe,
               icon: _busy
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
                   : const Icon(Icons.auto_awesome_rounded),
-              label: Text(_busy ? 'Styling…' : 'Style My Wardrobe'),
+              label: Text(_busy ? 'Finding Your Look…' : 'Find My Best Look'),
             ),
           ),
         ],
@@ -655,7 +762,7 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
           border: Border.all(color: AppColors.border),
         ),
         child: const Text(
-          'Your wardrobe is empty. Add some pieces first, then come back and create your virtual look.',
+          'Your wardrobe is empty. Add clothes and shoes first, then come back to create your Virtual You look.',
           textAlign: TextAlign.center,
           style: TextStyle(color: AppColors.textSecondary, height: 1.45),
         ),
@@ -676,32 +783,20 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
             children: [
               const Expanded(
                 child: Text(
-                  'SELECT FROM MY WARDROBE',
-                  style: TextStyle(
-                    fontSize: 11,
-                    letterSpacing: 1.1,
-                    fontWeight: FontWeight.w900,
-                  ),
+                  'MY REAL WARDROBE',
+                  style: TextStyle(fontSize: 11, letterSpacing: 1.1, fontWeight: FontWeight.w900),
                 ),
               ),
               Text(
-                '${_selectedIds.length}/5',
-                style: const TextStyle(
-                  color: AppColors.primary,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                ),
+                '${_selectedIds.length}/6',
+                style: const TextStyle(color: AppColors.primary, fontSize: 11, fontWeight: FontWeight.w800),
               ),
             ],
           ),
           const SizedBox(height: 5),
           const Text(
-            'Choose the pieces you want TiB to use.',
-            style: TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 10,
-              height: 1.35,
-            ),
+            'Select the exact clothes and shoes you want your Virtual You to wear.',
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 10, height: 1.35),
           ),
           const SizedBox(height: 11),
           GridView.builder(
@@ -722,9 +817,7 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 180),
                   decoration: BoxDecoration(
-                    color: selected
-                        ? AppColors.lavenderMist
-                        : AppColors.surfaceMuted,
+                    color: selected ? AppColors.lavenderMist : AppColors.surfaceMuted,
                     borderRadius: BorderRadius.circular(18),
                     border: Border.all(
                       color: selected ? AppColors.primary : AppColors.border,
@@ -737,24 +830,12 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
                     children: [
                       Expanded(
                         child: item.imageUrl.isEmpty
-                            ? const Center(
-                                child: Icon(
-                                  Icons.checkroom_outlined,
-                                  size: 36,
-                                  color: AppColors.primary,
-                                ),
-                              )
-                            : Image.network(
-                                item.imageUrl,
+                            ? const Center(child: Icon(Icons.checkroom_outlined, size: 36, color: AppColors.primary))
+                            : CachedNetworkImage(
+                                imageUrl: item.imageUrl,
                                 width: double.infinity,
                                 fit: BoxFit.cover,
-                                errorBuilder: (context, error, stack) =>
-                                    const Center(
-                                      child: Icon(
-                                        Icons.broken_image_outlined,
-                                        color: AppColors.textMuted,
-                                      ),
-                                    ),
+                                errorWidget: (_, __, ___) => const Center(child: Icon(Icons.broken_image_outlined, color: AppColors.textMuted)),
                               ),
                       ),
                       Padding(
@@ -766,18 +847,10 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
                                 item.name,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w800,
-                                ),
+                                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
                               ),
                             ),
-                            if (selected)
-                              const Icon(
-                                Icons.check_circle_rounded,
-                                size: 18,
-                                color: AppColors.primary,
-                              ),
+                            if (selected) const Icon(Icons.check_circle_rounded, size: 18, color: AppColors.primary),
                           ],
                         ),
                       ),
@@ -792,7 +865,7 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
     );
   }
 
-  Widget _buildPreview(List<WardrobeItem> selected) {
+  Widget _buildSelectedLook(List<WardrobeItem> selected) {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -804,13 +877,8 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'SELECTED LOOK',
-            style: TextStyle(
-              fontSize: 10,
-              letterSpacing: 1.1,
-              fontWeight: FontWeight.w900,
-              color: AppColors.textMuted,
-            ),
+            'YOUR SELECTED LOOK',
+            style: TextStyle(fontSize: 10, letterSpacing: 1.1, fontWeight: FontWeight.w900, color: AppColors.textMuted),
           ),
           const SizedBox(height: 10),
           SizedBox(
@@ -818,7 +886,7 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               itemCount: selected.length,
-              separatorBuilder: (context, index) => const SizedBox(width: 8),
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
               itemBuilder: (context, index) {
                 final item = selected[index];
                 return SizedBox(
@@ -829,17 +897,8 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(14),
                           child: item.imageUrl.isEmpty
-                              ? const Center(
-                                  child: Icon(
-                                    Icons.checkroom_outlined,
-                                    color: AppColors.primary,
-                                  ),
-                                )
-                              : CachedNetworkImage(
-                                  imageUrl: item.imageUrl,
-                                  fit: BoxFit.cover,
-                                  width: double.infinity,
-                                ),
+                              ? const Center(child: Icon(Icons.checkroom_outlined, color: AppColors.primary))
+                              : CachedNetworkImage(imageUrl: item.imageUrl, fit: BoxFit.cover, width: double.infinity),
                         ),
                       ),
                       const SizedBox(height: 5),
@@ -847,10 +906,7 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
                         item.name,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 8.5,
-                          fontWeight: FontWeight.w700,
-                        ),
+                        style: const TextStyle(fontSize: 8.5, fontWeight: FontWeight.w700),
                       ),
                     ],
                   ),
