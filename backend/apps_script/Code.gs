@@ -173,15 +173,24 @@ function handleVirtualTryOn(body) {
     }
 
     const garmentDescriptions = [];
+    const garmentErrors = [];
     for (let i=0;i<items.length;i++) {
       const item = items[i] || {};
-      if (!item.imageUrl) continue;
+      if (!item.imageUrl) {
+        garmentErrors.push("item " + (i + 1) + ": missing imageUrl");
+        continue;
+      }
       const garment = fetchRemoteImage(item.imageUrl);
-      if (!garment) continue;
+      if (!garment) {
+        garmentErrors.push("item " + (i + 1) + ": image could not be read");
+        continue;
+      }
       inputParts.push({inline_data:{mime_type:garment.mimeType,data:garment.data}});
       garmentDescriptions.push("Reference garment " + (garmentDescriptions.length+1) + ": category=" + (item.category || "item") + ", name=" + (item.name || "unnamed") + ", colour=" + (item.colour || "unknown") + ", style=" + (item.style || "unknown"));
     }
-    if (garmentDescriptions.length === 0) return jsonResponse({success:false,error:"The selected wardrobe images could not be loaded."});
+    if (garmentDescriptions.length === 0) {
+      return jsonResponse({success:false,error:"The selected wardrobe images could not be loaded.",details:garmentErrors.join("; ")});
+    }
 
     const tib = body.tibModel || {};
     const occasion = body.occasion || "Everyday";
@@ -223,15 +232,51 @@ function handleVirtualTryOn(body) {
   }
 }
 
+function extractDriveFileId(url) {
+  if (typeof url !== "string") return null;
+  const value = url.trim();
+  if (!value) return null;
+  let match = value.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/i);
+  if (match) return match[1];
+  match = value.match(/[?&](?:id|fileId)=([a-zA-Z0-9_-]+)/i);
+  if (match) return match[1];
+  match = value.match(/drive\.usercontent\.google\.com\/download\?id=([a-zA-Z0-9_-]+)/i);
+  if (match) return match[1];
+  return null;
+}
+
+function imageBlobToData(blob) {
+  if (!blob) return null;
+  const mimeType = blob.getContentType() || "image/jpeg";
+  if (mimeType.toLowerCase().indexOf("image/") !== 0) return null;
+  const bytes = blob.getBytes();
+  if (!bytes || bytes.length === 0) return null;
+  return {mimeType:mimeType,data:Utilities.base64Encode(bytes)};
+}
+
 function fetchRemoteImage(url) {
   try {
     if (typeof url !== "string" || !/^https:\/\//i.test(url)) return null;
-    const response = UrlFetchApp.fetch(url,{method:"get",muteHttpExceptions:true});
-    if (response.getResponseCode() !== 200) return null;
-    const blob = response.getBlob();
-    const mimeType = blob.getContentType() || "image/jpeg";
-    if (mimeType.indexOf("image/") !== 0) return null;
-    return {mimeType:mimeType,data:Utilities.base64Encode(blob.getBytes())};
+    const driveFileId = extractDriveFileId(url);
+    if (driveFileId) {
+      try {
+        const file = DriveApp.getFileById(driveFileId);
+        const direct = imageBlobToData(file.getBlob());
+        if (direct) return direct;
+      } catch (driveError) {
+        // Fall through to HTTP fetching for URLs that are not accessible through DriveApp.
+      }
+    }
+
+    const response = UrlFetchApp.fetch(url,{
+      method:"get",
+      followRedirects:true,
+      muteHttpExceptions:true,
+      headers:{"User-Agent":"Mozilla/5.0 TiB-AI-Personal-Styling"}
+    });
+    const status = response.getResponseCode();
+    if (status < 200 || status >= 300) return null;
+    return imageBlobToData(response.getBlob());
   } catch (error) { return null; }
 }
 function extractGeneratedImagePart(data) {
@@ -252,4 +297,8 @@ function getVirtualTryOnFolder() {
   const parent = DriveApp.getFolderById(PROFILE_FOLDER_ID);
   const folders = parent.getFoldersByName("virtual_try_on");
   return folders.hasNext() ? folders.next() : parent.createFolder("virtual_try_on");
+}
+
+function jsonResponse(data) {
+  return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);
 }
