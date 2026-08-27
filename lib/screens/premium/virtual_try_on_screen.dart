@@ -1,9 +1,10 @@
+import 'dart:io';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
-import '../../core/constants/app_gradients.dart';
 import '../../models/colour_analysis_result.dart';
 import '../../models/wardrobe_item.dart';
 import '../../services/ai_styling_service.dart';
@@ -19,26 +20,21 @@ class VirtualTryOnScreen extends StatefulWidget {
   State<VirtualTryOnScreen> createState() => _VirtualTryOnScreenState();
 }
 
-enum _TryOnMode { choose, ai }
-
 class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
+  static const _occasions = ['Dinner', 'Work', 'Casual', 'Date', 'Travel', 'Event'];
+
   bool _loading = true;
   bool _busy = false;
-  bool _saving = false;
-
-  TibModelProfile? _tibModel;
-  List<WardrobeItem> _wardrobe = const [];
-  Set<String> _selectedIds = {};
+  TibModelProfile? _model;
   ColourAnalysisResult? _analysis;
+  List<WardrobeItem> _wardrobe = const [];
   List<String> _styles = const [];
   List<String> _preferences = const [];
+  final Set<String> _selectedIds = <String>{};
   String _occasion = 'Dinner';
   String _status = '';
   String? _generatedImageUrl;
   String? _requestId;
-  _TryOnMode _mode = _TryOnMode.choose;
-
-  static const _occasions = ['Dinner', 'Work', 'Casual', 'Date', 'Travel', 'Event'];
 
   @override
   void initState() {
@@ -49,15 +45,9 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
   Future<void> _load() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
-      if (mounted) {
-        setState(() {
-          _loading = false;
-          _status = 'Please sign in again before using Virtual Try-On.';
-        });
-      }
+      if (mounted) setState(() { _loading = false; _status = 'Please sign in again before using Virtual Try-On.'; });
       return;
     }
-
     try {
       final results = await Future.wait<dynamic>([
         TibModelService.load(),
@@ -65,11 +55,10 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
         StylePreferenceService.getStylePreferences(uid),
         FirestoreService.getLatestColourAnalysis(uid),
       ]);
-
       if (!mounted) return;
       final prefs = results[2] as Map<String, dynamic>?;
       setState(() {
-        _tibModel = results[0] as TibModelProfile?;
+        _model = results[0] as TibModelProfile;
         _wardrobe = results[1] as List<WardrobeItem>;
         _styles = List<String>.from(prefs?['styles'] ?? const []);
         _preferences = List<String>.from(prefs?['preferences'] ?? const []);
@@ -78,205 +67,11 @@ class _VirtualTryOnScreenState extends State<VirtualTryOnScreen> {
       });
     } catch (_) {
       if (!mounted) return;
-      setState(() {
-        _loading = false;
-        _status = 'Could not load your TiB Model and wardrobe. Please try again.';
-      });
+      setState(() { _loading = false; _status = 'Could not load your Personal TiB Model. Please try again.'; });
     }
   }
 
-  void _toggleItem(WardrobeItem item) {
-    if (_busy || _saving) return;
-    final next = {..._selectedIds};
-    if (next.contains(item.id)) {
-      next.remove(item.id);
-    } else {
-      if (next.length >= 6) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Choose up to 6 pieces for one virtual look.')),
-        );
-        return;
-      }
-      next.add(item.id);
-    }
-    setState(() {
-      _selectedIds = next;
-      _generatedImageUrl = null;
-      _requestId = null;
-      _status = next.isEmpty ? '' : '${next.length} wardrobe pieces selected.';
-    });
-  }
-
-  Future<void> _letTiBStyleMe() async {
-    if (_busy) return;
-    if (_wardrobe.isEmpty) {
-      setState(() => _status = 'Add some wardrobe pieces first.');
-      return;
-    }
-    if (_analysis == null) {
-      setState(() => _status = 'Complete Colour Analysis first so TiB can style you accurately.');
-      return;
-    }
-
-    setState(() {
-      _busy = true;
-      _mode = _TryOnMode.ai;
-      _selectedIds = {};
-      _generatedImageUrl = null;
-      _requestId = null;
-      _status = 'TiB is finding the best outfit from your wardrobe…';
-    });
-
-    try {
-      final result = await AiStylingService.getRecommendation(
-        profile: _analysis!,
-        wardrobe: _wardrobe,
-        styles: _styles,
-        preferences: _preferences,
-        occasion: _occasion,
-      );
-
-      if (!mounted) return;
-      if (result == null) {
-        setState(() {
-          _busy = false;
-          _status = 'TiB could not find a complete outfit from your current wardrobe.';
-        });
-        return;
-      }
-
-      final ids = <String?>[result.topId, result.bottomId, result.shoesId, result.accessoryId];
-      final picks = ids.whereType<String>().map(_find).whereType<WardrobeItem>().toList();
-      setState(() {
-        _selectedIds = picks.map((item) => item.id).toSet();
-        _status = picks.isEmpty
-            ? 'TiB returned a recommendation without matching wardrobe images.'
-            : 'TiB selected ${picks.length} pieces. Creating your Virtual You…';
-      });
-
-      if (picks.isEmpty) {
-        setState(() => _busy = false);
-        return;
-      }
-      await _generateTryOn(itemsOverride: picks, autoSave: true);
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _status = 'TiB could not build the look right now. Choose your wardrobe manually.';
-      });
-    }
-  }
-
-  Future<void> _generateTryOn({List<WardrobeItem>? itemsOverride, bool autoSave = false}) async {
-    if (_busy && itemsOverride == null) return;
-
-    final model = _tibModel;
-    final selected = itemsOverride ?? _selectedItems;
-
-    if (model == null || !model.isComplete) {
-      setState(() => _status = 'Complete your TiB Model first: face scan + body measurements are required.');
-      return;
-    }
-    if (model.faceFile == null || !model.faceFile!.existsSync()) {
-      setState(() => _status = 'Your TiB face scan is missing. Please recreate your TiB Model.');
-      return;
-    }
-    if (selected.isEmpty) {
-      setState(() => _status = 'Select at least one wardrobe piece first.');
-      return;
-    }
-
-    setState(() {
-      _busy = true;
-      _generatedImageUrl = null;
-      _requestId = null;
-      _status = 'Creating your Virtual You…\nTiB is matching your face, body and selected wardrobe.';
-    });
-
-    try {
-      final result = await VirtualTryOnResultService.generate(
-        VirtualTryOnRequest(
-          model: model,
-          items: selected,
-          occasion: _occasion,
-          stylingBrief: _buildStylingBrief(),
-        ),
-      );
-
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _generatedImageUrl = result.imageUrl;
-        _requestId = result.requestId;
-        _status = result.isGenerated
-            ? 'Your Virtual You is ready — wearing your selected wardrobe.'
-            : result.status;
-      });
-
-      if (result.isGenerated || autoSave) {
-        await _saveGeneratedLook(selected);
-      }
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _status = 'Virtual Try-On failed. Please try again.';
-      });
-    }
-  }
-
-  String _buildStylingBrief() {
-    final model = _tibModel!;
-    final profile = _analysis;
-    final items = _selectedItems
-        .map((item) => '${item.name} | category=${item.category} | colour=${item.colour} | style=${item.style}')
-        .join('\n');
-
-    return '''Create the user's Virtual You for a $_occasion look.
-
-IDENTITY:
-Use the supplied TiB face reference as the user's identity. Preserve recognizable facial features, natural skin tone, hair and overall appearance.
-
-BODY:
-Use the supplied TiB body reference when available. Preserve the user's natural silhouette and proportions. Do not create a generic fashion model and do not idealize, slim, lengthen or reshape the body.
-
-TIB BODY PROFILE:
-Body shape: ${model.bodyShape}
-Face shape: ${model.faceShape}
-Height: ${model.height} cm
-Weight: ${model.weight} kg
-Bust: ${model.bust} cm
-Waist: ${model.waist} cm
-Hips: ${model.hips} cm
-
-COLOUR PROFILE:
-Season: ${profile?.season ?? 'unknown'}
-Recommended colours: ${profile?.colours.join(', ') ?? 'unknown'}
-
-SELECTED REAL WARDROBE:
-$items
-
-WARDROBE RULE:
-Use the selected wardrobe reference images as the exact clothing sources. Preserve their real colours, silhouettes, textures, patterns and important details. Do not replace them with invented garments.
-
-RESULT:
-Generate one realistic full-body fashion image of the same user wearing the selected wardrobe. Keep the person clearly recognizable as the user's Virtual You. Show the complete outfit, including shoes when selected, with natural proportions, realistic garment fit, folds and lighting.''';
-  }
-
-  Future<void> _saveGeneratedLook(List<WardrobeItem> items) async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null || items.isEmpty) return;
-    try {
-      await FirestoreService.saveOutfitLook(
-        uid: uid,
-        occasion: _occasion,
-        itemIds: items.map((item) => item.id).toList(),
-        matchScore: _matchScore(items),
-        season: _analysis?.season ?? 'Unknown',
-      );
-    } catch (_) {}
-  }
+  List<WardrobeItem> get _selectedItems => _selectedIds.map(_find).whereType<WardrobeItem>().toList();
 
   WardrobeItem? _find(String id) {
     for (final item in _wardrobe) {
@@ -285,409 +80,237 @@ Generate one realistic full-body fashion image of the same user wearing the sele
     return null;
   }
 
-  List<WardrobeItem> get _selectedItems => _selectedIds.map(_find).whereType<WardrobeItem>().toList();
-
-  int _matchScore(List<WardrobeItem> items) {
-    if (items.isEmpty) return 0;
-    final profile = _analysis;
-    if (profile == null) return 70;
-    var score = 70;
-    for (final item in items) {
-      if (profile.colours.any((c) => _sameColourFamily(c, item.colour))) score += 4;
-      if (item.season == profile.season || item.season == 'All seasons') score += 3;
-      if (_styles.any((s) => item.style.toLowerCase().contains(s.toLowerCase()))) score += 2;
-    }
-    return score.clamp(0, 100);
+  void _toggle(WardrobeItem item) {
+    if (_busy) return;
+    setState(() {
+      if (_selectedIds.contains(item.id)) {
+        _selectedIds.remove(item.id);
+      } else if (_selectedIds.length < 6) {
+        _selectedIds.add(item.id);
+      } else {
+        _status = 'Choose up to 6 pieces for one look.';
+        return;
+      }
+      _generatedImageUrl = null;
+      _requestId = null;
+      _status = _selectedIds.isEmpty ? '' : '${_selectedIds.length} piece${_selectedIds.length == 1 ? '' : 's'} selected.';
+    });
   }
 
-  bool _sameColourFamily(String preferred, String wardrobeColour) {
-    final a = preferred.toLowerCase();
-    final b = wardrobeColour.toLowerCase();
-    if (a == b || a.contains(b) || b.contains(a)) return true;
-    const families = <String, List<String>>{
-      'pink': ['pink', 'rose', 'coral', 'peach'],
-      'brown': ['brown', 'camel', 'tan', 'chocolate'],
-      'beige': ['beige', 'cream', 'ivory', 'taupe'],
-      'green': ['green', 'olive', 'sage', 'mint', 'emerald'],
-      'blue': ['blue', 'navy', 'cobalt', 'sapphire'],
-      'purple': ['purple', 'lavender', 'lilac', 'mauve', 'plum'],
-      'red': ['red', 'ruby', 'burgundy', 'wine'],
-      'yellow': ['yellow', 'gold', 'mustard'],
-    };
-    for (final family in families.values) {
-      if (family.any(a.contains) && family.any(b.contains)) return true;
+  Future<void> _letTiBStyleMe() async {
+    if (_busy) return;
+    if (_analysis == null) {
+      setState(() => _status = 'Complete Colour Analysis first so TiB can style your real wardrobe.');
+      return;
     }
-    return false;
-  }
-
-  Future<void> _saveManualLook() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    final items = _selectedItems;
-    if (uid == null || items.isEmpty || _saving) return;
-    setState(() => _saving = true);
+    if (_wardrobe.isEmpty) {
+      setState(() => _status = 'Add your real clothes to My Wardrobe first.');
+      return;
+    }
+    setState(() { _busy = true; _status = 'TiB is choosing your look from clothes you already own…'; });
     try {
-      await FirestoreService.saveOutfitLook(
-        uid: uid,
+      final recommendation = await AiStylingService.getRecommendation(
+        profile: _analysis!,
+        wardrobe: _wardrobe,
+        styles: _styles,
+        preferences: _preferences,
         occasion: _occasion,
-        itemIds: items.map((item) => item.id).toList(),
-        matchScore: _matchScore(items),
-        season: _analysis?.season ?? 'Unknown',
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Look saved to Saved Looks.')));
+      if (recommendation == null) {
+        setState(() { _busy = false; _status = 'TiB could not find a suitable complete look yet.'; });
+        return;
+      }
+      final ids = <String?>[recommendation.topId, recommendation.bottomId, recommendation.shoesId, recommendation.accessoryId];
+      final picks = ids.whereType<String>().map(_find).whereType<WardrobeItem>().toList();
+      setState(() {
+        _selectedIds..clear()..addAll(picks.map((item) => item.id));
+        _status = picks.isEmpty ? 'No matching wardrobe images were found.' : 'Great — I found ${picks.length} pieces. Now building your Virtual You…';
+      });
+      if (picks.isNotEmpty) await _generate(items: picks);
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not save this look right now.')));
-    } finally {
-      if (mounted) setState(() => _saving = false);
+      setState(() { _busy = false; _status = 'TiB could not build the look right now. You can choose the pieces yourself.'; });
     }
+  }
+
+  Future<void> _generate({List<WardrobeItem>? items}) async {
+    final model = _model;
+    final selected = items ?? _selectedItems;
+    if (_busy && items == null) return;
+    if (model == null || !model.isComplete) {
+      setState(() => _status = 'Complete your Personal TiB Model first: face + full-body reference + real measurements.');
+      return;
+    }
+    if (model.bodyFile == null || !model.bodyFile!.existsSync()) {
+      setState(() => _status = 'Your full-body reference is missing. Rebuild your Personal TiB Model.');
+      return;
+    }
+    if (selected.isEmpty) {
+      setState(() => _status = 'Select at least one real wardrobe piece first.');
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _generatedImageUrl = null;
+      _requestId = null;
+      _status = 'Creating your Virtual You…\nUsing your face, full-body reference and real measurements.';
+    });
+    try {
+      final result = await VirtualTryOnResultService.generate(
+        VirtualTryOnRequest(model: model, items: selected, occasion: _occasion, stylingBrief: _stylingBrief(selected)),
+      );
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _generatedImageUrl = result.imageUrl;
+        _requestId = result.requestId;
+        _status = result.isGenerated
+            ? 'Your Virtual You is ready — this look is built around your real proportions.'
+            : result.status;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() { _busy = false; _status = 'Virtual Try-On failed: $error'; });
+    }
+  }
+
+  String _stylingBrief(List<WardrobeItem> items) {
+    final model = _model!;
+    return '''TiB Personal Virtual You fitting room.
+
+IDENTITY MASTER:
+This is a real user, not a fashion-model template. The user's full-body reference is the primary identity and body reference. The user's face reference is the close-up identity anchor.
+
+REAL BODY DATA:
+Height ${model.height} cm; weight ${model.weight} kg; bust ${model.bust} cm; waist ${model.waist} cm; hips ${model.hips} cm; body shape ${model.bodyShape}.
+
+NON-NEGOTIABLE:
+Keep the same person, same natural body proportions and realistic silhouette. Do not slim, lengthen, enlarge, shrink or idealize any body area. Do not turn the user into a generic model. Clothing must adapt to the user's actual proportions.
+
+WARDROBE:
+${items.map((item) => '${item.name} | ${item.category} | ${item.colour} | ${item.style}').join('\n')}
+
+OUTPUT:
+Create one photorealistic head-to-toe image of this same user wearing only the selected real wardrobe pieces. Preserve garment construction, colour, texture and details. Show the complete body whenever possible, including shoes when selected. Use a natural standing pose and realistic fabric fit.''';
   }
 
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    final model = _model;
     final selected = _selectedItems;
-
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(title: const Text('AI Virtual Try-On')),
+      appBar: AppBar(title: const Text('AI Virtual Try-On'), centerTitle: true, actions: [IconButton(onPressed: _busy ? null : _load, icon: const Icon(Icons.refresh_rounded))]),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 34),
+        padding: const EdgeInsets.fromLTRB(18, 10, 18, 34),
         children: [
-          if (_generatedImageUrl != null) ...[
-            _buildGeneratedResult(),
-            const SizedBox(height: 16),
-          ],
-          _buildModelCard(_tibModel),
-          const SizedBox(height: 16),
-          _buildModeSwitch(),
-          const SizedBox(height: 16),
-          _buildOccasions(),
-          const SizedBox(height: 16),
-          _mode == _TryOnMode.ai ? _buildAiPanel() : _buildWardrobePicker(),
-          if (selected.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            _buildSelectedLook(selected),
-            const SizedBox(height: 14),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: _busy ? null : _generateTryOn,
-                icon: _busy
-                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Icon(Icons.auto_awesome_rounded),
-                label: Text(_busy ? 'Creating Your Virtual You…' : 'Generate My Try-On'),
-              ),
-            ),
-            const SizedBox(height: 8),
-            if (_mode == _TryOnMode.choose)
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: _saving ? null : _saveManualLook,
-                  icon: const Icon(Icons.bookmark_add_outlined),
-                  label: const Text('Save Look Without Generating'),
-                ),
-              ),
-          ],
-          if (_status.isNotEmpty) ...[
-            const SizedBox(height: 14),
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: _generatedImageUrl != null ? AppColors.primarySoft : AppColors.surface,
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: AppColors.border),
-              ),
-              child: Text(
-                _status,
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: AppColors.textSecondary, height: 1.45, fontSize: 11.5),
-              ),
-            ),
-          ],
+          _identityHero(model),
+          const SizedBox(height: 14),
+          if (_generatedImageUrl != null) ...[_generatedCard(), const SizedBox(height: 16)],
+          _modelCard(model),
+          const SizedBox(height: 18),
+          _occasionSection(),
+          const SizedBox(height: 18),
+          _modeActions(),
+          const SizedBox(height: 18),
+          _wardrobeSection(selected),
+          if (selected.isNotEmpty) ...[const SizedBox(height: 14), _selectedBar(selected)],
+          if (_status.isNotEmpty) ...[const SizedBox(height: 14), _statusCard()],
         ],
       ),
     );
   }
 
-  Widget _buildGeneratedResult() {
+  Widget _identityHero(TibModelProfile? model) {
+    final complete = model?.isComplete == true;
     return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        gradient: AppGradients.soft,
-        borderRadius: BorderRadius.circular(26),
-        border: Border.all(color: AppColors.primarySoft),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Padding(
-            padding: EdgeInsets.fromLTRB(6, 4, 6, 10),
-            child: Row(
-              children: [
-                Icon(Icons.auto_awesome_rounded, color: AppColors.primaryDark, size: 19),
-                SizedBox(width: 7),
-                Text('YOUR VIRTUAL YOU', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900)),
-              ],
-            ),
-          ),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(18),
-            child: CachedNetworkImage(
-              imageUrl: _generatedImageUrl!,
-              width: double.infinity,
-              fit: BoxFit.cover,
-              placeholder: (_, __) => const AspectRatio(
-                aspectRatio: .75,
-                child: Center(child: CircularProgressIndicator()),
-              ),
-              errorWidget: (_, __, ___) => const Padding(
-                padding: EdgeInsets.all(24),
-                child: Text('The generated image could not be displayed.'),
-              ),
-            ),
-          ),
-          if (_requestId != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Text('Generation ID: $_requestId', style: const TextStyle(color: AppColors.textMuted, fontSize: 9)),
-            ),
-        ],
-      ),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(28), border: Border.all(color: AppColors.primary.withValues(alpha: .18))),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+        Container(
+          width: 66,
+          height: 82,
+          decoration: BoxDecoration(borderRadius: BorderRadius.circular(22), color: AppColors.lavenderMist),
+          clipBehavior: Clip.antiAlias,
+          child: model?.bodyFile != null && model!.bodyFile!.existsSync() ? Image.file(model.bodyFile!, fit: BoxFit.cover) : const Icon(Icons.person_rounded, size: 38, color: AppColors.primary),
+        ),
+        const SizedBox(width: 14),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('YOUR VIRTUAL YOU', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.2, color: AppColors.primary)),
+          const SizedBox(height: 5),
+          const Text('Not a generic model.', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, height: 1.05)),
+          const SizedBox(height: 6),
+          Text(complete ? 'TiB uses your real body data + your face + your full-body reference.' : 'Finish your Personal TiB Model to make the fitting room truly yours.', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.4)),
+        ])),
+      ]),
     );
   }
 
-  Widget _buildModelCard(TibModelProfile? model) {
+  Widget _modelCard(TibModelProfile? model) {
+    final complete = model?.isComplete == true;
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 58,
-            height: 70,
-            decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.circular(17)),
-            clipBehavior: Clip.antiAlias,
-            child: model?.faceFile != null && model!.faceFile!.existsSync()
-                ? Image.file(model.faceFile!, fit: BoxFit.cover)
-                : const Icon(Icons.face_retouching_natural_rounded, color: AppColors.primaryDark, size: 28),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('YOUR AI VIRTUAL YOU', style: TextStyle(fontSize: 9, letterSpacing: 1.2, fontWeight: FontWeight.w900, color: AppColors.textMuted)),
-                const SizedBox(height: 5),
-                Text(model?.bodyShape ?? 'TiB Model', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
-                const SizedBox(height: 4),
-                const Text('Face + body profile + proportions + wardrobe', style: TextStyle(color: AppColors.textSecondary, fontSize: 10.5, height: 1.35)),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildModeSwitch() {
-    return Container(
-      padding: const EdgeInsets.all(5),
-      decoration: BoxDecoration(color: AppColors.surfaceMuted, borderRadius: BorderRadius.circular(16)),
-      child: Row(
-        children: [
-          Expanded(child: _modeButton(_TryOnMode.choose, 'Choose My Outfit', Icons.checkroom_rounded)),
-          Expanded(child: _modeButton(_TryOnMode.ai, 'Let TiB Style Me', Icons.auto_awesome_rounded)),
-        ],
-      ),
-    );
-  }
-
-  Widget _modeButton(_TryOnMode mode, String label, IconData icon) {
-    return GestureDetector(
-      onTap: _busy
-          ? null
-          : () => setState(() {
-                _mode = mode;
-                _generatedImageUrl = null;
-                _requestId = null;
-                _status = '';
-              }),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 8),
-        decoration: BoxDecoration(
-          color: _mode == mode ? AppColors.surface : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 16, color: AppColors.primaryDark),
-            const SizedBox(width: 6),
-            Flexible(child: Text(label, textAlign: TextAlign.center, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800))),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildOccasions() {
-    return Container(
-      padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.border)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('WHAT ARE YOU DRESSING FOR?', style: TextStyle(fontSize: 9, letterSpacing: 1.2, fontWeight: FontWeight.w900, color: AppColors.textMuted)),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 7,
-            runSpacing: 7,
-            children: _occasions.map((value) {
-              return ChoiceChip(
-                label: Text(value),
-                selected: _occasion == value,
-                onSelected: _busy
-                    ? null
-                    : (_) => setState(() {
-                          _occasion = value;
-                          _generatedImageUrl = null;
-                          _requestId = null;
-                          _status = '';
-                        }),
-              );
-            }).toList(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAiPanel() {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(gradient: AppGradients.ai, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Row(children: [Icon(Icons.auto_awesome_rounded, color: AppColors.primaryDark), SizedBox(width: 8), Text('Let TiB Style Me', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900))]),
-          const SizedBox(height: 7),
-          const Text('TiB will choose the most suitable clothes and shoes from your wardrobe using your Colour Analysis, body shape and personal style, then create your Virtual You.', style: TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.45)),
-          const SizedBox(height: 13),
-          SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: _busy ? null : _letTiBStyleMe, icon: const Icon(Icons.auto_awesome), label: const Text('Find My Best Look'))),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildWardrobePicker() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('YOUR WARDROBE', style: TextStyle(fontSize: 10, letterSpacing: 1.3, fontWeight: FontWeight.w900, color: AppColors.textMuted)),
-        const SizedBox(height: 9),
-        if (_wardrobe.isEmpty)
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.border)),
-            child: const Center(child: Text('Your wardrobe is empty. Add clothes first.')),
-          )
-        else
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: _wardrobe.length,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: .77),
-            itemBuilder: (_, index) {
-              final item = _wardrobe[index];
-              final selected = _selectedIds.contains(item.id);
-              return GestureDetector(
-                onTap: () => _toggleItem(item),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(20), border: Border.all(color: selected ? AppColors.primaryDark : AppColors.border, width: selected ? 2 : 1)),
-                  clipBehavior: Clip.antiAlias,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Stack(
-                          children: [
-                            Positioned.fill(child: CachedNetworkImage(imageUrl: item.imageUrl, fit: BoxFit.cover, errorWidget: (_, __, ___) => const Icon(Icons.image_not_supported_outlined))),
-                            if (selected)
-                              Positioned(
-                                top: 9,
-                                right: 9,
-                                child: Container(
-                                  width: 27,
-                                  height: 27,
-                                  decoration: const BoxDecoration(color: AppColors.primaryDark, shape: BoxShape.circle),
-                                  child: const Icon(Icons.check, color: Colors.white, size: 16),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(11, 8, 11, 11),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
-                            const SizedBox(height: 3),
-                            Text('${item.category} • ${item.colour}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.textSecondary, fontSize: 9.5)),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-      ],
-    );
-  }
-
-  Widget _buildSelectedLook(List<WardrobeItem> items) {
-    return Container(
-      padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.border)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('SELECTED LOOK', style: TextStyle(fontSize: 9, letterSpacing: 1.2, fontWeight: FontWeight.w900, color: AppColors.textMuted)),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(24), border: Border.all(color: AppColors.border)),
+      child: Column(children: [
+        Row(children: [const Icon(Icons.straighten_rounded, color: AppColors.primary, size: 20), const SizedBox(width: 8), const Expanded(child: Text('REAL BODY PROFILE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1))), _pill(complete ? 'READY' : 'INCOMPLETE', complete)]),
+        const SizedBox(height: 12),
+        if (model == null || !complete)
+          const Align(alignment: Alignment.centerLeft, child: Text('Face + full-body reference + height + weight + bust + waist + hips are required.', style: TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.4)))
+        else ...[
+          Row(children: [_metric('HEIGHT', '${model.height.toStringAsFixed(0)} cm'), _metric('BUST', '${model.bust.toStringAsFixed(1)} cm'), _metric('WAIST', '${model.waist.toStringAsFixed(1)} cm'), _metric('HIPS', '${model.hips.toStringAsFixed(1)} cm')]),
           const SizedBox(height: 10),
-          SizedBox(
-            height: 92,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: items.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 9),
-              itemBuilder: (_, index) {
-                final item = items[index];
-                return SizedBox(
-                  width: 72,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(child: ClipRRect(borderRadius: BorderRadius.circular(13), child: CachedNetworkImage(imageUrl: item.imageUrl, width: double.infinity, fit: BoxFit.cover, errorWidget: (_, __, ___) => const Icon(Icons.image_not_supported_outlined)))),
-                      const SizedBox(height: 4),
-                      Text(item.category, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 8.5, fontWeight: FontWeight.w800)),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ),
+          Row(children: [_tag(Icons.person_outline_rounded, model.bodyShape), const SizedBox(width: 7), _tag(Icons.face_retouching_natural_rounded, model.faceShape), const Spacer(), Text('${model.weight.toStringAsFixed(1)} kg', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary, fontWeight: FontWeight.w700))]),
         ],
+      ]),
+    );
+  }
+
+  Widget _metric(String label, String value) => Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: const TextStyle(fontSize: 8.5, color: AppColors.textMuted, fontWeight: FontWeight.w800)), const SizedBox(height: 3), Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800))]));
+
+  Widget _tag(IconData icon, String text) => Container(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(30), border: Border.all(color: AppColors.border)), child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(icon, size: 13, color: AppColors.primary), const SizedBox(width: 5), Text(text, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700))]));
+
+  Widget _pill(String text, bool good) => Container(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5), decoration: BoxDecoration(color: good ? AppColors.primarySoft : AppColors.peach, borderRadius: BorderRadius.circular(20)), child: Text(text, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: good ? AppColors.primaryDark : AppColors.charcoal)));
+
+  Widget _occasionSection() => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    const Text('What are you wearing it for?', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+    const SizedBox(height: 9),
+    SizedBox(height: 42, child: ListView.separated(scrollDirection: Axis.horizontal, itemCount: _occasions.length, separatorBuilder: (_, i) => const SizedBox(width: 7), itemBuilder: (_, i) { final value = _occasions[i]; final selected = value == _occasion; return ChoiceChip(label: Text(value), selected: selected, onSelected: _busy ? null : (_) => setState(() { _occasion = value; _generatedImageUrl = null; }), selectedColor: AppColors.primarySoft, backgroundColor: Colors.white, side: BorderSide(color: selected ? AppColors.primary : AppColors.border)); }))
+  ]);
+
+  Widget _modeActions() => Row(children: [
+    Expanded(child: OutlinedButton.icon(onPressed: _busy ? null : _letTiBStyleMe, icon: const Icon(Icons.auto_awesome_rounded, size: 18), label: const Text('Let TiB Style Me'), style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(52), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(17))))),
+    const SizedBox(width: 9),
+    Expanded(child: FilledButton.icon(onPressed: _busy || _selectedIds.isEmpty ? null : _generate, icon: _busy ? const SizedBox(width: 17, height: 17, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.checkroom_rounded, size: 18), label: Text(_busy ? 'Creating…' : 'Generate Try-On'), style: FilledButton.styleFrom(backgroundColor: AppColors.primary, minimumSize: const Size.fromHeight(52), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(17))))),
+  ]);
+
+  Widget _wardrobeSection(List<WardrobeItem> selected) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    Row(children: [const Expanded(child: Text('YOUR REAL WARDROBE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1))), Text('${selected.length}/6 selected', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary, fontWeight: FontWeight.w700))]),
+    const SizedBox(height: 9),
+    if (_wardrobe.isEmpty) Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)), child: const Center(child: Text('Add clothes to My Wardrobe first.')))
+    else GridView.builder(shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), itemCount: _wardrobe.length, gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: .73), itemBuilder: (_, i) => _wardrobeCard(_wardrobe[i])),
+  ]);
+
+  Widget _wardrobeCard(WardrobeItem item) {
+    final selected = _selectedIds.contains(item.id);
+    return GestureDetector(
+      onTap: () => _toggle(item),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: selected ? AppColors.primary : AppColors.border, width: selected ? 2 : 1)),
+        clipBehavior: Clip.antiAlias,
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(child: Stack(children: [Positioned.fill(child: CachedNetworkImage(imageUrl: item.imageUrl, fit: BoxFit.cover, errorWidget: (_, __, ___) => const Center(child: Icon(Icons.image_not_supported_outlined)))), if (selected) Positioned(top: 9, right: 9, child: Container(width: 28, height: 28, decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle), child: const Icon(Icons.check_rounded, color: Colors.white, size: 18)))])),
+          Padding(padding: const EdgeInsets.fromLTRB(11, 8, 11, 10), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)), const SizedBox(height: 3), Text('${item.category} • ${item.colour}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 9.5, color: AppColors.textSecondary))])),
+        ]),
       ),
     );
   }
+
+  Widget _selectedBar(List<WardrobeItem> items) => Container(padding: const EdgeInsets.all(13), decoration: BoxDecoration(color: AppColors.lavenderMist, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.primary.withValues(alpha: .16))), child: Wrap(spacing: 7, runSpacing: 7, children: items.map((item) => Chip(label: Text(item.name, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700)), onDeleted: _busy ? null : () => _toggle(item), backgroundColor: Colors.white)).toList()));
+
+  Widget _generatedCard() => Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(26), border: Border.all(color: AppColors.primary.withValues(alpha: .25))), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Padding(padding: EdgeInsets.fromLTRB(6, 3, 6, 9), child: Row(children: [Icon(Icons.auto_awesome_rounded, color: AppColors.primary, size: 18), SizedBox(width: 7), Text('YOUR PERSONAL VIRTUAL YOU', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: .8))])), ClipRRect(borderRadius: BorderRadius.circular(20), child: CachedNetworkImage(imageUrl: _generatedImageUrl!, width: double.infinity, fit: BoxFit.contain, placeholder: (_, __) => const SizedBox(height: 420, child: Center(child: CircularProgressIndicator())), errorWidget: (_, __, ___) => const SizedBox(height: 280, child: Center(child: Icon(Icons.broken_image_outlined, size: 40)))), if (_requestId != null) Padding(padding: const EdgeInsets.fromLTRB(7, 8, 7, 2), child: Text('Reference: ${_requestId!.substring(0, _requestId!.length > 8 ? 8 : _requestId!.length)}', style: const TextStyle(fontSize: 8.5, color: AppColors.textMuted)))]));
+
+  Widget _statusCard() => Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: _generatedImageUrl != null ? AppColors.primarySoft : Colors.white, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border)), child: Text(_status, textAlign: TextAlign.center, style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondary, height: 1.45)));
 }
