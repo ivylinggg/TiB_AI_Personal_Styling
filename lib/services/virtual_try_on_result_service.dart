@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -245,7 +246,7 @@ class VirtualTryOnResultService {
 
       final contentType = response.headers['content-type'] ?? '';
       if (!contentType.contains('json')) {
-        return VirtualTryOnResult(
+        return const VirtualTryOnResult(
           imageUrl: null,
           status: 'The Virtual Try-On deployment returned an invalid response. Please redeploy the latest Apps Script version.',
         );
@@ -297,7 +298,7 @@ class VirtualTryOnResultService {
       );
     } on SocketException catch (error) {
       if (kDebugMode) debugPrint('virtualTryOn socket error: $error');
-      return VirtualTryOnResult(
+      return const VirtualTryOnResult(
         imageUrl: null,
         status: 'Could not connect to the Virtual Try-On backend. Check the Apps Script deployment and internet connection.',
       );
@@ -309,7 +310,7 @@ class VirtualTryOnResultService {
       );
     } on FormatException catch (error) {
       if (kDebugMode) debugPrint('virtualTryOn format error: $error');
-      return VirtualTryOnResult(
+      return const VirtualTryOnResult(
         imageUrl: null,
         status: 'The Virtual Try-On backend returned an unreadable response. Please redeploy the latest Apps Script Code.gs.',
       );
