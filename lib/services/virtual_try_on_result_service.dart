@@ -68,7 +68,7 @@ class VirtualTryOnResultService {
       }
 
       final streamed = await request.send().timeout(
-        const Duration(seconds: 120),
+        const Duration(seconds: 180),
       );
       final response = await http.Response.fromStream(streamed);
 
@@ -136,14 +136,20 @@ class VirtualTryOnResultService {
     }
 
     final faceFile = File(request.model.facePath!);
-    final bodyFile = request.model.bodyPath == null
-        ? null
-        : File(request.model.bodyPath!);
+    final bodyPath = request.model.bodyPath;
+    final bodyFile = bodyPath == null ? null : File(bodyPath);
 
     if (!faceFile.existsSync()) {
       return const VirtualTryOnResult(
         imageUrl: null,
         status: 'Your face scan is missing. Please scan your face again.',
+      );
+    }
+
+    if (bodyFile == null || !bodyFile.existsSync()) {
+      return const VirtualTryOnResult(
+        imageUrl: null,
+        status: 'Add your full-body photo to your TiB Model so Virtual You can match your real body shape and proportions.',
       );
     }
 
@@ -171,9 +177,7 @@ class VirtualTryOnResultService {
       }
 
       final faceImage = await encodeImage(faceFile);
-      final bodyImage = bodyFile != null && bodyFile.existsSync()
-          ? await encodeImage(bodyFile)
-          : null;
+      final bodyImage = await encodeImage(bodyFile);
 
       final body = <String, dynamic>{
         'action': 'virtualTryOn',
@@ -182,11 +186,11 @@ class VirtualTryOnResultService {
         'occasion': request.occasion,
         'stylingBrief': request.stylingBrief,
         'tibModel': request.model.measurementData,
-        // Identity reference: user's scanned face.
+        // Reference 1: user's face / identity.
         'modelImage': faceImage,
-        // Full-body reference: preserves the user's real silhouette,
-        // proportions and appearance instead of a generic model.
+        // Reference 2: user's real full-body silhouette / proportions.
         'bodyImage': bodyImage,
+        // Only the user's selected wardrobe is sent as clothing references.
         'items': request.items.take(6).map((item) => {
           'id': item.id,
           'name': item.name,
@@ -242,13 +246,11 @@ class VirtualTryOnResultService {
             ? decoded['error'] as String
             : '';
 
-        // Do not present Premium as an access requirement during pre-launch.
-        // If an older deployed backend still returns not_premium, surface a
-        // neutral service message instead of misleading Free users.
+        // Never present Premium as a Flutter-side requirement during pre-launch.
         if (preLaunchAllUsers && error == 'not_premium') {
           return const VirtualTryOnResult(
             imageUrl: null,
-            status: 'The AI try-on service needs its latest pre-launch configuration. Please try again after the service is updated.',
+            status: 'The connected AI service is still using an older deployment. Update the Virtual Try-On backend deployment and try again.',
           );
         }
 
@@ -273,7 +275,7 @@ class VirtualTryOnResultService {
       return VirtualTryOnResult(
         imageUrl: imageUrl,
         requestId: decoded['requestId']?.toString(),
-        status: 'Your personalised AI try-on is ready.',
+        status: 'Your personalised AI Virtual You is ready.',
       );
     } catch (error) {
       if (kDebugMode) debugPrint('virtualTryOn error: $error');
