@@ -116,7 +116,8 @@ class _PremiumScreenState extends State<PremiumScreen>
   }
 
   void _openVirtualTryOn() {
-    if (!_isPremium) return;
+    // Development/testing mode: Premium status must not gate access.
+    // The entitlement check can be restored here when the app officially launches.
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const VirtualTryOnScreen()),
@@ -396,7 +397,7 @@ class _PremiumScreenState extends State<PremiumScreen>
 
   Widget _buildVirtualTryOnCard() {
     return InkWell(
-      onTap: _isPremium ? _openVirtualTryOn : null,
+      onTap: _openVirtualTryOn,
       borderRadius: BorderRadius.circular(24),
       child: Ink(
         padding: const EdgeInsets.all(18),
@@ -461,11 +462,9 @@ class _PremiumScreenState extends State<PremiumScreen>
               ),
             ),
             const SizedBox(width: 6),
-            Icon(
+            const Icon(
               Icons.arrow_forward_rounded,
-              color: _isPremium
-                  ? AppColors.primaryDark
-                  : AppColors.textMuted,
+              color: AppColors.primaryDark,
             ),
           ],
         ),
@@ -566,31 +565,26 @@ class _PremiumScreenState extends State<PremiumScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  active ? 'Premium is active' : 'Free account',
+                  active ? 'Premium is active' : 'Premium is not active',
                   style: const TextStyle(
                     color: _text,
-                    fontWeight: FontWeight.w800,
                     fontSize: 14,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   active
-                      ? 'Premium access is currently enabled for your account.'
-                      : 'Premium access is currently managed by your administrator.',
+                      ? 'Your account has Premium access.'
+                      : 'Premium access is managed by the administrator.',
                   style: const TextStyle(
                     color: _muted,
+                    fontSize: 11.5,
                     height: 1.4,
-                    fontSize: 12,
                   ),
                 ),
               ],
             ),
-          ),
-          const SizedBox(width: 8),
-          Icon(
-            Icons.chevron_right_rounded,
-            color: active ? AppColors.success : AppColors.textMuted,
           ),
         ],
       ),
@@ -601,27 +595,27 @@ class _PremiumScreenState extends State<PremiumScreen>
     return Container(
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
-        color: AppColors.error.withValues(alpha: 0.07),
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.error.withValues(alpha: 0.18)),
+        border: Border.all(color: AppColors.border),
       ),
       child: Row(
         children: [
-          const Icon(Icons.cloud_off_rounded, color: AppColors.error),
+          const Icon(
+            Icons.info_outline_rounded,
+            color: AppColors.primary,
+            size: 20,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              _loadError!,
+              _loadError ?? '',
               style: const TextStyle(
-                color: _text,
+                color: _muted,
                 fontSize: 12,
                 height: 1.4,
               ),
             ),
-          ),
-          TextButton(
-            onPressed: _loadStatus,
-            child: const Text('Retry'),
           ),
         ],
       ),
