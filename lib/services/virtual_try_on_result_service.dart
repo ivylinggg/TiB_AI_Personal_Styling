@@ -49,11 +49,7 @@ class VirtualTryOnResultService {
         ..body = body;
       final streamed = await postRequest.send().timeout(_requestTimeout);
       final response = await http.Response.fromStream(streamed);
-      if (kDebugMode) {
-        debugPrint('virtualTryOn HTTP ${response.statusCode} POST ${response.request?.url}');
-        debugPrint('virtualTryOn content-type: ${response.headers['content-type']}');
-        debugPrint('virtualTryOn location: ${response.headers['location']}');
-      }
+      if (kDebugMode) debugPrint('virtualTryOn HTTP ${response.statusCode} POST ${response.request?.url}');
       final status = response.statusCode;
       final isRedirect = status == 301 || status == 302 || status == 303 || status == 307 || status == 308;
       if (!isRedirect) return response;
@@ -81,7 +77,7 @@ class VirtualTryOnResultService {
             ..maxRedirects = 0
             ..headers['Accept'] = 'application/json';
           final finalStreamed = await finalRequest.send().timeout(_requestTimeout);
-          return http.Response.fromStream(finalStreamed);
+          return await http.Response.fromStream(finalStreamed);
         }
       }
     }
@@ -102,9 +98,7 @@ class VirtualTryOnResultService {
 
   static Future<VirtualTryOnResult> generate(VirtualTryOnRequest request) async {
     final model = request.model;
-    if (!model.isComplete || model.facePath == null || model.bodyPath == null) {
-      return const VirtualTryOnResult(imageUrl: null, status: 'Complete your Personal TiB Model first: face, full-body reference and real measurements are required.');
-    }
+    if (!model.isComplete || model.facePath == null || model.bodyPath == null) return const VirtualTryOnResult(imageUrl: null, status: 'Complete your Personal TiB Model first: face, full-body reference and real measurements are required.');
     if (request.items.isEmpty) return const VirtualTryOnResult(imageUrl: null, status: 'Choose at least one wardrobe piece first.');
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return const VirtualTryOnResult(imageUrl: null, status: 'Please sign in again before generating a try-on.');
@@ -131,16 +125,10 @@ class VirtualTryOnResultService {
         'bodyImage': bodyImage,
         'modelReferencePriority': 'full_body_then_face_then_measurements',
         'outputRequirement': 'head_to_toe_full_body',
-        'items': request.items.take(6).map((item) => {
-          'id': item.id, 'name': item.name, 'category': item.category,
-          'colour': item.colour, 'style': item.style, 'imageUrl': item.imageUrl,
-        }).toList(),
+        'items': request.items.take(6).map((item) => {'id': item.id, 'name': item.name, 'category': item.category, 'colour': item.colour, 'style': item.style, 'imageUrl': item.imageUrl}).toList(),
       };
       final response = await _postJsonFollowingRedirects(uri: Uri.parse(GoogleDriveConfig.uploadUrl), body: jsonEncode(body));
-      if (kDebugMode) {
-        debugPrint('virtualTryOn final status: ${response.statusCode}');
-        debugPrint('virtualTryOn response: ${response.body}');
-      }
+      if (kDebugMode) { debugPrint('virtualTryOn final status: ${response.statusCode}'); debugPrint('virtualTryOn response: ${response.body}'); }
       final responseText = response.body.trim();
       Map<String, dynamic>? decoded;
       try { final candidate = jsonDecode(responseText); if (candidate is Map<String, dynamic>) decoded = candidate; } catch (_) {}
