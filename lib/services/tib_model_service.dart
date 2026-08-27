@@ -20,6 +20,20 @@ class TibModelProfile {
   File? get faceFile => facePath == null ? null : File(facePath!);
   File? get bodyFile => bodyPath == null ? null : File(bodyPath!);
   Map<String, dynamic> get measurementData => {'weightKg': weight, 'heightCm': height, 'bustCm': bust, 'waistCm': waist, 'hipsCm': hips, 'bodyShape': bodyShape, 'faceShape': faceShape};
+
+  /// The stable identity context used by every TiB styling experience.
+  /// It deliberately describes the person, not the outfit.
+  Map<String, dynamic> get personalIdentityData => {
+        'faceShape': faceShape,
+        'bodyShape': bodyShape,
+        'heightCm': height,
+        'weightKg': weight,
+        'bustCm': bust,
+        'waistCm': waist,
+        'hipsCm': hips,
+        'hasFaceReference': facePath != null,
+        'hasFullBodyReference': bodyPath != null,
+      };
 }
 
 class TibModelService {
@@ -63,8 +77,6 @@ class TibModelService {
     return 'Oval';
   }
 
-  /// Runs the actual face scan and derives a face-shape result from the
-  /// detected face geometry. A photo with no/ multiple faces is rejected.
   static Future<String> scanFaceShape(File image) async {
     final faces = await MlKitService.detectFace(image);
     if (faces.length != 1) {
@@ -89,12 +101,11 @@ class TibModelService {
     }
 
     final faceContour = contourWidth(FaceContourType.face);
-    final result = calculateFaceShape(
+    return calculateFaceShape(
       faceWidth: faceContour ?? width,
       faceHeight: height,
       cheekboneWidth: faceContour,
     );
-    return result;
   }
 
   static Future<TibModelProfile> load() async {
@@ -110,17 +121,38 @@ class TibModelService {
     final hips = prefs.getDouble(hipsKey);
     final savedShape = prefs.getString(shapeKey);
     final savedFaceShape = prefs.getString(faceShapeKey);
-    final complete = weight != null && height != null && bust != null && waist != null && hips != null && weight > 0 && height > 0 && bust > 0 && waist > 0 && hips > 0;
-    final bodyShape = complete ? calculateBodyShape(bust: bust, waist: waist, hips: hips) : (savedShape ?? 'Not measured');
-    return TibModelProfile(facePath: faceExists ? facePath : null, bodyPath: bodyExists ? bodyPath : null, weight: weight ?? 0, height: height ?? 0, bust: bust ?? 0, waist: waist ?? 0, hips: hips ?? 0, bodyShape: bodyShape, faceShape: savedFaceShape ?? 'Not scanned', isComplete: faceExists && complete);
+    final measurementsComplete = weight != null && height != null && bust != null && waist != null && hips != null && weight > 0 && height > 0 && bust > 0 && waist > 0 && hips > 0;
+    final bodyShape = measurementsComplete ? calculateBodyShape(bust: bust, waist: waist, hips: hips) : (savedShape ?? 'Not measured');
+
+    // A Personal TiB Model is not considered ready until both identity
+    // references exist: face + full-body. This prevents the try-on engine
+    // from silently falling back to a generic body.
+    final complete = faceExists && bodyExists && measurementsComplete;
+
+    return TibModelProfile(
+      facePath: faceExists ? facePath : null,
+      bodyPath: bodyExists ? bodyPath : null,
+      weight: weight ?? 0,
+      height: height ?? 0,
+      bust: bust ?? 0,
+      waist: waist ?? 0,
+      hips: hips ?? 0,
+      bodyShape: bodyShape,
+      faceShape: savedFaceShape ?? 'Not scanned',
+      isComplete: complete,
+    );
   }
 
   static Future<void> save({required String facePath, String? bodyPath, required double weight, required double height, required double bust, required double waist, required double hips, String? faceShape}) async {
+    if (bodyPath == null || bodyPath.trim().isEmpty) {
+      throw Exception('A clear full-body photo is required to build your Personal TiB Model.');
+    }
+
     final prefs = await SharedPreferences.getInstance();
     final bodyShape = calculateBodyShape(bust: bust, waist: waist, hips: hips);
     final scannedFaceShape = faceShape ?? await scanFaceShape(File(facePath));
     await prefs.setString(faceKey, facePath);
-    if (bodyPath == null) { await prefs.remove(bodyKey); } else { await prefs.setString(bodyKey, bodyPath); }
+    await prefs.setString(bodyKey, bodyPath);
     await prefs.setDouble(weightKey, weight);
     await prefs.setDouble(heightKey, height);
     await prefs.setDouble(bustKey, bust);
@@ -128,11 +160,13 @@ class TibModelService {
     await prefs.setDouble(hipsKey, hips);
     await prefs.setString(shapeKey, bodyShape);
     await prefs.setString(faceShapeKey, scannedFaceShape);
-    await prefs.setInt(versionKey, 3);
+    await prefs.setInt(versionKey, 4);
   }
 
   static Future<void> clear() async {
     final prefs = await SharedPreferences.getInstance();
-    for (final key in [faceKey, bodyKey, weightKey, heightKey, bustKey, waistKey, hipsKey, shapeKey, faceShapeKey, versionKey]) { await prefs.remove(key); }
+    for (final key in [faceKey, bodyKey, weightKey, heightKey, bustKey, waistKey, hipsKey, shapeKey, faceShapeKey, versionKey]) {
+      await prefs.remove(key);
+    }
   }
 }
