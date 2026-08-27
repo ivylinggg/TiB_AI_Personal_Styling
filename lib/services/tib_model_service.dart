@@ -7,8 +7,9 @@ import 'mlkit_service.dart';
 
 /// Persistent identity context for TiB's personal AI fitting room.
 ///
-/// The measurements are not intended to replace a true body scan. They are
-/// fit context that is combined with the user's face and full-body reference.
+/// This is the user's real-person profile: face reference, full-body
+/// reference and measured proportions. It is deliberately kept separate
+/// from wardrobe data so every generated look starts from the same person.
 class TibModelProfile {
   const TibModelProfile({
     this.facePath,
@@ -37,13 +38,21 @@ class TibModelProfile {
   File? get faceFile => facePath == null ? null : File(facePath!);
   File? get bodyFile => bodyPath == null ? null : File(bodyPath!);
 
-  /// Stable numerical context used by styling and try-on requests.
+  /// Stable numerical context for the AI fitting room.
+  ///
+  /// Both the canonical `*Cm/*Kg` names and the short legacy names are sent
+  /// because the Apps Script backend accepts both while projects migrate.
   Map<String, dynamic> get measurementData => {
         'weightKg': weight,
         'heightCm': height,
         'bustCm': bust,
         'waistCm': waist,
         'hipsCm': hips,
+        'weight': weight,
+        'height': height,
+        'bust': bust,
+        'waist': waist,
+        'hips': hips,
         'bodyShape': bodyShape,
         'faceShape': faceShape,
         'proportionRatios': {
@@ -54,11 +63,10 @@ class TibModelProfile {
       };
 
   /// Identity context deliberately describes the person rather than the
-  /// selected outfit. This is the payload the AI fitting room uses to keep
-  /// the generated person consistent across different looks.
+  /// selected outfit. This is the persistent "Virtual You" contract.
   Map<String, dynamic> get personalIdentityData => {
         'modelType': 'personal_tib_model',
-        'modelVersion': 5,
+        'modelVersion': 6,
         'faceShape': faceShape,
         'bodyShape': bodyShape,
         'heightCm': height,
@@ -66,6 +74,11 @@ class TibModelProfile {
         'bustCm': bust,
         'waistCm': waist,
         'hipsCm': hips,
+        'height': height,
+        'weight': weight,
+        'bust': bust,
+        'waist': waist,
+        'hips': hips,
         'proportionRatios': {
           'waistToBust': _ratio(waist, bust),
           'waistToHips': _ratio(waist, hips),
@@ -74,9 +87,12 @@ class TibModelProfile {
         'hasFaceReference': facePath != null,
         'hasFullBodyReference': bodyPath != null,
         'identityRule': 'dress_this_person_not_a_generic_model',
+        'bodyReferencePriority': 'primary',
+        'measurementPriority': 'hard_fit_context',
       };
 
-  static double? _ratio(double a, double b) => a > 0 && b > 0 ? double.parse((a / b).toStringAsFixed(4)) : null;
+  static double? _ratio(double a, double b) =>
+      a > 0 && b > 0 ? double.parse((a / b).toStringAsFixed(4)) : null;
 }
 
 class TibModelService {
@@ -91,17 +107,26 @@ class TibModelService {
   static const faceShapeKey = 'tib_model_face_shape';
   static const versionKey = 'tib_model_profile_version';
 
-  static String calculateBodyShape({required double bust, required double waist, required double hips}) {
+  static String calculateBodyShape({
+    required double bust,
+    required double waist,
+    required double hips,
+  }) {
     if (waist >= bust * .90 || waist >= hips * .90) return 'Apple';
     if (hips >= bust * 1.05 && hips - waist >= 7.5) return 'Pear';
     final d = (bust - hips).abs() / ((bust + hips) / 2);
-    if (d <= .05 && waist <= bust * .75 && waist <= hips * .75) return 'Hourglass';
-    if (d <= .05 && waist > bust * .75 && waist > hips * .75) return 'Rectangle';
-    if (bust >= hips * 1.05 && bust - waist >= 7.5) return 'Inverted Triangle';
+    if (d <= .05 && waist <= bust * .75 && waist <= hips * .75) {
+      return 'Hourglass';
+    }
+    if (d <= .05 && waist > bust * .75 && waist > hips * .75) {
+      return 'Rectangle';
+    }
+    if (bust >= hips * 1.05 && bust - waist >= 7.5) {
+      return 'Inverted Triangle';
+    }
     return 'Rectangle';
   }
 
-  /// Face shape is inferred automatically from the ML Kit face scan.
   static String calculateFaceShape({
     required double faceWidth,
     required double faceHeight,
@@ -129,7 +154,11 @@ class TibModelService {
   static Future<String> scanFaceShape(File image) async {
     final faces = await MlKitService.detectFace(image);
     if (faces.length != 1) {
-      throw Exception(faces.isEmpty ? 'No face detected. Use a clear front-facing photo.' : 'Please use a photo with one clearly visible face.');
+      throw Exception(
+        faces.isEmpty
+            ? 'No face detected. Use a clear front-facing photo.'
+            : 'Please use a photo with one clearly visible face.',
+      );
     }
 
     final face = faces.single;
@@ -170,8 +199,19 @@ class TibModelService {
     final hips = prefs.getDouble(hipsKey);
     final savedShape = prefs.getString(shapeKey);
     final savedFaceShape = prefs.getString(faceShapeKey);
-    final measurementsComplete = weight != null && height != null && bust != null && waist != null && hips != null && weight > 0 && height > 0 && bust > 0 && waist > 0 && hips > 0;
-    final bodyShape = measurementsComplete ? calculateBodyShape(bust: bust, waist: waist, hips: hips) : (savedShape ?? 'Not measured');
+    final measurementsComplete = weight != null &&
+        height != null &&
+        bust != null &&
+        waist != null &&
+        hips != null &&
+        weight > 0 &&
+        height > 0 &&
+        bust > 0 &&
+        waist > 0 &&
+        hips > 0;
+    final bodyShape = measurementsComplete
+        ? calculateBodyShape(bust: bust, waist: waist, hips: hips)
+        : (savedShape ?? 'Not measured');
 
     final complete = faceExists && bodyExists && measurementsComplete;
 
@@ -200,12 +240,19 @@ class TibModelService {
     String? faceShape,
   }) async {
     if (bodyPath == null || bodyPath.trim().isEmpty) {
-      throw Exception('A clear full-body photo is required to build your Personal TiB Model.');
+      throw Exception(
+        'A clear full-body photo is required to build your Personal TiB Model.',
+      );
     }
 
     final prefs = await SharedPreferences.getInstance();
-    final bodyShape = calculateBodyShape(bust: bust, waist: waist, hips: hips);
-    final scannedFaceShape = faceShape ?? await scanFaceShape(File(facePath));
+    final bodyShape = calculateBodyShape(
+      bust: bust,
+      waist: waist,
+      hips: hips,
+    );
+    final scannedFaceShape =
+        faceShape ?? await scanFaceShape(File(facePath));
     await prefs.setString(faceKey, facePath);
     await prefs.setString(bodyKey, bodyPath);
     await prefs.setDouble(weightKey, weight);
@@ -215,12 +262,23 @@ class TibModelService {
     await prefs.setDouble(hipsKey, hips);
     await prefs.setString(shapeKey, bodyShape);
     await prefs.setString(faceShapeKey, scannedFaceShape);
-    await prefs.setInt(versionKey, 5);
+    await prefs.setInt(versionKey, 6);
   }
 
   static Future<void> clear() async {
     final prefs = await SharedPreferences.getInstance();
-    for (final key in [faceKey, bodyKey, weightKey, heightKey, bustKey, waistKey, hipsKey, shapeKey, faceShapeKey, versionKey]) {
+    for (final key in [
+      faceKey,
+      bodyKey,
+      weightKey,
+      heightKey,
+      bustKey,
+      waistKey,
+      hipsKey,
+      shapeKey,
+      faceShapeKey,
+      versionKey,
+    ]) {
       await prefs.remove(key);
     }
   }
