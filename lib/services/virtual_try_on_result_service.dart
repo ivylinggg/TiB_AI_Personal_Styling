@@ -110,21 +110,28 @@ class VirtualTryOnResultService {
     try {
       final idToken = await user.getIdToken();
       if (idToken == null || idToken.isEmpty) return const VirtualTryOnResult(imageUrl: null, status: 'Could not verify your account. Please try again.');
+
       final faceImage = await _encodeImage(faceFile);
       final bodyImage = await _encodeImage(bodyFile);
+      final personalVirtualYou = PersonalVirtualYouService.buildContract(model);
       final body = <String, dynamic>{
         'action': 'virtualTryOn',
         'uid': user.uid,
         'idToken': idToken,
         'occasion': request.occasion,
-        'stylingBrief': request.stylingBrief ?? 'Dress my Personal TiB Model using the selected wardrobe only. Preserve the real person identity and real body proportions.',
+        'stylingBrief': request.stylingBrief ?? 'Dress my Personal TiB Model using the selected wardrobe only. Preserve the real person identity and measured body proportions. Return a head-to-toe result.',
         'tibModel': model.measurementData,
         'personalModel': model.personalIdentityData,
-        'personalVirtualYou': PersonalVirtualYouService.buildContract(model),
-        'modelImage': faceImage,
+        'personalVirtualYou': personalVirtualYou,
+        // Keep the full-body reference first in the multimodal request. It is
+        // the strongest silhouette/proportion anchor; the face image then
+        // reinforces identity at close range.
         'bodyImage': bodyImage,
+        'modelImage': faceImage,
         'modelReferencePriority': 'full_body_then_face_then_measurements',
         'outputRequirement': 'head_to_toe_full_body',
+        'identityRequirement': 'same_real_person_not_generic_model',
+        'bodyRequirement': 'preserve_measured_proportions_and_natural_silhouette',
         'items': request.items.take(6).map((item) => {'id': item.id, 'name': item.name, 'category': item.category, 'colour': item.colour, 'style': item.style, 'imageUrl': item.imageUrl}).toList(),
       };
       final response = await _postJsonFollowingRedirects(uri: Uri.parse(GoogleDriveConfig.uploadUrl), body: jsonEncode(body));
