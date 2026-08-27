@@ -42,37 +42,140 @@ class VirtualTryOnResult {
 class VirtualTryOnResultService {
   VirtualTryOnResultService._();
 
+  static const int _maxRedirects = 5;
   static const Duration _requestTimeout = Duration(seconds: 360);
   static const int _maxImageDimension = 1600;
   static const int _jpegQuality = 82;
 
-  /// Google Apps Script Web Apps intentionally redirect the /exec POST to a
-  /// googleusercontent endpoint. The redirect must be handled using the
-  /// normal HTTP redirect semantics: a 302/303 becomes a GET at the final
-  /// endpoint. Manually replaying the POST to the redirect target causes
-  /// Google to return HTTP 405 Method Not Allowed.
+  /// Google Apps Script Web Apps normally return a 302/303 from /exec and
+  /// redirect the request to a temporary googleusercontent URL. That target
+  /// is read with GET. Replaying the original JSON POST against the redirect
+  /// target causes HTTP 405, while following the 302 manually as GET is
+  /// compatible with the Apps Script Web App response flow.
   static Future<http.Response> _postJsonFollowingRedirects({
     required Uri uri,
     required String body,
   }) async {
-    final request = http.Request('POST', uri)
-      ..followRedirects = true
-      ..maxRedirects = 5
-      ..headers['Accept'] = 'application/json'
-      ..headers['Content-Type'] = 'application/json; charset=utf-8'
-      ..body = body;
+    var currentUri = uri;
 
-    final streamed = await request.send().timeout(_requestTimeout);
-    final response = await http.Response.fromStream(streamed);
+    for (var redirectCount = 0; redirectCount <= _maxRedirects; redirectCount++) {
+      final postRequest = http.Request('POST', currentUri)
+        ..followRedirects = false
+        ..maxRedirects = 0
+        ..headers['Accept'] = 'application/json'
+        ..headers['Content-Type'] = 'application/json; charset=utf-8'
+        ..body = body;
 
-    if (kDebugMode) {
-      debugPrint(
-        'virtualTryOn HTTP ${response.statusCode} ${response.request?.method} ${response.request?.url}',
-      );
-      debugPrint('virtualTryOn content-type: ${response.headers['content-type']}');
+      final streamed = await postRequest.send().timeout(_requestTimeout);
+      final response = await http.Response.fromStream(streamed);
+
+      if (kDebugMode) {
+        debugPrint(
+          'virtualTryOn HTTP ${response.statusCode} POST ${response.request?.url}',
+        );
+        debugPrint(
+          'virtualTryOn content-type: ${response.headers['content-type']}',
+        );
+        debugPrint(
+          'virtualTryOn location: ${response.headers['location']}',
+        );
+      }
+
+      final status = response.statusCode;
+      final isRedirect = status == 301 ||
+          status == 302 ||
+          status == 303 ||
+          status == 307 ||
+          status == 308;
+
+      if (!isRedirect) return response;
+
+      final location = response.headers['location'];
+      if (location == null || location.trim().isEmpty) {
+        throw const HttpException(
+          'Virtual Try-On service returned a redirect without a location.',
+        );
+      }
+
+      if (redirectCount == _maxRedirects) {
+        throw const HttpException(
+          'Virtual Try-On service redirected too many times.',
+        );
+      }
+
+      currentUri = currentUri.resolve(location.trim());
+
+      // Apps Script uses 302/303 to hand the POST response to a temporary
+      // googleusercontent endpoint. Those redirects must be followed as GET.
+      if (status == 301 || status == 302 || status == 303) {
+        final getRequest = http.Request('GET', currentUri)
+          ..followRedirects = false
+          ..maxRedirects = 0
+          ..headers['Accept'] = 'application/json';
+
+        final getStreamed = await getRequest.send().timeout(_requestTimeout);
+        final getResponse = await http.Response.fromStream(getStreamed);
+
+        if (kDebugMode) {
+          debugPrint(
+            'virtualTryOn redirect GET ${getResponse.statusCode} ${getResponse.request?.url}',
+          );
+          debugPrint(
+            'virtualTryOn redirect content-type: ${getResponse.headers['content-type']}',
+          );
+          debugPrint(
+            'virtualTryOn redirect location: ${getResponse.headers['location']}',
+          );
+        }
+
+        final getStatus = getResponse.statusCode;
+        final getIsRedirect = getStatus == 301 ||
+            getStatus == 302 ||
+            getStatus == 303 ||
+            getStatus == 307 ||
+            getStatus == 308;
+
+        if (!getIsRedirect) return getResponse;
+
+        final getLocation = getResponse.headers['location'];
+        if (getLocation == null || getLocation.trim().isEmpty) {
+          throw const HttpException(
+            'Virtual Try-On redirect did not provide a final location.',
+          );
+        }
+
+        currentUri = currentUri.resolve(getLocation.trim());
+        // Continue the loop. A temporary redirect chain can contain another
+        // 302, which will again be converted to GET on the next iteration.
+        if (getStatus == 301 || getStatus == 302 || getStatus == 303) {
+          final finalRequest = http.Request('GET', currentUri)
+            ..followRedirects = false
+            ..maxRedirects = 0
+            ..headers['Accept'] = 'application/json';
+          final finalStreamed = await finalRequest.send().timeout(_requestTimeout);
+          final finalResponse = await http.Response.fromStream(finalStreamed);
+
+          if (kDebugMode) {
+            debugPrint(
+              'virtualTryOn final GET ${finalResponse.statusCode} ${finalResponse.request?.url}',
+            );
+            debugPrint(
+              'virtualTryOn final content-type: ${finalResponse.headers['content-type']}',
+            );
+          }
+
+          return finalResponse;
+        }
+
+        // 307/308 preserve POST semantics, so continue the outer loop with
+        // the original JSON body.
+        continue;
+      }
+
+      // 307/308 explicitly preserve the original POST method and body.
     }
 
-    return response;
+    throw const HttpException('Virtual Try-On redirect handling failed.');
   }
 
   static Future<Map<String, String>> _encodeImage(File file) async {
