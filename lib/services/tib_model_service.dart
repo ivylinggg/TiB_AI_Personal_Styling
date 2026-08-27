@@ -5,8 +5,24 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'mlkit_service.dart';
 
+/// Persistent identity context for TiB's personal AI fitting room.
+///
+/// The measurements are not intended to replace a true body scan. They are
+/// fit context that is combined with the user's face and full-body reference.
 class TibModelProfile {
-  const TibModelProfile({this.facePath, this.bodyPath, required this.weight, required this.height, required this.bust, required this.waist, required this.hips, required this.bodyShape, required this.faceShape, required this.isComplete});
+  const TibModelProfile({
+    this.facePath,
+    this.bodyPath,
+    required this.weight,
+    required this.height,
+    required this.bust,
+    required this.waist,
+    required this.hips,
+    required this.bodyShape,
+    required this.faceShape,
+    required this.isComplete,
+  });
+
   final String? facePath;
   final String? bodyPath;
   final double weight;
@@ -17,13 +33,32 @@ class TibModelProfile {
   final String bodyShape;
   final String faceShape;
   final bool isComplete;
+
   File? get faceFile => facePath == null ? null : File(facePath!);
   File? get bodyFile => bodyPath == null ? null : File(bodyPath!);
-  Map<String, dynamic> get measurementData => {'weightKg': weight, 'heightCm': height, 'bustCm': bust, 'waistCm': waist, 'hipsCm': hips, 'bodyShape': bodyShape, 'faceShape': faceShape};
 
-  /// The stable identity context used by every TiB styling experience.
-  /// It deliberately describes the person, not the outfit.
+  /// Stable numerical context used by styling and try-on requests.
+  Map<String, dynamic> get measurementData => {
+        'weightKg': weight,
+        'heightCm': height,
+        'bustCm': bust,
+        'waistCm': waist,
+        'hipsCm': hips,
+        'bodyShape': bodyShape,
+        'faceShape': faceShape,
+        'proportionRatios': {
+          'waistToBust': _ratio(waist, bust),
+          'waistToHips': _ratio(waist, hips),
+          'hipsToBust': _ratio(hips, bust),
+        },
+      };
+
+  /// Identity context deliberately describes the person rather than the
+  /// selected outfit. This is the payload the AI fitting room uses to keep
+  /// the generated person consistent across different looks.
   Map<String, dynamic> get personalIdentityData => {
+        'modelType': 'personal_tib_model',
+        'modelVersion': 5,
         'faceShape': faceShape,
         'bodyShape': bodyShape,
         'heightCm': height,
@@ -31,9 +66,17 @@ class TibModelProfile {
         'bustCm': bust,
         'waistCm': waist,
         'hipsCm': hips,
+        'proportionRatios': {
+          'waistToBust': _ratio(waist, bust),
+          'waistToHips': _ratio(waist, hips),
+          'hipsToBust': _ratio(hips, bust),
+        },
         'hasFaceReference': facePath != null,
         'hasFullBodyReference': bodyPath != null,
+        'identityRule': 'dress_this_person_not_a_generic_model',
       };
+
+  static double? _ratio(double a, double b) => a > 0 && b > 0 ? double.parse((a / b).toStringAsFixed(4)) : null;
 }
 
 class TibModelService {
@@ -59,8 +102,14 @@ class TibModelService {
   }
 
   /// Face shape is inferred automatically from the ML Kit face scan.
-  /// Users never enter face-shape measurements manually.
-  static String calculateFaceShape({required double faceWidth, required double faceHeight, double? foreheadWidth, double? cheekboneWidth, double? jawWidth, double? chinRatio}) {
+  static String calculateFaceShape({
+    required double faceWidth,
+    required double faceHeight,
+    double? foreheadWidth,
+    double? cheekboneWidth,
+    double? jawWidth,
+    double? chinRatio,
+  }) {
     if (faceWidth <= 0 || faceHeight <= 0) return 'Oval';
     final ratio = faceHeight / faceWidth;
     final forehead = foreheadWidth ?? faceWidth;
@@ -124,9 +173,6 @@ class TibModelService {
     final measurementsComplete = weight != null && height != null && bust != null && waist != null && hips != null && weight > 0 && height > 0 && bust > 0 && waist > 0 && hips > 0;
     final bodyShape = measurementsComplete ? calculateBodyShape(bust: bust, waist: waist, hips: hips) : (savedShape ?? 'Not measured');
 
-    // A Personal TiB Model is not considered ready until both identity
-    // references exist: face + full-body. This prevents the try-on engine
-    // from silently falling back to a generic body.
     final complete = faceExists && bodyExists && measurementsComplete;
 
     return TibModelProfile(
@@ -143,7 +189,16 @@ class TibModelService {
     );
   }
 
-  static Future<void> save({required String facePath, String? bodyPath, required double weight, required double height, required double bust, required double waist, required double hips, String? faceShape}) async {
+  static Future<void> save({
+    required String facePath,
+    String? bodyPath,
+    required double weight,
+    required double height,
+    required double bust,
+    required double waist,
+    required double hips,
+    String? faceShape,
+  }) async {
     if (bodyPath == null || bodyPath.trim().isEmpty) {
       throw Exception('A clear full-body photo is required to build your Personal TiB Model.');
     }
@@ -160,7 +215,7 @@ class TibModelService {
     await prefs.setDouble(hipsKey, hips);
     await prefs.setString(shapeKey, bodyShape);
     await prefs.setString(faceShapeKey, scannedFaceShape);
-    await prefs.setInt(versionKey, 4);
+    await prefs.setInt(versionKey, 5);
   }
 
   static Future<void> clear() async {
