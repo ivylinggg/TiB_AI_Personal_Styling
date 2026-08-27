@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:model_viewer_plus/model_viewer_plus.dart';
 
@@ -6,7 +8,11 @@ import '../core/constants/app_gradients.dart';
 import '../services/tib_avatar_service.dart';
 import '../services/tib_model_service.dart';
 
-/// Interactive 3D TiB Model preview.
+/// Personal TiB Model preview.
+///
+/// A generated 3D avatar is optional. Until a true personalised GLB exists,
+/// the user's own full-body reference is shown instead of a generic model so
+/// the product never visually suggests that a generic mannequin is "you".
 class TibVirtualModelPreview extends StatefulWidget {
   const TibVirtualModelPreview({
     super.key,
@@ -58,16 +64,16 @@ class _TibVirtualModelPreviewState extends State<TibVirtualModelPreview> {
     });
   }
 
-  String get _modelUrl =>
-      widget.modelUrl ?? _storedAvatarUrl ?? TibAvatarService.fallbackAvatarUrl;
+  String get _modelUrl => widget.modelUrl ?? _storedAvatarUrl ?? '';
 
-  bool get _isPersonalAvatar =>
-      _storedAvatarUrl != null && _storedAvatarUrl!.isNotEmpty;
+  bool get _hasPersonal3D => _modelUrl.isNotEmpty;
 
   @override
   Widget build(BuildContext context) {
     final face = widget.model.faceFile;
+    final body = widget.model.bodyFile;
     final ready = widget.model.isComplete;
+    final hasBodyReference = body != null && body.existsSync();
 
     return Container(
       height: widget.height,
@@ -80,26 +86,32 @@ class _TibVirtualModelPreviewState extends State<TibVirtualModelPreview> {
       child: Stack(
         children: [
           Positioned.fill(
-            child: ModelViewer(
-              key: ValueKey(_modelUrl),
-              src: _modelUrl,
-              alt: _isPersonalAvatar
-                  ? 'Personalised 3D TiB avatar'
-                  : 'Interactive 3D TiB fashion model',
-              backgroundColor: Colors.transparent,
-              cameraControls: true,
-              autoRotate: _autoRotate,
-              autoRotateDelay: 1200,
-              disableZoom: false,
-              touchAction: TouchAction.panY,
-              interactionPrompt: InteractionPrompt.auto,
-              interactionPromptStyle: InteractionPromptStyle.basic,
-              orbitSensitivity: 1,
-            ),
+            child: _hasPersonal3D
+                ? ModelViewer(
+                    key: ValueKey(_modelUrl),
+                    src: _modelUrl,
+                    alt: 'Personalised 3D TiB avatar',
+                    backgroundColor: Colors.transparent,
+                    cameraControls: true,
+                    autoRotate: _autoRotate,
+                    autoRotateDelay: 1200,
+                    disableZoom: false,
+                    touchAction: TouchAction.panY,
+                    interactionPrompt: InteractionPrompt.auto,
+                    interactionPromptStyle: InteractionPromptStyle.basic,
+                    orbitSensitivity: 1,
+                  )
+                : hasBodyReference
+                    ? Image.file(body!, fit: BoxFit.contain)
+                    : const Center(
+                        child: Icon(Icons.person_rounded, size: 72, color: AppColors.primary),
+                      ),
           ),
           if (_loadingAvatar)
             const Positioned.fill(
-              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+              child: IgnorePointer(
+                child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+              ),
             ),
           Positioned(
             top: 16,
@@ -117,11 +129,7 @@ class _TibVirtualModelPreviewState extends State<TibVirtualModelPreview> {
                 decoration: const BoxDecoration(shape: BoxShape.circle),
                 child: face != null && face.existsSync()
                     ? Image.file(face, fit: BoxFit.cover)
-                    : const Icon(
-                        Icons.person_rounded,
-                        color: AppColors.primary,
-                        size: 28,
-                      ),
+                    : const Icon(Icons.person_rounded, color: AppColors.primary, size: 28),
               ),
             ),
           ),
@@ -132,17 +140,17 @@ class _TibVirtualModelPreviewState extends State<TibVirtualModelPreview> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 _pill(
-                  icon: Icons.threesixty_rounded,
-                  label: _isPersonalAvatar ? 'MY 3D' : '360°',
+                  icon: _hasPersonal3D ? Icons.threesixty_rounded : Icons.photo_camera_front_rounded,
+                  label: _hasPersonal3D ? 'MY 3D' : 'MY BODY',
                 ),
-                const SizedBox(width: 7),
-                _iconButton(
-                  icon: _autoRotate
-                      ? Icons.pause_rounded
-                      : Icons.play_arrow_rounded,
-                  tooltip: _autoRotate ? 'Pause rotation' : 'Auto rotate',
-                  onPressed: () => setState(() => _autoRotate = !_autoRotate),
-                ),
+                if (_hasPersonal3D) ...[
+                  const SizedBox(width: 7),
+                  _iconButton(
+                    icon: _autoRotate ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                    tooltip: _autoRotate ? 'Pause rotation' : 'Auto rotate',
+                    onPressed: () => setState(() => _autoRotate = !_autoRotate),
+                  ),
+                ],
               ],
             ),
           ),
@@ -159,19 +167,21 @@ class _TibVirtualModelPreviewState extends State<TibVirtualModelPreview> {
               ),
               child: Row(
                 children: [
-                  const Icon(
-                    Icons.swipe_rounded,
+                  Icon(
+                    _hasPersonal3D ? Icons.swipe_rounded : Icons.accessibility_new_rounded,
                     size: 18,
                     color: AppColors.primary,
                   ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      _isPersonalAvatar
+                      _hasPersonal3D
                           ? 'Your personalised 3D avatar · drag to rotate'
-                          : _avatarStatus == TibAvatarService.statusReady
-                              ? 'Your TiB Avatar is ready · drag to explore'
-                              : 'Drag to explore your TiB model · auto-rotating',
+                          : hasBodyReference
+                              ? 'Your real full-body reference · used as the silhouette anchor'
+                              : _avatarStatus == TibAvatarService.statusReady
+                                  ? 'Your TiB Avatar is ready'
+                                  : 'Complete your Personal TiB Model to preview your real body',
                       style: const TextStyle(
                         fontSize: 10.5,
                         fontWeight: FontWeight.w800,
@@ -191,7 +201,7 @@ class _TibVirtualModelPreviewState extends State<TibVirtualModelPreview> {
               ),
             ),
           ),
-          if (ready && !_isPersonalAvatar)
+          if (ready && !_hasPersonal3D && hasBodyReference)
             Positioned(
               left: 16,
               right: 16,
@@ -204,7 +214,7 @@ class _TibVirtualModelPreviewState extends State<TibVirtualModelPreview> {
                   border: Border.all(color: AppColors.border),
                 ),
                 child: Text(
-                  'Base 3D preview · ${widget.model.faceShape} face · ${widget.model.bodyShape} body',
+                  'YOUR REAL BODY REFERENCE · ${widget.model.height.toStringAsFixed(0)} cm · ${widget.model.bodyShape}',
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                     fontSize: 9.5,
@@ -232,10 +242,7 @@ class _TibVirtualModelPreviewState extends State<TibVirtualModelPreview> {
         children: [
           Icon(icon, size: 14, color: AppColors.primaryDark),
           const SizedBox(width: 5),
-          Text(
-            label,
-            style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900),
-          ),
+          Text(label, style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900)),
         ],
       ),
     );
