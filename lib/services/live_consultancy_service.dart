@@ -9,6 +9,9 @@ class LiveConsultancyService {
   static CollectionReference<Map<String, dynamic>> get _consultations =>
       _db.collection('consultations');
 
+  static CollectionReference<Map<String, dynamic>> get _presence =>
+      _db.collection('consultant_presence');
+
   static String? get currentUid => FirebaseAuth.instance.currentUser?.uid;
 
   static DocumentReference<Map<String, dynamic>> _consultation(String uid) =>
@@ -78,7 +81,11 @@ class LiveConsultancyService {
   }
 
   static Stream<QuerySnapshot<Map<String, dynamic>>> consultantPresenceStream() {
-    return _db.collection('consultant_presence').snapshots();
+    return _presence.orderBy('updatedAt', descending: true).snapshots();
+  }
+
+  static Stream<QuerySnapshot<Map<String, dynamic>>> onlineConsultantsStream() {
+    return _presence.where('online', isEqualTo: true).snapshots();
   }
 
   static Future<void> setConsultantPresence(bool online) async {
@@ -87,11 +94,12 @@ class LiveConsultancyService {
     final name = consultant.displayName?.trim().isNotEmpty == true
         ? consultant.displayName!.trim()
         : 'TiB Consultant';
-    await _db.collection('consultant_presence').doc(consultant.uid).set({
+    await _presence.doc(consultant.uid).set({
       'consultantId': consultant.uid,
       'consultantName': name,
       'online': online,
       'updatedAt': FieldValue.serverTimestamp(),
+      'lastSeenAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }
 
@@ -103,7 +111,6 @@ class LiveConsultancyService {
     await ensureConversation();
     final ref = _consultation(user.uid);
     final existing = await ref.get();
-    final existingStatus = existing.data()?['status'] as String?;
 
     await _messages(user.uid).add({
       'senderType': 'user',
@@ -122,11 +129,13 @@ class LiveConsultancyService {
           ? user.displayName!.trim()
           : 'TiB User',
       'email': user.email ?? '',
-      'status': existingStatus == 'resolved' ? 'waiting_for_consultant' : 'waiting_for_consultant',
+      'status': 'waiting_for_consultant',
       'lastMessage': value,
       'lastSenderType': 'user',
       'unreadForConsultant': FieldValue.increment(1),
       'updatedAt': FieldValue.serverTimestamp(),
+      if (existing.data()?['status'] == 'resolved')
+        'resolvedAt': null,
     }, SetOptions(merge: true));
   }
 
@@ -144,13 +153,14 @@ class LiveConsultancyService {
     final consultationData = consultationSnapshot.data() ?? <String, dynamic>{};
     final firstReplyExists = consultationData['firstConsultantReplyAt'] != null;
     final createdAt = consultationData['createdAt'];
+    final displayName = consultantName.trim().isEmpty
+        ? 'TiB Consultant'
+        : consultantName.trim();
 
     await _messages(uid).add({
       'senderType': 'consultant',
       'senderId': consultant.uid,
-      'senderName': consultantName.trim().isEmpty
-          ? 'TiB Consultant'
-          : consultantName.trim(),
+      'senderName': displayName,
       'text': value,
       'read': false,
       'createdAt': FieldValue.serverTimestamp(),
@@ -159,9 +169,7 @@ class LiveConsultancyService {
     final update = <String, dynamic>{
       'status': 'consultant_replied',
       'assignedConsultantId': consultant.uid,
-      'assignedConsultantName': consultantName.trim().isEmpty
-          ? 'TiB Consultant'
-          : consultantName.trim(),
+      'assignedConsultantName': displayName,
       'lastMessage': value,
       'lastSenderType': 'consultant',
       'unreadForUser': FieldValue.increment(1),
@@ -190,6 +198,7 @@ class LiveConsultancyService {
       'assignedConsultantId': consultant.uid,
       'assignedConsultantName': name,
       'status': 'assigned',
+      'assignedAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }
@@ -197,6 +206,7 @@ class LiveConsultancyService {
   static Future<void> setStatus(String uid, String status) async {
     await _consultation(uid).set({
       'status': status,
+      if (status == 'resolved') 'resolvedAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }
