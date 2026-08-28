@@ -35,6 +35,13 @@ class LiveConsultancyService {
         'assignedConsultantName': null,
         'lastMessage': null,
         'lastSenderType': null,
+        'unreadForUser': 0,
+        'unreadForConsultant': 0,
+        'firstConsultantReplyAt': null,
+        'responseTimeSeconds': null,
+        'rating': null,
+        'ratingComment': null,
+        'ratedAt': null,
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
@@ -70,6 +77,24 @@ class LiveConsultancyService {
     return _messages(uid).orderBy('createdAt').snapshots();
   }
 
+  static Stream<QuerySnapshot<Map<String, dynamic>>> consultantPresenceStream() {
+    return _db.collection('consultant_presence').snapshots();
+  }
+
+  static Future<void> setConsultantPresence(bool online) async {
+    final consultant = FirebaseAuth.instance.currentUser;
+    if (consultant == null) return;
+    final name = consultant.displayName?.trim().isNotEmpty == true
+        ? consultant.displayName!.trim()
+        : 'TiB Consultant';
+    await _db.collection('consultant_presence').doc(consultant.uid).set({
+      'consultantId': consultant.uid,
+      'consultantName': name,
+      'online': online,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
   static Future<void> sendUserMessage(String text) async {
     final user = FirebaseAuth.instance.currentUser;
     final value = text.trim();
@@ -77,6 +102,8 @@ class LiveConsultancyService {
 
     await ensureConversation();
     final ref = _consultation(user.uid);
+    final existing = await ref.get();
+    final existingStatus = existing.data()?['status'] as String?;
 
     await _messages(user.uid).add({
       'senderType': 'user',
@@ -95,9 +122,10 @@ class LiveConsultancyService {
           ? user.displayName!.trim()
           : 'TiB User',
       'email': user.email ?? '',
-      'status': 'waiting_for_consultant',
+      'status': existingStatus == 'resolved' ? 'waiting_for_consultant' : 'waiting_for_consultant',
       'lastMessage': value,
       'lastSenderType': 'user',
+      'unreadForConsultant': FieldValue.increment(1),
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }
@@ -111,6 +139,12 @@ class LiveConsultancyService {
     final value = text.trim();
     if (consultant == null || value.isEmpty) return;
 
+    final consultationRef = _consultation(uid);
+    final consultationSnapshot = await consultationRef.get();
+    final consultationData = consultationSnapshot.data() ?? <String, dynamic>{};
+    final firstReplyExists = consultationData['firstConsultantReplyAt'] != null;
+    final createdAt = consultationData['createdAt'];
+
     await _messages(uid).add({
       'senderType': 'consultant',
       'senderId': consultant.uid,
@@ -122,7 +156,7 @@ class LiveConsultancyService {
       'createdAt': FieldValue.serverTimestamp(),
     });
 
-    await _consultation(uid).set({
+    final update = <String, dynamic>{
       'status': 'consultant_replied',
       'assignedConsultantId': consultant.uid,
       'assignedConsultantName': consultantName.trim().isEmpty
@@ -130,8 +164,19 @@ class LiveConsultancyService {
           : consultantName.trim(),
       'lastMessage': value,
       'lastSenderType': 'consultant',
+      'unreadForUser': FieldValue.increment(1),
       'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    };
+
+    if (!firstReplyExists) {
+      update['firstConsultantReplyAt'] = FieldValue.serverTimestamp();
+      if (createdAt is Timestamp) {
+        update['responseTimeSeconds'] =
+            DateTime.now().difference(createdAt.toDate()).inSeconds;
+      }
+    }
+
+    await consultationRef.set(update, SetOptions(merge: true));
   }
 
   static Future<void> assignToCurrentConsultant(String uid) async {
@@ -157,16 +202,33 @@ class LiveConsultancyService {
   }
 
   static Future<void> markMessagesRead(String uid, {required String by}) async {
+    final senderType = by == 'customer' ? 'consultant' : 'user';
     final snapshot = await _messages(uid)
-        .where('senderType', isEqualTo: by == 'customer' ? 'consultant' : 'user')
+        .where('senderType', isEqualTo: senderType)
         .where('read', isEqualTo: false)
         .get();
-    if (snapshot.docs.isEmpty) return;
-
     final batch = _db.batch();
     for (final doc in snapshot.docs) {
       batch.update(doc.reference, {'read': true});
     }
-    await batch.commit();
+    if (snapshot.docs.isNotEmpty) await batch.commit();
+
+    await _consultation(uid).set({
+      by == 'customer' ? 'unreadForUser' : 'unreadForConsultant': 0,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  static Future<void> rateConsultant({
+    required int rating,
+    String? comment,
+  }) async {
+    final uid = currentUid;
+    if (uid == null || rating < 1 || rating > 5) return;
+    await _consultation(uid).set({
+      'rating': rating,
+      'ratingComment': comment?.trim().isEmpty == true ? null : comment?.trim(),
+      'ratedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
   }
 }
