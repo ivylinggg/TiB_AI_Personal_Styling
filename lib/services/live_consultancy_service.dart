@@ -149,7 +149,9 @@ class LiveConsultancyService {
     };
     if (!firstReplyExists) {
       update['firstConsultantReplyAt'] = FieldValue.serverTimestamp();
-      if (createdAt is Timestamp) update['responseTimeSeconds'] = DateTime.now().difference(createdAt.toDate()).inSeconds;
+      if (createdAt is Timestamp) {
+        update['responseTimeSeconds'] = DateTime.now().difference(createdAt.toDate()).inSeconds;
+      }
     }
     await ref.set(update, SetOptions(merge: true));
   }
@@ -165,7 +167,9 @@ class LiveConsultancyService {
     final senderType = by == 'customer' ? 'consultant' : 'user';
     final snapshot = await _messages(uid).where('senderType', isEqualTo: senderType).where('read', isEqualTo: false).get();
     final batch = _db.batch();
-    for (final doc in snapshot.docs) batch.update(doc.reference, {'read': true});
+    for (final doc in snapshot.docs) {
+      batch.update(doc.reference, {'read': true});
+    }
     if (snapshot.docs.isNotEmpty) await batch.commit();
     await _consultation(uid).set({by == 'customer' ? 'unreadForUser' : 'unreadForConsultant': 0, 'updatedAt': FieldValue.serverTimestamp()}, SetOptions(merge: true));
   }
