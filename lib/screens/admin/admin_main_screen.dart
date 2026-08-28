@@ -46,45 +46,52 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
   void _showModeSelector() {
     showModalBottomSheet<void>(
       context: context,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const ListTile(
-              title: Text('Admin Mode'),
-              subtitle: Text('Preview another role without changing your real account role.'),
-            ),
-            RadioListTile<AdminMode>(
-              value: AdminMode.administrator,
-              groupValue: _mode,
-              title: const Text('Administrator'),
-              secondary: const Icon(Icons.admin_panel_settings_outlined),
-              onChanged: (value) {
-                Navigator.pop(context);
-                if (value != null) _setMode(value);
-              },
-            ),
-            RadioListTile<AdminMode>(
-              value: AdminMode.consultantPreview,
-              groupValue: _mode,
-              title: const Text('Consultant Preview'),
-              secondary: const Icon(Icons.support_agent_outlined),
-              onChanged: (value) {
-                Navigator.pop(context);
-                if (value != null) _setMode(value);
-              },
-            ),
-            RadioListTile<AdminMode>(
-              value: AdminMode.customerPreview,
-              groupValue: _mode,
-              title: const Text('Customer Preview'),
-              secondary: const Icon(Icons.person_outline),
-              onChanged: (value) {
-                Navigator.pop(context);
-                if (value != null) _setMode(value);
-              },
-            ),
-          ],
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text('Admin Mode'),
+                subtitle: Text(
+                  'Preview another interface without changing your real account role.',
+                ),
+              ),
+              _ModeTile(
+                title: 'Administrator',
+                subtitle: 'Full administration access',
+                icon: Icons.admin_panel_settings_outlined,
+                selected: _mode == AdminMode.administrator,
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _setMode(AdminMode.administrator);
+                },
+              ),
+              _ModeTile(
+                title: 'Consultant Preview',
+                subtitle: 'Test the live consultant experience',
+                icon: Icons.support_agent_outlined,
+                selected: _mode == AdminMode.consultantPreview,
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _setMode(AdminMode.consultantPreview);
+                },
+              ),
+              _ModeTile(
+                title: 'Customer Preview',
+                subtitle: 'Test the customer experience',
+                icon: Icons.person_outline,
+                selected: _mode == AdminMode.customerPreview,
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _setMode(AdminMode.customerPreview);
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -113,18 +120,50 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
     switch (_mode) {
       case AdminMode.administrator:
         return const [
-          NavigationDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard), label: 'Dashboard'),
-          NavigationDestination(icon: Icon(Icons.people_outline), selectedIcon: Icon(Icons.people), label: 'Users'),
-          NavigationDestination(icon: Icon(Icons.analytics_outlined), selectedIcon: Icon(Icons.analytics), label: 'Analysis'),
-          NavigationDestination(icon: Icon(Icons.library_books_outlined), selectedIcon: Icon(Icons.library_books), label: 'Content'),
-          NavigationDestination(icon: Icon(Icons.workspace_premium_outlined), selectedIcon: Icon(Icons.workspace_premium), label: 'Premium'),
-          NavigationDestination(icon: Icon(Icons.admin_panel_settings_outlined), selectedIcon: Icon(Icons.admin_panel_settings), label: 'Admin'),
-          NavigationDestination(icon: Icon(Icons.support_agent_outlined), selectedIcon: Icon(Icons.support_agent), label: 'Consult'),
+          NavigationDestination(
+            icon: Icon(Icons.dashboard_outlined),
+            selectedIcon: Icon(Icons.dashboard),
+            label: 'Dashboard',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.people_outline),
+            selectedIcon: Icon(Icons.people),
+            label: 'Users',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.analytics_outlined),
+            selectedIcon: Icon(Icons.analytics),
+            label: 'Analysis',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.library_books_outlined),
+            selectedIcon: Icon(Icons.library_books),
+            label: 'Content',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.workspace_premium_outlined),
+            selectedIcon: Icon(Icons.workspace_premium),
+            label: 'Premium',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.admin_panel_settings_outlined),
+            selectedIcon: Icon(Icons.admin_panel_settings),
+            label: 'Admin',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.support_agent_outlined),
+            selectedIcon: Icon(Icons.support_agent),
+            label: 'Consult',
+          ),
         ];
       case AdminMode.consultantPreview:
       case AdminMode.customerPreview:
         return const [
-          NavigationDestination(icon: Icon(Icons.support_agent_outlined), selectedIcon: Icon(Icons.support_agent), label: 'Live Consultancy'),
+          NavigationDestination(
+            icon: Icon(Icons.support_agent_outlined),
+            selectedIcon: Icon(Icons.support_agent),
+            label: 'Live Consultancy',
+          ),
         ];
     }
   }
@@ -147,7 +186,7 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
           IconButton(
             tooltip: 'Switch Admin Mode',
             onPressed: _showModeSelector,
-            icon: const Icon(Icons.swap_horiz),
+            icon: const Icon(Icons.swap_horiz_rounded),
           ),
         ],
       ),
@@ -161,6 +200,41 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
   }
 }
 
-// Keeps the role model available to the admin shell without changing the
-// authenticated Firebase role. Admin mode is only a local UI preview mode.
+class _ModeTile extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _ModeTile({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      elevation: 0,
+      child: ListTile(
+        leading: CircleAvatar(
+          child: Icon(icon),
+        ),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+        subtitle: Text(subtitle),
+        trailing: selected
+            ? const Icon(Icons.check_circle_rounded)
+            : const Icon(Icons.chevron_right_rounded),
+        onTap: onTap,
+      ),
+    );
+  }
+}
+
+// The authenticated account remains an admin while preview mode changes only
+// the local interface shown by the admin shell.
 UserRole getAdminAccountRole() => UserRole.admin;
