@@ -27,9 +27,31 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
       case AdminMode.administrator:
         return 'Administrator';
       case AdminMode.consultantPreview:
-        return 'Consultant Preview';
+        return 'Consultant Console';
       case AdminMode.customerPreview:
         return 'Customer Preview';
+    }
+  }
+
+  String get _modeDescription {
+    switch (_mode) {
+      case AdminMode.administrator:
+        return 'Full administration access';
+      case AdminMode.consultantPreview:
+        return 'Respond to live customer consultations';
+      case AdminMode.customerPreview:
+        return 'Preview the customer Talk to TiB experience';
+    }
+  }
+
+  IconData get _modeIcon {
+    switch (_mode) {
+      case AdminMode.administrator:
+        return Icons.admin_panel_settings_outlined;
+      case AdminMode.consultantPreview:
+        return Icons.support_agent_rounded;
+      case AdminMode.customerPreview:
+        return Icons.person_outline_rounded;
     }
   }
 
@@ -53,14 +75,14 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
             children: [
               const ListTile(
                 contentPadding: EdgeInsets.zero,
-                title: Text('Admin Mode'),
+                title: Text('Switch Admin Mode'),
                 subtitle: Text(
-                  'Preview another interface without changing your real account role.',
+                  'Preview another role without changing your real Firebase role.',
                 ),
               ),
               _ModeTile(
                 title: 'Administrator',
-                subtitle: 'Full administration access',
+                subtitle: 'Manage users, content, premium and analytics',
                 icon: Icons.admin_panel_settings_outlined,
                 selected: _mode == AdminMode.administrator,
                 onTap: () {
@@ -70,7 +92,7 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
               ),
               _ModeTile(
                 title: 'Consultant Preview',
-                subtitle: 'Test the live consultant experience',
+                subtitle: 'Accept and answer live customer requests',
                 icon: Icons.support_agent_outlined,
                 selected: _mode == AdminMode.consultantPreview,
                 onTap: () {
@@ -80,7 +102,7 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
               ),
               _ModeTile(
                 title: 'Customer Preview',
-                subtitle: 'Test the customer experience',
+                subtitle: 'Preview Talk to TiB and live consultancy',
                 icon: Icons.person_outline,
                 selected: _mode == AdminMode.customerPreview,
                 onTap: () {
@@ -179,7 +201,34 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_modeLabel),
+        titleSpacing: 16,
+        title: Row(
+          children: [
+            CircleAvatar(
+              radius: 16,
+              backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
+              child: Icon(_modeIcon, size: 18),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _modeLabel,
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                  ),
+                  Text(
+                    _modeDescription,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
         actions: [
           IconButton(
             tooltip: 'Switch Admin Mode',
@@ -215,9 +264,11 @@ class _ModeTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
-      elevation: 0,
+      elevation: selected ? 1 : 0,
+      color: selected ? colorScheme.secondaryContainer : null,
       child: ListTile(
         leading: CircleAvatar(child: Icon(icon)),
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
