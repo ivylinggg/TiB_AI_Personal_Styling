@@ -271,7 +271,10 @@ class _ModeTile extends StatelessWidget {
       color: selected ? colorScheme.secondaryContainer : null,
       child: ListTile(
         leading: CircleAvatar(child: Icon(icon)),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+        title: Text(
+          title,
+          style: const TextStyle(fontWeight: FontWeight.w800),
+        ),
         subtitle: Text(subtitle),
         trailing: selected
             ? const Icon(Icons.check_circle_rounded)
