@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../ai/live_consultancy_screen.dart';
 import '../ai/talk_to_tib_screen.dart';
 import 'admin_dashboard_screen.dart';
 import 'admin_profile_screen.dart';
@@ -109,9 +108,9 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
           const ConsultationManagementScreen(),
         ];
       case AdminMode.consultantPreview:
-        return [const LiveConsultancyScreen()];
+        return [const ConsultationManagementScreen()];
       case AdminMode.customerPreview:
-        return [const TalkToTiBScreen()];
+        return [const TalkToTibScreen()];
     }
   }
 
@@ -221,10 +220,7 @@ class _ModeTile extends StatelessWidget {
       elevation: 0,
       child: ListTile(
         leading: CircleAvatar(child: Icon(icon)),
-        title: Text(
-          title,
-          style: const TextStyle(fontWeight: FontWeight.w800),
-        ),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
         subtitle: Text(subtitle),
         trailing: selected
             ? const Icon(Icons.check_circle_rounded)
