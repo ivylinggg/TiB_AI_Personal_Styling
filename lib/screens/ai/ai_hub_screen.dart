@@ -5,7 +5,6 @@ import '../../core/constants/app_gradients.dart';
 import '../premium/ai_virtual_styling_studio_screen.dart';
 import '../premium/personal_tib_model_screen.dart';
 import 'ai_outfit_screen.dart';
-import 'ai_stylist_screen.dart';
 import 'style_me_screen.dart';
 import 'talk_to_tib_screen.dart';
 
