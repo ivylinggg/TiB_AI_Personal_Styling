@@ -13,18 +13,25 @@ class LiveConsultancyScreen extends StatefulWidget {
 
 class _LiveConsultancyScreenState extends State<LiveConsultancyScreen> {
   final TextEditingController _composer = TextEditingController();
+  final TextEditingController _ratingComment = TextEditingController();
   final ScrollController _scroll = ScrollController();
   bool _sending = false;
+  bool _ratingSending = false;
 
   @override
   void initState() {
     super.initState();
     LiveConsultancyService.ensureConversation();
+    LiveConsultancyService.markMessagesRead(
+      LiveConsultancyService.currentUid ?? '',
+      by: 'customer',
+    );
   }
 
   @override
   void dispose() {
     _composer.dispose();
+    _ratingComment.dispose();
     _scroll.dispose();
     super.dispose();
   }
@@ -36,7 +43,10 @@ class _LiveConsultancyScreenState extends State<LiveConsultancyScreen> {
     _composer.clear();
     try {
       await LiveConsultancyService.sendUserMessage(text);
-      await Future<void>.delayed(const Duration(milliseconds: 80));
+      await LiveConsultancyService.markMessagesRead(
+        LiveConsultancyService.currentUid ?? '',
+        by: 'customer',
+      );
       if (mounted && _scroll.hasClients) {
         _scroll.animateTo(
           _scroll.position.maxScrollExtent,
@@ -61,6 +71,31 @@ class _LiveConsultancyScreenState extends State<LiveConsultancyScreen> {
         return 'Consultation resolved';
       default:
         return 'Ready for consultation';
+    }
+  }
+
+  String _responseLabel(int? seconds) {
+    if (seconds == null) return 'Response time will appear after the first reply';
+    if (seconds < 60) return 'First response: ${seconds}s';
+    final minutes = seconds ~/ 60;
+    return 'First response: ${minutes} min${minutes == 1 ? '' : 's'}';
+  }
+
+  Future<void> _rate(int rating) async {
+    if (_ratingSending) return;
+    setState(() => _ratingSending = true);
+    try {
+      await LiveConsultancyService.rateConsultant(
+        rating: rating,
+        comment: _ratingComment.text,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Thank you for rating your consultation.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _ratingSending = false);
     }
   }
 
@@ -95,72 +130,81 @@ class _LiveConsultancyScreenState extends State<LiveConsultancyScreen> {
           final data = conversationSnapshot.data?.data();
           final status = data?['status'] as String?;
           final consultantName = data?['assignedConsultantName'] as String?;
+          final unread = (data?['unreadForUser'] as num?)?.toInt() ?? 0;
+          final responseSeconds = (data?['responseTimeSeconds'] as num?)?.toInt();
+          final rating = (data?['rating'] as num?)?.toInt();
 
           return Column(
             children: [
-              Container(
-                margin: const EdgeInsets.fromLTRB(16, 4, 16, 10),
-                padding: const EdgeInsets.all(13),
-                decoration: BoxDecoration(
-                  color: AppColors.secondary.withValues(alpha: .5),
-                  borderRadius: BorderRadius.circular(17),
-                  border: Border.all(color: AppColors.primary.withValues(alpha: .12)),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(Icons.support_agent_rounded, color: AppColors.primary, size: 19),
-                    const SizedBox(width: 9),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            consultantName ?? _statusLabel(status),
-                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            status == 'resolved'
-                                ? 'This consultation has been closed. Start a new conversation by sending a message.'
-                                : status == 'consultant_replied'
-                                    ? 'Your TiB consultant has replied. You can continue the conversation below.'
-                                    : 'Tell us what you need help with. A real TiB consultant can reply here.',
-                            style: const TextStyle(fontSize: 11.5, height: 1.4, color: AppColors.textSecondary),
-                          ),
-                        ],
-                      ),
+              StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                stream: LiveConsultancyService.consultantPresenceStream(),
+                builder: (context, presenceSnapshot) {
+                  final onlineCount = presenceSnapshot.data?.docs.where((doc) {
+                    return doc.data()['online'] == true;
+                  }).length ?? 0;
+                  return Container(
+                    margin: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+                    padding: const EdgeInsets.all(13),
+                    decoration: BoxDecoration(
+                      color: AppColors.secondary.withValues(alpha: .5),
+                      borderRadius: BorderRadius.circular(17),
+                      border: Border.all(color: AppColors.primary.withValues(alpha: .12)),
                     ),
-                  ],
-                ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.circle, size: 9, color: onlineCount > 0 ? Colors.green : AppColors.textMuted),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(consultantName ?? _statusLabel(status), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+                              const SizedBox(height: 3),
+                              Text(
+                                onlineCount > 0
+                                    ? '$onlineCount consultant${onlineCount == 1 ? '' : 's'} online · ${_statusLabel(status)}'
+                                    : 'No consultant is online right now · ${_statusLabel(status)}',
+                                style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (unread > 0)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                            decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(10)),
+                            child: Text('$unread new', style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800)),
+                          ),
+                      ],
+                    ),
+                  );
+                },
               ),
+              if (responseSeconds != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 0, 18, 8),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(_responseLabel(responseSeconds), style: const TextStyle(fontSize: 10.5, color: AppColors.textMuted)),
+                  ),
+                ),
               Expanded(
                 child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                   stream: LiveConsultancyService.messagesStream(),
                   builder: (context, snapshot) {
-                    if (snapshot.hasError) {
-                      return const Center(child: Text('Unable to load your consultation.'));
-                    }
-                    if (!snapshot.hasData) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
+                    if (snapshot.hasError) return const Center(child: Text('Unable to load your consultation.'));
+                    if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
                     final messages = snapshot.data!.docs;
                     if (messages.isEmpty) {
                       return const Center(
                         child: Padding(
                           padding: EdgeInsets.all(35),
-                          child: Text(
-                            'Your consultation is ready.\nSend your question and our TiB consultancy team will take it from there.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(color: AppColors.textSecondary, height: 1.5),
-                          ),
+                          child: Text('Your consultation is ready.\nSend your question and our TiB consultancy team will take it from there.', textAlign: TextAlign.center, style: TextStyle(color: AppColors.textSecondary, height: 1.5)),
                         ),
                       );
                     }
                     WidgetsBinding.instance.addPostFrameCallback((_) {
-                      if (_scroll.hasClients) {
-                        _scroll.jumpTo(_scroll.position.maxScrollExtent);
-                      }
+                      if (_scroll.hasClients) _scroll.jumpTo(_scroll.position.maxScrollExtent);
                     });
                     return ListView.builder(
                       controller: _scroll,
@@ -184,16 +228,10 @@ class _LiveConsultancyScreenState extends State<LiveConsultancyScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 if (consultant) ...[
-                                  Text(
-                                    message['senderName'] as String? ?? 'TiB Consultant',
-                                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: AppColors.primary),
-                                  ),
+                                  Text(message['senderName'] as String? ?? 'TiB Consultant', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: AppColors.primary)),
                                   const SizedBox(height: 3),
                                 ],
-                                Text(
-                                  message['text'] as String? ?? '',
-                                  style: TextStyle(fontSize: 12.5, height: 1.4, color: consultant ? AppColors.textPrimary : Colors.white),
-                                ),
+                                Text(message['text'] as String? ?? '', style: TextStyle(fontSize: 12.5, height: 1.4, color: consultant ? AppColors.textPrimary : Colors.white)),
                               ],
                             ),
                           ),
@@ -203,6 +241,26 @@ class _LiveConsultancyScreenState extends State<LiveConsultancyScreen> {
                   },
                 ),
               ),
+              if (status == 'resolved' && rating == null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('How was your consultation?', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
+                        const SizedBox(height: 5),
+                        TextField(controller: _ratingComment, maxLines: 2, decoration: const InputDecoration(hintText: 'Optional feedback', isDense: true)),
+                        const SizedBox(height: 7),
+                        Row(
+                          children: List.generate(5, (index) => IconButton(onPressed: _ratingSending ? null : () => _rate(index + 1), icon: const Icon(Icons.star_border_rounded), color: AppColors.primary)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               SafeArea(
                 top: false,
                 child: Padding(
@@ -216,25 +274,11 @@ class _LiveConsultancyScreenState extends State<LiveConsultancyScreen> {
                           maxLines: 4,
                           textInputAction: TextInputAction.send,
                           onSubmitted: (_) => _send(),
-                          decoration: InputDecoration(
-                            hintText: 'Message your consultant…',
-                            filled: true,
-                            fillColor: AppColors.surface,
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: const BorderSide(color: AppColors.border)),
-                            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: const BorderSide(color: AppColors.border)),
-                          ),
+                          decoration: InputDecoration(hintText: 'Message your consultant…', filled: true, fillColor: AppColors.surface, border: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: const BorderSide(color: AppColors.border)), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: const BorderSide(color: AppColors.border))),
                         ),
                       ),
                       const SizedBox(width: 8),
-                      Material(
-                        color: AppColors.primary,
-                        borderRadius: BorderRadius.circular(18),
-                        child: InkWell(
-                          onTap: _sending ? null : _send,
-                          borderRadius: BorderRadius.circular(18),
-                          child: const SizedBox(width: 50, height: 52, child: Icon(Icons.send_rounded, color: Colors.white)),
-                        ),
-                      ),
+                      Material(color: AppColors.primary, borderRadius: BorderRadius.circular(18), child: InkWell(onTap: _sending ? null : _send, borderRadius: BorderRadius.circular(18), child: const SizedBox(width: 50, height: 52, child: Icon(Icons.send_rounded, color: Colors.white))),
                     ],
                   ),
                 ),
