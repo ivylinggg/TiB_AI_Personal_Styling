@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'admin_dashboard_screen.dart';
 import 'admin_profile_screen.dart';
 import 'analysis_management_screen.dart';
+import 'consultation_management_screen.dart';
 import 'content_management_screen.dart';
 import 'premium_management_screen.dart';
 import 'user_management_screen.dart';
@@ -21,6 +22,7 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
     AdminDashboardScreen(onNavigate: _navigateTo),
     const UserManagementScreen(),
     const AnalysisManagementScreen(),
+    const ConsultationManagementScreen(),
     const ContentManagementScreen(),
     const PremiumManagementScreen(),
     const AdminProfileScreen(),
@@ -42,6 +44,7 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
           NavigationDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard), label: 'Dashboard'),
           NavigationDestination(icon: Icon(Icons.people_outline), selectedIcon: Icon(Icons.people), label: 'Users'),
           NavigationDestination(icon: Icon(Icons.analytics_outlined), selectedIcon: Icon(Icons.analytics), label: 'Analysis'),
+          NavigationDestination(icon: Icon(Icons.support_agent_outlined), selectedIcon: Icon(Icons.support_agent), label: 'Consult'),
           NavigationDestination(icon: Icon(Icons.library_books_outlined), selectedIcon: Icon(Icons.library_books), label: 'Content'),
           NavigationDestination(icon: Icon(Icons.workspace_premium_outlined), selectedIcon: Icon(Icons.workspace_premium), label: 'Premium'),
           NavigationDestination(icon: Icon(Icons.admin_panel_settings_outlined), selectedIcon: Icon(Icons.admin_panel_settings), label: 'Admin'),
