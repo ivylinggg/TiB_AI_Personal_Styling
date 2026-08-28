@@ -11,6 +11,29 @@ class TalkToTibBotService {
     final q = _normalise(input);
     if (q.isEmpty) return null;
 
+    // These questions deliberately go to a human. They are too contextual to
+    // answer safely or meaningfully with a fixed FAQ response.
+    if (_matches(q, [
+      'which outfit is better',
+      'which dress is better',
+      'which one should i wear',
+      'which one suits me better',
+      'does this outfit suit me',
+      'does this dress suit me',
+      'should i buy this',
+      'should i buy this outfit',
+      'does this fit me',
+      'why does this outfit look wrong',
+      'i hate how this looks',
+      'i need a second opinion',
+      'i need personal advice',
+      'personalised advice',
+      'personalized advice',
+      'difficult styling decision',
+    ])) {
+      return 'That sounds like a personal styling decision where context really matters. I don’t want to give you a generic answer 🤍 Tap “Chat with a Live Consultant” and our team can look at your situation and give you a personalised recommendation.';
+    }
+
     if (_matches(q, [
       'hello',
       'hi',
