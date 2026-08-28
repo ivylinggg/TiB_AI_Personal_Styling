@@ -16,7 +16,7 @@ class AdminMainScreen extends StatefulWidget {
   State<AdminMainScreen> createState() => _AdminMainScreenState();
 }
 
-enum AdminMode { administrator, consultantPreview }
+enum AdminMode { administrator, consultantPreview, customerPreview }
 
 class _AdminMainScreenState extends State<AdminMainScreen> {
   int _selectedIndex = 0;
@@ -28,6 +28,8 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
         return 'Administrator';
       case AdminMode.consultantPreview:
         return 'Consultant Console';
+      case AdminMode.customerPreview:
+        return 'Customer Preview';
     }
   }
 
@@ -37,6 +39,8 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
         return 'Full administration access';
       case AdminMode.consultantPreview:
         return 'Respond to live customer consultations';
+      case AdminMode.customerPreview:
+        return 'Preview the customer Talk to TiB experience';
     }
   }
 
@@ -46,6 +50,8 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
         return Icons.admin_panel_settings_outlined;
       case AdminMode.consultantPreview:
         return Icons.support_agent_rounded;
+      case AdminMode.customerPreview:
+        return Icons.person_outline_rounded;
     }
   }
 
@@ -106,10 +112,10 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
                 title: 'Customer Dashboard',
                 subtitle: 'Open the complete customer dashboard and features',
                 icon: Icons.person_outline_rounded,
-                selected: false,
+                selected: _mode == AdminMode.customerPreview,
                 onTap: () {
                   Navigator.pop(sheetContext);
-                  _openCustomerDashboard();
+                  _setMode(AdminMode.customerPreview);
                 },
               ),
             ],
@@ -132,7 +138,15 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
           const ConsultationManagementScreen(),
         ];
       case AdminMode.consultantPreview:
-        return [const ConsultationManagementScreen()];
+        return [
+          const ConsultationManagementScreen(),
+          const AdminProfileScreen(),
+        ];
+      case AdminMode.customerPreview:
+        return [
+          const _CustomerPreviewPlaceholder(),
+          const AdminProfileScreen(),
+        ];
     }
   }
 
@@ -189,15 +203,36 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
             label: 'Admin',
           ),
         ];
+      case AdminMode.customerPreview:
+        return const [
+          NavigationDestination(
+            icon: Icon(Icons.person_outline_rounded),
+            selectedIcon: Icon(Icons.person_rounded),
+            label: 'Preview',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.admin_panel_settings_outlined),
+            selectedIcon: Icon(Icons.admin_panel_settings),
+            label: 'Admin',
+          ),
+        ];
     }
   }
 
   void _navigateTo(int index) {
+    if (index < 0) return;
+
     if (_mode == AdminMode.consultantPreview && index == 1) {
       _setMode(AdminMode.administrator);
       return;
     }
-    if (index < 0 || index >= _pages.length) return;
+
+    if (_mode == AdminMode.customerPreview && index == 1) {
+      _setMode(AdminMode.administrator);
+      return;
+    }
+
+    if (index >= _pages.length) return;
     setState(() => _selectedIndex = index);
   }
 
@@ -247,9 +282,7 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
       ),
       body: IndexedStack(index: safeIndex, children: pages),
       bottomNavigationBar: NavigationBar(
-        selectedIndex: _mode == AdminMode.consultantPreview
-            ? (_selectedIndex == 0 ? 0 : 0)
-            : safeIndex,
+        selectedIndex: safeIndex,
         onDestinationSelected: _navigateTo,
         destinations: destinations,
       ),
@@ -287,6 +320,23 @@ class _ModeTile extends StatelessWidget {
             ? const Icon(Icons.check_circle_rounded)
             : const Icon(Icons.chevron_right_rounded),
         onTap: onTap,
+      ),
+    );
+  }
+}
+
+class _CustomerPreviewPlaceholder extends StatelessWidget {
+  const _CustomerPreviewPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: Padding(
+        padding: EdgeInsets.all(24),
+        child: Text(
+          'Customer Preview\n\nUse the switch menu to open the complete customer dashboard.',
+          textAlign: TextAlign.center,
+        ),
       ),
     );
   }
