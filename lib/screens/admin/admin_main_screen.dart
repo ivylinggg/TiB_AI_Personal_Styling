@@ -183,11 +183,20 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
             selectedIcon: Icon(Icons.support_agent),
             label: 'Live Consultancy',
           ),
+          NavigationDestination(
+            icon: Icon(Icons.admin_panel_settings_outlined),
+            selectedIcon: Icon(Icons.admin_panel_settings),
+            label: 'Admin',
+          ),
         ];
     }
   }
 
   void _navigateTo(int index) {
+    if (_mode == AdminMode.consultantPreview && index == 1) {
+      _setMode(AdminMode.administrator);
+      return;
+    }
     if (index < 0 || index >= _pages.length) return;
     setState(() => _selectedIndex = index);
   }
@@ -238,7 +247,9 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
       ),
       body: IndexedStack(index: safeIndex, children: pages),
       bottomNavigationBar: NavigationBar(
-        selectedIndex: safeIndex,
+        selectedIndex: _mode == AdminMode.consultantPreview
+            ? (_selectedIndex == 0 ? 0 : 0)
+            : safeIndex,
         onDestinationSelected: _navigateTo,
         destinations: destinations,
       ),
