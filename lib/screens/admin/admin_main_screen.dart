@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../models/user_role.dart';
 import '../ai/live_consultancy_screen.dart';
 import '../ai/talk_to_tib_screen.dart';
 import 'admin_dashboard_screen.dart';
@@ -221,10 +220,11 @@ class _ModeTile extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       elevation: 0,
       child: ListTile(
-        leading: CircleAvatar(
-          child: Icon(icon),
+        leading: CircleAvatar(child: Icon(icon)),
+        title: Text(
+          title,
+          style: const TextStyle(fontWeight: FontWeight.w800),
         ),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
         subtitle: Text(subtitle),
         trailing: selected
             ? const Icon(Icons.check_circle_rounded)
@@ -234,7 +234,3 @@ class _ModeTile extends StatelessWidget {
     );
   }
 }
-
-// The authenticated account remains an admin while preview mode changes only
-// the local interface shown by the admin shell.
-UserRole getAdminAccountRole() => UserRole.admin;
