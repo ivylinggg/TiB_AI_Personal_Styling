@@ -16,10 +16,13 @@ class ConsultationManagementScreen extends StatelessWidget {
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: LiveConsultancyService.consultationsStream(),
         builder: (context, snapshot) {
-          if (snapshot.hasError) return Center(child: Text('Unable to load consultations: ${snapshot.error}'));
+          if (snapshot.hasError) {
+            return Center(child: Text('Unable to load consultations: ${snapshot.error}'));
+          }
           if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
           final docs = snapshot.data!.docs;
           if (docs.isEmpty) return const Center(child: Text('No live consultations yet.'));
+
           return ListView.separated(
             padding: const EdgeInsets.all(16),
             itemCount: docs.length,
@@ -27,20 +30,41 @@ class ConsultationManagementScreen extends StatelessWidget {
             itemBuilder: (_, index) {
               final data = docs[index].data();
               final status = data['status'] as String? ?? 'open';
+              final assigned = data['assignedConsultantName'] as String?;
               return Card(
                 elevation: 0,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(17), side: const BorderSide(color: AppColors.border)),
                 child: ListTile(
                   contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 7),
-                  leading: const CircleAvatar(backgroundColor: AppColors.secondary, child: Icon(Icons.person_outline_rounded, color: AppColors.primary)),
+                  leading: CircleAvatar(
+                    backgroundColor: status == 'waiting_for_consultant' ? AppColors.secondary : AppColors.surfaceMuted,
+                    child: const Icon(Icons.person_outline_rounded, color: AppColors.primary),
+                  ),
                   title: Text(data['userName'] as String? ?? 'TiB User', style: const TextStyle(fontWeight: FontWeight.w800)),
-                  subtitle: Text(data['lastMessage'] as String? ?? data['email'] as String? ?? 'New consultation', maxLines: 2, overflow: TextOverflow.ellipsis),
+                  subtitle: Text(
+                    assigned == null
+                        ? (data['lastMessage'] as String? ?? data['email'] as String? ?? 'New consultation')
+                        : '$assigned · ${data['lastMessage'] as String? ?? 'Consultation'}',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                   trailing: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-                    decoration: BoxDecoration(color: status == 'waiting_for_consultant' ? AppColors.secondary : AppColors.surfaceMuted, borderRadius: BorderRadius.circular(12)),
+                    decoration: BoxDecoration(
+                      color: status == 'waiting_for_consultant' ? AppColors.secondary : AppColors.surfaceMuted,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                     child: Text(status.replaceAll('_', ' '), style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800)),
                   ),
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ConsultantChatScreen(uid: docs[index].id, userName: data['userName'] as String? ?? 'TiB User'))),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ConsultantChatScreen(
+                        uid: docs[index].id,
+                        userName: data['userName'] as String? ?? 'TiB User',
+                      ),
+                    ),
+                  ),
                 ),
               );
             },
@@ -67,6 +91,13 @@ class _ConsultantChatScreenState extends State<ConsultantChatScreen> {
   bool _sending = false;
 
   @override
+  void initState() {
+    super.initState();
+    LiveConsultancyService.assignToCurrentConsultant(widget.uid);
+    LiveConsultancyService.markMessagesRead(widget.uid, by: 'consultant');
+  }
+
+  @override
   void dispose() {
     _composer.dispose();
     _scroll.dispose();
@@ -76,65 +107,126 @@ class _ConsultantChatScreenState extends State<ConsultantChatScreen> {
   Future<void> _send() async {
     final text = _composer.text.trim();
     if (text.isEmpty || _sending) return;
+    final name = FirebaseAuth.instance.currentUser?.displayName?.trim();
     setState(() => _sending = true);
     _composer.clear();
     try {
-      await LiveConsultancyService.sendConsultantMessage(uid: widget.uid, text: text, consultantName: FirebaseAuth.instance.currentUser?.displayName ?? 'TiB Consultant');
+      await LiveConsultancyService.sendConsultantMessage(
+        uid: widget.uid,
+        text: text,
+        consultantName: name == null || name.isEmpty ? 'TiB Consultant' : name,
+      );
+      await LiveConsultancyService.markMessagesRead(widget.uid, by: 'consultant');
     } finally {
       if (mounted) setState(() => _sending = false);
     }
   }
 
+  Future<void> _resolve() async {
+    await LiveConsultancyService.setStatus(widget.uid, 'resolved');
+    if (mounted) Navigator.pop(context);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final messages = FirebaseFirestore.instance.collection('consultations').doc(widget.uid).collection('messages').orderBy('createdAt').snapshots();
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(title: Text(widget.userName)),
-      body: Column(
-        children: [
-          Expanded(
-            child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: messages,
-              builder: (context, snapshot) {
-                if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-                final docs = snapshot.data!.docs;
-                return ListView.builder(
-                  controller: _scroll,
-                  padding: const EdgeInsets.all(16),
-                  itemCount: docs.length,
-                  itemBuilder: (_, index) {
-                    final data = docs[index].data();
-                    final consultant = data['senderType'] == 'consultant';
-                    return Align(
-                      alignment: consultant ? Alignment.centerRight : Alignment.centerLeft,
-                      child: Container(
-                        constraints: const BoxConstraints(maxWidth: 330),
-                        margin: const EdgeInsets.only(bottom: 9),
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-                        decoration: BoxDecoration(color: consultant ? AppColors.primary : AppColors.surface, borderRadius: BorderRadius.circular(17), border: consultant ? null : Border.all(color: AppColors.border)),
-                        child: Text(data['text'] as String? ?? '', style: TextStyle(color: consultant ? Colors.white : AppColors.textPrimary, fontSize: 12.5, height: 1.4)),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-          SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(15, 7, 15, 12),
-              child: Row(
-                children: [
-                  Expanded(child: TextField(controller: _composer, maxLines: 4, minLines: 1, textInputAction: TextInputAction.send, onSubmitted: (_) => _send(), decoration: InputDecoration(hintText: 'Reply to customer…', filled: true, fillColor: AppColors.surface, border: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: const BorderSide(color: AppColors.border))))),
-                  const SizedBox(width: 8),
-                  Material(color: AppColors.primary, borderRadius: BorderRadius.circular(18), child: InkWell(onTap: _sending ? null : _send, borderRadius: BorderRadius.circular(18), child: const SizedBox(width: 50, height: 52, child: Icon(Icons.send_rounded, color: Colors.white))),),
-                ],
-              ),
-            ),
+      appBar: AppBar(
+        title: Text(widget.userName),
+        actions: [
+          IconButton(
+            tooltip: 'Resolve consultation',
+            onPressed: _resolve,
+            icon: const Icon(Icons.check_circle_outline_rounded),
           ),
         ],
+      ),
+      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        stream: LiveConsultancyService.conversationMessages(widget.uid),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) return Center(child: Text('Unable to load messages: ${snapshot.error}'));
+          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+          final docs = snapshot.data!.docs;
+          return Column(
+            children: [
+              Expanded(
+                child: docs.isEmpty
+                    ? const Center(child: Text('Customer has not sent a message yet.'))
+                    : ListView.builder(
+                        controller: _scroll,
+                        padding: const EdgeInsets.all(16),
+                        itemCount: docs.length,
+                        itemBuilder: (_, index) {
+                          final data = docs[index].data();
+                          final consultant = data['senderType'] == 'consultant';
+                          return Align(
+                            alignment: consultant ? Alignment.centerRight : Alignment.centerLeft,
+                            child: Container(
+                              constraints: const BoxConstraints(maxWidth: 330),
+                              margin: const EdgeInsets.only(bottom: 9),
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                              decoration: BoxDecoration(
+                                color: consultant ? AppColors.primary : AppColors.surface,
+                                borderRadius: BorderRadius.circular(17),
+                                border: consultant ? null : Border.all(color: AppColors.border),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  if (consultant)
+                                    Text(
+                                      data['senderName'] as String? ?? 'TiB Consultant',
+                                      style: const TextStyle(fontSize: 9.5, color: Colors.white70, fontWeight: FontWeight.w700),
+                                    ),
+                                  Text(
+                                    data['text'] as String? ?? '',
+                                    style: TextStyle(color: consultant ? Colors.white : AppColors.textPrimary, fontSize: 12.5, height: 1.4),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+              SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(15, 7, 15, 12),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _composer,
+                          maxLines: 4,
+                          minLines: 1,
+                          textInputAction: TextInputAction.send,
+                          onSubmitted: (_) => _send(),
+                          decoration: InputDecoration(
+                            hintText: 'Reply to customer…',
+                            filled: true,
+                            fillColor: AppColors.surface,
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: const BorderSide(color: AppColors.border)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Material(
+                        color: AppColors.primary,
+                        borderRadius: BorderRadius.circular(18),
+                        child: InkWell(
+                          onTap: _sending ? null : _send,
+                          borderRadius: BorderRadius.circular(18),
+                          child: const SizedBox(width: 50, height: 52, child: Icon(Icons.send_rounded, color: Colors.white)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
