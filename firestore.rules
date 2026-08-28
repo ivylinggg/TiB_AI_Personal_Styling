@@ -18,8 +18,14 @@ service cloud.firestore {
       return isSignedIn() && currentUserData().get('role', 'customer') == 'admin';
     }
 
+    // A real consultant account can use consultant functions, and an admin
+    // can temporarily switch into Consultant Mode without changing their
+    // stored account role.
     function isConsultant() {
-      return isSignedIn() && currentUserData().get('role', 'customer') == 'admin';
+      return isSignedIn() && (
+        currentUserData().get('role', 'customer') == 'consultant' ||
+        currentUserData().get('role', 'customer') == 'admin'
+      );
     }
 
     function isPremiumUser() {
@@ -75,8 +81,6 @@ service cloud.firestore {
       }
     }
 
-    // Consultant presence is visible to signed-in customers so the app can
-    // truthfully show whether a TiB consultant is currently available.
     match /consultant_presence/{consultantId} {
       allow get, list: if isSignedIn();
       allow create, update: if isConsultant() && request.auth.uid == consultantId;
