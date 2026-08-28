@@ -43,7 +43,9 @@ function handleDelete(body) {
 function handleAiStyling(body) {
   try {
     if (!body.uid || !body.idToken) return jsonResponse({success:false,errorCode:"missing_auth",error:"Missing authentication."});
-    const access = checkAiAccess(body.uid, body.idToken);
+    // Talk to TiB is a free feature. Verify that the account is authenticated,
+    // but deliberately do not check the Premium entitlement here.
+    const access = verifyFirebaseUser(body.uid, body.idToken);
     if (!access.ok) return jsonResponse(access);
     const apiKey = PropertiesService.getScriptProperties().getProperty("ANTHROPIC_API_KEY");
     if (!apiKey) return jsonResponse({success:false,errorCode:"missing_api_key",error:"AI styling is not configured."});
@@ -191,8 +193,6 @@ function handleVirtualTryOn(body) {
     const apiKey = PropertiesService.getScriptProperties().getProperty("GEMINI_API_KEY");
     if (!apiKey) return jsonResponse({success:false,errorCode:"missing_api_key",error:"Virtual try-on is not configured. Add GEMINI_API_KEY in Script Properties.",requestId:requestId});
 
-    // Full-body reference is the primary silhouette anchor; face reference is
-    // the close-up identity anchor. Garments follow both references.
     const inputParts = [];
     let hasBodyReference = false;
     if (bodyReference && bodyReference.data) {
