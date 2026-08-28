@@ -78,7 +78,7 @@ class _LiveConsultancyScreenState extends State<LiveConsultancyScreen> {
     if (seconds == null) return 'Response time will appear after the first reply';
     if (seconds < 60) return 'First response: ${seconds}s';
     final minutes = seconds ~/ 60;
-    return 'First response: ${minutes} min${minutes == 1 ? '' : 's'}';
+    return 'First response: $minutes min${minutes == 1 ? '' : 's'}';
   }
 
   Future<void> _rate(int rating) async {
@@ -278,7 +278,7 @@ class _LiveConsultancyScreenState extends State<LiveConsultancyScreen> {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      Material(color: AppColors.primary, borderRadius: BorderRadius.circular(18), child: InkWell(onTap: _sending ? null : _send, borderRadius: BorderRadius.circular(18), child: const SizedBox(width: 50, height: 52, child: Icon(Icons.send_rounded, color: Colors.white))),
+                      Material(color: AppColors.primary, borderRadius: BorderRadius.circular(18), child: InkWell(onTap: _sending ? null : _send, borderRadius: BorderRadius.circular(18), child: const SizedBox(width: 50, height: 52, child: Icon(Icons.send_rounded, color: Colors.white)))),
                     ],
                   ),
                 ),
