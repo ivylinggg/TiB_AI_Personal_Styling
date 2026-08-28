@@ -18,6 +18,10 @@ service cloud.firestore {
       return isSignedIn() && currentUserData().get('role', 'customer') == 'admin';
     }
 
+    function isConsultant() {
+      return isSignedIn() && currentUserData().get('role', 'customer') == 'admin';
+    }
+
     function isPremiumUser() {
       return isSignedIn() && currentUserData().get('isPremium', false) == true;
     }
@@ -60,15 +64,15 @@ service cloud.firestore {
       allow list: if isAdmin() || (isSignedIn() && resource.data.isPublished == true);
     }
 
-    // Live consultancy conversations.
-    // Customers can access only their own thread; admins can manage all threads.
+    // Live consultancy: customers can access only their own conversation.
+    // Admin accounts act as the TiB consultant console in the current role model.
     match /consultations/{userId} {
-      allow get, create, update: if isOwner(userId) || isAdmin();
-      allow list: if isAdmin();
+      allow get, create, update: if isOwner(userId) || isConsultant();
+      allow list: if isConsultant();
       allow delete: if isAdmin();
 
       match /messages/{messageId} {
-        allow read, create: if isOwner(userId) || isAdmin();
+        allow read, create: if isOwner(userId) || isConsultant();
         allow update, delete: if isAdmin();
       }
     }
