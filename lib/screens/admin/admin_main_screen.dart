@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../ai/talk_to_tib_screen.dart';
 import '../main/main_screen.dart';
 import 'admin_dashboard_screen.dart';
 import 'admin_profile_screen.dart';
@@ -17,7 +16,7 @@ class AdminMainScreen extends StatefulWidget {
   State<AdminMainScreen> createState() => _AdminMainScreenState();
 }
 
-enum AdminMode { administrator, consultantPreview, customerPreview }
+enum AdminMode { administrator, consultantPreview }
 
 class _AdminMainScreenState extends State<AdminMainScreen> {
   int _selectedIndex = 0;
@@ -29,8 +28,6 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
         return 'Administrator';
       case AdminMode.consultantPreview:
         return 'Consultant Console';
-      case AdminMode.customerPreview:
-        return 'Customer Preview';
     }
   }
 
@@ -40,8 +37,6 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
         return 'Full administration access';
       case AdminMode.consultantPreview:
         return 'Respond to live customer consultations';
-      case AdminMode.customerPreview:
-        return 'Preview the customer Talk to TiB experience';
     }
   }
 
@@ -51,8 +46,6 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
         return Icons.admin_panel_settings_outlined;
       case AdminMode.consultantPreview:
         return Icons.support_agent_rounded;
-      case AdminMode.customerPreview:
-        return Icons.person_outline_rounded;
     }
   }
 
@@ -100,7 +93,7 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
                 },
               ),
               _ModeTile(
-                title: 'Consultant Preview',
+                title: 'Consultant',
                 subtitle: 'Accept and answer live customer requests',
                 icon: Icons.support_agent_outlined,
                 selected: _mode == AdminMode.consultantPreview,
@@ -112,7 +105,7 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
               _ModeTile(
                 title: 'Customer Dashboard',
                 subtitle: 'Open the complete customer dashboard and features',
-                icon: Icons.person_outline,
+                icon: Icons.person_outline_rounded,
                 selected: false,
                 onTap: () {
                   Navigator.pop(sheetContext);
@@ -140,8 +133,6 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
         ];
       case AdminMode.consultantPreview:
         return [const ConsultationManagementScreen()];
-      case AdminMode.customerPreview:
-        return [const TalkToTibScreen()];
     }
   }
 
@@ -191,14 +182,6 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
             icon: Icon(Icons.support_agent_outlined),
             selectedIcon: Icon(Icons.support_agent),
             label: 'Live Consultancy',
-          ),
-        ];
-      case AdminMode.customerPreview:
-        return const [
-          NavigationDestination(
-            icon: Icon(Icons.auto_awesome_outlined),
-            selectedIcon: Icon(Icons.auto_awesome),
-            label: 'Talk to TiB',
           ),
         ];
     }
