@@ -123,7 +123,6 @@ class _ConsultationManagementScreenState extends State<ConsultationManagementScr
                   itemBuilder: (context, index) {
                     final data = docs[index].data();
                     final unread = (data['unreadForConsultant'] as num?)?.toInt() ?? 0;
-                    final assigned = data['assignedConsultantName'] as String?;
                     final lastMessage = data['lastMessage'] as String?;
                     final email = data['email'] as String?;
                     final userName = data['userName'] as String? ?? 'TiB User';
