@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_gradients.dart';
 import '../../providers/analysis_provider.dart';
+import '../admin/admin_main_screen.dart';
 import '../ai/ai_hub_screen.dart';
 import '../analysis/analysis_screen.dart';
 import '../auth/login_screen.dart';
@@ -14,7 +15,9 @@ import '../profile/profile_screen.dart';
 import '../wardrobe/wardrobe_screen.dart';
 
 class MainScreen extends StatefulWidget {
-  const MainScreen({super.key});
+  final bool adminPreview;
+
+  const MainScreen({super.key, this.adminPreview = false});
 
   @override
   State<MainScreen> createState() => _MainScreenState();
@@ -47,6 +50,14 @@ class _MainScreenState extends State<MainScreen> {
     if (index == _selectedIndex) return;
     HapticFeedback.selectionClick();
     setState(() => _selectedIndex = index);
+  }
+
+  void _returnToAdmin() {
+    if (!widget.adminPreview || !mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const AdminMainScreen()),
+      (_) => false,
+    );
   }
 
   Future<void> _showNotifications() async {
@@ -160,11 +171,11 @@ class _MainScreenState extends State<MainScreen> {
                   ),
                 ),
                 const SizedBox(height: 6),
-                const Text(
-                  'Your personal styling space',
+                Text(
+                  widget.adminPreview ? 'Customer dashboard preview' : 'Your personal styling space',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 18,
                     height: 1.2,
                     fontWeight: FontWeight.w500,
@@ -175,6 +186,14 @@ class _MainScreenState extends State<MainScreen> {
             ),
           ),
           const SizedBox(width: 14),
+          if (widget.adminPreview) ...[
+            _topActionButton(
+              icon: Icons.admin_panel_settings_outlined,
+              tooltip: 'Return to Admin',
+              onTap: _returnToAdmin,
+            ),
+            const SizedBox(width: 12),
+          ],
           _topActionButton(
             icon: Icons.notifications_none_rounded,
             tooltip: 'Notifications',
