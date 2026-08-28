@@ -204,7 +204,7 @@ class _ConsultantChatScreenState extends State<ConsultantChatScreen> {
                   child: Row(children: [
                     Expanded(child: TextField(controller: _composer, maxLines: 4, minLines: 1, textInputAction: TextInputAction.send, onSubmitted: (_) => _send(), decoration: InputDecoration(hintText: 'Reply to customer…', filled: true, fillColor: AppColors.surface, border: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: const BorderSide(color: AppColors.border))))),
                     const SizedBox(width: 8),
-                    Material(color: AppColors.primary, borderRadius: BorderRadius.circular(18), child: InkWell(onTap: _sending ? null : _send, borderRadius: BorderRadius.circular(18), child: const SizedBox(width: 50, height: 52, child: Icon(Icons.send_rounded, color: Colors.white))),
+                    Material(color: AppColors.primary, borderRadius: BorderRadius.circular(18), child: InkWell(onTap: _sending ? null : _send, borderRadius: BorderRadius.circular(18), child: const SizedBox(width: 50, height: 52, child: Icon(Icons.send_rounded, color: Colors.white)))),
                   ]),
                 ),
               ),
