@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../ai/talk_to_tib_screen.dart';
+import '../main/main_screen.dart';
 import 'admin_dashboard_screen.dart';
 import 'admin_profile_screen.dart';
 import 'analysis_management_screen.dart';
@@ -63,6 +64,14 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
     });
   }
 
+  void _openCustomerDashboard() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const MainScreen(adminPreview: true),
+      ),
+    );
+  }
+
   void _showModeSelector() {
     showModalBottomSheet<void>(
       context: context,
@@ -75,9 +84,9 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
             children: [
               const ListTile(
                 contentPadding: EdgeInsets.zero,
-                title: Text('Switch Admin Mode'),
+                title: Text('Switch Role Dashboard'),
                 subtitle: Text(
-                  'Preview another role without changing your real Firebase role.',
+                  'Only administrators can preview another role. Your real Firebase role is unchanged.',
                 ),
               ),
               _ModeTile(
@@ -101,13 +110,13 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
                 },
               ),
               _ModeTile(
-                title: 'Customer Preview',
-                subtitle: 'Preview Talk to TiB and live consultancy',
+                title: 'Customer Dashboard',
+                subtitle: 'Open the complete customer dashboard and features',
                 icon: Icons.person_outline,
-                selected: _mode == AdminMode.customerPreview,
+                selected: false,
                 onTap: () {
                   Navigator.pop(sheetContext);
-                  _setMode(AdminMode.customerPreview);
+                  _openCustomerDashboard();
                 },
               ),
             ],
@@ -177,12 +186,19 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
           ),
         ];
       case AdminMode.consultantPreview:
-      case AdminMode.customerPreview:
         return const [
           NavigationDestination(
             icon: Icon(Icons.support_agent_outlined),
             selectedIcon: Icon(Icons.support_agent),
             label: 'Live Consultancy',
+          ),
+        ];
+      case AdminMode.customerPreview:
+        return const [
+          NavigationDestination(
+            icon: Icon(Icons.auto_awesome_outlined),
+            selectedIcon: Icon(Icons.auto_awesome),
+            label: 'Talk to TiB',
           ),
         ];
     }
@@ -231,7 +247,7 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
         ),
         actions: [
           IconButton(
-            tooltip: 'Switch Admin Mode',
+            tooltip: 'Switch Role Dashboard',
             onPressed: _showModeSelector,
             icon: const Icon(Icons.swap_horiz_rounded),
           ),
