@@ -12,9 +12,7 @@ import '../../providers/analysis_provider.dart';
 import '../../services/ai_styling_service.dart';
 import '../../services/firestore_service.dart';
 import '../../services/style_preference_service.dart';
-import '../../widgets/premium_badge.dart';
 import '../analysis/analysis_screen.dart';
-import '../premium/premium_screen.dart';
 import '../wardrobe/wardrobe_screen.dart';
 import 'style_preferences_screen.dart';
 
@@ -34,7 +32,6 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
 
   bool _loading = true;
   bool _styling = false;
-  bool _isPremium = false;
   String? _error;
 
   List<WardrobeItem> _wardrobe = const [];
@@ -83,19 +80,16 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
       final values = await Future.wait<dynamic>([
         FirestoreService.getWardrobeItems(uid),
         StylePreferenceService.getStylePreferences(uid),
-        FirebaseFirestore.instance.collection('users').doc(uid).get(),
       ]);
 
       if (!mounted) return;
 
       final prefs = values[1] as Map<String, dynamic>?;
-      final user = (values[2] as DocumentSnapshot<Map<String, dynamic>>).data();
 
       setState(() {
         _wardrobe = values[0] as List<WardrobeItem>;
         _styles = List<String>.from(prefs?['styles'] ?? const []);
         _preferences = List<String>.from(prefs?['preferences'] ?? const []);
-        _isPremium = user?['isPremium'] == true;
         _loading = false;
       });
     } catch (_) {
@@ -119,10 +113,6 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
     }
     if (_wardrobe.isEmpty) {
       _showMessage('Add a few pieces to My Wardrobe first, then I can style what you already own.');
-      return;
-    }
-    if (!_isPremium) {
-      await _showPremiumPrompt();
       return;
     }
 
@@ -149,105 +139,6 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
       _styling = false;
     });
     _scrollToBottom();
-  }
-
-  Future<void> _showPremiumPrompt() async {
-    await showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (sheetContext) => SafeArea(
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(22, 10, 22, 22),
-          decoration: const BoxDecoration(
-            color: AppColors.background,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 38,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AppColors.border,
-                    borderRadius: BorderRadius.circular(99),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 22),
-              Row(
-                children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: const BoxDecoration(
-                      color: AppColors.secondary,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.auto_awesome_rounded,
-                      color: AppColors.primary,
-                      size: 22,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  const Expanded(
-                    child: Text(
-                      'Make it personal',
-                      style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'Premium connects your colour profile, style preferences and real wardrobe to TiB’s personalised AI styling.',
-                style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 13,
-                  height: 1.5,
-                ),
-              ),
-              const SizedBox(height: 18),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: () async {
-                    Navigator.pop(sheetContext);
-                    await Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const PremiumScreen()),
-                    );
-                    await _load();
-                  },
-                  icon: const Icon(Icons.workspace_premium_rounded, size: 18),
-                  label: const Text('Explore Premium'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
-                child: TextButton(
-                  onPressed: () => Navigator.pop(sheetContext),
-                  child: const Text('Maybe later'),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 
   void _showMessage(String message) {
@@ -358,10 +249,6 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
                           const SizedBox(height: 17),
                         ],
                         _quickPromptSection(),
-                        if (!_isPremium) ...[
-                          const SizedBox(height: 14),
-                          _premiumTeaser(),
-                        ],
                         if (_lastPrompt != null) ...[
                           const SizedBox(height: 18),
                           _userBubble(_lastPrompt!),
@@ -473,9 +360,7 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
     final greeting = name == null || name.isEmpty ? 'Hi there' : 'Hi $name';
     final intro = profile == null
         ? 'I’m here to help you feel confident in what you wear.'
-        : _isPremium
-            ? 'I know your ${profile.season} palette. Tell me what you’re dressing for and we’ll work it out together.'
-            : 'Your ${profile.season} palette is ready. Add your wardrobe and I can help you build looks around it.';
+        : 'Your ${profile.season} palette is ready. Tell me what you’re dressing for and we’ll work it out together.';
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -570,7 +455,6 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
               style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700),
             ),
           ),
-          if (_isPremium) const PremiumBadge(compact: true),
         ],
       ),
     );
@@ -600,33 +484,6 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
               .toList(),
         ),
       ],
-    );
-  }
-
-  Widget _premiumTeaser() {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.premiumAccentLight,
-        borderRadius: BorderRadius.circular(17),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Row(
-        children: [
-          const Icon(
-            Icons.workspace_premium_outlined,
-            color: AppColors.premiumAccent,
-          ),
-          const SizedBox(width: 10),
-          const Expanded(
-            child: Text(
-              'Premium unlocks personalised AI styling using your colour profile, preferences and wardrobe.',
-              style: TextStyle(fontSize: 11.5, height: 1.4),
-            ),
-          ),
-          TextButton(onPressed: _showPremiumPrompt, child: const Text('Explore')),
-        ],
-      ),
     );
   }
 
