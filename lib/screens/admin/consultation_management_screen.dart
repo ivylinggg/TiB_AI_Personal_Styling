@@ -13,6 +13,8 @@ class ConsultationManagementScreen extends StatefulWidget {
 }
 
 class _ConsultationManagementScreenState extends State<ConsultationManagementScreen> {
+  String _filter = 'all';
+
   @override
   void initState() {
     super.initState();
@@ -30,77 +32,129 @@ class _ConsultationManagementScreenState extends State<ConsultationManagementScr
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(title: const Text('Live Consultancy')),
-      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: LiveConsultancyService.consultationsStream(),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) return Center(child: Text('Unable to load consultations: ${snapshot.error}'));
-          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-          final docs = snapshot.data!.docs;
-          if (docs.isEmpty) return const Center(child: Text('No live consultations yet.'));
-
-          return ListView.separated(
-            padding: const EdgeInsets.all(16),
-            itemCount: docs.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 8),
-            itemBuilder: (_, index) {
-              final data = docs[index].data();
-              final status = data['status'] as String? ?? 'open';
-              final assigned = data['assignedConsultantName'] as String?;
-              final unread = (data['unreadForConsultant'] as num?)?.toInt() ?? 0;
-              final responseSeconds = (data['responseTimeSeconds'] as num?)?.toInt();
-              final rating = (data['rating'] as num?)?.toInt();
-              return Card(
-                elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(17), side: const BorderSide(color: AppColors.border)),
-                child: ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 7),
-                  leading: Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      CircleAvatar(
-                        backgroundColor: status == 'waiting_for_consultant' ? AppColors.secondary : AppColors.surfaceMuted,
-                        child: const Icon(Icons.person_outline_rounded, color: AppColors.primary),
+      body: Column(
+        children: [
+          StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            stream: LiveConsultancyService.onlineConsultantsStream(),
+            builder: (context, snapshot) {
+              final online = snapshot.data?.docs.length ?? 0;
+              return Container(
+                margin: const EdgeInsets.fromLTRB(16, 8, 16, 6),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: AppColors.secondary.withValues(alpha: .55),
+                  borderRadius: BorderRadius.circular(17),
+                  border: Border.all(color: AppColors.primary.withValues(alpha: .12)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.circle, size: 9, color: online > 0 ? Colors.green : AppColors.textMuted),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        online == 0 ? 'No consultants online' : '$online consultant${online == 1 ? '' : 's'} online',
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
                       ),
-                      if (unread > 0)
-                        Positioned(
-                          right: -5,
-                          top: -5,
-                          child: Container(
-                            padding: const EdgeInsets.all(5),
-                            decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
-                            child: Text('$unread', style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.w800)),
-                          ),
-                        ),
-                    ],
-                  ),
-                  title: Row(
-                    children: [
-                      Expanded(child: Text(data['userName'] as String? ?? 'TiB User', style: const TextStyle(fontWeight: FontWeight.w800))),
-                      if (rating != null) ...[
-                        const Icon(Icons.star_rounded, size: 15, color: AppColors.primary),
-                        Text('$rating', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800)),
-                      ],
-                    ],
-                  ),
-                  subtitle: Text(
-                    [
-                      assigned ?? (data['lastMessage'] as String? ?? data['email'] as String? ?? 'New consultation'),
-                      if (responseSeconds != null) 'First response ${responseSeconds < 60 ? '${responseSeconds}s' : '${responseSeconds ~/ 60}m'}',
-                    ].join(' · '),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  trailing: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-                    decoration: BoxDecoration(color: status == 'waiting_for_consultant' ? AppColors.secondary : AppColors.surfaceMuted, borderRadius: BorderRadius.circular(12)),
-                    child: Text(status.replaceAll('_', ' '), style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800)),
-                  ),
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ConsultantChatScreen(uid: docs[index].id, userName: data['userName'] as String? ?? 'TiB User'))),
+                    ),
+                    const Text('LIVE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: AppColors.primary)),
+                  ],
                 ),
               );
             },
-          );
-        },
+          ),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.fromLTRB(16, 2, 16, 8),
+            child: Row(
+              children: ['all', 'waiting_for_consultant', 'assigned', 'consultant_replied', 'resolved'].map((value) {
+                final selected = _filter == value;
+                final label = value == 'all' ? 'All' : value.replaceAll('_', ' ');
+                return Padding(
+                  padding: const EdgeInsets.only(right: 7),
+                  child: ChoiceChip(
+                    selected: selected,
+                    label: Text(label, style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700)),
+                    onSelected: (_) => setState(() => _filter = value),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          Expanded(
+            child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: LiveConsultancyService.consultationsStream(status: _filter == 'all' ? null : _filter),
+              builder: (context, snapshot) {
+                if (snapshot.hasError) return Center(child: Text('Unable to load consultations: ${snapshot.error}'));
+                if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+                final docs = snapshot.data!.docs;
+                if (docs.isEmpty) return Center(child: Text(_filter == 'all' ? 'No live consultations yet.' : 'No ${_filter.replaceAll('_', ' ')} consultations.'));
+
+                return ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                  itemCount: docs.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 8),
+                  itemBuilder: (_, index) {
+                    final data = docs[index].data();
+                    final status = data['status'] as String? ?? 'open';
+                    final assigned = data['assignedConsultantName'] as String?;
+                    final unread = (data['unreadForConsultant'] as num?)?.toInt() ?? 0;
+                    final responseSeconds = (data['responseTimeSeconds'] as num?)?.toInt();
+                    final rating = (data['rating'] as num?)?.toInt();
+                    return Card(
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(17), side: const BorderSide(color: AppColors.border)),
+                      child: ListTile(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 7),
+                        leading: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            CircleAvatar(
+                              backgroundColor: status == 'waiting_for_consultant' ? AppColors.secondary : AppColors.surfaceMuted,
+                              child: const Icon(Icons.person_outline_rounded, color: AppColors.primary),
+                            ),
+                            if (unread > 0)
+                              Positioned(
+                                right: -5,
+                                top: -5,
+                                child: Container(
+                                  padding: const EdgeInsets.all(5),
+                                  decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
+                                  child: Text('$unread', style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.w800)),
+                                ),
+                              ),
+                          ],
+                        ),
+                        title: Row(
+                          children: [
+                            Expanded(child: Text(data['userName'] as String? ?? 'TiB User', style: const TextStyle(fontWeight: FontWeight.w800))),
+                            if (rating != null) ...[
+                              const Icon(Icons.star_rounded, size: 15, color: AppColors.primary),
+                              Text('$rating', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800)),
+                            ],
+                          ],
+                        ),
+                        subtitle: Text(
+                          [
+                            assigned ?? (data['lastMessage'] as String? ?? data['email'] as String? ?? 'New consultation'),
+                            if (responseSeconds != null) 'First response ${responseSeconds < 60 ? '${responseSeconds}s' : '${responseSeconds ~/ 60}m'}',
+                          ].join(' · '),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        trailing: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+                          decoration: BoxDecoration(color: status == 'waiting_for_consultant' ? AppColors.secondary : AppColors.surfaceMuted, borderRadius: BorderRadius.circular(12)),
+                          child: Text(status.replaceAll('_', ' '), style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800)),
+                        ),
+                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ConsultantChatScreen(uid: docs[index].id, userName: data['userName'] as String? ?? 'TiB User'))),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
