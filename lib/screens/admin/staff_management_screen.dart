@@ -192,7 +192,7 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
                   _dialogField(trainer, 'Trainer Name'),
                   _dialogField(photo, 'Photo URL', keyboardType: TextInputType.url),
                   DropdownButtonFormField<String>(
-                    value: role,
+                    initialValue: role,
                     decoration: const InputDecoration(labelText: 'Role'),
                     items: const [
                       DropdownMenuItem(value: 'consultant', child: Text('Consultant / Staff')),
@@ -227,6 +227,14 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
       ),
     );
 
+    final staffIdValue = staffId.text.trim();
+    final nameValue = name.text.trim();
+    final emailValue = email.text.trim();
+    final trainerValue = trainer.text.trim();
+    final photoValue = photo.text.trim();
+    final scoreText = score.text.trim();
+    final notesValue = notes.text.trim();
+
     name.dispose();
     staffId.dispose();
     email.dispose();
@@ -236,21 +244,21 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
     notes.dispose();
     if (result != true) return;
 
-    if (staffId.text.trim().isEmpty || name.text.trim().isEmpty || email.text.trim().isEmpty) return;
+    if (staffIdValue.isEmpty || nameValue.isEmpty || emailValue.isEmpty) return;
     setState(() => _saving = true);
     try {
-      final scoreValue = double.tryParse(score.text.trim());
+      final scoreValue = double.tryParse(scoreText);
       final oldCompleted = data['groomingCompleted'] as bool? ?? false;
       await doc.reference.set({
-        'staffId': staffId.text.trim(),
-        'name': name.text.trim(),
-        'email': email.text.trim(),
-        'trainerName': trainer.text.trim(),
-        'photoUrl': photo.text.trim(),
+        'staffId': staffIdValue,
+        'name': nameValue,
+        'email': emailValue,
+        'trainerName': trainerValue,
+        'photoUrl': photoValue,
         'role': role,
         'groomingCompleted': groomingCompleted,
-        'groomingScore': scoreValue ?? (score.text.trim().isEmpty ? null : score.text.trim()),
-        'groomingNotes': notes.text.trim(),
+        'groomingScore': scoreValue ?? (scoreText.isEmpty ? null : scoreText),
+        'groomingNotes': notesValue,
         'registeredAt': data['registeredAt'] ?? data['createdAt'] ?? FieldValue.serverTimestamp(),
         'groomingCompletedAt': groomingCompleted
             ? (oldCompleted && data['groomingCompletedAt'] != null
@@ -403,98 +411,76 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
   Widget _badge(String label, Color background, Color foreground) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-      decoration: BoxDecoration(color: background, borderRadius: BorderRadius.circular(20)),
-      child: Text(label, style: TextStyle(color: foreground, fontSize: 9, fontWeight: FontWeight.w800)),
+      decoration: BoxDecoration(color: background, borderRadius: BorderRadius.circular(10)),
+      child: Text(label, style: TextStyle(color: foreground, fontSize: 10, fontWeight: FontWeight.w800)),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Staff Management'),
-        actions: [
-          IconButton(onPressed: _loading ? null : _loadStaff, tooltip: 'Refresh', icon: const Icon(Icons.refresh_rounded)),
-        ],
-      ),
-      body: AbsorbPointer(
-        absorbing: _saving,
-        child: RefreshIndicator(
-          onRefresh: _loadStaff,
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
-                child: Row(
-                  children: [
-                    _stat('All', _staff.length.toString(), Icons.groups_outlined),
+      body: RefreshIndicator(
+        onRefresh: _loadStaff,
+        child: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(16, 18, 16, 30),
+                children: [
+                  const Text('Staff Management', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900)),
+                  const SizedBox(height: 5),
+                  Text('Manage staff profiles, training and grooming records.', style: TextStyle(color: AppColors.textSecondary)),
+                  const SizedBox(height: 18),
+                  Row(children: [
+                    _stat('Total', '${_staff.length}', Icons.groups_rounded),
                     const SizedBox(width: 8),
-                    _stat('Active', _activeCount.toString(), Icons.verified_user_outlined),
+                    _stat('Active', '$_activeCount', Icons.verified_user_outlined),
                     const SizedBox(width: 8),
-                    _stat('Inactive', (_staff.length - _activeCount).toString(), Icons.person_off_outlined),
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: TextField(
-                  controller: _searchController,
-                  decoration: InputDecoration(
-                    hintText: 'Search staff ID, name, email, trainer or grooming result',
-                    prefixIcon: const Icon(Icons.search_rounded),
-                    suffixIcon: _searchController.text.isEmpty ? null : IconButton(onPressed: _searchController.clear, icon: const Icon(Icons.clear_rounded)),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                    _stat('Groomed', '${_staff.where((d) => d.data()['groomingCompleted'] as bool? ?? false).length}', Icons.check_circle_outline_rounded),
+                  ]),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: _searchController,
+                    decoration: InputDecoration(
+                      hintText: 'Search staff ID, name, email, trainer...',
+                      prefixIcon: const Icon(Icons.search_rounded),
+                      suffixIcon: _searchController.text.isEmpty ? null : IconButton(onPressed: _searchController.clear, icon: const Icon(Icons.clear_rounded)),
+                      border: const OutlineInputBorder(),
+                    ),
                   ),
-                ),
-              ),
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.fromLTRB(20, 10, 20, 8),
-                child: Row(
-                  children: [
-                    for (final value in const ['All', 'Active', 'Inactive']) ...[
-                      FilterChip(
-                        label: Text(value),
-                        showCheckmark: false,
-                        selected: _status == value,
-                        onSelected: (_) {
-                          setState(() => _status = value);
-                          _filter();
-                        },
-                      ),
-                      const SizedBox(width: 8),
+                  const SizedBox(height: 10),
+                  SegmentedButton<String>(
+                    segments: const [
+                      ButtonSegment(value: 'All', label: Text('All')),
+                      ButtonSegment(value: 'Active', label: Text('Active')),
+                      ButtonSegment(value: 'Inactive', label: Text('Inactive')),
                     ],
-                  ],
-                ),
+                    selected: {_status},
+                    onSelectionChanged: (selection) {
+                      setState(() => _status = selection.first);
+                      _filter();
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  if (_saving) const LinearProgressIndicator(),
+                  const SizedBox(height: 8),
+                  if (_filtered.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 60),
+                      child: Column(
+                        children: [
+                          Icon(Icons.badge_outlined, size: 54, color: AppColors.textSecondary),
+                          const SizedBox(height: 12),
+                          const Text('No staff found', style: TextStyle(fontWeight: FontWeight.w800)),
+                          const SizedBox(height: 5),
+                          Text('Try another search or filter.', style: TextStyle(color: AppColors.textSecondary)),
+                        ],
+                      ),
+                    )
+                  else
+                    ..._filtered.map(_card),
+                ],
               ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text('${_filtered.length} staff member${_filtered.length == 1 ? '' : 's'}', style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600)),
-                ),
-              ),
-              Expanded(
-                child: _loading
-                    ? const Center(child: CircularProgressIndicator())
-                    : _filtered.isEmpty
-                        ? ListView(
-                            physics: const AlwaysScrollableScrollPhysics(),
-                            children: const [
-                              SizedBox(height: 120),
-                              Center(child: Text('No staff found.')),
-                            ],
-                          )
-                        : ListView.builder(
-                            physics: const AlwaysScrollableScrollPhysics(),
-                            padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-                            itemCount: _filtered.length,
-                            itemBuilder: (_, index) => _card(_filtered[index]),
-                          ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
