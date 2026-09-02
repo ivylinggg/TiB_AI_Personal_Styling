@@ -123,6 +123,26 @@ class _AnalysisManagementScreenState extends State<AnalysisManagementScreen> {
     );
   }
 
+  String _customerName(Map<String, dynamic>? data) {
+    final name = data?['name'] as String?;
+    return name?.trim() ?? '';
+  }
+
+  String _customerEmail(Map<String, dynamic>? data) {
+    final email = data?['email'] as String?;
+    return email?.trim() ?? '';
+  }
+
+  bool _matchesCustomer(
+    Map<String, dynamic>? customer,
+    String query,
+  ) {
+    if (query.isEmpty) return true;
+    final name = _customerName(customer).toLowerCase();
+    final email = _customerEmail(customer).toLowerCase();
+    return name.contains(query) || email.contains(query);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -212,7 +232,7 @@ class _AnalysisManagementScreenState extends State<AnalysisManagementScreen> {
                 TextField(
                   controller: _searchController,
                   decoration: InputDecoration(
-                    hintText: 'Search result, customer UID or colour profile',
+                    hintText: 'Search customer name, email, UID or colour profile',
                     prefixIcon: const Icon(Icons.search),
                     suffixIcon: _searchController.text.isNotEmpty
                         ? IconButton(
@@ -389,27 +409,32 @@ class _AnalysisManagementScreenState extends State<AnalysisManagementScreen> {
               _buildImage(imageUrl),
               const SizedBox(width: 14),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+                child: FutureBuilder<Map<String, dynamic>?>(
+                  future: userId.isEmpty ? Future.value(null) : _loadCustomer(userId),
+                  builder: (context, customerSnapshot) {
+                    final customer = customerSnapshot.data;
+                    final customerName = _customerName(customer);
+                    final customerEmail = _customerEmail(customer);
+                    final query = _searchController.text.trim().toLowerCase();
+
+                    if (query.isNotEmpty && !_matchesCustomer(customer, query)) {
+                      return const SizedBox.shrink();
+                    }
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: Text(
-                            season,
-                            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                        if (userId.isNotEmpty)
-                          FutureBuilder<Map<String, dynamic>?>(
-                            future: _loadCustomer(userId),
-                            builder: (context, snapshot) {
-                              final customerName = snapshot.data?['name'] as String?;
-                              if (customerName == null || customerName.trim().isEmpty) {
-                                return const SizedBox.shrink();
-                              }
-                              return Container(
-                                constraints: const BoxConstraints(maxWidth: 120),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                season,
+                                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                            if (customerName.isNotEmpty)
+                              Container(
+                                constraints: const BoxConstraints(maxWidth: 135),
                                 padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
                                 decoration: BoxDecoration(
                                   color: AppColors.secondary,
@@ -425,31 +450,40 @@ class _AnalysisManagementScreenState extends State<AnalysisManagementScreen> {
                                     color: AppColors.primary,
                                   ),
                                 ),
-                              );
-                            },
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          '$undertone • $brightness • $contrast',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: AppColors.textSecondary),
+                        ),
+                        if (customerEmail.isNotEmpty) ...[
+                          const SizedBox(height: 5),
+                          Text(
+                            customerEmail,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(fontSize: 10.5, color: AppColors.textSecondary),
                           ),
+                        ],
+                        const SizedBox(height: 4),
+                        Text(
+                          userId.isEmpty ? 'Customer: unavailable' : 'Customer ID: $userId',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 10.5, color: AppColors.textSecondary),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          createdAt == null ? 'Date unavailable' : _formatDate(createdAt.toDate()),
+                          style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                        ),
                       ],
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      '$undertone • $brightness • $contrast',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: AppColors.textSecondary),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      userId.isEmpty ? 'Customer: unavailable' : 'Customer ID: $userId',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 10.5, color: AppColors.textSecondary),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      createdAt == null ? 'Date unavailable' : _formatDate(createdAt.toDate()),
-                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                    ),
-                  ],
+                    );
+                  },
                 ),
               ),
               const SizedBox(width: 8),
@@ -505,7 +539,7 @@ class _AnalysisManagementScreenState extends State<AnalysisManagementScreen> {
           const Text('No matching analysis records', style: TextStyle(fontWeight: FontWeight.bold)),
           const SizedBox(height: 5),
           Text(
-            'Try another customer UID, profile value or season filter.',
+            'Try another customer name, email, UID, profile value or season filter.',
             textAlign: TextAlign.center,
             style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
           ),
@@ -521,12 +555,16 @@ class _AnalysisManagementScreenState extends State<AnalysisManagementScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline, size: 48, color: AppColors.error),
+            const Icon(Icons.cloud_off_outlined, size: 44),
             const SizedBox(height: 12),
-            const Text('Unable to load analysis records', style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
+            const Text(
+              'Unable to load analysis records.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+            ),
+            const SizedBox(height: 6),
             Text(
-              'Check your Firestore index and connection, then try again.',
+              'Please check your connection and try again.',
               textAlign: TextAlign.center,
               style: TextStyle(color: AppColors.textSecondary),
             ),
@@ -536,6 +574,9 @@ class _AnalysisManagementScreenState extends State<AnalysisManagementScreen> {
     );
   }
 
-  String _formatDate(DateTime date) =>
-      '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
+  String _formatDate(DateTime date) {
+    final day = date.day.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    return '$day/$month/${date.year}';
+  }
 }
