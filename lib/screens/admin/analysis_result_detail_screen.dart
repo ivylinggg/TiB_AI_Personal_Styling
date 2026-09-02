@@ -10,6 +10,7 @@ class AnalysisResultDetailScreen extends StatelessWidget {
   final String contrast;
   final String imageUrl;
   final DateTime? createdAt;
+  final String? userId;
 
   const AnalysisResultDetailScreen({
     super.key,
@@ -19,6 +20,7 @@ class AnalysisResultDetailScreen extends StatelessWidget {
     required this.contrast,
     required this.imageUrl,
     required this.createdAt,
+    this.userId,
   });
 
   @override
@@ -34,10 +36,12 @@ class AnalysisResultDetailScreen extends StatelessWidget {
             tooltip: 'Copy result',
             onPressed: () async {
               final summary = [
+                if (userId != null && userId!.isNotEmpty) 'User ID: $userId',
                 'Colour Season: $season',
                 'Undertone: $undertone',
                 'Brightness: $brightness',
                 'Contrast: $contrast',
+                if (createdAt != null) 'Analysis Date: ${_formatDate(createdAt!)}',
               ].join('\n');
               await Clipboard.setData(ClipboardData(text: summary));
               if (!context.mounted) return;
@@ -62,6 +66,10 @@ class AnalysisResultDetailScreen extends StatelessWidget {
           _resultCard(Icons.thermostat_outlined, 'Undertone', undertone),
           _resultCard(Icons.wb_sunny_outlined, 'Brightness', brightness),
           _resultCard(Icons.contrast_outlined, 'Contrast', contrast),
+          const SizedBox(height: 20),
+          _sectionTitle('Customer Reference'),
+          const SizedBox(height: 10),
+          _customerReferenceCard(),
           const SizedBox(height: 20),
           _sectionTitle('Analysis Information'),
           const SizedBox(height: 10),
@@ -160,6 +168,53 @@ class AnalysisResultDetailScreen extends StatelessWidget {
     );
   }
 
+  Widget _customerReferenceCard() {
+    final hasUser = userId != null && userId!.isNotEmpty;
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: AppColors.surfaceMuted,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              hasUser ? Icons.person_outline_rounded : Icons.person_off_outlined,
+              color: AppColors.primary,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Customer User ID',
+                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  hasUser ? userId! : 'Not linked in this record',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _resultCard(IconData icon, String title, String value) {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -243,5 +298,6 @@ class AnalysisResultDetailScreen extends StatelessWidget {
         style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
       );
 
-  String _formatDate(DateTime date) => '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
+  String _formatDate(DateTime date) =>
+      '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
 }
