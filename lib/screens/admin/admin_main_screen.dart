@@ -7,6 +7,7 @@ import 'analysis_management_screen.dart';
 import 'consultation_management_screen.dart';
 import 'content_management_screen.dart';
 import 'premium_management_screen.dart';
+import 'staff_management_screen.dart';
 import 'user_management_screen.dart';
 
 class AdminMainScreen extends StatefulWidget {
@@ -90,7 +91,7 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
               ),
               _ModeTile(
                 title: 'Administrator',
-                subtitle: 'Manage users, content, premium and analytics',
+                subtitle: 'Manage users, content, premium, staff and analytics',
                 icon: Icons.admin_panel_settings_outlined,
                 selected: _mode == AdminMode.administrator,
                 onTap: () {
@@ -136,6 +137,7 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
           const PremiumManagementScreen(),
           const AdminProfileScreen(),
           const ConsultationManagementScreen(),
+          const StaffManagementScreen(),
         ];
       case AdminMode.consultantPreview:
         return [
@@ -161,6 +163,7 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
           NavigationDestination(icon: Icon(Icons.workspace_premium_outlined), selectedIcon: Icon(Icons.workspace_premium), label: 'Premium'),
           NavigationDestination(icon: Icon(Icons.admin_panel_settings_outlined), selectedIcon: Icon(Icons.admin_panel_settings), label: 'Admin'),
           NavigationDestination(icon: Icon(Icons.support_agent_outlined), selectedIcon: Icon(Icons.support_agent), label: 'Consult'),
+          NavigationDestination(icon: Icon(Icons.badge_outlined), selectedIcon: Icon(Icons.badge_rounded), label: 'Staff'),
         ];
       case AdminMode.consultantPreview:
         return const [
