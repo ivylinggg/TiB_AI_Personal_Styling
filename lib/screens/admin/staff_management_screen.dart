@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
@@ -15,6 +16,7 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
   List<QueryDocumentSnapshot<Map<String, dynamic>>> staff = [];
   List<QueryDocumentSnapshot<Map<String, dynamic>>> filteredStaff = [];
   bool isLoading = true;
+  bool isSaving = false;
   String selectedStatus = 'All';
 
   @override
@@ -64,29 +66,40 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
   void filterStaff() {
     if (!mounted) return;
     final query = searchController.text.trim().toLowerCase();
-    setState(() {
-      filteredStaff = staff.where((document) {
-        final data = document.data();
-        final name = (data['name'] as String? ?? '').toLowerCase();
-        final email = (data['email'] as String? ?? '').toLowerCase();
-        final role = (data['role'] as String? ?? '').toLowerCase();
-        final uid = document.id.toLowerCase();
-        final active = data['isActive'] as bool? ?? true;
+    final filtered = staff.where((document) {
+      final data = document.data();
+      final name = (data['name'] as String? ?? '').toLowerCase();
+      final email = (data['email'] as String? ?? '').toLowerCase();
+      final role = (data['role'] as String? ?? '').toLowerCase();
+      final uid = document.id.toLowerCase();
+      final active = data['isActive'] as bool? ?? true;
 
-        final matchesSearch = query.isEmpty ||
-            name.contains(query) ||
-            email.contains(query) ||
-            role.contains(query) ||
-            uid.contains(query);
-        final matchesStatus = selectedStatus == 'All' ||
-            (selectedStatus == 'Active' && active) ||
-            (selectedStatus == 'Inactive' && !active);
-        return matchesSearch && matchesStatus;
-      }).toList();
-    });
+      final matchesSearch = query.isEmpty ||
+          name.contains(query) ||
+          email.contains(query) ||
+          role.contains(query) ||
+          uid.contains(query);
+      final matchesStatus = selectedStatus == 'All' ||
+          (selectedStatus == 'Active' && active) ||
+          (selectedStatus == 'Inactive' && !active);
+      return matchesSearch && matchesStatus;
+    }).toList();
+
+    setState(() => filteredStaff = filtered);
   }
 
-  Future<void> toggleActive(QueryDocumentSnapshot<Map<String, dynamic>> document) async {
+  Future<void> toggleActive(
+    QueryDocumentSnapshot<Map<String, dynamic>> document,
+  ) async {
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    if (document.id == currentUserId && (document.data()['role'] ?? '') == 'admin') {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You cannot deactivate your own administrator account.')),
+      );
+      return;
+    }
+
     final data = document.data();
     final current = data['isActive'] as bool? ?? true;
     try {
@@ -107,11 +120,59 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
     }
   }
 
-  Future<void> editStaff(QueryDocumentSnapshot<Map<String, dynamic>> document) async {
+  Future<void> sendPasswordReset(
+    QueryDocumentSnapshot<Map<String, dynamic>> document,
+  ) async {
+    final email = (document.data()['email'] as String? ?? '').trim();
+    final name = document.data()['name'] as String? ?? 'this staff member';
+    if (email.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('This staff account has no email address.')),
+      );
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Send Password Reset?'),
+        content: Text('A password reset link will be sent to $email for $name.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Send Email'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Password reset email sent to $email.')),
+      );
+    } on FirebaseAuthException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not send reset email: ${error.message ?? error.code}.')),
+      );
+    }
+  }
+
+  Future<void> editStaff(
+    QueryDocumentSnapshot<Map<String, dynamic>> document,
+  ) async {
     final data = document.data();
     final nameController = TextEditingController(text: data['name'] as String? ?? '');
     final emailController = TextEditingController(text: data['email'] as String? ?? '');
-    String selectedRole = ((data['role'] as String?) ?? 'consultant').toLowerCase();
+    var selectedRole = ((data['role'] as String?) ?? 'consultant').toLowerCase();
     if (selectedRole == 'staff') selectedRole = 'consultant';
 
     final result = await showDialog<Map<String, String>>(
@@ -151,13 +212,21 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
               ),
             ),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Cancel'),
+              ),
               FilledButton(
-                onPressed: () => Navigator.pop(dialogContext, {
-                  'name': nameController.text.trim(),
-                  'email': emailController.text.trim(),
-                  'role': selectedRole,
-                }),
+                onPressed: () {
+                  final name = nameController.text.trim();
+                  final email = emailController.text.trim();
+                  if (name.isEmpty || email.isEmpty) return;
+                  Navigator.pop(dialogContext, {
+                    'name': name,
+                    'email': email,
+                    'role': selectedRole,
+                  });
+                },
                 child: const Text('Save'),
               ),
             ],
@@ -173,6 +242,8 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
     final name = result['name'] ?? '';
     final email = result['email'] ?? '';
     final role = result['role'] ?? 'consultant';
+    final currentEmail = (data['email'] as String? ?? '').trim();
+
     if (name.isEmpty || email.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -181,23 +252,45 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
       return;
     }
 
+    setState(() => isSaving = true);
     try {
       await document.reference.update({
         'name': name,
-        'email': email,
         'role': role,
         'updatedAt': FieldValue.serverTimestamp(),
+        if (email != currentEmail) 'email': email,
       });
+
+      if (email != currentEmail && document.id == FirebaseAuth.instance.currentUser?.uid) {
+        await FirebaseAuth.instance.currentUser!.verifyBeforeUpdateEmail(email);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Verification email sent. Verify the new email to complete the change.')),
+        );
+      } else if (email != currentEmail) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Profile email updated in Firestore. Firebase Auth email for another account requires privileged server-side access.')),
+        );
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Staff profile updated.')),
+        );
+      }
+
       await loadStaff();
+    } on FirebaseAuthException catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Staff profile updated.')),
+        SnackBar(content: Text('Could not update authentication email: ${error.message ?? error.code}.')),
       );
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Could not save the staff profile.')),
       );
+    } finally {
+      if (mounted) setState(() => isSaving = false);
     }
   }
 
@@ -292,10 +385,12 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
               tooltip: 'Staff actions',
               onSelected: (value) {
                 if (value == 'edit') editStaff(document);
+                if (value == 'reset') sendPasswordReset(document);
                 if (value == 'toggle') toggleActive(document);
               },
               itemBuilder: (_) => [
                 const PopupMenuItem(value: 'edit', child: Text('Edit Profile')),
+                const PopupMenuItem(value: 'reset', child: Text('Send Password Reset')),
                 PopupMenuItem(
                   value: 'toggle',
                   child: Text(active ? 'Deactivate' : 'Activate'),
@@ -323,102 +418,105 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
           ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: loadStaff,
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
-              child: Row(
-                children: [
-                  Expanded(child: _statCard('All', staff.length.toString(), Icons.groups_outlined)),
-                  const SizedBox(width: 10),
-                  Expanded(child: _statCard('Active', _countActive().toString(), Icons.verified_user_outlined)),
-                  const SizedBox(width: 10),
-                  Expanded(child: _statCard('Inactive', (staff.length - _countActive()).toString(), Icons.person_off_outlined)),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: TextField(
-                controller: searchController,
-                decoration: InputDecoration(
-                  hintText: 'Search name, email, role or UID',
-                  prefixIcon: const Icon(Icons.search),
-                  suffixIcon: searchController.text.isNotEmpty
-                      ? IconButton(
-                          onPressed: searchController.clear,
-                          icon: const Icon(Icons.clear),
-                        )
-                      : null,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
-                ),
-              ),
-            ),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              child: Row(
-                children: [
-                  for (final status in const ['All', 'Active', 'Inactive']) ...[
-                    FilterChip(
-                      label: Text(status),
-                      showCheckmark: false,
-                      selected: selectedStatus == status,
-                      onSelected: (_) {
-                        setState(() => selectedStatus = status);
-                        filterStaff();
-                      },
-                    ),
-                    const SizedBox(width: 8),
+      body: AbsorbPointer(
+        absorbing: isSaving,
+        child: RefreshIndicator(
+          onRefresh: loadStaff,
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+                child: Row(
+                  children: [
+                    Expanded(child: _statCard('All', staff.length.toString(), Icons.groups_outlined)),
+                    const SizedBox(width: 10),
+                    Expanded(child: _statCard('Active', _countActive().toString(), Icons.verified_user_outlined)),
+                    const SizedBox(width: 10),
+                    Expanded(child: _statCard('Inactive', (staff.length - _countActive()).toString(), Icons.person_off_outlined)),
                   ],
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  '${filteredStaff.length} staff member${filteredStaff.length == 1 ? '' : 's'}',
-                  style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600),
                 ),
               ),
-            ),
-            Expanded(
-              child: isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : filteredStaff.isEmpty
-                      ? ListView(
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          children: [
-                            const SizedBox(height: 120),
-                            Center(
-                              child: Column(
-                                children: [
-                                  Icon(Icons.groups_outlined, size: 56, color: AppColors.textSecondary),
-                                  const SizedBox(height: 12),
-                                  Text(
-                                    'No staff found',
-                                    style: TextStyle(
-                                      color: AppColors.textSecondary,
-                                      fontWeight: FontWeight.w700,
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: TextField(
+                  controller: searchController,
+                  decoration: InputDecoration(
+                    hintText: 'Search name, email, role or UID',
+                    prefixIcon: const Icon(Icons.search),
+                    suffixIcon: searchController.text.isNotEmpty
+                        ? IconButton(
+                            onPressed: searchController.clear,
+                            icon: const Icon(Icons.clear),
+                          )
+                        : null,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                ),
+              ),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                child: Row(
+                  children: [
+                    for (final status in const ['All', 'Active', 'Inactive']) ...[
+                      FilterChip(
+                        label: Text(status),
+                        showCheckmark: false,
+                        selected: selectedStatus == status,
+                        onSelected: (_) {
+                          setState(() => selectedStatus = status);
+                          filterStaff();
+                        },
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    '${filteredStaff.length} staff member${filteredStaff.length == 1 ? '' : 's'}',
+                    style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : filteredStaff.isEmpty
+                        ? ListView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            children: [
+                              const SizedBox(height: 120),
+                              Center(
+                                child: Column(
+                                  children: [
+                                    Icon(Icons.groups_outlined, size: 56, color: AppColors.textSecondary),
+                                    const SizedBox(height: 12),
+                                    Text(
+                                      'No staff found',
+                                      style: TextStyle(
+                                        color: AppColors.textSecondary,
+                                        fontWeight: FontWeight.w700,
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
-                            ),
-                          ],
-                        )
-                      : ListView.builder(
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-                          itemCount: filteredStaff.length,
-                          itemBuilder: (_, index) => _buildCard(filteredStaff[index]),
-                        ),
-            ),
-          ],
+                            ],
+                          )
+                        : ListView.builder(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                            itemCount: filteredStaff.length,
+                            itemBuilder: (_, index) => _buildCard(filteredStaff[index]),
+                          ),
+              ),
+            ],
+          ),
         ),
       ),
     );
