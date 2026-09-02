@@ -635,4 +635,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       ),
     );
   }
+
+  Widget _buildManagementSummaryChip(String label, int value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: AppColors.secondary,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Text(
+        '$label $value',
+        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: AppColors.primary),
+      ),
+    );
+  }
 }
