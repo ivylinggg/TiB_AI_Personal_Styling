@@ -63,6 +63,14 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
     });
   }
 
+  void _resetAdministratorMode() {
+    if (_mode == AdminMode.administrator && _selectedIndex == 0) return;
+    setState(() {
+      _mode = AdminMode.administrator;
+      _selectedIndex = 0;
+    });
+  }
+
   void _showModeSelector() {
     showModalBottomSheet<void>(
       context: context,
@@ -170,7 +178,7 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
   void _navigateTo(int index) {
     if (index < 0) return;
     if ((_mode == AdminMode.consultantPreview || _mode == AdminMode.customerPreview) && index == 1) {
-      _setMode(AdminMode.administrator);
+      _resetAdministratorMode();
       return;
     }
     if (index >= _pages.length) return;
@@ -198,7 +206,32 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(_modeLabel, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          _modeLabel,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                      if (_mode != AdminMode.administrator) ...[
+                        const SizedBox(width: 7),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.secondaryContainer,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Text(
+                            'PREVIEW',
+                            style: TextStyle(fontSize: 8, fontWeight: FontWeight.w800),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                   Text(
                     _modeDescription,
                     maxLines: 1,
