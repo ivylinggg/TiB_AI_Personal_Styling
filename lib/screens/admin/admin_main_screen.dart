@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../main/main_screen.dart';
 import 'admin_dashboard_screen.dart';
 import 'admin_profile_screen.dart';
 import 'analysis_management_screen.dart';
@@ -61,14 +60,6 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
       _mode = mode;
       _selectedIndex = 0;
     });
-  }
-
-  void _openCustomerDashboard() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => const MainScreen(adminPreview: true),
-      ),
-    );
   }
 
   void _showModeSelector() {
