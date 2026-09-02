@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:model_viewer_plus/model_viewer_plus.dart';
 
@@ -8,11 +6,6 @@ import '../core/constants/app_gradients.dart';
 import '../services/tib_avatar_service.dart';
 import '../services/tib_model_service.dart';
 
-/// Personal TiB Model preview.
-///
-/// A generated 3D avatar is optional. Until a true personalised GLB exists,
-/// the user's own full-body reference is shown instead of a generic model so
-/// the product never visually suggests that a generic mannequin is "you".
 class TibVirtualModelPreview extends StatefulWidget {
   const TibVirtualModelPreview({
     super.key,
@@ -102,9 +95,13 @@ class _TibVirtualModelPreviewState extends State<TibVirtualModelPreview> {
                     orbitSensitivity: 1,
                   )
                 : hasBodyReference
-                    ? Image.file(body!, fit: BoxFit.contain)
+                    ? Image.file(body, fit: BoxFit.contain)
                     : const Center(
-                        child: Icon(Icons.person_rounded, size: 72, color: AppColors.primary),
+                        child: Icon(
+                          Icons.person_rounded,
+                          size: 72,
+                          color: AppColors.primary,
+                        ),
                       ),
           ),
           if (_loadingAvatar)
@@ -129,7 +126,11 @@ class _TibVirtualModelPreviewState extends State<TibVirtualModelPreview> {
                 decoration: const BoxDecoration(shape: BoxShape.circle),
                 child: face != null && face.existsSync()
                     ? Image.file(face, fit: BoxFit.cover)
-                    : const Icon(Icons.person_rounded, color: AppColors.primary, size: 28),
+                    : const Icon(
+                        Icons.person_rounded,
+                        color: AppColors.primary,
+                        size: 28,
+                      ),
               ),
             ),
           ),
@@ -140,13 +141,17 @@ class _TibVirtualModelPreviewState extends State<TibVirtualModelPreview> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 _pill(
-                  icon: _hasPersonal3D ? Icons.threesixty_rounded : Icons.photo_camera_front_rounded,
+                  icon: _hasPersonal3D
+                      ? Icons.threesixty_rounded
+                      : Icons.photo_camera_front_rounded,
                   label: _hasPersonal3D ? 'MY 3D' : 'MY BODY',
                 ),
                 if (_hasPersonal3D) ...[
                   const SizedBox(width: 7),
                   _iconButton(
-                    icon: _autoRotate ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                    icon: _autoRotate
+                        ? Icons.pause_rounded
+                        : Icons.play_arrow_rounded,
                     tooltip: _autoRotate ? 'Pause rotation' : 'Auto rotate',
                     onPressed: () => setState(() => _autoRotate = !_autoRotate),
                   ),
@@ -168,7 +173,9 @@ class _TibVirtualModelPreviewState extends State<TibVirtualModelPreview> {
               child: Row(
                 children: [
                   Icon(
-                    _hasPersonal3D ? Icons.swipe_rounded : Icons.accessibility_new_rounded,
+                    _hasPersonal3D
+                        ? Icons.swipe_rounded
+                        : Icons.accessibility_new_rounded,
                     size: 18,
                     color: AppColors.primary,
                   ),
@@ -242,7 +249,10 @@ class _TibVirtualModelPreviewState extends State<TibVirtualModelPreview> {
         children: [
           Icon(icon, size: 14, color: AppColors.primaryDark),
           const SizedBox(width: 5),
-          Text(label, style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900)),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900),
+          ),
         ],
       ),
     );
