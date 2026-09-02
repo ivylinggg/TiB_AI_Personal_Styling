@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../main/main_screen.dart';
@@ -22,6 +24,52 @@ enum AdminMode { administrator, consultantPreview, customerPreview }
 class _AdminMainScreenState extends State<AdminMainScreen> {
   int _selectedIndex = 0;
   AdminMode _mode = AdminMode.administrator;
+  bool _isCheckingAccess = true;
+  bool _hasAdminAccess = false;
+  String? _accessError;
+
+  @override
+  void initState() {
+    super.initState();
+    _verifyAdministratorAccess();
+  }
+
+  Future<void> _verifyAdministratorAccess() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        if (!mounted) return;
+        setState(() {
+          _isCheckingAccess = false;
+          _hasAdminAccess = false;
+          _accessError = 'Your session has expired. Please sign in again.';
+        });
+        return;
+      }
+
+      final document = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      final data = document.data();
+      final role = (data?['role'] as String? ?? '').trim().toLowerCase();
+      final isActive = data?['isActive'] as bool? ?? true;
+      final isAdmin = role == 'admin';
+
+      if (!mounted) return;
+      setState(() {
+        _isCheckingAccess = false;
+        _hasAdminAccess = isAdmin && isActive;
+        _accessError = !isAdmin
+            ? 'Administrator access is required for this dashboard.'
+            : (!isActive ? 'This administrator account is inactive.' : null);
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _isCheckingAccess = false;
+        _hasAdminAccess = false;
+        _accessError = 'We could not verify administrator access. Please try again.';
+      });
+    }
+  }
 
   String get _modeLabel {
     switch (_mode) {
@@ -188,8 +236,52 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
     setState(() => _selectedIndex = index);
   }
 
+  Widget _buildAccessDenied() {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Administrator Access')),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.lock_outline_rounded, size: 64),
+              const SizedBox(height: 18),
+              const Text(
+                'Access Restricted',
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _accessError ?? 'Administrator access is required.',
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 18),
+              FilledButton.icon(
+                onPressed: _verifyAdministratorAccess,
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Check Again'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (_isCheckingAccess) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (!_hasAdminAccess) {
+      return _buildAccessDenied();
+    }
+
     final pages = _pages;
     final destinations = _destinations;
     final safeIndex = _selectedIndex < pages.length ? _selectedIndex : 0;
