@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../main/main_screen.dart';
 import 'admin_dashboard_screen.dart';
 import 'admin_profile_screen.dart';
 import 'analysis_management_screen.dart';
@@ -39,7 +40,7 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
       case AdminMode.consultantPreview:
         return 'Respond to live customer consultations';
       case AdminMode.customerPreview:
-        return 'Preview the customer Talk to TiB experience';
+        return 'Preview the complete customer dashboard';
     }
   }
 
@@ -76,7 +77,7 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
                 contentPadding: EdgeInsets.zero,
                 title: Text('Switch Role Dashboard'),
                 subtitle: Text(
-                  'Only administrators can preview another role. Your real Firebase role is unchanged.',
+                  'Preview another role without changing your real Firebase role.',
                 ),
               ),
               _ModeTile(
@@ -135,7 +136,7 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
         ];
       case AdminMode.customerPreview:
         return [
-          const _CustomerPreviewPlaceholder(),
+          const MainScreen(adminPreview: true),
           const AdminProfileScreen(),
         ];
     }
@@ -145,84 +146,33 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
     switch (_mode) {
       case AdminMode.administrator:
         return const [
-          NavigationDestination(
-            icon: Icon(Icons.dashboard_outlined),
-            selectedIcon: Icon(Icons.dashboard),
-            label: 'Dashboard',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.people_outline),
-            selectedIcon: Icon(Icons.people),
-            label: 'Users',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.analytics_outlined),
-            selectedIcon: Icon(Icons.analytics),
-            label: 'Analysis',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.library_books_outlined),
-            selectedIcon: Icon(Icons.library_books),
-            label: 'Content',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.workspace_premium_outlined),
-            selectedIcon: Icon(Icons.workspace_premium),
-            label: 'Premium',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.admin_panel_settings_outlined),
-            selectedIcon: Icon(Icons.admin_panel_settings),
-            label: 'Admin',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.support_agent_outlined),
-            selectedIcon: Icon(Icons.support_agent),
-            label: 'Consult',
-          ),
+          NavigationDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard), label: 'Dashboard'),
+          NavigationDestination(icon: Icon(Icons.people_outline), selectedIcon: Icon(Icons.people), label: 'Users'),
+          NavigationDestination(icon: Icon(Icons.analytics_outlined), selectedIcon: Icon(Icons.analytics), label: 'Analysis'),
+          NavigationDestination(icon: Icon(Icons.library_books_outlined), selectedIcon: Icon(Icons.library_books), label: 'Content'),
+          NavigationDestination(icon: Icon(Icons.workspace_premium_outlined), selectedIcon: Icon(Icons.workspace_premium), label: 'Premium'),
+          NavigationDestination(icon: Icon(Icons.admin_panel_settings_outlined), selectedIcon: Icon(Icons.admin_panel_settings), label: 'Admin'),
+          NavigationDestination(icon: Icon(Icons.support_agent_outlined), selectedIcon: Icon(Icons.support_agent), label: 'Consult'),
         ];
       case AdminMode.consultantPreview:
         return const [
-          NavigationDestination(
-            icon: Icon(Icons.support_agent_outlined),
-            selectedIcon: Icon(Icons.support_agent),
-            label: 'Live Consultancy',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.admin_panel_settings_outlined),
-            selectedIcon: Icon(Icons.admin_panel_settings),
-            label: 'Admin',
-          ),
+          NavigationDestination(icon: Icon(Icons.support_agent_outlined), selectedIcon: Icon(Icons.support_agent), label: 'Live Consultancy'),
+          NavigationDestination(icon: Icon(Icons.admin_panel_settings_outlined), selectedIcon: Icon(Icons.admin_panel_settings), label: 'Admin'),
         ];
       case AdminMode.customerPreview:
         return const [
-          NavigationDestination(
-            icon: Icon(Icons.person_outline_rounded),
-            selectedIcon: Icon(Icons.person_rounded),
-            label: 'Preview',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.admin_panel_settings_outlined),
-            selectedIcon: Icon(Icons.admin_panel_settings),
-            label: 'Admin',
-          ),
+          NavigationDestination(icon: Icon(Icons.person_outline_rounded), selectedIcon: Icon(Icons.person_rounded), label: 'Customer'),
+          NavigationDestination(icon: Icon(Icons.admin_panel_settings_outlined), selectedIcon: Icon(Icons.admin_panel_settings), label: 'Admin'),
         ];
     }
   }
 
   void _navigateTo(int index) {
     if (index < 0) return;
-
-    if (_mode == AdminMode.consultantPreview && index == 1) {
+    if ((_mode == AdminMode.consultantPreview || _mode == AdminMode.customerPreview) && index == 1) {
       _setMode(AdminMode.administrator);
       return;
     }
-
-    if (_mode == AdminMode.customerPreview && index == 1) {
-      _setMode(AdminMode.administrator);
-      return;
-    }
-
     if (index >= _pages.length) return;
     setState(() => _selectedIndex = index);
   }
@@ -248,10 +198,7 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    _modeLabel,
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
-                  ),
+                  Text(_modeLabel, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
                   Text(
                     _modeDescription,
                     maxLines: 1,
@@ -307,27 +254,8 @@ class _ModeTile extends StatelessWidget {
         leading: CircleAvatar(child: Icon(icon)),
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
         subtitle: Text(subtitle),
-        trailing: selected
-            ? const Icon(Icons.check_circle_rounded)
-            : const Icon(Icons.chevron_right_rounded),
+        trailing: selected ? const Icon(Icons.check_circle_rounded) : const Icon(Icons.chevron_right_rounded),
         onTap: onTap,
-      ),
-    );
-  }
-}
-
-class _CustomerPreviewPlaceholder extends StatelessWidget {
-  const _CustomerPreviewPlaceholder();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(
-      child: Padding(
-        padding: EdgeInsets.all(24),
-        child: Text(
-          'Customer Preview\n\nUse the switch menu to open the complete customer dashboard.',
-          textAlign: TextAlign.center,
-        ),
       ),
     );
   }
