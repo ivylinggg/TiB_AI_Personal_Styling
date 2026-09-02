@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
+import 'staff_create_screen.dart';
 import 'staff_detail_screen.dart';
 
 class StaffManagementScreen extends StatefulWidget {
@@ -97,6 +98,15 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
   }
 
   int get _activeCount => _staff.where((doc) => doc.data()['isActive'] as bool? ?? true).length;
+  int get _groomedCount => _staff.where((doc) => doc.data()['groomingCompleted'] as bool? ?? false).length;
+
+  Future<void> _openCreateStaff() async {
+    final created = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => const StaffCreateScreen()),
+    );
+    if (created == true && mounted) await _loadStaff();
+  }
 
   Future<void> _toggleActive(QueryDocumentSnapshot<Map<String, dynamic>> doc) async {
     final data = doc.data();
@@ -209,11 +219,7 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
                     value: groomingCompleted,
                     onChanged: (value) => setDialogState(() => groomingCompleted = value),
                   ),
-                  _dialogField(
-                    score,
-                    'Grooming Score',
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  ),
+                  _dialogField(score, 'Grooming Score', keyboardType: const TextInputType.numberWithOptions(decimal: true)),
                   _dialogField(notes, 'Grooming Result / Notes', maxLines: 4),
                 ],
               ),
@@ -226,6 +232,17 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
         ),
       ),
     );
+
+    if (result != true) {
+      name.dispose();
+      staffId.dispose();
+      email.dispose();
+      trainer.dispose();
+      photo.dispose();
+      score.dispose();
+      notes.dispose();
+      return;
+    }
 
     final staffIdValue = staffId.text.trim();
     final nameValue = name.text.trim();
@@ -242,12 +259,22 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
     photo.dispose();
     score.dispose();
     notes.dispose();
-    if (result != true) return;
 
-    if (staffIdValue.isEmpty || nameValue.isEmpty || emailValue.isEmpty) return;
+    if (staffIdValue.isEmpty || nameValue.isEmpty || emailValue.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Staff ID, name and email are required.')),
+        );
+      }
+      return;
+    }
+
     setState(() => _saving = true);
     try {
       final scoreValue = double.tryParse(scoreText);
+      if (scoreText.isNotEmpty && scoreValue == null) {
+        throw const FormatException('Invalid grooming score');
+      }
       final oldCompleted = data['groomingCompleted'] as bool? ?? false;
       await doc.reference.set({
         'staffId': staffIdValue,
@@ -257,7 +284,7 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
         'photoUrl': photoValue,
         'role': role,
         'groomingCompleted': groomingCompleted,
-        'groomingScore': scoreValue ?? (scoreText.isEmpty ? null : scoreText),
+        'groomingScore': scoreValue,
         'groomingNotes': notesValue,
         'registeredAt': data['registeredAt'] ?? data['createdAt'] ?? FieldValue.serverTimestamp(),
         'groomingCompletedAt': groomingCompleted
@@ -269,25 +296,19 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
       }, SetOptions(merge: true));
       await _loadStaff();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Staff profile updated successfully.')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Staff profile updated successfully.')));
+    } on FormatException {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Grooming score must be a valid number.')));
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not save the staff profile.')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not save the staff profile.')));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
   }
 
-  Widget _dialogField(
-    TextEditingController controller,
-    String label, {
-    TextInputType? keyboardType,
-    int maxLines = 1,
-  }) {
+  Widget _dialogField(TextEditingController controller, String label, {TextInputType? keyboardType, int maxLines = 1}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: TextField(
@@ -356,9 +377,7 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
                 radius: 30,
                 backgroundColor: AppColors.secondary,
                 backgroundImage: photo.isNotEmpty ? NetworkImage(photo) : null,
-                child: photo.isEmpty
-                    ? const Icon(Icons.person_outline_rounded, color: AppColors.primary, size: 28)
-                    : null,
+                child: photo.isEmpty ? const Icon(Icons.person_outline_rounded, color: AppColors.primary, size: 28) : null,
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -419,6 +438,13 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('Staff Management'),
+        actions: [
+          IconButton(tooltip: 'Refresh', onPressed: _loading ? null : _loadStaff, icon: const Icon(Icons.refresh_rounded)),
+          IconButton(tooltip: 'Register Staff', onPressed: _saving ? null : _openCreateStaff, icon: const Icon(Icons.person_add_alt_1_rounded)),
+        ],
+      ),
       body: RefreshIndicator(
         onRefresh: _loadStaff,
         child: _loading
@@ -427,16 +453,12 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.fromLTRB(16, 18, 16, 30),
                 children: [
-                  const Text('Staff Management', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900)),
-                  const SizedBox(height: 5),
-                  Text('Manage staff profiles, training and grooming records.', style: TextStyle(color: AppColors.textSecondary)),
-                  const SizedBox(height: 18),
                   Row(children: [
                     _stat('Total', '${_staff.length}', Icons.groups_rounded),
                     const SizedBox(width: 8),
                     _stat('Active', '$_activeCount', Icons.verified_user_outlined),
                     const SizedBox(width: 8),
-                    _stat('Groomed', '${_staff.where((d) => d.data()['groomingCompleted'] as bool? ?? false).length}', Icons.check_circle_outline_rounded),
+                    _stat('Groomed', '$_groomedCount', Icons.check_circle_outline_rounded),
                   ]),
                   const SizedBox(height: 14),
                   TextField(
@@ -473,7 +495,7 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
                           const SizedBox(height: 12),
                           const Text('No staff found', style: TextStyle(fontWeight: FontWeight.w800)),
                           const SizedBox(height: 5),
-                          Text('Try another search or filter.', style: TextStyle(color: AppColors.textSecondary)),
+                          Text('Use Register Staff to add the first staff record.', style: TextStyle(color: AppColors.textSecondary)),
                         ],
                       ),
                     )
@@ -481,6 +503,11 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
                     ..._filtered.map(_card),
                 ],
               ),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _saving ? null : _openCreateStaff,
+        icon: const Icon(Icons.person_add_alt_1_rounded),
+        label: const Text('Register Staff'),
       ),
     );
   }
