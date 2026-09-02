@@ -35,15 +35,21 @@ class _PremiumManagementScreenState extends State<PremiumManagementScreen> {
     final uid = (data['uid'] as String? ?? doc.id).toLowerCase();
     final premium = data['isPremium'] as bool? ?? false;
     final active = data['isActive'] as bool? ?? true;
+
     final searchMatch = query.isEmpty ||
         name.contains(query) ||
         email.contains(query) ||
         uid.contains(query);
-    final filterMatch = _filter == 'All' ||
-        (_filter == 'Premium' && premium) ||
-        (_filter == 'Free' && !premium);
-    if (!searchMatch || !filterMatch) return false;
-    return active || _filter == 'Inactive';
+
+    final filterMatch = switch (_filter) {
+      'Premium' => premium,
+      'Free' => !premium,
+      'Active' => active,
+      'Inactive' => !active,
+      _ => true,
+    };
+
+    return searchMatch && filterMatch;
   }
 
   String _formatDate(dynamic value) {
@@ -195,6 +201,7 @@ class _PremiumManagementScreenState extends State<PremiumManagementScreen> {
           final premiumCount = all.where((d) => d.data()['isPremium'] as bool? ?? false).length;
           final freeCount = all.length - premiumCount;
           final activeCount = all.where((d) => d.data()['isActive'] as bool? ?? true).length;
+          final inactiveCount = all.length - activeCount;
           final visible = all.where(_matches).toList();
 
           return Column(
@@ -208,6 +215,8 @@ class _PremiumManagementScreenState extends State<PremiumManagementScreen> {
                     Expanded(child: _stat('Free', freeCount, Icons.person_outline)),
                     const SizedBox(width: 10),
                     Expanded(child: _stat('Active', activeCount, Icons.check_circle_outline)),
+                    const SizedBox(width: 10),
+                    Expanded(child: _stat('Inactive', inactiveCount, Icons.person_off_outlined)),
                   ],
                 ),
               ),
@@ -243,7 +252,7 @@ class _PremiumManagementScreenState extends State<PremiumManagementScreen> {
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
                 child: Row(
-                  children: ['All', 'Premium', 'Free'].map((value) => Padding(
+                  children: ['All', 'Premium', 'Free', 'Active', 'Inactive'].map((value) => Padding(
                     padding: const EdgeInsets.only(right: 8),
                     child: ChoiceChip(
                       label: Text(value),
