@@ -21,6 +21,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   int activeUsers = 0;
   int inactiveUsers = 0;
   int premiumUsers = 0;
+  int totalStaff = 0;
+  int activeStaff = 0;
   int totalAnalyses = 0;
   int publishedContent = 0;
   int waitingConsultations = 0;
@@ -94,11 +96,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     var activeUserCount = 0;
     var inactiveUserCount = 0;
     var premiumUserCount = 0;
+    var staffCount = 0;
+    var activeStaffCount = 0;
 
     for (final document in userDocs) {
       final data = document.data();
       final isActive = data['isActive'] as bool? ?? true;
       final isPremium = data['isPremium'] as bool? ?? false;
+      final role = (data['role'] as String? ?? 'customer').toLowerCase();
+      final isStaff = role == 'consultant' || role == 'staff';
 
       if (isActive) {
         activeUserCount++;
@@ -107,6 +113,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       }
       if (isPremium) {
         premiumUserCount++;
+      }
+      if (isStaff) {
+        staffCount++;
+        if (isActive) activeStaffCount++;
       }
     }
 
@@ -163,6 +173,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       activeUsers = activeUserCount;
       inactiveUsers = inactiveUserCount;
       premiumUsers = premiumUserCount;
+      totalStaff = staffCount;
+      activeStaff = activeStaffCount;
       totalAnalyses = analysisDocs.length;
       publishedContent = publishedCount;
       waitingConsultations = waitingCount;
@@ -359,10 +371,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         _buildStatCard('Active Users', activeUsers, Icons.person_outline, () => _goTo(1)),
         _buildStatCard('Premium Users', premiumUsers, Icons.workspace_premium_outlined, () => _goTo(4)),
         _buildStatCard('Total Analyses', totalAnalyses, Icons.analytics_outlined, () => _goTo(2)),
+        _buildStatCard('Staff', totalStaff, Icons.badge_outlined, () => _goTo(5)),
+        _buildStatCard('Active Staff', activeStaff, Icons.support_agent_outlined, () => _goTo(5)),
         _buildStatCard('Published Content', publishedContent, Icons.library_books_outlined, () => _goTo(3)),
-        _buildStatCard('Waiting Consults', waitingConsultations, Icons.mark_chat_unread_outlined, () => _goTo(6)),
-        _buildStatCard('Resolved Consults', resolvedConsultations, Icons.check_circle_outline, () => _goTo(6)),
-        _buildStatCard('Online Consultants', onlineConsultants, Icons.support_agent_outlined, () => _goTo(6)),
+        _buildStatCard('Waiting Consults', waitingConsultations, Icons.mark_chat_unread_outlined, () => _goTo(7)),
+        _buildStatCard('Resolved Consults', resolvedConsultations, Icons.check_circle_outline, () => _goTo(7)),
+        _buildStatCard('Online Consultants', onlineConsultants, Icons.wifi_tethering_rounded, () => _goTo(7)),
       ],
     );
   }
@@ -439,7 +453,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   ),
                 ),
                 TextButton(
-                  onPressed: () => _goTo(6),
+                  onPressed: () => _goTo(7),
                   child: const Text('Open'),
                 ),
               ],
@@ -485,90 +499,66 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             _buildActionChip(Icons.analytics_outlined, 'View Analysis', () => _goTo(2)),
             _buildActionChip(Icons.library_books_outlined, 'Manage Content', () => _goTo(3)),
             _buildActionChip(Icons.workspace_premium_outlined, 'Premium', () => _goTo(4)),
-            _buildActionChip(Icons.support_agent_outlined, 'Consultations', () => _goTo(6)),
-            _buildActionChip(Icons.admin_panel_settings_outlined, 'Admin Profile', () => _goTo(5)),
+            _buildActionChip(Icons.badge_outlined, 'Staff Management', () => _goTo(5)),
+            _buildActionChip(Icons.support_agent_outlined, 'Consultations', () => _goTo(7)),
+            _buildActionChip(Icons.admin_panel_settings_outlined, 'Admin Profile', () => _goTo(6)),
           ],
         ),
       ],
     );
   }
 
-  Widget _buildActionChip(IconData icon, String label, VoidCallback onTap) {
+  Widget _buildActionChip(IconData icon, String label, VoidCallback onPressed) {
     return ActionChip(
       avatar: Icon(icon, size: 18),
       label: Text(label),
-      onPressed: onTap,
-    );
-  }
-
-  Widget _buildSectionTitle(String title, String subtitle) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 5),
-        Text(subtitle, style: TextStyle(color: AppColors.textSecondary)),
-      ],
+      onPressed: onPressed,
     );
   }
 
   Widget _buildSeasonOverview() {
-    return Column(
-      children: [
-        _buildSeasonRow('Spring', springAnalyses, Icons.local_florist_outlined),
-        const SizedBox(height: 10),
-        _buildSeasonRow('Summer', summerAnalyses, Icons.wb_sunny_outlined),
-        const SizedBox(height: 10),
-        _buildSeasonRow('Autumn', autumnAnalyses, Icons.eco_outlined),
-        const SizedBox(height: 10),
-        _buildSeasonRow('Winter', winterAnalyses, Icons.ac_unit_outlined),
-      ],
-    );
-  }
-
-  Widget _buildSeasonRow(String season, int count, IconData icon) {
-    final percentage = totalAnalyses == 0 ? 0.0 : (count / totalAnalyses).clamp(0.0, 1.0);
+    final total = springAnalyses + summerAnalyses + autumnAnalyses + winterAnalyses;
+    final items = [
+      ('Spring', springAnalyses, Icons.local_florist_outlined),
+      ('Summer', summerAnalyses, Icons.wb_sunny_outlined),
+      ('Autumn', autumnAnalyses, Icons.eco_outlined),
+      ('Winter', winterAnalyses, Icons.ac_unit_outlined),
+    ];
 
     return Card(
       elevation: 0,
       margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
         side: const BorderSide(color: AppColors.border),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
+        padding: const EdgeInsets.all(18),
+        child: Column(
           children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: AppColors.surfaceMuted,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, color: AppColors.primary),
+            Row(
+              children: [
+                const Expanded(child: Text('Season distribution', style: TextStyle(fontWeight: FontWeight.bold))),
+                Text('$total analysed', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+              ],
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Text(season, style: const TextStyle(fontWeight: FontWeight.w600)),
-                      const Spacer(),
-                      Text('$count', style: const TextStyle(fontWeight: FontWeight.bold)),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: LinearProgressIndicator(value: percentage, minHeight: 7),
-                  ),
-                ],
-              ),
-            ),
+            const SizedBox(height: 14),
+            ...items.map((item) {
+              final ratio = total == 0 ? 0.0 : item.$2 / total;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Row(
+                  children: [
+                    Icon(item.$3, size: 18, color: AppColors.primary),
+                    const SizedBox(width: 10),
+                    SizedBox(width: 58, child: Text(item.$1, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700))),
+                    Expanded(child: ClipRRect(borderRadius: BorderRadius.circular(10), child: LinearProgressIndicator(value: ratio, minHeight: 9))),
+                    const SizedBox(width: 10),
+                    SizedBox(width: 28, child: Text('${item.$2}', textAlign: TextAlign.right, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
+                  ],
+                ),
+              );
+            }),
           ],
         ),
       ),
@@ -576,210 +566,122 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   Widget _buildRecentAnalyses() {
-    if (recentAnalyses.isEmpty) return _buildEmptyCard('No analysis records available.');
-
-    return Column(
-      children: recentAnalyses.map((document) {
-        final data = document.data();
-        final season = data['season'] as String? ?? 'Unknown';
-        final undertone = data['undertone'] as String? ?? 'Unknown';
-        final createdAt = _readDate(data['createdAt']);
-
-        return Card(
-          elevation: 0,
-          margin: const EdgeInsets.only(bottom: 10),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: const BorderSide(color: AppColors.border),
-          ),
-          child: ListTile(
-            onTap: () => _goTo(2),
-            leading: const CircleAvatar(
-              backgroundColor: AppColors.secondary,
-              child: Icon(Icons.analytics_outlined, color: AppColors.primary),
-            ),
-            title: Text(season, style: const TextStyle(fontWeight: FontWeight.w600)),
-            subtitle: Text(undertone),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(createdAt == null ? '--' : _formatDate(createdAt), style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-                const SizedBox(width: 8),
-                const Icon(Icons.chevron_right, size: 18),
-              ],
-            ),
-          ),
-        );
-      }).toList(),
-    );
+    if (recentAnalyses.isEmpty) return _buildEmptyCard('No analysis records yet.');
+    return Column(children: recentAnalyses.map((document) {
+      final data = document.data();
+      final season = data['season'] as String? ?? 'Unknown';
+      final createdAt = _readDate(data['createdAt']);
+      final uid = document.reference.parent.parent?.id ?? 'Unknown user';
+      return Card(
+        elevation: 0,
+        margin: const EdgeInsets.only(bottom: 8),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15), side: const BorderSide(color: AppColors.border)),
+        child: ListTile(
+          leading: const CircleAvatar(child: Icon(Icons.analytics_outlined, size: 18)),
+          title: Text(season, style: const TextStyle(fontWeight: FontWeight.w800)),
+          subtitle: Text('Customer: ${uid.length > 16 ? '${uid.substring(0, 16)}…' : uid}'),
+          trailing: Text(createdAt == null ? '—' : _formatShortDate(createdAt), style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+        ),
+      );
+    }).toList());
   }
 
   Widget _buildRecentConsultations() {
-    if (recentConsultations.isEmpty) return _buildEmptyCard('No consultation records available.');
-
-    return Column(
-      children: recentConsultations.map((document) {
-        final data = document.data();
-        final name = data['userName'] as String? ?? data['customerName'] as String? ?? 'TiB User';
-        final status = data['status'] as String? ?? 'open';
-        final lastMessage = data['lastMessage'] as String? ?? data['lastMessageText'] as String? ?? 'No message yet';
-        final assigned = data['assignedConsultantName'] as String?;
-        final subtitle = assigned == null || assigned.isEmpty ? lastMessage : '$lastMessage\nAssigned: $assigned';
-
-        return Card(
-          elevation: 0,
-          margin: const EdgeInsets.only(bottom: 10),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: const BorderSide(color: AppColors.border),
-          ),
-          child: ListTile(
-            onTap: () => _goTo(6),
-            leading: CircleAvatar(
-              backgroundColor: AppColors.secondary,
-              child: Icon(
-                status == 'resolved' || status == 'closed' ? Icons.check_circle_outline : Icons.support_agent_outlined,
-                color: AppColors.primary,
-              ),
-            ),
-            title: Text(name, style: const TextStyle(fontWeight: FontWeight.w600)),
-            subtitle: Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis),
-            isThreeLine: assigned != null && assigned.isNotEmpty,
-            trailing: _buildStatusPill(status),
-          ),
-        );
-      }).toList(),
-    );
-  }
-
-  Widget _buildStatusPill(String status) {
-    final label = status.replaceAll('_', ' ');
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceMuted,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700)),
-    );
-  }
-
-  Widget _buildEmptyCard(String message) {
-    return Card(
-      elevation: 0,
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Center(child: Text(message, style: TextStyle(color: AppColors.textSecondary))),
-      ),
-    );
+    if (recentConsultations.isEmpty) return _buildEmptyCard('No consultation records yet.');
+    return Column(children: recentConsultations.map((document) {
+      final data = document.data();
+      final status = (data['status'] as String? ?? 'open').replaceAll('_', ' ');
+      final userName = (data['userName'] ?? data['name'] ?? 'TiB User') as String;
+      final updatedAt = _readDate(data['updatedAt'] ?? data['createdAt']);
+      return Card(
+        elevation: 0,
+        margin: const EdgeInsets.only(bottom: 8),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15), side: const BorderSide(color: AppColors.border)),
+        child: ListTile(
+          leading: const CircleAvatar(child: Icon(Icons.support_agent_outlined, size: 18)),
+          title: Text(userName, style: const TextStyle(fontWeight: FontWeight.w800)),
+          subtitle: Text(status, style: const TextStyle(fontSize: 11)),
+          trailing: Text(updatedAt == null ? '—' : _formatShortDate(updatedAt), style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+        ),
+      );
+    }).toList());
   }
 
   Widget _buildManagementList() {
-    final items = <_ManagementItem>[
-      _ManagementItem(Icons.people_outline, 'User Management', 'View, search and manage registered users.', 1),
-      _ManagementItem(Icons.analytics_outlined, 'Analysis Management', 'Monitor colour analysis activity and results.', 2),
-      _ManagementItem(Icons.library_books_outlined, 'Content Management', 'Manage learning content and styling resources.', 3),
-      _ManagementItem(Icons.workspace_premium_outlined, 'Premium Management', 'Manage premium access for customers.', 4),
-      _ManagementItem(Icons.support_agent_outlined, 'Live Consultancy', 'Monitor and manage customer consultations.', 6),
-      _ManagementItem(Icons.admin_panel_settings_outlined, 'Admin Profile', 'Manage the administrator account and settings.', 5),
+    final items = [
+      ('Users', 'Customers, account status and profiles', Icons.people_outline, 1),
+      ('Analysis', 'Colour analysis history and results', Icons.analytics_outlined, 2),
+      ('Content', 'Published, draft and premium content', Icons.library_books_outlined, 3),
+      ('Premium', 'Premium account access and status', Icons.workspace_premium_outlined, 4),
+      ('Staff', 'Staff and consultant accounts', Icons.badge_outlined, 5),
+      ('Admin Profile', 'Administrator account information', Icons.admin_panel_settings_outlined, 6),
+      ('Consultations', 'Live customer conversations', Icons.support_agent_outlined, 7),
     ];
+    return Column(children: items.map((item) => Card(
+      elevation: 0,
+      margin: const EdgeInsets.only(bottom: 8),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15), side: const BorderSide(color: AppColors.border)),
+      child: ListTile(
+        leading: CircleAvatar(backgroundColor: AppColors.secondary, child: Icon(item.$3, color: AppColors.primary)),
+        title: Text(item.$1, style: const TextStyle(fontWeight: FontWeight.w800)),
+        subtitle: Text(item.$2, style: const TextStyle(fontSize: 11)),
+        trailing: const Icon(Icons.chevron_right_rounded),
+        onTap: () => _goTo(item.$4),
+      ),
+    )).toList());
+  }
 
-    return Column(
-      children: [
-        for (final item in items) ...[
-          _buildOverviewCard(item.icon, item.title, item.description, () => _goTo(item.index)),
-          if (item != items.last) const SizedBox(height: 10),
+  Widget _buildSystemStatus() {
+    return Card(
+      elevation: 0,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18), side: const BorderSide(color: AppColors.border)),
+      child: Column(
+        children: [
+          _statusRow('Firebase / Firestore', loadError == null ? 'Connected' : 'Partial data', loadError == null),
+          _statusRow('User Records', '$totalUsers loaded', true),
+          _statusRow('Analysis Records', '$totalAnalyses loaded', true),
+          _statusRow('Live Consultancy', '$onlineConsultants consultant${onlineConsultants == 1 ? '' : 's'} online', true),
+          if (lastLoadedAt != null) _statusRow('Last Refresh', _formatShortDate(lastLoadedAt!), true),
         ],
+      ),
+    );
+  }
+
+  Widget _statusRow(String label, String value, bool ok) {
+    return ListTile(
+      dense: true,
+      leading: Icon(ok ? Icons.check_circle_outline : Icons.warning_amber_rounded, color: ok ? AppColors.success : AppColors.warning, size: 20),
+      title: Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+      trailing: Text(value, style: TextStyle(fontSize: 10.5, color: AppColors.textSecondary)),
+    );
+  }
+
+  Widget _buildEmptyCard(String text) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(color: AppColors.surfaceMuted, borderRadius: BorderRadius.circular(16)),
+      child: Text(text, style: TextStyle(color: AppColors.textSecondary)),
+    );
+  }
+
+  Widget _buildSectionTitle(String title, String subtitle) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 4),
+        Text(subtitle, style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
       ],
     );
   }
 
-  Widget _buildOverviewCard(IconData icon, String title, String description, VoidCallback onTap) {
-    return Card(
-      elevation: 0,
-      margin: EdgeInsets.zero,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: AppColors.border),
-      ),
-      child: ListTile(
-        onTap: onTap,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-        leading: CircleAvatar(
-          backgroundColor: AppColors.secondary,
-          child: Icon(icon, color: AppColors.primary),
-        ),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: Padding(padding: const EdgeInsets.only(top: 4), child: Text(description)),
-        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-      ),
-    );
-  }
-
-  Widget _buildSystemStatus() {
-    final operational = loadError == null;
-    final color = operational ? AppColors.success : AppColors.warning;
-    final icon = operational ? Icons.check_circle : Icons.warning_amber_rounded;
-
-    return Card(
-      elevation: 0,
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Row(
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: color),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    operational ? 'System Operational' : 'Partial Data Available',
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    lastLoadedAt == null
-                        ? 'Firebase dashboard connection is being checked.'
-                        : 'Last updated ${_formatDateTime(lastLoadedAt!)}.',
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String _formatDate(DateTime date) {
-    final day = date.day.toString().padLeft(2, '0');
-    final month = date.month.toString().padLeft(2, '0');
-    return '$day/$month/${date.year}';
-  }
-
-  String _formatDateTime(DateTime date) {
+  String _formatShortDate(DateTime date) {
     final day = date.day.toString().padLeft(2, '0');
     final month = date.month.toString().padLeft(2, '0');
     final hour = date.hour.toString().padLeft(2, '0');
     final minute = date.minute.toString().padLeft(2, '0');
     return '$day/$month/${date.year} $hour:$minute';
   }
-}
-
-class _ManagementItem {
-  final IconData icon;
-  final String title;
-  final String description;
-  final int index;
-
-  const _ManagementItem(this.icon, this.title, this.description, this.index);
 }
