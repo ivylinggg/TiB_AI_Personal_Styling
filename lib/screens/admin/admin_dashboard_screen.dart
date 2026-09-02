@@ -220,6 +220,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     return '$day/$month/${date.year}';
   }
 
+  String _formatRefreshTime(DateTime date) {
+    final hour = date.hour.toString().padLeft(2, '0');
+    final minute = date.minute.toString().padLeft(2, '0');
+    return '${_formatShortDate(date)} $hour:$minute';
+  }
+
   void _goTo(int index) => widget.onNavigate?.call(index);
 
   @override
@@ -344,12 +350,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       children: [
         _buildStatCard('Total Users', totalUsers, Icons.people_outline, () => _goTo(1)),
         _buildStatCard('Active Users', activeUsers, Icons.person_outline, () => _goTo(1)),
+        _buildStatCard('Inactive Users', inactiveUsers, Icons.person_off_outlined, () => _goTo(1)),
         _buildStatCard('Premium Users', premiumUsers, Icons.workspace_premium_outlined, () => _goTo(4)),
         _buildStatCard('Total Analyses', totalAnalyses, Icons.analytics_outlined, () => _goTo(2)),
         _buildStatCard('Staff', totalStaff, Icons.badge_outlined, () => _goTo(7)),
         _buildStatCard('Active Staff', activeStaff, Icons.support_agent_outlined, () => _goTo(7)),
         _buildStatCard('Published Content', publishedContent, Icons.library_books_outlined, () => _goTo(3)),
         _buildStatCard('Waiting Consults', waitingConsultations, Icons.mark_chat_unread_outlined, () => _goTo(6)),
+        _buildStatCard('Active Consults', activeConsultations, Icons.forum_outlined, () => _goTo(6)),
         _buildStatCard('Resolved Consults', resolvedConsultations, Icons.check_circle_outline, () => _goTo(6)),
         _buildStatCard('Online Consultants', onlineConsultants, Icons.wifi_tethering_rounded, () => _goTo(6)),
       ],
@@ -595,7 +603,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             const Divider(height: 22),
             _statusRow('Live consultancy', onlineConsultants > 0 ? '$onlineConsultants online' : 'No consultants online', true),
             const Divider(height: 22),
-            _statusRow('Dashboard refresh', lastLoadedAt == null ? 'Not available' : _formatShortDate(lastLoadedAt!), true),
+            _statusRow('Dashboard refresh', lastLoadedAt == null ? 'Not available' : _formatRefreshTime(lastLoadedAt!), true),
           ],
         ),
       ),
@@ -632,20 +640,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       child: Padding(
         padding: const EdgeInsets.all(22),
         child: Center(child: Text(message, style: TextStyle(color: AppColors.textSecondary))),
-      ),
-    );
-  }
-
-  Widget _buildManagementSummaryChip(String label, int value) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-      decoration: BoxDecoration(
-        color: AppColors.secondary,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Text(
-        '$label $value',
-        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: AppColors.primary),
       ),
     );
   }
