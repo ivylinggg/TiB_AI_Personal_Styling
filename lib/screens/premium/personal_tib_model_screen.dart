@@ -9,11 +9,6 @@ import '../../widgets/tib_virtual_model_preview.dart';
 import 'ai_generated_try_on_screen.dart';
 import 'create_tib_model_screen.dart';
 
-/// Persistent representation of the user's real self inside TiB.
-///
-/// This screen is the identity layer for the AI fitting room. Existing
-/// onboarding, measurements, face scan, wardrobe and try-on flows remain
-/// separate; this screen simply brings their data together as one model.
 class PersonalTibModelScreen extends StatefulWidget {
   const PersonalTibModelScreen({super.key});
 
@@ -32,12 +27,20 @@ class _PersonalTibModelScreenState extends State<PersonalTibModelScreen> {
   }
 
   Future<void> _load() async {
-    final model = await TibModelService.load();
-    if (!mounted) return;
-    setState(() {
-      _model = model;
-      _loading = false;
-    });
+    try {
+      final model = await TibModelService.load();
+      if (!mounted) return;
+      setState(() {
+        _model = model;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _model = null;
+        _loading = false;
+      });
+    }
   }
 
   Future<void> _editModel() async {
@@ -46,6 +49,37 @@ class _PersonalTibModelScreenState extends State<PersonalTibModelScreen> {
       MaterialPageRoute(builder: (_) => const CreateTibModelScreen()),
     );
     if (changed == true) await _load();
+  }
+
+  Future<void> _removeModel() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Remove Personal TiB Model?'),
+        content: const Text(
+          'This removes your saved Personal TiB Model information. You can create it again later with new photos and measurements.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    await TibModelService.clear();
+    if (!mounted) return;
+    setState(() => _model = null);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Personal TiB Model removed.')),
+    );
   }
 
   void _openTryOn() {
@@ -61,43 +95,103 @@ class _PersonalTibModelScreenState extends State<PersonalTibModelScreen> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    final model = _model!;
-    final ready = model.isComplete;
+    final model = _model;
+    final ready = model?.isComplete == true;
 
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: AppColors.background,
         elevation: 0,
-        title: const Text('My TiB Model', style: TextStyle(fontWeight: FontWeight.w900)),
+        title: const Text(
+          'My TiB Model',
+          style: TextStyle(fontWeight: FontWeight.w900),
+        ),
         actions: [
-          TextButton.icon(
-            onPressed: _editModel,
-            icon: const Icon(Icons.edit_rounded, size: 17),
-            label: const Text('Edit'),
-          ),
+          if (model != null)
+            IconButton(
+              tooltip: 'Edit',
+              onPressed: _editModel,
+              icon: const Icon(Icons.edit_rounded),
+            ),
+          if (model != null)
+            IconButton(
+              tooltip: 'Remove',
+              onPressed: _removeModel,
+              icon: const Icon(Icons.delete_outline_rounded),
+            ),
           const SizedBox(width: 6),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 6, 18, 36),
-        children: [
-          _identityHero(model, ready),
-          const SizedBox(height: 14),
-          if (!ready) ...[
-            _setupCard(model),
-            const SizedBox(height: 14),
+      body: model == null
+          ? _emptyState()
+          : ListView(
+              padding: const EdgeInsets.fromLTRB(18, 6, 18, 36),
+              children: [
+                _identityHero(model, ready),
+                const SizedBox(height: 14),
+                if (!ready) ...[
+                  _setupCard(model),
+                  const SizedBox(height: 14),
+                ],
+                if (ready) ...[
+                  _bodyReferenceCard(model),
+                  const SizedBox(height: 14),
+                  _measurementCard(model),
+                  const SizedBox(height: 14),
+                  TibVirtualModelPreview(model: model, height: 440),
+                  const SizedBox(height: 14),
+                  _dressMeCard(),
+                ],
+              ],
+            ),
+    );
+  }
+
+  Widget _emptyState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 82,
+              height: 82,
+              decoration: const BoxDecoration(
+                color: AppColors.lavenderMist,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.person_add_alt_1_rounded,
+                size: 38,
+                color: AppColors.primary,
+              ),
+            ),
+            const SizedBox(height: 18),
+            const Text(
+              'No Personal TiB Model yet',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Create one with your face photo, full-body photo and measurements. You can remove it later and start again with new photos.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 12,
+                height: 1.45,
+              ),
+            ),
+            const SizedBox(height: 18),
+            FilledButton.icon(
+              onPressed: _editModel,
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Create My TiB Model'),
+            ),
           ],
-          if (ready) ...[
-            _bodyReferenceCard(model),
-            const SizedBox(height: 14),
-            _measurementCard(model),
-            const SizedBox(height: 14),
-            TibVirtualModelPreview(model: model, height: 440),
-            const SizedBox(height: 14),
-            _dressMeCard(),
-          ],
-        ],
+        ),
       ),
     );
   }
@@ -126,9 +220,18 @@ class _PersonalTibModelScreenState extends State<PersonalTibModelScreen> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _referenceTile(body, 'YOUR BODY', Icons.accessibility_new_rounded, large: true),
+              _referenceTile(
+                body,
+                'YOUR BODY',
+                Icons.accessibility_new_rounded,
+                large: true,
+              ),
               const SizedBox(width: 9),
-              _referenceTile(face, 'YOUR FACE', Icons.face_retouching_natural_rounded),
+              _referenceTile(
+                face,
+                'YOUR FACE',
+                Icons.face_retouching_natural_rounded,
+              ),
               const SizedBox(width: 13),
               Expanded(
                 child: Column(
@@ -136,14 +239,24 @@ class _PersonalTibModelScreenState extends State<PersonalTibModelScreen> {
                   children: [
                     Text(
                       ready ? 'This is you.' : 'This becomes you.',
-                      style: const TextStyle(fontSize: 26, height: .98, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -.7),
+                      style: const TextStyle(
+                        fontSize: 26,
+                        height: .98,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                        letterSpacing: -.7,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       ready
                           ? 'Your real face, body reference and measurements are now the foundation for every personal try-on.'
                           : 'TiB combines your real references into one reusable styling identity.',
-                      style: const TextStyle(fontSize: 10.5, height: 1.42, color: Colors.white70),
+                      style: const TextStyle(
+                        fontSize: 10.5,
+                        height: 1.42,
+                        color: Colors.white70,
+                      ),
                     ),
                   ],
                 ),
@@ -166,7 +279,12 @@ class _PersonalTibModelScreenState extends State<PersonalTibModelScreen> {
                 Expanded(
                   child: Text(
                     'TiB is not building a generic model. It is dressing your real-person reference.',
-                    style: TextStyle(color: Colors.white, fontSize: 9.5, height: 1.4, fontWeight: FontWeight.w700),
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 9.5,
+                      height: 1.4,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
               ],
@@ -192,11 +310,18 @@ class _PersonalTibModelScreenState extends State<PersonalTibModelScreen> {
               children: [
                 _factLine('Body shape', model.bodyShape),
                 _factLine('Height', _number(model.height, 'cm')),
-                _factLine('Fit profile', '${_number(model.bust)} / ${_number(model.waist)} / ${_number(model.hips)} cm'),
+                _factLine(
+                  'Fit profile',
+                  '${_number(model.bust)} / ${_number(model.waist)} / ${_number(model.hips)} cm',
+                ),
                 const SizedBox(height: 10),
                 const Text(
                   'The full-body reference anchors silhouette, scale and natural proportions. Measurements reinforce the fit rather than replacing the person.',
-                  style: TextStyle(color: AppColors.textSecondary, fontSize: 9.5, height: 1.42),
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 9.5,
+                    height: 1.42,
+                  ),
                 ),
               ],
             ),
@@ -226,10 +351,18 @@ class _PersonalTibModelScreenState extends State<PersonalTibModelScreen> {
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: AppColors.primarySoft.withValues(alpha: .45), borderRadius: BorderRadius.circular(13)),
+            decoration: BoxDecoration(
+              color: AppColors.primarySoft.withValues(alpha: .45),
+              borderRadius: BorderRadius.circular(13),
+            ),
             child: const Text(
               'These numbers are used as hard fit context: TiB should adapt clothing to your body, not change your body to fit the clothing.',
-              style: TextStyle(color: AppColors.primaryDark, fontSize: 9.5, height: 1.4, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                color: AppColors.primaryDark,
+                fontSize: 9.5,
+                height: 1.4,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],
@@ -240,7 +373,12 @@ class _PersonalTibModelScreenState extends State<PersonalTibModelScreen> {
   Widget _setupCard(TibModelProfile model) {
     final hasFace = model.facePath != null;
     final hasBody = model.bodyPath != null;
-    final hasMeasurements = model.weight > 0 && model.height > 0 && model.bust > 0 && model.waist > 0 && model.hips > 0;
+    final hasMeasurements =
+        model.weight > 0 &&
+        model.height > 0 &&
+        model.bust > 0 &&
+        model.waist > 0 &&
+        model.hips > 0;
 
     return _section(
       eyebrow: 'SETUP',
@@ -248,7 +386,14 @@ class _PersonalTibModelScreenState extends State<PersonalTibModelScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('TiB needs these three identity layers before realistic full-body try-on is enabled.', style: TextStyle(color: AppColors.textSecondary, fontSize: 10.5, height: 1.4)),
+          const Text(
+            'TiB needs these three identity layers before realistic full-body try-on is enabled.',
+            style: TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 10.5,
+              height: 1.4,
+            ),
+          ),
           const SizedBox(height: 13),
           _check('Face reference', hasFace),
           _check('Full-body reference', hasBody),
@@ -259,7 +404,11 @@ class _PersonalTibModelScreenState extends State<PersonalTibModelScreen> {
             child: FilledButton.icon(
               onPressed: _editModel,
               icon: const Icon(Icons.person_add_alt_1_rounded),
-              label: Text(hasFace || hasBody || hasMeasurements ? 'Complete My TiB Model' : 'Create My TiB Model'),
+              label: Text(
+                hasFace || hasBody || hasMeasurements
+                    ? 'Complete My TiB Model'
+                    : 'Create My TiB Model',
+              ),
             ),
           ),
         ],
@@ -275,18 +424,40 @@ class _PersonalTibModelScreenState extends State<PersonalTibModelScreen> {
         borderRadius: BorderRadius.circular(25),
         child: Ink(
           padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(gradient: AppGradients.soft, borderRadius: BorderRadius.circular(25), border: Border.all(color: AppColors.primarySoft)),
+          decoration: BoxDecoration(
+            gradient: AppGradients.soft,
+            borderRadius: BorderRadius.circular(25),
+            border: Border.all(color: AppColors.primarySoft),
+          ),
           child: Row(
             children: [
-              Container(width: 50, height: 50, decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle), child: const Icon(Icons.checkroom_rounded, color: Colors.white)),
+              Container(
+                width: 50,
+                height: 50,
+                decoration: const BoxDecoration(
+                  color: AppColors.primary,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.checkroom_rounded, color: Colors.white),
+              ),
               const SizedBox(width: 13),
               const Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Dress My TiB Model', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
+                    Text(
+                      'Dress My TiB Model',
+                      style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900),
+                    ),
                     SizedBox(height: 3),
-                    Text('Pick real pieces from My Wardrobe and see them on this same person.', style: TextStyle(color: AppColors.textSecondary, fontSize: 10.5, height: 1.35)),
+                    Text(
+                      'Pick real pieces from My Wardrobe and see them on this same person.',
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 10.5,
+                        height: 1.35,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -298,7 +469,12 @@ class _PersonalTibModelScreenState extends State<PersonalTibModelScreen> {
     );
   }
 
-  Widget _referenceTile(File? file, String label, IconData icon, {bool large = false}) {
+  Widget _referenceTile(
+    File? file,
+    String label,
+    IconData icon, {
+    bool large = false,
+  }) {
     return SizedBox(
       width: large ? 86 : 70,
       height: large ? 122 : 92,
@@ -307,8 +483,35 @@ class _PersonalTibModelScreenState extends State<PersonalTibModelScreen> {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            if (file != null && file.existsSync()) Image.file(file, fit: BoxFit.cover) else Container(color: Colors.white.withValues(alpha: .35), child: Icon(icon, color: AppColors.primary, size: 28)),
-            Positioned(left: 6, right: 6, bottom: 6, child: Container(padding: const EdgeInsets.symmetric(vertical: 4), decoration: BoxDecoration(color: Colors.black.withValues(alpha: .52), borderRadius: BorderRadius.circular(8)), child: Text(label, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 6.5, fontWeight: FontWeight.w900, letterSpacing: .6))),
+            if (file != null && file.existsSync())
+              Image.file(file, fit: BoxFit.cover)
+            else
+              Container(
+                color: Colors.white.withValues(alpha: .35),
+                child: Icon(icon, color: AppColors.primary, size: 28),
+              ),
+            Positioned(
+              left: 6,
+              right: 6,
+              bottom: 6,
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: .52),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 6.5,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: .6,
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -319,30 +522,86 @@ class _PersonalTibModelScreenState extends State<PersonalTibModelScreen> {
     return Container(
       width: 96,
       height: 142,
-      decoration: BoxDecoration(color: AppColors.surfaceMuted, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border)),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceMuted,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.border),
+      ),
       clipBehavior: Clip.antiAlias,
-      child: file != null && file.existsSync() ? Image.file(file, fit: BoxFit.cover) : const Icon(Icons.accessibility_new_rounded, color: AppColors.primary, size: 38),
+      child: file != null && file.existsSync()
+          ? Image.file(file, fit: BoxFit.cover)
+          : const Icon(
+              Icons.accessibility_new_rounded,
+              color: AppColors.primary,
+              size: 38,
+            ),
     );
   }
 
-  Widget _section({required String eyebrow, required String title, required Widget child}) {
+  Widget _section({
+    required String eyebrow,
+    required String title,
+    required Widget child,
+  }) {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(25), border: Border.all(color: AppColors.border)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(eyebrow, style: const TextStyle(fontSize: 8, letterSpacing: 1.15, fontWeight: FontWeight.w900, color: AppColors.textMuted)),
-        const SizedBox(height: 4),
-        Text(title, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900, letterSpacing: -.3)),
-        const SizedBox(height: 12),
-        child,
-      ]),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(25),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            eyebrow,
+            style: const TextStyle(
+              fontSize: 8,
+              letterSpacing: 1.15,
+              fontWeight: FontWeight.w900,
+              color: AppColors.textMuted,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 19,
+              fontWeight: FontWeight.w900,
+              letterSpacing: -.3,
+            ),
+          ),
+          const SizedBox(height: 12),
+          child,
+        ],
+      ),
     );
   }
 
   Widget _factLine(String label, String value) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      child: Row(children: [Expanded(child: Text(label, style: const TextStyle(fontSize: 10, color: AppColors.textSecondary))), Text(value, style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900, color: AppColors.primaryDark))]),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontSize: 10,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w900,
+              color: AppColors.primaryDark,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -351,8 +610,27 @@ class _PersonalTibModelScreenState extends State<PersonalTibModelScreen> {
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 3),
         padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 5),
-        decoration: BoxDecoration(color: AppColors.surfaceMuted, borderRadius: BorderRadius.circular(14)),
-        child: Column(children: [Text(label, style: const TextStyle(fontSize: 8, color: AppColors.textMuted, fontWeight: FontWeight.w700)), const SizedBox(height: 3), Text(value > 0 ? _number(value, unit) : '—', style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900))]),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceMuted,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Column(
+          children: [
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 8,
+                color: AppColors.textMuted,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              value > 0 ? _number(value, unit) : '—',
+              style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -360,21 +638,49 @@ class _PersonalTibModelScreenState extends State<PersonalTibModelScreen> {
   Widget _check(String label, bool complete) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 9),
-      child: Row(children: [Icon(complete ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded, size: 18, color: complete ? AppColors.primary : AppColors.textMuted), const SizedBox(width: 8), Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700))]),
+      child: Row(
+        children: [
+          Icon(
+            complete
+                ? Icons.check_circle_rounded
+                : Icons.radio_button_unchecked_rounded,
+            size: 18,
+            color: complete ? AppColors.primary : AppColors.textMuted,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+          ),
+        ],
+      ),
     );
   }
 
   Widget _pill(String text) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-      decoration: BoxDecoration(color: Colors.white.withValues(alpha: .78), borderRadius: BorderRadius.circular(20)),
-      child: Text(text, style: const TextStyle(color: AppColors.primaryDark, fontSize: 7, letterSpacing: .75, fontWeight: FontWeight.w900)),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: .78),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: AppColors.primaryDark,
+          fontSize: 7,
+          letterSpacing: .75,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
     );
   }
 
   String _number(double value, [String? unit]) {
     if (value <= 0) return '—';
-    final text = value == value.roundToDouble() ? value.toInt().toString() : value.toStringAsFixed(1);
+    final text = value == value.roundToDouble()
+        ? value.toInt().toString()
+        : value.toStringAsFixed(1);
     return unit == null ? text : '$text $unit';
   }
 }
