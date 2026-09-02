@@ -257,11 +257,17 @@ class FirestoreService {
 
   static Future<CustomerDeletionResult> deleteCustomerData(String uid) async {
     final userRef = _db.collection('users').doc(uid);
+    final consultationRef = _db.collection('consultations').doc(uid);
 
+    // Read every customer-owned collection that is currently stored under
+    // the user document, plus the top-level consultation document/messages.
     final userDoc = await userRef.get();
     final analysisSnapshot = await userRef.collection('analysis').get();
     final wardrobeSnapshot = await userRef.collection('wardrobe').get();
     final preferencesSnapshot = await userRef.collection('preferences').get();
+    final savedLooksSnapshot = await userRef.collection('savedLooks').get();
+    final consultationDoc = await consultationRef.get();
+    final messagesSnapshot = await consultationRef.collection('messages').get();
 
     final imageUrls = <String>[];
 
@@ -284,6 +290,9 @@ class FirestoreService {
       ...wardrobeSnapshot.docs.map((doc) => doc.reference),
       ...preferencesSnapshot.docs.map((doc) => doc.reference),
       ...analysisSnapshot.docs.map((doc) => doc.reference),
+      ...savedLooksSnapshot.docs.map((doc) => doc.reference),
+      ...messagesSnapshot.docs.map((doc) => doc.reference),
+      if (consultationDoc.exists) consultationRef,
       userRef,
     ];
 
