@@ -93,8 +93,6 @@ class _StaffCreateScreenState extends State<StaffCreateScreen> {
       Navigator.pop(context, true);
     } on FirebaseFunctionsException catch (error) {
       _message(_functionsError(error));
-    } on FirebaseException catch (error) {
-      _message(error.message ?? 'Could not create staff account.');
     } catch (_) {
       _message('Could not create staff account. Please try again.');
     } finally {
