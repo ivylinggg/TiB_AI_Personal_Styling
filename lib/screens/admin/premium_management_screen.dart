@@ -21,7 +21,10 @@ class _PremiumManagementScreenState extends State<PremiumManagementScreen> {
   }
 
   Stream<QuerySnapshot<Map<String, dynamic>>> _users() {
-    return FirebaseFirestore.instance.collection('users').orderBy('createdAt', descending: true).snapshots();
+    return FirebaseFirestore.instance
+        .collection('users')
+        .orderBy('createdAt', descending: true)
+        .snapshots();
   }
 
   bool _matches(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
@@ -29,10 +32,68 @@ class _PremiumManagementScreenState extends State<PremiumManagementScreen> {
     final query = _searchController.text.trim().toLowerCase();
     final name = (data['name'] as String? ?? '').toLowerCase();
     final email = (data['email'] as String? ?? '').toLowerCase();
+    final uid = (data['uid'] as String? ?? doc.id).toLowerCase();
     final premium = data['isPremium'] as bool? ?? false;
-    final searchMatch = query.isEmpty || name.contains(query) || email.contains(query);
-    final filterMatch = _filter == 'All' || (_filter == 'Premium' && premium) || (_filter == 'Free' && !premium);
-    return searchMatch && filterMatch;
+    final active = data['isActive'] as bool? ?? true;
+    final searchMatch = query.isEmpty ||
+        name.contains(query) ||
+        email.contains(query) ||
+        uid.contains(query);
+    final filterMatch = _filter == 'All' ||
+        (_filter == 'Premium' && premium) ||
+        (_filter == 'Free' && !premium);
+    if (!searchMatch || !filterMatch) return false;
+    return active || _filter == 'Inactive';
+  }
+
+  String _formatDate(dynamic value) {
+    DateTime? date;
+    if (value is Timestamp) date = value.toDate();
+    if (value is DateTime) date = value;
+    if (date == null) return 'No date';
+    final day = date.day.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    return '$day/$month/${date.year}';
+  }
+
+  Future<void> _showUserAccessDetails(
+    QueryDocumentSnapshot<Map<String, dynamic>> doc,
+  ) async {
+    final data = doc.data();
+    final name = data['name'] as String? ?? 'Unknown User';
+    final email = data['email'] as String? ?? 'No email';
+    final uid = data['uid'] as String? ?? doc.id;
+    final premium = data['isPremium'] as bool? ?? false;
+    final active = data['isActive'] as bool? ?? true;
+    final createdAt = _formatDate(data['createdAt']);
+    final updatedAt = _formatDate(data['updatedAt']);
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Premium Access Details'),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _detailRow('Name', name),
+              _detailRow('Email', email),
+              _detailRow('UID', uid),
+              _detailRow('Membership', premium ? 'Premium' : 'Free'),
+              _detailRow('Account Status', active ? 'Active' : 'Inactive'),
+              _detailRow('Created', createdAt),
+              _detailRow('Last Updated', updatedAt),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _togglePremium(
@@ -64,9 +125,7 @@ class _PremiumManagementScreenState extends State<PremiumManagementScreen> {
       ),
     );
 
-    if (confirmed != true) {
-      return;
-    }
+    if (confirmed != true) return;
 
     try {
       await doc.reference.update({
@@ -75,7 +134,9 @@ class _PremiumManagementScreenState extends State<PremiumManagementScreen> {
       });
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(!current ? 'Premium access granted.' : 'Premium access removed.')),
+        SnackBar(
+          content: Text(!current ? 'Premium access granted.' : 'Premium access removed.'),
+        ),
       );
     } catch (e) {
       if (!mounted) return;
@@ -111,18 +172,12 @@ class _PremiumManagementScreenState extends State<PremiumManagementScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(
-                      Icons.cloud_off_outlined,
-                      size: 44,
-                    ),
+                    const Icon(Icons.cloud_off_outlined, size: 44),
                     const SizedBox(height: 12),
                     const Text(
                       'We couldn’t load the premium list.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 16,
-                      ),
+                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
                     ),
                     const SizedBox(height: 6),
                     Text(
@@ -139,6 +194,7 @@ class _PremiumManagementScreenState extends State<PremiumManagementScreen> {
           final all = snapshot.data?.docs ?? const [];
           final premiumCount = all.where((d) => d.data()['isPremium'] as bool? ?? false).length;
           final freeCount = all.length - premiumCount;
+          final activeCount = all.where((d) => d.data()['isActive'] as bool? ?? true).length;
           final visible = all.where(_matches).toList();
 
           return Column(
@@ -151,18 +207,15 @@ class _PremiumManagementScreenState extends State<PremiumManagementScreen> {
                     const SizedBox(width: 10),
                     Expanded(child: _stat('Free', freeCount, Icons.person_outline)),
                     const SizedBox(width: 10),
-                    Expanded(child: _stat('Total', all.length, Icons.people_outline)),
+                    Expanded(child: _stat('Active', activeCount, Icons.check_circle_outline)),
                   ],
                 ),
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
                 child: Text(
-                  'Manage premium access for individual user accounts.',
-                  style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 13,
-                  ),
+                  'Manage premium access and review each customer’s membership record.',
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
                 ),
               ),
               Padding(
@@ -171,11 +224,17 @@ class _PremiumManagementScreenState extends State<PremiumManagementScreen> {
                   controller: _searchController,
                   onChanged: (_) => setState(() {}),
                   decoration: InputDecoration(
-                    hintText: 'Search name or email',
+                    hintText: 'Search name, email or UID',
                     prefixIcon: const Icon(Icons.search),
                     suffixIcon: _searchController.text.isEmpty
                         ? null
-                        : IconButton(onPressed: () { _searchController.clear(); setState(() {}); }, icon: const Icon(Icons.clear)),
+                        : IconButton(
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() {});
+                            },
+                            icon: const Icon(Icons.clear),
+                          ),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
                   ),
                 ),
@@ -186,7 +245,11 @@ class _PremiumManagementScreenState extends State<PremiumManagementScreen> {
                 child: Row(
                   children: ['All', 'Premium', 'Free'].map((value) => Padding(
                     padding: const EdgeInsets.only(right: 8),
-                    child: ChoiceChip(label: Text(value), selected: _filter == value, onSelected: (_) => setState(() => _filter = value)),
+                    child: ChoiceChip(
+                      label: Text(value),
+                      selected: _filter == value,
+                      onSelected: (_) => setState(() => _filter = value),
+                    ),
                   )).toList(),
                 ),
               ),
@@ -198,27 +261,17 @@ class _PremiumManagementScreenState extends State<PremiumManagementScreen> {
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(
-                                Icons.people_outline,
-                                size: 44,
-                              ),
+                              const Icon(Icons.people_outline, size: 44),
                               const SizedBox(height: 12),
                               const Text(
                                 'No users found',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 16,
-                                ),
+                                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
                               ),
                               const SizedBox(height: 6),
                               Text(
-                                _searchController.text.trim().isEmpty
-                                    ? 'There are no users in this filter yet.'
-                                    : 'Try a different name or email.',
+                                'Try another search or membership filter.',
                                 textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color: AppColors.textSecondary,
-                                ),
+                                style: TextStyle(color: AppColors.textSecondary),
                               ),
                             ],
                           ),
@@ -232,19 +285,37 @@ class _PremiumManagementScreenState extends State<PremiumManagementScreen> {
                           final doc = visible[index];
                           final data = doc.data();
                           final isPremium = data['isPremium'] as bool? ?? false;
+                          final isActive = data['isActive'] as bool? ?? true;
                           final name = data['name'] as String? ?? 'Unknown User';
                           final email = data['email'] as String? ?? 'No email';
+                          final updated = _formatDate(data['updatedAt']);
                           return Card(
                             elevation: 0,
                             child: ListTile(
                               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                               leading: CircleAvatar(
                                 backgroundColor: isPremium ? AppColors.secondary : AppColors.surfaceMuted,
-                                child: Icon(isPremium ? Icons.workspace_premium : Icons.person_outline, color: isPremium ? AppColors.primary : AppColors.textMuted),
+                                child: Icon(
+                                  isPremium ? Icons.workspace_premium : Icons.person_outline,
+                                  color: isPremium ? AppColors.primary : AppColors.textMuted,
+                                ),
                               ),
-                              title: Text(name, style: const TextStyle(fontWeight: FontWeight.w600)),
-                              subtitle: Text(email, maxLines: 1, overflow: TextOverflow.ellipsis),
-                              trailing: Switch(value: isPremium, onChanged: (_) => _togglePremium(doc)),
+                              title: Row(
+                                children: [
+                                  Expanded(child: Text(name, style: const TextStyle(fontWeight: FontWeight.w600))),
+                                  if (!isActive)
+                                    const Padding(
+                                      padding: EdgeInsets.only(left: 6),
+                                      child: Icon(Icons.block, size: 16),
+                                    ),
+                                ],
+                              ),
+                              subtitle: Text('$email\nUpdated: $updated', maxLines: 2, overflow: TextOverflow.ellipsis),
+                              onTap: () => _showUserAccessDetails(doc),
+                              trailing: Switch(
+                                value: isPremium,
+                                onChanged: isActive ? (_) => _togglePremium(doc) : null,
+                              ),
                             ),
                           );
                         },
@@ -257,10 +328,29 @@ class _PremiumManagementScreenState extends State<PremiumManagementScreen> {
     );
   }
 
+  Widget _detailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 105,
+            child: Text(label, style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+          ),
+          Expanded(child: Text(value, style: const TextStyle(fontWeight: FontWeight.w600))),
+        ],
+      ),
+    );
+  }
+
   Widget _stat(String title, int value, IconData icon) {
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(14)),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(14),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
