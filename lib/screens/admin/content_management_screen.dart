@@ -8,20 +8,20 @@ class ContentManagementScreen extends StatefulWidget {
   const ContentManagementScreen({super.key});
 
   @override
-  State<ContentManagementScreen> createState() =>
-      _ContentManagementScreenState();
+  State<ContentManagementScreen> createState() => _ContentManagementScreenState();
 }
 
 class _ContentManagementScreenState extends State<ContentManagementScreen> {
   final TextEditingController searchController = TextEditingController();
 
   List<QueryDocumentSnapshot<Map<String, dynamic>>> contents = [];
-
   List<QueryDocumentSnapshot<Map<String, dynamic>>> filteredContents = [];
 
   bool isLoading = true;
 
   String selectedType = 'All';
+  String selectedStatus = 'All';
+  bool featuredOnly = false;
 
   final List<String> contentTypes = const [
     'All',
@@ -31,12 +31,17 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
     'AI Styling',
   ];
 
+  final List<String> contentStatuses = const [
+    'All',
+    'Published',
+    'Draft',
+    'Premium',
+  ];
+
   @override
   void initState() {
     super.initState();
-
     loadContents();
-
     searchController.addListener(filterContents);
   }
 
@@ -47,105 +52,80 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
     super.dispose();
   }
 
-  // ============================================================
-  // LOAD CONTENT
-  // ============================================================
-
   Future<void> loadContents() async {
     try {
+      if (mounted) setState(() => isLoading = true);
+
       final snapshot = await FirebaseFirestore.instance
           .collection('content')
           .orderBy('createdAt', descending: true)
           .get();
 
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
 
       setState(() {
         contents = snapshot.docs;
-        filteredContents = snapshot.docs;
         isLoading = false;
       });
-
       filterContents();
-    } catch (e) {
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        isLoading = false;
-      });
-
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'We couldn’t load the content. Please try again.',
-          ),
-        ),
+        const SnackBar(content: Text('We couldn’t load the content. Please try again.')),
       );
     }
   }
 
-  // ============================================================
-  // FILTER CONTENT
-  // ============================================================
-
   void filterContents() {
+    if (!mounted) return;
     final query = searchController.text.trim().toLowerCase();
-
-    if (!mounted) {
-        return;
-      }
 
     setState(() {
       filteredContents = contents.where((document) {
         final data = document.data();
-
         final title = (data['title'] as String? ?? '').toLowerCase();
-
-        final description = (data['description'] as String? ?? '')
-            .toLowerCase();
-
+        final description = (data['description'] as String? ?? '').toLowerCase();
         final type = data['type'] as String? ?? 'Learning';
+        final isPublished = data['isPublished'] as bool? ?? false;
+        final isFeatured = data['isFeatured'] as bool? ?? false;
+        final isPremium = data['isPremium'] as bool? ?? false;
 
-        final matchesSearch =
-            query.isEmpty ||
+        final matchesSearch = query.isEmpty ||
             title.contains(query) ||
-            description.contains(query);
-
+            description.contains(query) ||
+            type.toLowerCase().contains(query);
         final matchesType = selectedType == 'All' || type == selectedType;
 
-        return matchesSearch && matchesType;
+        bool matchesStatus = true;
+        switch (selectedStatus) {
+          case 'Published':
+            matchesStatus = isPublished;
+            break;
+          case 'Draft':
+            matchesStatus = !isPublished;
+            break;
+          case 'Premium':
+            matchesStatus = isPremium;
+            break;
+        }
+
+        final matchesFeatured = !featuredOnly || isFeatured;
+        return matchesSearch && matchesType && matchesStatus && matchesFeatured;
       }).toList();
     });
   }
-
-  // ============================================================
-  // CREATE CONTENT
-  // ============================================================
 
   Future<void> createContent() async {
     final result = await showDialog<bool>(
       context: context,
       builder: (_) => const _ContentFormDialog(),
     );
-
-    if (result == true) {
-      await loadContents();
-    }
+    if (result == true) await loadContents();
   }
 
-  // ============================================================
-  // EDIT CONTENT
-  // ============================================================
-
-  Future<void> editContent(
-    QueryDocumentSnapshot<Map<String, dynamic>> document,
-  ) async {
+  Future<void> editContent(QueryDocumentSnapshot<Map<String, dynamic>> document) async {
     final data = document.data();
-
     final result = await showDialog<bool>(
       context: context,
       builder: (_) => _ContentFormDialog(
@@ -159,200 +139,103 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
         initialPremium: data['isPremium'] as bool? ?? false,
       ),
     );
-
-    if (result == true) {
-      await loadContents();
-    }
+    if (result == true) await loadContents();
   }
 
-  // ============================================================
-  // PUBLISH / UNPUBLISH
-  // ============================================================
-
-  Future<void> togglePublished(
-    QueryDocumentSnapshot<Map<String, dynamic>> document,
-  ) async {
+  Future<void> togglePublished(QueryDocumentSnapshot<Map<String, dynamic>> document) async {
     final data = document.data();
-
     final current = data['isPublished'] as bool? ?? false;
-
     final title = data['title'] as String? ?? 'this content';
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text(current ? 'Unpublish Content?' : 'Publish Content?'),
-        content: Text(
-          current
-              ? '“$title” will no longer be shown to customers.'
-              : '“$title” will become visible to customers.',
-        ),
+        content: Text(current
+            ? '“$title” will no longer be shown to customers.'
+            : '“$title” will become visible to customers.'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: Text(current ? 'Unpublish' : 'Publish'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: Text(current ? 'Unpublish' : 'Publish')),
         ],
       ),
-    );
-
-    if (confirmed != true) {
-      return;
-    }
-
-    try {
-      await FirebaseFirestore.instance
-          .collection('content')
-          .doc(document.id)
-          .update({
-            'isPublished': !current,
-            'updatedAt': FieldValue.serverTimestamp(),
-          });
-
-      if (!mounted) {
-        return;
-      }
-
-      await loadContents();
-
-      if (!mounted) {
-        return;
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            current ? 'Content unpublished.' : 'Content published.',
-          ),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) {
-        return;
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Could not update this content. Please try again.',
-          ),
-        ),
-      );
-    }
-  }
-
-  // ============================================================
-  // DELETE CONTENT
-  // ============================================================
-
-  Future<void> deleteContent(
-    QueryDocumentSnapshot<Map<String, dynamic>> document,
-  ) async {
-    final data = document.data();
-
-    final title = data['title'] as String? ?? 'this content';
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Delete Content?'),
-          content: Text('Are you sure you want to delete "$title"?'),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(dialogContext, false);
-              },
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () {
-                Navigator.pop(dialogContext, true);
-              },
-              child: const Text('Delete'),
-            ),
-          ],
-        );
-      },
     );
 
     if (confirmed != true) return;
 
     try {
-      await FirebaseFirestore.instance
-          .collection('content')
-          .doc(document.id)
-          .delete();
-
-      if (!mounted) {
-        return;
-      }
-
+      await FirebaseFirestore.instance.collection('content').doc(document.id).update({
+        'isPublished': !current,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      if (!mounted) return;
       await loadContents();
-
-      if (!mounted) {
-        return;
-      }
-
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Content deleted successfully.')),
+        SnackBar(content: Text(current ? 'Content unpublished.' : 'Content published.')),
       );
-    } catch (e) {
-      if (!mounted) {
-        return;
-      }
-
+    } catch (_) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Could not delete this content. Please try again.',
-          ),
-        ),
+        const SnackBar(content: Text('Could not update this content. Please try again.')),
       );
     }
   }
 
-  // ============================================================
-  // OPEN CONTENT PREVIEW
-  // ============================================================
+  Future<void> deleteContent(QueryDocumentSnapshot<Map<String, dynamic>> document) async {
+    final data = document.data();
+    final title = data['title'] as String? ?? 'this content';
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete Content?'),
+        content: Text('Are you sure you want to delete "$title"?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Delete')),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await FirebaseFirestore.instance.collection('content').doc(document.id).delete();
+      if (!mounted) return;
+      await loadContents();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Content deleted successfully.')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not delete this content. Please try again.')),
+      );
+    }
+  }
 
   void openContentDetail(BuildContext context, Map<String, dynamic> data) {
     final createdAt = data['createdAt'] as Timestamp?;
-
     final updatedAt = data['updatedAt'] as Timestamp?;
-
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => ContentDetailScreen(
           title: data['title'] as String? ?? 'Untitled',
-
           description: data['description'] as String? ?? '',
-
           body: data['body'] as String? ?? '',
-
           type: data['type'] as String? ?? 'Learning',
-
           isPublished: data['isPublished'] as bool? ?? false,
-
           isFeatured: data['isFeatured'] as bool? ?? false,
-
           isPremium: data['isPremium'] as bool? ?? false,
-
           createdAt: createdAt?.toDate(),
-
           updatedAt: updatedAt?.toDate(),
         ),
       ),
     );
   }
-
-  // ============================================================
-  // STATUS CHIP
-  // ============================================================
 
   Widget buildStatusChip(String text, bool active) {
     return Container(
@@ -372,328 +255,207 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
     );
   }
 
-  // ============================================================
-  // BUILD
-  // ============================================================
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Content Management'),
-
         actions: [
-          IconButton(
-            tooltip: 'Refresh',
-            onPressed: loadContents,
-            icon: const Icon(Icons.refresh),
-          ),
-          IconButton(
-            onPressed: createContent,
-            icon: const Icon(Icons.add),
-            tooltip: 'Create Content',
-          ),
+          IconButton(tooltip: 'Refresh', onPressed: loadContents, icon: const Icon(Icons.refresh)),
+          IconButton(onPressed: createContent, icon: const Icon(Icons.add), tooltip: 'Create Content'),
         ],
       ),
-
       floatingActionButton: FloatingActionButton.extended(
         onPressed: createContent,
         icon: const Icon(Icons.add),
         label: const Text('Create'),
       ),
-
       body: RefreshIndicator(
         onRefresh: loadContents,
-
         child: Column(
           children: [
-            // ==================================================
-            // SEARCH
-            // ==================================================
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
-
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
               child: TextField(
                 controller: searchController,
-
                 decoration: InputDecoration(
-                  hintText: 'Search content...',
-
+                  hintText: 'Search title, description or type...',
                   prefixIcon: const Icon(Icons.search),
-
                   suffixIcon: searchController.text.isNotEmpty
-                      ? IconButton(
-                          onPressed: () {
-                            searchController.clear();
-                          },
-                          icon: const Icon(Icons.clear),
-                        )
+                      ? IconButton(onPressed: () => searchController.clear(), icon: const Icon(Icons.clear))
                       : null,
-
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
                 ),
               ),
             ),
-
-            // ==================================================
-            // FILTER
-            // ==================================================
             SizedBox(
               height: 48,
-
               child: ListView.separated(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
-
                 scrollDirection: Axis.horizontal,
-
                 itemCount: contentTypes.length,
-
-                separatorBuilder: (context, index) => const SizedBox(width: 8),
-
+                separatorBuilder: (_, _) => const SizedBox(width: 8),
                 itemBuilder: (context, index) {
                   final type = contentTypes[index];
-
                   return ChoiceChip(
                     label: Text(type),
                     selected: selectedType == type,
                     showCheckmark: false,
-
                     onSelected: (_) {
-                      setState(() {
-                        selectedType = type;
-                      });
-
+                      setState(() => selectedType = type);
                       filterContents();
                     },
                   );
                 },
               ),
             ),
-
-            const SizedBox(height: 12),
-
+            const SizedBox(height: 4),
+            SizedBox(
+              height: 48,
+              child: ListView.separated(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                scrollDirection: Axis.horizontal,
+                itemCount: contentStatuses.length + 1,
+                separatorBuilder: (_, _) => const SizedBox(width: 8),
+                itemBuilder: (context, index) {
+                  if (index == contentStatuses.length) {
+                    return FilterChip(
+                      label: const Text('Featured only'),
+                      selected: featuredOnly,
+                      showCheckmark: false,
+                      onSelected: (value) {
+                        setState(() => featuredOnly = value);
+                        filterContents();
+                      },
+                    );
+                  }
+                  final status = contentStatuses[index];
+                  return ChoiceChip(
+                    label: Text(status),
+                    selected: selectedStatus == status,
+                    showCheckmark: false,
+                    onSelected: (_) {
+                      setState(() => selectedStatus = status);
+                      filterContents();
+                    },
+                  );
+                },
+              ),
+            ),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  '${filteredContents.length} content item${filteredContents.length == 1 ? '' : 's'}',
-                  style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  '${filteredContents.length} of ${contents.length} content item${contents.length == 1 ? '' : 's'}',
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 13, fontWeight: FontWeight.w600),
                 ),
               ),
             ),
-
-            const SizedBox(height: 8),
-
-            // ==================================================
-            // CONTENT LIST
-            // ==================================================
             Expanded(
               child: isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : filteredContents.isEmpty
-                  ? ListView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-
-                      children: [
-                        const SizedBox(height: 150),
-                        Center(
-                          child: Column(
-                            children: [
-                              const Icon(
-                                Icons.library_books_outlined,
-                                size: 64,
-                                color: AppColors.primary,
-                              ),
-                              const SizedBox(height: 16),
-                              const Text(
-                                'No content found',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 16,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                searchController.text.trim().isEmpty &&
-                                        selectedType == 'All'
-                                    ? 'Create your first learning resource to show it here.'
-                                    : 'Try a different search or content type.',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color: AppColors.textSecondary,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    )
-                  : ListView.separated(
-                      physics: const AlwaysScrollableScrollPhysics(),
-
-                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
-
-                      itemCount: filteredContents.length,
-
-                      separatorBuilder: (context, index) =>
-                          const SizedBox(height: 10),
-
-                      itemBuilder: (context, index) {
-                        final document = filteredContents[index];
-
-                        final data = document.data();
-
-                        final title = data['title'] as String? ?? 'Untitled';
-
-                        final description =
-                            data['description'] as String? ?? '';
-
-                        final type = data['type'] as String? ?? 'Learning';
-
-                        final isPublished =
-                            data['isPublished'] as bool? ?? false;
-
-                        final isFeatured = data['isFeatured'] as bool? ?? false;
-
-                        final isPremiumContent =
-                            data['isPremium'] as bool? ?? false;
-
-                        return Card(
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(18),
-                            side: const BorderSide(
-                              color: AppColors.border,
-                            ),
-                          ),
-                          child: ListTile(
-                            onTap: () {
-                              openContentDetail(context, data);
-                            },
-
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 10,
-                            ),
-
-                            leading: CircleAvatar(
-                              backgroundColor: AppColors.secondary,
-
-                              child: const Icon(
-                                Icons.library_books_outlined,
-                                color: AppColors.primary,
-                              ),
-                            ),
-
-                            title: Text(
-                              title,
-
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-
-                              children: [
-                                if (description.isNotEmpty) ...[
-                                  const SizedBox(height: 4),
-
+                      ? ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          children: [
+                            const SizedBox(height: 150),
+                            Center(
+                              child: Column(
+                                children: [
+                                  const Icon(Icons.library_books_outlined, size: 64, color: AppColors.primary),
+                                  const SizedBox(height: 16),
+                                  const Text('No content found', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                                  const SizedBox(height: 6),
                                   Text(
-                                    description,
-
-                                    maxLines: 2,
-
-                                    overflow: TextOverflow.ellipsis,
+                                    searchController.text.trim().isEmpty && selectedType == 'All' && selectedStatus == 'All' && !featuredOnly
+                                        ? 'Create your first learning resource to show it here.'
+                                        : 'Try a different search or filter combination.',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(color: AppColors.textSecondary),
                                   ),
                                 ],
+                              ),
+                            ),
+                          ],
+                        )
+                      : ListView.separated(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
+                          itemCount: filteredContents.length,
+                          separatorBuilder: (_, _) => const SizedBox(height: 10),
+                          itemBuilder: (context, index) {
+                            final document = filteredContents[index];
+                            final data = document.data();
+                            final title = data['title'] as String? ?? 'Untitled';
+                            final description = data['description'] as String? ?? '';
+                            final type = data['type'] as String? ?? 'Learning';
+                            final isPublished = data['isPublished'] as bool? ?? false;
+                            final isFeatured = data['isFeatured'] as bool? ?? false;
+                            final isPremiumContent = data['isPremium'] as bool? ?? false;
 
-                                const SizedBox(height: 8),
-
-                                Wrap(
-                                  spacing: 6,
-
-                                  runSpacing: 6,
-
+                            return Card(
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(18),
+                                side: const BorderSide(color: AppColors.border),
+                              ),
+                              child: ListTile(
+                                onTap: () => openContentDetail(context, data),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                leading: CircleAvatar(
+                                  backgroundColor: AppColors.secondary,
+                                  child: const Icon(Icons.library_books_outlined, color: AppColors.primary),
+                                ),
+                                title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+                                subtitle: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Chip(
-                                      label: Text(type),
-
-                                      visualDensity: VisualDensity.compact,
+                                    if (description.isNotEmpty) ...[
+                                      const SizedBox(height: 4),
+                                      Text(description, maxLines: 2, overflow: TextOverflow.ellipsis),
+                                    ],
+                                    const SizedBox(height: 8),
+                                    Wrap(
+                                      spacing: 6,
+                                      runSpacing: 6,
+                                      children: [
+                                        Chip(label: Text(type), visualDensity: VisualDensity.compact),
+                                        buildStatusChip(isPublished ? 'PUBLISHED' : 'DRAFT', isPublished),
+                                        if (isFeatured) buildStatusChip('FEATURED', true),
+                                        if (isPremiumContent) buildStatusChip('PREMIUM', true),
+                                      ],
                                     ),
-
-                                    buildStatusChip(
-                                      isPublished ? 'PUBLISHED' : 'DRAFT',
-                                      isPublished,
-                                    ),
-
-                                    if (isFeatured)
-                                      buildStatusChip('FEATURED', true),
-
-                                    if (isPremiumContent)
-                                      buildStatusChip('PREMIUM', true),
                                   ],
                                 ),
-                              ],
-                            ),
-
-                            trailing: PopupMenuButton<String>(
-                              onSelected: (value) {
-                                switch (value) {
-                                  case 'view':
-                                    openContentDetail(context, data);
-                                    break;
-
-                                  case 'edit':
-                                    editContent(document);
-                                    break;
-
-                                  case 'publish':
-                                    togglePublished(document);
-                                    break;
-
-                                  case 'delete':
-                                    deleteContent(document);
-                                    break;
-                                }
-                              },
-
-                              itemBuilder: (context) => [
-                                const PopupMenuItem(
-                                  value: 'view',
-                                  child: Text('View'),
+                                trailing: PopupMenuButton<String>(
+                                  onSelected: (value) {
+                                    switch (value) {
+                                      case 'view':
+                                        openContentDetail(context, data);
+                                        break;
+                                      case 'edit':
+                                        editContent(document);
+                                        break;
+                                      case 'publish':
+                                        togglePublished(document);
+                                        break;
+                                      case 'delete':
+                                        deleteContent(document);
+                                        break;
+                                    }
+                                  },
+                                  itemBuilder: (context) => [
+                                    const PopupMenuItem(value: 'view', child: Text('View')),
+                                    const PopupMenuItem(value: 'edit', child: Text('Edit')),
+                                    PopupMenuItem(value: 'publish', child: Text(isPublished ? 'Unpublish' : 'Publish')),
+                                    const PopupMenuItem(value: 'delete', child: Text('Delete')),
+                                  ],
                                 ),
-
-                                const PopupMenuItem(
-                                  value: 'edit',
-                                  child: Text('Edit'),
-                                ),
-
-                                PopupMenuItem(
-                                  value: 'publish',
-                                  child: Text(
-                                    isPublished ? 'Unpublish' : 'Publish',
-                                  ),
-                                ),
-
-                                const PopupMenuItem(
-                                  value: 'delete',
-                                  child: Text('Delete'),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
+                              ),
+                            );
+                          },
+                        ),
             ),
           ],
         ),
@@ -702,25 +464,14 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
   }
 }
 
-// ================================================================
-// CONTENT FORM DIALOG
-// ================================================================
-
 class _ContentFormDialog extends StatefulWidget {
   final String? documentId;
-
   final String initialTitle;
-
   final String initialDescription;
-
   final String initialBody;
-
   final String initialType;
-
   final bool initialPublished;
-
   final bool initialFeatured;
-
   final bool initialPremium;
 
   const _ContentFormDialog({
@@ -740,46 +491,25 @@ class _ContentFormDialog extends StatefulWidget {
 
 class _ContentFormDialogState extends State<_ContentFormDialog> {
   late final TextEditingController titleController;
-
   late final TextEditingController descriptionController;
-
   late final TextEditingController bodyController;
-
   late String selectedType;
-
   late bool isPublished;
-
   late bool isFeatured;
-
   late bool isPremium;
-
   bool isSaving = false;
 
-  final List<String> types = const [
-    'Learning',
-    'Colour Guide',
-    'Style Tip',
-    'AI Styling',
-  ];
+  final List<String> types = const ['Learning', 'Colour Guide', 'Style Tip', 'AI Styling'];
 
   @override
   void initState() {
     super.initState();
-
     titleController = TextEditingController(text: widget.initialTitle);
-
-    descriptionController = TextEditingController(
-      text: widget.initialDescription,
-    );
-
+    descriptionController = TextEditingController(text: widget.initialDescription);
     bodyController = TextEditingController(text: widget.initialBody);
-
     selectedType = widget.initialType;
-
     isPublished = widget.initialPublished;
-
     isFeatured = widget.initialFeatured;
-
     isPremium = widget.initialPremium;
   }
 
@@ -788,43 +518,26 @@ class _ContentFormDialogState extends State<_ContentFormDialog> {
     titleController.dispose();
     descriptionController.dispose();
     bodyController.dispose();
-
     super.dispose();
   }
 
-  // ============================================================
-  // SAVE
-  // ============================================================
-
   Future<void> save() async {
     final title = titleController.text.trim();
-
     final description = descriptionController.text.trim();
-
     final body = bodyController.text.trim();
 
     if (title.isEmpty || description.isEmpty || body.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Please complete the title, description and content fields.',
-          ),
-        ),
+        const SnackBar(content: Text('Please complete the title, description and content fields.')),
       );
       return;
     }
 
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {
-      isSaving = true;
-    });
+    if (!mounted) return;
+    setState(() => isSaving = true);
 
     try {
       final collection = FirebaseFirestore.instance.collection('content');
-
       if (widget.documentId == null) {
         await collection.add({
           'title': title,
@@ -850,200 +563,69 @@ class _ContentFormDialogState extends State<_ContentFormDialog> {
         });
       }
 
-      if (!mounted) {
-        return;
-      }
-
+      if (!mounted) return;
       Navigator.pop(context, true);
-    } catch (e) {
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        isSaving = false;
-      });
-
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => isSaving = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Could not save this content. Please try again.',
-          ),
-        ),
+        const SnackBar(content: Text('Could not save this content. Please try again.')),
       );
     }
   }
 
-  // ============================================================
-  // FORM UI
-  // ============================================================
-
   @override
   Widget build(BuildContext context) {
     final isEditing = widget.documentId != null;
-
     return AlertDialog(
       title: Text(isEditing ? 'Edit Content' : 'Create Content'),
-
       content: SizedBox(
         width: 500,
-
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
-
             children: [
-              TextField(
-                controller: titleController,
-
-                decoration: const InputDecoration(
-                  labelText: 'Title *',
-                  prefixIcon: Icon(Icons.title),
-                ),
-              ),
-
+              TextField(controller: titleController, decoration: const InputDecoration(labelText: 'Title *', prefixIcon: Icon(Icons.title))),
               const SizedBox(height: 16),
-
-              TextField(
-                controller: descriptionController,
-
-                maxLines: 3,
-
-                decoration: const InputDecoration(
-                  labelText: 'Short Description *',
-                  alignLabelWithHint: true,
-                  prefixIcon: Icon(Icons.short_text),
-                ),
-              ),
-
+              TextField(controller: descriptionController, maxLines: 3, decoration: const InputDecoration(labelText: 'Short Description *', alignLabelWithHint: true, prefixIcon: Icon(Icons.short_text))),
               const SizedBox(height: 16),
-
               DropdownButtonFormField<String>(
                 initialValue: selectedType,
-
-                decoration: const InputDecoration(
-                  labelText: 'Content Type',
-                  prefixIcon: Icon(Icons.category_outlined),
-                ),
-
-                items: types
-                    .map(
-                      (type) =>
-                          DropdownMenuItem(value: type, child: Text(type)),
-                    )
-                    .toList(),
-
-                onChanged: (value) {
-                  if (value == null) {
-                    return;
-                  }
-
-                  setState(() {
-                    selectedType = value;
-                  });
-                },
+                decoration: const InputDecoration(labelText: 'Content Type', prefixIcon: Icon(Icons.category_outlined)),
+                items: types.map((type) => DropdownMenuItem(value: type, child: Text(type))).toList(),
+                onChanged: (value) => value == null ? null : setState(() => selectedType = value),
               ),
-
               const SizedBox(height: 16),
-
-              TextField(
-                controller: bodyController,
-
-                maxLines: 8,
-
-                decoration: const InputDecoration(
-                  labelText: 'Content *',
-                  alignLabelWithHint: true,
-                  prefixIcon: Icon(Icons.article_outlined),
-                ),
-              ),
-
+              TextField(controller: bodyController, maxLines: 8, decoration: const InputDecoration(labelText: 'Content *', alignLabelWithHint: true, prefixIcon: Icon(Icons.article_outlined))),
               const SizedBox(height: 12),
-
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
-
                 title: const Text('Published'),
-
-                subtitle: const Text(
-                  'Published content can be shown to customers.',
-                ),
-
+                subtitle: const Text('Published content can be shown to customers.'),
                 value: isPublished,
-
-                onChanged: (value) {
-                  setState(() {
-                    isPublished = value;
-                  });
-                },
+                onChanged: (value) => setState(() => isPublished = value),
               ),
-
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
-
                 title: const Text('Featured'),
-
-                subtitle: const Text(
-                  'Highlight this content in the customer app.',
-                ),
-
+                subtitle: const Text('Highlight this content in the customer app.'),
                 value: isFeatured,
-
-                onChanged: (value) {
-                  setState(() {
-                    isFeatured = value;
-                  });
-                },
+                onChanged: (value) => setState(() => isFeatured = value),
               ),
-
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
-
-                title: const Text('Premium Content'),
-
-                subtitle: const Text(
-                  'Only Premium members can open this content. Free members see a Premium access message.',
-                ),
-
+                title: const Text('Premium'),
+                subtitle: const Text('Restrict this content to Premium customers.'),
                 value: isPremium,
-
-                onChanged: (value) {
-                  setState(() {
-                    isPremium = value;
-                  });
-                },
+                onChanged: (value) => setState(() => isPremium = value),
               ),
             ],
           ),
         ),
       ),
-
       actions: [
-        TextButton(
-          onPressed: isSaving
-              ? null
-              : () {
-                  Navigator.pop(context, false);
-                },
-          child: const Text('Cancel'),
-        ),
-
-        FilledButton.icon(
-          onPressed: isSaving ? null : save,
-
-          icon: isSaving
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: AppColors.background,
-                  ),
-                )
-              : const Icon(Icons.save),
-
-          label: Text(isSaving ? 'Saving...' : 'Save'),
-        ),
+        TextButton(onPressed: isSaving ? null : () => Navigator.pop(context, false), child: const Text('Cancel')),
+        FilledButton.icon(onPressed: isSaving ? null : save, icon: isSaving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.save_rounded), label: Text(isSaving ? 'Saving...' : 'Save')),
       ],
     );
   }
