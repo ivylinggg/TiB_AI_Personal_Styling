@@ -17,9 +17,15 @@ class CustomerDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final data = userDocument.data();
+    final storedUid = data['uid'];
+    final userId = storedUid is String && storedUid.trim().isNotEmpty
+        ? storedUid.trim()
+        : userDocument.id;
+
     return AdminUser360Screen(
-      userId: userDocument.id,
-      userData: userDocument.data(),
+      userId: userId,
+      userData: data,
     );
   }
 }
