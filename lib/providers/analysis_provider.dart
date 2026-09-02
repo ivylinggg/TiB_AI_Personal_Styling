@@ -18,6 +18,10 @@ class AnalysisProvider extends ChangeNotifier {
   String? _errorMessage;
   bool _isPremium = false;
 
+  // The provider is shared by the whole app, so every piece of analysis
+  // state must be associated with the Firebase user that owns it.
+  String? _loadedUid;
+
   File? get selectedImage => _selectedImage;
   ColourAnalysisResult? get result => _result;
   bool get isLoading => _isLoading;
@@ -25,33 +29,55 @@ class AnalysisProvider extends ChangeNotifier {
   String get status => _status;
   String? get errorMessage => _errorMessage;
   bool get isPremium => _isPremium;
+  String? get loadedUid => _loadedUid;
 
-  /// Loads the user's most recently saved colour analysis (if any) from
-  /// Firestore into [result], so screens that depend on [result] (Dashboard,
-  /// AI Stylist) reflect a previous analysis without requiring the user to
-  /// run a fresh one in the current session. Called once per session, e.g.
-  /// when the customer's main shell first mounts after login.
+  /// Starts a fresh analysis session for [uid].
+  ///
+  /// This provider is intentionally shared across the app, therefore a new
+  /// Firebase user must never inherit the previous user's in-memory result.
+  /// The UID guard also prevents a slow request from the previous user from
+  /// writing its result after the account has changed.
   Future<void> loadLatestResult(String uid) async {
-    if (uid.trim().isEmpty) {
-      return;
+    final normalizedUid = uid.trim();
+    if (normalizedUid.isEmpty) return;
+
+    // A different account has entered the customer shell. Clear all
+    // user-specific in-memory state before loading the new account.
+    if (_loadedUid != normalizedUid) {
+      _loadedUid = normalizedUid;
+      _selectedImage = null;
+      _result = null;
+      _isLoading = false;
+      _errorMessage = null;
+      _status = 'No image selected';
+      _isPremium = false;
+      notifyListeners();
     }
 
     _isLoadingSavedResult = true;
     notifyListeners();
 
     try {
-      final latest = await FirestoreService.getLatestColourAnalysis(uid);
+      final latest = await FirestoreService.getLatestColourAnalysis(
+        normalizedUid,
+      );
 
-      if (latest != null) {
-        _result = latest;
-      }
+      // Ignore a response that belongs to an account that has already been
+      // replaced by another signed-in user.
+      if (_loadedUid != normalizedUid) return;
+
+      _result = latest;
     } catch (_) {
-      // Best-effort background load: if it fails, keep whatever is
-      // already in memory (nothing, on a fresh session) rather than
-      // surfacing an error for a load the user didn't explicitly request.
+      // If the new user's history cannot be loaded, keep the new user's
+      // state empty rather than exposing data from a previous account.
+      if (_loadedUid == normalizedUid) {
+        _result = null;
+      }
     } finally {
-      _isLoadingSavedResult = false;
-      notifyListeners();
+      if (_loadedUid == normalizedUid) {
+        _isLoadingSavedResult = false;
+        notifyListeners();
+      }
     }
   }
 
@@ -65,15 +91,26 @@ class AnalysisProvider extends ChangeNotifier {
 
   Future<bool> analyse({required String uid}) async {
     final image = _selectedImage;
+    final normalizedUid = uid.trim();
 
     if (image == null) {
       _setError('Please select an image first.');
       return false;
     }
 
-    if (uid.trim().isEmpty) {
+    if (normalizedUid.isEmpty) {
       _setError('Please login before starting an analysis.');
       return false;
+    }
+
+    // Make sure an analysis cannot be started with stale provider state from
+    // another account.
+    if (_loadedUid != normalizedUid) {
+      _loadedUid = normalizedUid;
+      _result = null;
+      _selectedImage = image;
+      _errorMessage = null;
+      notifyListeners();
     }
 
     _isLoading = true;
@@ -84,8 +121,10 @@ class AnalysisProvider extends ChangeNotifier {
     try {
       final userSnapshot = await FirebaseFirestore.instance
           .collection('users')
-          .doc(uid)
+          .doc(normalizedUid)
           .get();
+
+      if (_loadedUid != normalizedUid) return false;
 
       _isPremium = userSnapshot.data()?['isPremium'] == true;
       _status = _isPremium
@@ -93,6 +132,7 @@ class AnalysisProvider extends ChangeNotifier {
           : 'Detecting face...';
       notifyListeners();
     } catch (_) {
+      if (_loadedUid != normalizedUid) return false;
       _isPremium = false;
       _status = 'Detecting face...';
       notifyListeners();
@@ -102,10 +142,10 @@ class AnalysisProvider extends ChangeNotifier {
       // 1. Validate that the photo contains exactly one face.
       final faces = await MlKitService.detectFace(image);
 
+      if (_loadedUid != normalizedUid) return false;
+
       if (faces.isEmpty) {
-        _setError(
-          'No face was detected. Please use a clear front-facing photo.',
-        );
+        _setError('No face was detected. Please use a clear front-facing photo.');
         return false;
       }
 
@@ -119,9 +159,11 @@ class AnalysisProvider extends ChangeNotifier {
 
       // 2. Upload the original analysis image.
       final imageUrl = await StorageService.uploadAnalysisImage(
-        uid: uid,
+        uid: normalizedUid,
         image: image,
       );
+
+      if (_loadedUid != normalizedUid) return false;
 
       _status = _isPremium
           ? 'Analysing your colours with Premium insights...'
@@ -134,6 +176,8 @@ class AnalysisProvider extends ChangeNotifier {
         imageUrl: imageUrl,
       );
 
+      if (_loadedUid != normalizedUid) return false;
+
       _status = _isPremium
           ? 'Preparing your Premium colour insights...'
           : 'Saving your analysis...';
@@ -141,25 +185,26 @@ class AnalysisProvider extends ChangeNotifier {
 
       // 4. Persist the result in the authenticated user's history.
       await FirestoreService.saveAnalysisResult(
-        uid: uid,
+        uid: normalizedUid,
         result: analysisResult,
       );
 
+      if (_loadedUid != normalizedUid) return false;
+
       // 5. Sync the summary colourSeason/skinTone fields onto the user's
-      // profile document so Profile and the admin screens can display
-      // them directly. This is best-effort: the analysis itself is
-      // already saved successfully above, so a failure here should not
-      // fail the analysis the user is waiting on.
+      // profile document so Profile and the admin screens can display them.
       try {
         await FirestoreService.updateColourProfile(
-          uid: uid,
+          uid: normalizedUid,
           colourSeason: analysisResult.season,
           skinTone: '${analysisResult.brightness} ${analysisResult.undertone}'
               .trim(),
         );
       } catch (_) {
-        // Ignore: see comment above.
+        // The analysis itself is already saved successfully.
       }
+
+      if (_loadedUid != normalizedUid) return false;
 
       _result = analysisResult;
       _status = _isPremium
@@ -167,21 +212,27 @@ class AnalysisProvider extends ChangeNotifier {
           : 'Analysis completed successfully';
       return true;
     } catch (e) {
+      if (_loadedUid != normalizedUid) return false;
       _setError('Analysis failed: $e');
       return false;
     } finally {
-      _isLoading = false;
-      notifyListeners();
+      if (_loadedUid == normalizedUid) {
+        _isLoading = false;
+        notifyListeners();
+      }
     }
   }
 
+  /// Clears all user-specific analysis state.
   void clear() {
+    _loadedUid = null;
     _selectedImage = null;
     _result = null;
     _isLoading = false;
     _isLoadingSavedResult = false;
     _status = 'No image selected';
     _errorMessage = null;
+    _isPremium = false;
     notifyListeners();
   }
 
