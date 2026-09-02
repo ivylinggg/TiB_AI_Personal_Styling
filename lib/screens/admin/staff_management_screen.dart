@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
+import 'staff_detail_screen.dart';
 
 class StaffManagementScreen extends StatefulWidget {
   const StaffManagementScreen({super.key});
@@ -12,146 +13,141 @@ class StaffManagementScreen extends StatefulWidget {
 }
 
 class _StaffManagementScreenState extends State<StaffManagementScreen> {
-  final TextEditingController searchController = TextEditingController();
-  List<QueryDocumentSnapshot<Map<String, dynamic>>> staff = [];
-  List<QueryDocumentSnapshot<Map<String, dynamic>>> filteredStaff = [];
-  bool isLoading = true;
-  bool isSaving = false;
-  String selectedStatus = 'All';
+  final TextEditingController _searchController = TextEditingController();
+  List<QueryDocumentSnapshot<Map<String, dynamic>>> _staff = [];
+  List<QueryDocumentSnapshot<Map<String, dynamic>>> _filtered = [];
+  bool _loading = true;
+  bool _saving = false;
+  String _status = 'All';
 
   @override
   void initState() {
     super.initState();
-    loadStaff();
-    searchController.addListener(filterStaff);
+    _searchController.addListener(_filter);
+    _loadStaff();
   }
 
   @override
   void dispose() {
-    searchController.removeListener(filterStaff);
-    searchController.dispose();
+    _searchController.removeListener(_filter);
+    _searchController.dispose();
     super.dispose();
   }
 
-  Future<void> loadStaff() async {
+  Future<void> _loadStaff() async {
+    if (mounted) setState(() => _loading = true);
     try {
-      if (mounted) setState(() => isLoading = true);
       final snapshot = await FirebaseFirestore.instance.collection('users').get();
-      if (!mounted) return;
-
-      final staffDocs = snapshot.docs.where((document) {
-        final role = (document.data()['role'] as String? ?? 'customer').toLowerCase();
-        return role == 'consultant' || role == 'staff' || role == 'admin';
+      final documents = snapshot.docs.where((doc) {
+        final role = _text(doc.data()['role']).toLowerCase();
+        return role == 'admin' || role == 'staff' || role == 'consultant';
       }).toList()
-        ..sort((a, b) {
-          final aName = (a.data()['name'] as String? ?? '').toLowerCase();
-          final bName = (b.data()['name'] as String? ?? '').toLowerCase();
-          return aName.compareTo(bName);
-        });
+        ..sort((a, b) => _text(a.data()['name']).toLowerCase().compareTo(
+              _text(b.data()['name']).toLowerCase(),
+            ));
 
+      if (!mounted) return;
       setState(() {
-        staff = staffDocs;
-        isLoading = false;
+        _staff = documents;
+        _loading = false;
       });
-      filterStaff();
+      _filter();
     } catch (_) {
       if (!mounted) return;
-      setState(() => isLoading = false);
+      setState(() => _loading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Couldn’t load staff. Please try again.')),
+        const SnackBar(content: Text('Could not load staff. Please try again.')),
       );
     }
   }
 
-  void filterStaff() {
-    if (!mounted) return;
-    final query = searchController.text.trim().toLowerCase();
-    final filtered = staff.where((document) {
-      final data = document.data();
-      final name = (data['name'] as String? ?? '').toLowerCase();
-      final email = (data['email'] as String? ?? '').toLowerCase();
-      final role = (data['role'] as String? ?? '').toLowerCase();
-      final uid = document.id.toLowerCase();
-      final active = data['isActive'] as bool? ?? true;
-
-      final matchesSearch = query.isEmpty ||
-          name.contains(query) ||
-          email.contains(query) ||
-          role.contains(query) ||
-          uid.contains(query);
-      final matchesStatus = selectedStatus == 'All' ||
-          (selectedStatus == 'Active' && active) ||
-          (selectedStatus == 'Inactive' && !active);
-      return matchesSearch && matchesStatus;
-    }).toList();
-
-    setState(() => filteredStaff = filtered);
+  String _text(dynamic value, {String fallback = ''}) {
+    if (value == null) return fallback;
+    final text = value.toString().trim();
+    return text.isEmpty ? fallback : text;
   }
 
-  Future<void> toggleActive(
-    QueryDocumentSnapshot<Map<String, dynamic>> document,
-  ) async {
+  void _filter() {
+    if (!mounted) return;
+    final query = _searchController.text.trim().toLowerCase();
+    final results = _staff.where((doc) {
+      final data = doc.data();
+      final active = data['isActive'] as bool? ?? true;
+      final name = _text(data['name']).toLowerCase();
+      final email = _text(data['email']).toLowerCase();
+      final staffId = _text(data['staffId'], fallback: doc.id).toLowerCase();
+      final trainer = _text(data['trainerName']).toLowerCase();
+      final role = _text(data['role']).toLowerCase();
+      final grooming = _text(data['groomingNotes']).toLowerCase();
+
+      final matchesQuery = query.isEmpty ||
+          name.contains(query) ||
+          email.contains(query) ||
+          staffId.contains(query) ||
+          trainer.contains(query) ||
+          role.contains(query) ||
+          grooming.contains(query);
+      final matchesStatus = _status == 'All' ||
+          (_status == 'Active' && active) ||
+          (_status == 'Inactive' && !active);
+      return matchesQuery && matchesStatus;
+    }).toList();
+
+    setState(() => _filtered = results);
+  }
+
+  int get _activeCount => _staff.where((doc) => doc.data()['isActive'] as bool? ?? true).length;
+
+  Future<void> _toggleActive(QueryDocumentSnapshot<Map<String, dynamic>> doc) async {
+    final data = doc.data();
     final currentUserId = FirebaseAuth.instance.currentUser?.uid;
-    if (document.id == currentUserId && (document.data()['role'] ?? '') == 'admin') {
-      if (!mounted) return;
+    final role = _text(data['role']).toLowerCase();
+    if (doc.id == currentUserId && role == 'admin') {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('You cannot deactivate your own administrator account.')),
       );
       return;
     }
 
-    final data = document.data();
-    final current = data['isActive'] as bool? ?? true;
+    final active = data['isActive'] as bool? ?? true;
     try {
-      await document.reference.update({
-        'isActive': !current,
+      await doc.reference.update({
+        'isActive': !active,
         'updatedAt': FieldValue.serverTimestamp(),
       });
-      await loadStaff();
+      await _loadStaff();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(!current ? 'Staff account activated.' : 'Staff account deactivated.')),
+        SnackBar(content: Text(active ? 'Staff account deactivated.' : 'Staff account activated.')),
       );
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not update this staff account.')),
+        const SnackBar(content: Text('Could not update staff status.')),
       );
     }
   }
 
-  Future<void> sendPasswordReset(
-    QueryDocumentSnapshot<Map<String, dynamic>> document,
-  ) async {
-    final email = (document.data()['email'] as String? ?? '').trim();
-    final name = document.data()['name'] as String? ?? 'this staff member';
+  Future<void> _sendPasswordReset(QueryDocumentSnapshot<Map<String, dynamic>> doc) async {
+    final email = _text(doc.data()['email']);
     if (email.isEmpty) {
-      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('This staff account has no email address.')),
       );
       return;
     }
-
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
+      builder: (context) => AlertDialog(
         title: const Text('Send Password Reset?'),
-        content: Text('A password reset link will be sent to $email for $name.'),
+        content: Text('Send a password reset link to $email?'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Send Email'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Send')),
         ],
       ),
     );
     if (confirmed != true) return;
-
     try {
       await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
       if (!mounted) return;
@@ -166,123 +162,107 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
     }
   }
 
-  Future<void> editStaff(
-    QueryDocumentSnapshot<Map<String, dynamic>> document,
-  ) async {
-    final data = document.data();
-    final nameController = TextEditingController(text: data['name'] as String? ?? '');
-    final emailController = TextEditingController(text: data['email'] as String? ?? '');
-    var selectedRole = ((data['role'] as String?) ?? 'consultant').toLowerCase();
-    if (selectedRole == 'staff') selectedRole = 'consultant';
+  Future<void> _editStaff(QueryDocumentSnapshot<Map<String, dynamic>> doc) async {
+    final data = doc.data();
+    final name = TextEditingController(text: _text(data['name']));
+    final staffId = TextEditingController(text: _text(data['staffId'], fallback: doc.id));
+    final email = TextEditingController(text: _text(data['email']));
+    final trainer = TextEditingController(text: _text(data['trainerName']));
+    final photo = TextEditingController(text: _text(data['photoUrl']));
+    final score = TextEditingController(text: _text(data['groomingScore']));
+    final notes = TextEditingController(text: _text(data['groomingNotes']));
+    var role = _text(data['role'], fallback: 'consultant').toLowerCase();
+    if (role == 'staff') role = 'consultant';
+    var groomingCompleted = data['groomingCompleted'] as bool? ?? false;
 
-    final result = await showDialog<Map<String, String>>(
+    final result = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) => AlertDialog(
-            title: const Text('Edit Staff'),
-            content: SingleChildScrollView(
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Edit Staff Profile'),
+          content: SizedBox(
+            width: 520,
+            child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  TextField(
-                    controller: nameController,
-                    textCapitalization: TextCapitalization.words,
-                    decoration: const InputDecoration(labelText: 'Name'),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: emailController,
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: const InputDecoration(labelText: 'Email'),
-                  ),
-                  const SizedBox(height: 12),
+                  _dialogField(staffId, 'Staff ID'),
+                  _dialogField(name, 'Name'),
+                  _dialogField(email, 'Email', keyboardType: TextInputType.emailAddress),
+                  _dialogField(trainer, 'Trainer Name'),
+                  _dialogField(photo, 'Photo URL', keyboardType: TextInputType.url),
                   DropdownButtonFormField<String>(
-                    initialValue: selectedRole,
+                    value: role,
                     decoration: const InputDecoration(labelText: 'Role'),
                     items: const [
                       DropdownMenuItem(value: 'consultant', child: Text('Consultant / Staff')),
                       DropdownMenuItem(value: 'admin', child: Text('Administrator')),
                     ],
                     onChanged: (value) {
-                      if (value != null) setDialogState(() => selectedRole = value);
+                      if (value != null) setDialogState(() => role = value);
                     },
                   ),
+                  const SizedBox(height: 12),
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Grooming Completed', style: TextStyle(fontWeight: FontWeight.w700)),
+                    value: groomingCompleted,
+                    onChanged: (value) => setDialogState(() => groomingCompleted = value),
+                  ),
+                  _dialogField(
+                    score,
+                    'Grooming Score',
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  ),
+                  _dialogField(notes, 'Grooming Result / Notes', maxLines: 4),
                 ],
               ),
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () {
-                  final name = nameController.text.trim();
-                  final email = emailController.text.trim();
-                  if (name.isEmpty || email.isEmpty) return;
-                  Navigator.pop(dialogContext, {
-                    'name': name,
-                    'email': email,
-                    'role': selectedRole,
-                  });
-                },
-                child: const Text('Save'),
-              ),
-            ],
           ),
-        );
-      },
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Save')),
+          ],
+        ),
+      ),
     );
 
-    nameController.dispose();
-    emailController.dispose();
-    if (result == null) return;
+    name.dispose();
+    staffId.dispose();
+    email.dispose();
+    trainer.dispose();
+    photo.dispose();
+    score.dispose();
+    notes.dispose();
+    if (result != true) return;
 
-    final name = result['name'] ?? '';
-    final email = result['email'] ?? '';
-    final role = result['role'] ?? 'consultant';
-    final currentEmail = (data['email'] as String? ?? '').trim();
-
-    if (name.isEmpty || email.isEmpty) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Name and email are required.')),
-      );
-      return;
-    }
-
-    setState(() => isSaving = true);
+    if (staffId.text.trim().isEmpty || name.text.trim().isEmpty || email.text.trim().isEmpty) return;
+    setState(() => _saving = true);
     try {
-      await document.reference.update({
-        'name': name,
+      final scoreValue = double.tryParse(score.text.trim());
+      final oldCompleted = data['groomingCompleted'] as bool? ?? false;
+      await doc.reference.set({
+        'staffId': staffId.text.trim(),
+        'name': name.text.trim(),
+        'email': email.text.trim(),
+        'trainerName': trainer.text.trim(),
+        'photoUrl': photo.text.trim(),
         'role': role,
+        'groomingCompleted': groomingCompleted,
+        'groomingScore': scoreValue ?? (score.text.trim().isEmpty ? null : score.text.trim()),
+        'groomingNotes': notes.text.trim(),
+        'registeredAt': data['registeredAt'] ?? data['createdAt'] ?? FieldValue.serverTimestamp(),
+        'groomingCompletedAt': groomingCompleted
+            ? (oldCompleted && data['groomingCompletedAt'] != null
+                ? data['groomingCompletedAt']
+                : FieldValue.serverTimestamp())
+            : null,
         'updatedAt': FieldValue.serverTimestamp(),
-        if (email != currentEmail) 'email': email,
-      });
-
-      if (email != currentEmail && document.id == FirebaseAuth.instance.currentUser?.uid) {
-        await FirebaseAuth.instance.currentUser!.verifyBeforeUpdateEmail(email);
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Verification email sent. Verify the new email to complete the change.')),
-        );
-      } else if (email != currentEmail) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Profile email updated in Firestore. Firebase Auth email for another account requires privileged server-side access.')),
-        );
-      } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Staff profile updated.')),
-        );
-      }
-
-      await loadStaff();
-    } on FirebaseAuthException catch (error) {
+      }, SetOptions(merge: true));
+      await _loadStaff();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not update authentication email: ${error.message ?? error.code}.')),
+        const SnackBar(content: Text('Staff profile updated successfully.')),
       );
     } catch (_) {
       if (!mounted) return;
@@ -290,35 +270,64 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
         const SnackBar(content: Text('Could not save the staff profile.')),
       );
     } finally {
-      if (mounted) setState(() => isSaving = false);
+      if (mounted) setState(() => _saving = false);
     }
   }
 
-  Widget _chip(String label, Color background, Color foreground) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(20),
+  Widget _dialogField(
+    TextEditingController controller,
+    String label, {
+    TextInputType? keyboardType,
+    int maxLines = 1,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: TextField(
+        controller: controller,
+        keyboardType: keyboardType,
+        maxLines: maxLines,
+        decoration: InputDecoration(labelText: label, border: const OutlineInputBorder()),
       ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: foreground,
-          fontSize: 10,
-          fontWeight: FontWeight.w800,
+    );
+  }
+
+  void _openDetails(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => StaffDetailScreen(staffId: doc.id)),
+    ).then((_) => _loadStaff());
+  }
+
+  Widget _stat(String title, String value, IconData icon) {
+    return Expanded(
+      child: Card(
+        elevation: 0,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
+          child: Column(
+            children: [
+              Icon(icon, size: 22, color: AppColors.primary),
+              const SizedBox(height: 5),
+              Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+              Text(title, style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildCard(QueryDocumentSnapshot<Map<String, dynamic>> document) {
-    final data = document.data();
-    final name = data['name'] as String? ?? 'Unnamed Staff';
-    final email = data['email'] as String? ?? 'No email';
-    final role = (data['role'] as String? ?? 'consultant').toLowerCase();
+  Widget _card(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data();
+    final name = _text(data['name'], fallback: 'Unnamed Staff');
+    final email = _text(data['email'], fallback: 'No email');
+    final staffId = _text(data['staffId'], fallback: doc.id);
+    final trainer = _text(data['trainerName'], fallback: 'Trainer not assigned');
+    final role = _text(data['role'], fallback: 'consultant').toLowerCase();
     final active = data['isActive'] as bool? ?? true;
-    final photoUrl = data['photoUrl'] as String?;
+    final completed = data['groomingCompleted'] as bool? ?? false;
+    final photo = _text(data['photoUrl']);
+    final score = _text(data['groomingScore']);
 
     return Card(
       elevation: 0,
@@ -327,83 +336,77 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
         borderRadius: BorderRadius.circular(18),
         side: const BorderSide(color: AppColors.border),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            CircleAvatar(
-              radius: 28,
-              backgroundColor: AppColors.secondary,
-              backgroundImage: photoUrl != null && photoUrl.isNotEmpty
-                  ? NetworkImage(photoUrl)
-                  : null,
-              child: photoUrl == null || photoUrl.isEmpty
-                  ? const Icon(Icons.person_outline_rounded, color: AppColors.primary)
-                  : null,
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    email,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
-                  ),
-                  const SizedBox(height: 9),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 5,
-                    children: [
-                      _chip(
-                        role == 'admin' ? 'ADMIN' : 'CONSULTANT / STAFF',
-                        AppColors.surfaceMuted,
-                        AppColors.primaryDark,
-                      ),
-                      _chip(
-                        active ? 'ACTIVE' : 'INACTIVE',
-                        active
-                            ? AppColors.success.withValues(alpha: .12)
-                            : AppColors.error.withValues(alpha: .12),
-                        active ? AppColors.success : AppColors.error,
-                      ),
-                    ],
-                  ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: () => _openDetails(doc),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(
+                radius: 30,
+                backgroundColor: AppColors.secondary,
+                backgroundImage: photo.isNotEmpty ? NetworkImage(photo) : null,
+                child: photo.isEmpty
+                    ? const Icon(Icons.person_outline_rounded, color: AppColors.primary, size: 28)
+                    : null,
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 3),
+                    Text('Staff ID: $staffId', style: TextStyle(color: AppColors.primaryDark, fontWeight: FontWeight.w700, fontSize: 12)),
+                    const SizedBox(height: 3),
+                    Text(email, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                    const SizedBox(height: 3),
+                    Text('Trainer: $trainer', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 5,
+                      children: [
+                        _badge(role == 'admin' ? 'ADMIN' : 'STAFF', AppColors.surfaceMuted, AppColors.primaryDark),
+                        _badge(active ? 'ACTIVE' : 'INACTIVE', active ? AppColors.success.withValues(alpha: .12) : AppColors.error.withValues(alpha: .12), active ? AppColors.success : AppColors.error),
+                        _badge(completed ? 'GROOMING DONE' : 'GROOMING PENDING', completed ? AppColors.success.withValues(alpha: .12) : AppColors.surfaceMuted, completed ? AppColors.success : AppColors.textSecondary),
+                        if (score.isNotEmpty) _badge('SCORE $score', AppColors.surfaceMuted, AppColors.primaryDark),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              PopupMenuButton<String>(
+                tooltip: 'Staff actions',
+                onSelected: (value) {
+                  if (value == 'details') _openDetails(doc);
+                  if (value == 'edit') _editStaff(doc);
+                  if (value == 'reset') _sendPasswordReset(doc);
+                  if (value == 'toggle') _toggleActive(doc);
+                },
+                itemBuilder: (_) => [
+                  const PopupMenuItem(value: 'details', child: Text('View Full Profile')),
+                  const PopupMenuItem(value: 'edit', child: Text('Edit Staff & Grooming')),
+                  const PopupMenuItem(value: 'reset', child: Text('Send Password Reset')),
+                  PopupMenuItem(value: 'toggle', child: Text(active ? 'Deactivate' : 'Activate')),
                 ],
               ),
-            ),
-            PopupMenuButton<String>(
-              tooltip: 'Staff actions',
-              onSelected: (value) {
-                if (value == 'edit') editStaff(document);
-                if (value == 'reset') sendPasswordReset(document);
-                if (value == 'toggle') toggleActive(document);
-              },
-              itemBuilder: (_) => [
-                const PopupMenuItem(value: 'edit', child: Text('Edit Profile')),
-                const PopupMenuItem(value: 'reset', child: Text('Send Password Reset')),
-                PopupMenuItem(
-                  value: 'toggle',
-                  child: Text(active ? 'Deactivate' : 'Activate'),
-                ),
-              ],
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 
-  int _countActive() => staff.where((doc) => doc.data()['isActive'] as bool? ?? true).length;
+  Widget _badge(String label, Color background, Color foreground) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(color: background, borderRadius: BorderRadius.circular(20)),
+      child: Text(label, style: TextStyle(color: foreground, fontSize: 9, fontWeight: FontWeight.w800)),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -411,61 +414,52 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
       appBar: AppBar(
         title: const Text('Staff Management'),
         actions: [
-          IconButton(
-            tooltip: 'Refresh',
-            onPressed: isLoading ? null : loadStaff,
-            icon: const Icon(Icons.refresh),
-          ),
+          IconButton(onPressed: _loading ? null : _loadStaff, tooltip: 'Refresh', icon: const Icon(Icons.refresh_rounded)),
         ],
       ),
       body: AbsorbPointer(
-        absorbing: isSaving,
+        absorbing: _saving,
         child: RefreshIndicator(
-          onRefresh: loadStaff,
+          onRefresh: _loadStaff,
           child: Column(
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
                 child: Row(
                   children: [
-                    Expanded(child: _statCard('All', staff.length.toString(), Icons.groups_outlined)),
-                    const SizedBox(width: 10),
-                    Expanded(child: _statCard('Active', _countActive().toString(), Icons.verified_user_outlined)),
-                    const SizedBox(width: 10),
-                    Expanded(child: _statCard('Inactive', (staff.length - _countActive()).toString(), Icons.person_off_outlined)),
+                    _stat('All', _staff.length.toString(), Icons.groups_outlined),
+                    const SizedBox(width: 8),
+                    _stat('Active', _activeCount.toString(), Icons.verified_user_outlined),
+                    const SizedBox(width: 8),
+                    _stat('Inactive', (_staff.length - _activeCount).toString(), Icons.person_off_outlined),
                   ],
                 ),
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: TextField(
-                  controller: searchController,
+                  controller: _searchController,
                   decoration: InputDecoration(
-                    hintText: 'Search name, email, role or UID',
-                    prefixIcon: const Icon(Icons.search),
-                    suffixIcon: searchController.text.isNotEmpty
-                        ? IconButton(
-                            onPressed: searchController.clear,
-                            icon: const Icon(Icons.clear),
-                          )
-                        : null,
+                    hintText: 'Search staff ID, name, email, trainer or grooming result',
+                    prefixIcon: const Icon(Icons.search_rounded),
+                    suffixIcon: _searchController.text.isEmpty ? null : IconButton(onPressed: _searchController.clear, icon: const Icon(Icons.clear_rounded)),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
                   ),
                 ),
               ),
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                padding: const EdgeInsets.fromLTRB(20, 10, 20, 8),
                 child: Row(
                   children: [
-                    for (final status in const ['All', 'Active', 'Inactive']) ...[
+                    for (final value in const ['All', 'Active', 'Inactive']) ...[
                       FilterChip(
-                        label: Text(status),
+                        label: Text(value),
                         showCheckmark: false,
-                        selected: selectedStatus == status,
+                        selected: _status == value,
                         onSelected: (_) {
-                          setState(() => selectedStatus = status);
-                          filterStaff();
+                          setState(() => _status = value);
+                          _filter();
                         },
                       ),
                       const SizedBox(width: 8),
@@ -477,67 +471,30 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
                 child: Align(
                   alignment: Alignment.centerLeft,
-                  child: Text(
-                    '${filteredStaff.length} staff member${filteredStaff.length == 1 ? '' : 's'}',
-                    style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600),
-                  ),
+                  child: Text('${_filtered.length} staff member${_filtered.length == 1 ? '' : 's'}', style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600)),
                 ),
               ),
               Expanded(
-                child: isLoading
+                child: _loading
                     ? const Center(child: CircularProgressIndicator())
-                    : filteredStaff.isEmpty
+                    : _filtered.isEmpty
                         ? ListView(
                             physics: const AlwaysScrollableScrollPhysics(),
-                            children: [
-                              const SizedBox(height: 120),
-                              Center(
-                                child: Column(
-                                  children: [
-                                    Icon(Icons.groups_outlined, size: 56, color: AppColors.textSecondary),
-                                    const SizedBox(height: 12),
-                                    Text(
-                                      'No staff found',
-                                      style: TextStyle(
-                                        color: AppColors.textSecondary,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
+                            children: const [
+                              SizedBox(height: 120),
+                              Center(child: Text('No staff found.')),
                             ],
                           )
                         : ListView.builder(
                             physics: const AlwaysScrollableScrollPhysics(),
                             padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-                            itemCount: filteredStaff.length,
-                            itemBuilder: (_, index) => _buildCard(filteredStaff[index]),
+                            itemCount: _filtered.length,
+                            itemBuilder: (_, index) => _card(_filtered[index]),
                           ),
               ),
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _statCard(String title, String value, IconData icon) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceMuted,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 19, color: AppColors.primary),
-          const SizedBox(height: 7),
-          Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 2),
-          Text(title, style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-        ],
       ),
     );
   }
