@@ -35,6 +35,10 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
   }
 
   Future<void> _verifyAdministratorAccess() async {
+    if (mounted) {
+      setState(() => _isCheckingAccess = true);
+    }
+
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
@@ -259,7 +263,7 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
               ),
               const SizedBox(height: 18),
               FilledButton.icon(
-                onPressed: _verifyAdministratorAccess,
+                onPressed: _isCheckingAccess ? null : _verifyAdministratorAccess,
                 icon: const Icon(Icons.refresh_rounded),
                 label: const Text('Check Again'),
               ),
@@ -339,6 +343,11 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
           ],
         ),
         actions: [
+          IconButton(
+            tooltip: 'Refresh administrator access',
+            onPressed: _isCheckingAccess ? null : _verifyAdministratorAccess,
+            icon: const Icon(Icons.refresh_rounded),
+          ),
           IconButton(
             tooltip: 'Switch Role Dashboard',
             onPressed: _showModeSelector,
