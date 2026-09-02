@@ -11,34 +11,35 @@ class StaffManagementScreen extends StatefulWidget {
 }
 
 class _StaffManagementScreenState extends State<StaffManagementScreen> {
-  final TextEditingController _searchController = TextEditingController();
-  final Set<String> _busyIds = <String>{};
-
-  List<QueryDocumentSnapshot<Map<String, dynamic>>> _staff = const [];
-  bool _isLoading = true;
-  String _selectedStatus = 'All';
+  final TextEditingController searchController = TextEditingController();
+  List<QueryDocumentSnapshot<Map<String, dynamic>>> staff = [];
+  List<QueryDocumentSnapshot<Map<String, dynamic>>> filteredStaff = [];
+  bool isLoading = true;
+  String selectedStatus = 'All';
 
   @override
   void initState() {
     super.initState();
-    _searchController.addListener(_refresh);
-    _loadStaff();
+    loadStaff();
+    searchController.addListener(filterStaff);
   }
 
   @override
   void dispose() {
-    _searchController.removeListener(_refresh);
-    _searchController.dispose();
+    searchController.removeListener(filterStaff);
+    searchController.dispose();
     super.dispose();
   }
 
-  Future<void> _loadStaff() async {
-    if (mounted) setState(() => _isLoading = true);
+  Future<void> loadStaff() async {
     try {
+      if (mounted) setState(() => isLoading = true);
       final snapshot = await FirebaseFirestore.instance.collection('users').get();
-      final staff = snapshot.docs.where((doc) {
-        final role = (doc.data()['role'] as String? ?? 'customer').toLowerCase();
-        return role == 'admin' || role == 'consultant' || role == 'staff';
+      if (!mounted) return;
+
+      final staffDocs = snapshot.docs.where((document) {
+        final role = (document.data()['role'] as String? ?? 'customer').toLowerCase();
+        return role == 'consultant' || role == 'staff' || role == 'admin';
       }).toList()
         ..sort((a, b) {
           final aName = (a.data()['name'] as String? ?? '').toLowerCase();
@@ -46,61 +47,54 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
           return aName.compareTo(bName);
         });
 
-      if (!mounted) return;
       setState(() {
-        _staff = staff;
-        _isLoading = false;
+        staff = staffDocs;
+        isLoading = false;
       });
+      filterStaff();
     } catch (_) {
       if (!mounted) return;
-      setState(() => _isLoading = false);
+      setState(() => isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not load staff accounts. Please try again.')),
+        const SnackBar(content: Text('Couldn’t load staff. Please try again.')),
       );
     }
   }
 
-  void _refresh() {
-    if (mounted) setState(() {});
+  void filterStaff() {
+    if (!mounted) return;
+    final query = searchController.text.trim().toLowerCase();
+    setState(() {
+      filteredStaff = staff.where((document) {
+        final data = document.data();
+        final name = (data['name'] as String? ?? '').toLowerCase();
+        final email = (data['email'] as String? ?? '').toLowerCase();
+        final role = (data['role'] as String? ?? '').toLowerCase();
+        final uid = document.id.toLowerCase();
+        final active = data['isActive'] as bool? ?? true;
+
+        final matchesSearch = query.isEmpty ||
+            name.contains(query) ||
+            email.contains(query) ||
+            role.contains(query) ||
+            uid.contains(query);
+        final matchesStatus = selectedStatus == 'All' ||
+            (selectedStatus == 'Active' && active) ||
+            (selectedStatus == 'Inactive' && !active);
+        return matchesSearch && matchesStatus;
+      }).toList();
+    });
   }
 
-  List<QueryDocumentSnapshot<Map<String, dynamic>>> get _filteredStaff {
-    final query = _searchController.text.trim().toLowerCase();
-    return _staff.where((document) {
-      final data = document.data();
-      final name = (data['name'] as String? ?? '').toLowerCase();
-      final email = (data['email'] as String? ?? '').toLowerCase();
-      final uid = document.id.toLowerCase();
-      final rawRole = (data['role'] as String? ?? 'consultant').toLowerCase();
-      final role = rawRole == 'staff' ? 'consultant' : rawRole;
-      final isActive = data['isActive'] as bool? ?? true;
-
-      final matchesSearch = query.isEmpty ||
-          name.contains(query) ||
-          email.contains(query) ||
-          uid.contains(query) ||
-          role.contains(query);
-      final matchesStatus = _selectedStatus == 'All' ||
-          (_selectedStatus == 'Active' && isActive) ||
-          (_selectedStatus == 'Inactive' && !isActive);
-      return matchesSearch && matchesStatus;
-    }).toList();
-  }
-
-  Future<void> _toggleStatus(
-    QueryDocumentSnapshot<Map<String, dynamic>> document,
-  ) async {
-    final uid = document.id;
-    if (_busyIds.contains(uid)) return;
-
-    final current = document.data()['isActive'] as bool? ?? true;
-    setState(() => _busyIds.add(uid));
+  Future<void> toggleActive(QueryDocumentSnapshot<Map<String, dynamic>> document) async {
+    final data = document.data();
+    final current = data['isActive'] as bool? ?? true;
     try {
       await document.reference.update({
         'isActive': !current,
         'updatedAt': FieldValue.serverTimestamp(),
       });
-      await _loadStaff();
+      await loadStaff();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(!current ? 'Staff account activated.' : 'Staff account deactivated.')),
@@ -110,93 +104,91 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Could not update this staff account.')),
       );
-    } finally {
-      if (mounted) setState(() => _busyIds.remove(uid));
     }
   }
 
-  Future<void> _editStaff(
-    QueryDocumentSnapshot<Map<String, dynamic>> document,
-  ) async {
+  Future<void> editStaff(QueryDocumentSnapshot<Map<String, dynamic>> document) async {
     final data = document.data();
     final nameController = TextEditingController(text: data['name'] as String? ?? '');
     final emailController = TextEditingController(text: data['email'] as String? ?? '');
-    String selectedRole = (data['role'] as String? ?? 'consultant').toLowerCase();
+    String selectedRole = ((data['role'] as String?) ?? 'consultant').toLowerCase();
     if (selectedRole == 'staff') selectedRole = 'consultant';
 
     final result = await showDialog<Map<String, String>>(
       context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Edit Staff Profile'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nameController,
-                  textCapitalization: TextCapitalization.words,
-                  decoration: const InputDecoration(labelText: 'Name'),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: emailController,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: const InputDecoration(labelText: 'Email'),
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  value: selectedRole,
-                  decoration: const InputDecoration(labelText: 'Role'),
-                  items: const [
-                    DropdownMenuItem(value: 'consultant', child: Text('Consultant / Staff')),
-                    DropdownMenuItem(value: 'admin', child: Text('Administrator')),
-                  ],
-                  onChanged: (value) {
-                    if (value != null) setDialogState(() => selectedRole = value);
-                  },
-                ),
-              ],
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) => AlertDialog(
+            title: const Text('Edit Staff'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: nameController,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: const InputDecoration(labelText: 'Name'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: const InputDecoration(labelText: 'Email'),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedRole,
+                    decoration: const InputDecoration(labelText: 'Role'),
+                    items: const [
+                      DropdownMenuItem(value: 'consultant', child: Text('Consultant / Staff')),
+                      DropdownMenuItem(value: 'admin', child: Text('Administrator')),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) setDialogState(() => selectedRole = value);
+                    },
+                  ),
+                ],
+              ),
             ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, {
+                  'name': nameController.text.trim(),
+                  'email': emailController.text.trim(),
+                  'role': selectedRole,
+                }),
+                child: const Text('Save'),
+              ),
+            ],
           ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
-            FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, {
-                'name': nameController.text.trim(),
-                'email': emailController.text.trim(),
-                'role': selectedRole,
-              }),
-              child: const Text('Save'),
-            ),
-          ],
-        ),
-      ),
+        );
+      },
     );
 
     nameController.dispose();
     emailController.dispose();
-    if (result == null || !mounted) return;
+    if (result == null) return;
 
     final name = result['name'] ?? '';
     final email = result['email'] ?? '';
+    final role = result['role'] ?? 'consultant';
     if (name.isEmpty || email.isEmpty) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Name and email cannot be empty.')),
+        const SnackBar(content: Text('Name and email are required.')),
       );
       return;
     }
 
-    final uid = document.id;
-    setState(() => _busyIds.add(uid));
     try {
       await document.reference.update({
         'name': name,
         'email': email,
-        'role': result['role'] ?? 'consultant',
+        'role': role,
         'updatedAt': FieldValue.serverTimestamp(),
       });
-      await _loadStaff();
+      await loadStaff();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Staff profile updated.')),
@@ -206,255 +198,249 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Could not save the staff profile.')),
       );
-    } finally {
-      if (mounted) setState(() => _busyIds.remove(uid));
     }
   }
 
-  void _showStaffDetails(QueryDocumentSnapshot<Map<String, dynamic>> document) {
-    final data = document.data();
-    final role = (data['role'] as String? ?? 'consultant').toLowerCase();
-    final isActive = data['isActive'] as bool? ?? true;
-    final createdAt = data['createdAt'];
-    final date = createdAt is Timestamp ? createdAt.toDate() : null;
-
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      isScrollControlled: true,
-      builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(data['name'] as String? ?? 'Unnamed Staff', style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w800)),
-              const SizedBox(height: 6),
-              Text(data['email'] as String? ?? 'No email', style: TextStyle(color: AppColors.textSecondary)),
-              const SizedBox(height: 16),
-              _detailTile('Role', role == 'admin' ? 'Administrator' : 'Consultant / Staff'),
-              _detailTile('Status', isActive ? 'Active' : 'Inactive'),
-              _detailTile('Staff UID', document.id),
-              if (date != null) _detailTile('Joined', '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}'),
-            ],
-          ),
+  Widget _chip(String label, Color background, Color foreground) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: foreground,
+          fontSize: 10,
+          fontWeight: FontWeight.w800,
         ),
       ),
     );
   }
 
-  Widget _detailTile(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: AppColors.surfaceMuted,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildCard(QueryDocumentSnapshot<Map<String, dynamic>> document) {
+    final data = document.data();
+    final name = data['name'] as String? ?? 'Unnamed Staff';
+    final email = data['email'] as String? ?? 'No email';
+    final role = (data['role'] as String? ?? 'consultant').toLowerCase();
+    final active = data['isActive'] as bool? ?? true;
+    final photoUrl = data['photoUrl'] as String?;
+
+    return Card(
+      elevation: 0,
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: const BorderSide(color: AppColors.border),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
           children: [
-            Text(label, style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
-            const SizedBox(height: 3),
-            Text(value, style: const TextStyle(fontWeight: FontWeight.w700)),
+            CircleAvatar(
+              radius: 28,
+              backgroundColor: AppColors.secondary,
+              backgroundImage: photoUrl != null && photoUrl.isNotEmpty
+                  ? NetworkImage(photoUrl)
+                  : null,
+              child: photoUrl == null || photoUrl.isEmpty
+                  ? const Icon(Icons.person_outline_rounded, color: AppColors.primary)
+                  : null,
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    email,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                  ),
+                  const SizedBox(height: 9),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 5,
+                    children: [
+                      _chip(
+                        role == 'admin' ? 'ADMIN' : 'CONSULTANT / STAFF',
+                        AppColors.surfaceMuted,
+                        AppColors.primaryDark,
+                      ),
+                      _chip(
+                        active ? 'ACTIVE' : 'INACTIVE',
+                        active
+                            ? AppColors.success.withValues(alpha: .12)
+                            : AppColors.error.withValues(alpha: .12),
+                        active ? AppColors.success : AppColors.error,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            PopupMenuButton<String>(
+              tooltip: 'Staff actions',
+              onSelected: (value) {
+                if (value == 'edit') editStaff(document);
+                if (value == 'toggle') toggleActive(document);
+              },
+              itemBuilder: (_) => [
+                const PopupMenuItem(value: 'edit', child: Text('Edit Profile')),
+                PopupMenuItem(
+                  value: 'toggle',
+                  child: Text(active ? 'Deactivate' : 'Activate'),
+                ),
+              ],
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _roleChip(String role) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceMuted,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        role == 'admin' ? 'ADMIN' : 'STAFF',
-        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800),
-      ),
-    );
-  }
+  int _countActive() => staff.where((doc) => doc.data()['isActive'] as bool? ?? true).length;
 
   @override
   Widget build(BuildContext context) {
-    final filtered = _filteredStaff;
-    final activeCount = _staff.where((d) => d.data()['isActive'] as bool? ?? true).length;
-    final inactiveCount = _staff.length - activeCount;
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Staff Management'),
         actions: [
           IconButton(
             tooltip: 'Refresh',
-            onPressed: _isLoading ? null : _loadStaff,
-            icon: const Icon(Icons.refresh_rounded),
+            onPressed: isLoading ? null : loadStaff,
+            icon: const Icon(Icons.refresh),
           ),
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: _loadStaff,
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+        onRefresh: loadStaff,
+        child: Column(
           children: [
-            Card(
-              elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18), side: const BorderSide(color: AppColors.border)),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    Expanded(child: _stat('Total Staff', _staff.length.toString())),
-                    Expanded(child: _stat('Active', activeCount.toString())),
-                    Expanded(child: _stat('Inactive', inactiveCount.toString())),
-                  ],
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+              child: Row(
+                children: [
+                  Expanded(child: _statCard('All', staff.length.toString(), Icons.groups_outlined)),
+                  const SizedBox(width: 10),
+                  Expanded(child: _statCard('Active', _countActive().toString(), Icons.verified_user_outlined)),
+                  const SizedBox(width: 10),
+                  Expanded(child: _statCard('Inactive', (staff.length - _countActive()).toString(), Icons.person_off_outlined)),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: TextField(
+                controller: searchController,
+                decoration: InputDecoration(
+                  hintText: 'Search name, email, role or UID',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: searchController.text.isNotEmpty
+                      ? IconButton(
+                          onPressed: searchController.clear,
+                          icon: const Icon(Icons.clear),
+                        )
+                      : null,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
                 ),
               ),
             ),
-            const SizedBox(height: 14),
-            TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'Search name, email or UID',
-                prefixIcon: const Icon(Icons.search_rounded),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(onPressed: _searchController.clear, icon: const Icon(Icons.clear_rounded))
-                    : null,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
-              ),
-            ),
-            const SizedBox(height: 10),
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               child: Row(
                 children: [
                   for (final status in const ['All', 'Active', 'Inactive']) ...[
                     FilterChip(
                       label: Text(status),
-                      selected: _selectedStatus == status,
                       showCheckmark: false,
-                      onSelected: (_) => setState(() => _selectedStatus = status),
+                      selected: selectedStatus == status,
+                      onSelected: (_) {
+                        setState(() => selectedStatus = status);
+                        filterStaff();
+                      },
                     ),
                     const SizedBox(width: 8),
                   ],
                 ],
               ),
             ),
-            const SizedBox(height: 8),
-            if (_isLoading)
-              const Padding(
-                padding: EdgeInsets.only(top: 100),
-                child: Center(child: CircularProgressIndicator()),
-              )
-            else if (filtered.isEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 100),
-                child: Center(
-                  child: Column(
-                    children: [
-                      Icon(Icons.badge_outlined, size: 48, color: AppColors.textSecondary),
-                      const SizedBox(height: 12),
-                      const Text('No staff accounts found', style: TextStyle(fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 4),
-                      Text('Try another search or status filter.', style: TextStyle(color: AppColors.textSecondary)),
-                    ],
-                  ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '${filteredStaff.length} staff member${filteredStaff.length == 1 ? '' : 's'}',
+                  style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600),
                 ),
-              )
-            else
-              for (final document in filtered) _buildStaffCard(document),
+              ),
+            ),
+            Expanded(
+              child: isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : filteredStaff.isEmpty
+                      ? ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          children: [
+                            const SizedBox(height: 120),
+                            Center(
+                              child: Column(
+                                children: [
+                                  Icon(Icons.groups_outlined, size: 56, color: AppColors.textSecondary),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    'No staff found',
+                                    style: TextStyle(
+                                      color: AppColors.textSecondary,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        )
+                      : ListView.builder(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                          itemCount: filteredStaff.length,
+                          itemBuilder: (_, index) => _buildCard(filteredStaff[index]),
+                        ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildStaffCard(QueryDocumentSnapshot<Map<String, dynamic>> document) {
-    final data = document.data();
-    final uid = document.id;
-    final role = (data['role'] as String? ?? 'consultant').toLowerCase();
-    final isActive = data['isActive'] as bool? ?? true;
-    final photoUrl = data['photoUrl'] as String?;
-    final busy = _busyIds.contains(uid);
-
-    return Card(
-      elevation: 0,
-      margin: const EdgeInsets.only(top: 10),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18), side: const BorderSide(color: AppColors.border)),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: () => _showStaffDetails(document),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            children: [
-              CircleAvatar(
-                radius: 25,
-                backgroundImage: photoUrl != null && photoUrl.isNotEmpty ? NetworkImage(photoUrl) : null,
-                child: photoUrl == null || photoUrl.isEmpty ? const Icon(Icons.person_outline_rounded) : null,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(data['name'] as String? ?? 'Unnamed Staff', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800)),
-                    const SizedBox(height: 3),
-                    Text(data['email'] as String? ?? 'No email', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 5,
-                      children: [
-                        _roleChip(role),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-                          decoration: BoxDecoration(
-                            color: isActive ? AppColors.success.withValues(alpha: .12) : AppColors.error.withValues(alpha: .12),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Text(isActive ? 'ACTIVE' : 'INACTIVE', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: isActive ? AppColors.success : AppColors.error)),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              if (busy)
-                const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))
-              else
-                PopupMenuButton<String>(
-                  onSelected: (value) {
-                    if (value == 'view') _showStaffDetails(document);
-                    if (value == 'edit') _editStaff(document);
-                    if (value == 'toggle') _toggleStatus(document);
-                  },
-                  itemBuilder: (_) => [
-                    const PopupMenuItem(value: 'view', child: Text('View Profile')),
-                    const PopupMenuItem(value: 'edit', child: Text('Edit Profile')),
-                    PopupMenuItem(value: 'toggle', child: Text(isActive ? 'Deactivate' : 'Activate')),
-                  ],
-                ),
-            ],
-          ),
-        ),
+  Widget _statCard(String title, String value, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceMuted,
+        borderRadius: BorderRadius.circular(16),
       ),
-    );
-  }
-
-  Widget _stat(String label, String value) {
-    return Column(
-      children: [
-        Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
-        const SizedBox(height: 3),
-        Text(label, textAlign: TextAlign.center, style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
-      ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 19, color: AppColors.primary),
+          const SizedBox(height: 7),
+          Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 2),
+          Text(title, style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+        ],
+      ),
     );
   }
 }
