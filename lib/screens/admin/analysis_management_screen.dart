@@ -39,15 +39,9 @@ class _AnalysisManagementScreenState extends State<AnalysisManagementScreen> {
   }
 
   void _onSearchChanged() {
-    if (!mounted) {
-      return;
-    }
+    if (!mounted) return;
     setState(() {});
   }
-
-  // ============================================================
-  // FIRESTORE STREAM
-  // ============================================================
 
   Stream<QuerySnapshot<Map<String, dynamic>>> _analysisStream() {
     return FirebaseFirestore.instance
@@ -56,10 +50,6 @@ class _AnalysisManagementScreenState extends State<AnalysisManagementScreen> {
         .snapshots();
   }
 
-  // ============================================================
-  // FILTER
-  // ============================================================
-
   List<QueryDocumentSnapshot<Map<String, dynamic>>> _filterResults(
     List<QueryDocumentSnapshot<Map<String, dynamic>>> documents,
   ) {
@@ -67,52 +57,54 @@ class _AnalysisManagementScreenState extends State<AnalysisManagementScreen> {
 
     return documents.where((document) {
       final data = document.data();
-
       final season = (data['season'] as String? ?? '').toLowerCase();
-
       final undertone = (data['undertone'] as String? ?? '').toLowerCase();
-
       final brightness = (data['brightness'] as String? ?? '').toLowerCase();
-
       final contrast = (data['contrast'] as String? ?? '').toLowerCase();
+      final uid = document.reference.parent.parent?.id ?? '';
 
-      final matchesSearch =
-          query.isEmpty ||
+      final matchesSearch = query.isEmpty ||
           season.contains(query) ||
           undertone.contains(query) ||
           brightness.contains(query) ||
-          contrast.contains(query);
+          contrast.contains(query) ||
+          uid.toLowerCase().contains(query);
 
-      final matchesSeason =
-          _selectedSeason == 'All' ||
+      final matchesSeason = _selectedSeason == 'All' ||
           season.contains(_selectedSeason.toLowerCase());
 
       return matchesSearch && matchesSeason;
     }).toList();
   }
 
-  // ============================================================
-  // SEASON COUNT
-  // ============================================================
-
   int _countSeason(
     List<QueryDocumentSnapshot<Map<String, dynamic>>> documents,
     String season,
   ) {
     return documents.where((document) {
-      final data = document.data();
-
-      final value = (data['season'] as String? ?? '').toLowerCase();
-
+      final value = (document.data()['season'] as String? ?? '').toLowerCase();
       return value.contains(season.toLowerCase());
     }).length;
   }
 
-  // ============================================================
-  // OPEN RESULT
-  // ============================================================
+  Future<Map<String, dynamic>?> _loadCustomer(String userId) async {
+    if (userId.isEmpty) return null;
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .get();
+      return snapshot.data();
+    } catch (_) {
+      return null;
+    }
+  }
 
-  void _openResult(BuildContext context, Map<String, dynamic> data) {
+  void _openResult(
+    BuildContext context,
+    Map<String, dynamic> data,
+    String userId,
+  ) {
     final createdAt = data['createdAt'] as Timestamp?;
 
     Navigator.push(
@@ -125,14 +117,11 @@ class _AnalysisManagementScreenState extends State<AnalysisManagementScreen> {
           contrast: data['contrast'] as String? ?? 'Unknown',
           imageUrl: data['imageUrl'] as String? ?? '',
           createdAt: createdAt?.toDate(),
+          userId: userId,
         ),
       ),
     );
   }
-
-  // ============================================================
-  // BUILD
-  // ============================================================
 
   @override
   Widget build(BuildContext context) {
@@ -147,194 +136,113 @@ class _AnalysisManagementScreenState extends State<AnalysisManagementScreen> {
           ),
         ],
       ),
-
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: _analysisStream(),
-
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting &&
               !snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          if (snapshot.hasError) {
-            return _buildError();
-          }
+          if (snapshot.hasError) return _buildError();
 
           final documents = snapshot.data?.docs ?? [];
-
           final filtered = _filterResults(documents);
-
           final total = documents.length;
-
           final spring = _countSeason(documents, 'Spring');
-
           final summer = _countSeason(documents, 'Summer');
-
           final autumn = _countSeason(documents, 'Autumn');
-
           final winter = _countSeason(documents, 'Winter');
 
           return RefreshIndicator(
-            onRefresh: () async {
-              setState(() {});
-            },
-
+            onRefresh: () async => setState(() {}),
             child: ListView(
               physics: const AlwaysScrollableScrollPhysics(),
-
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 30),
-
               children: [
-                // ==================================================
-                // DASHBOARD TITLE
-                // ==================================================
                 const Text(
                   'Analysis Overview',
-
                   style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                 ),
-
                 const SizedBox(height: 5),
-
                 Text(
                   'Monitor customer colour analysis activity.',
                   style: TextStyle(color: AppColors.textSecondary),
                 ),
-
                 const SizedBox(height: 18),
-
-                // ==================================================
-                // TOTAL
-                // ==================================================
                 _buildTotalCard(total),
-
                 const SizedBox(height: 12),
-
-                // ==================================================
-                // SEASON STATISTICS
-                // ==================================================
                 Row(
                   children: [
                     Expanded(
                       child: _buildSeasonCard(
-                        title: 'Spring',
-                        count: spring,
-                        icon: Icons.local_florist_outlined,
+                        title: 'Spring', count: spring, icon: Icons.local_florist_outlined,
                       ),
                     ),
-
                     const SizedBox(width: 10),
-
                     Expanded(
                       child: _buildSeasonCard(
-                        title: 'Summer',
-                        count: summer,
-                        icon: Icons.wb_sunny_outlined,
+                        title: 'Summer', count: summer, icon: Icons.wb_sunny_outlined,
                       ),
                     ),
                   ],
                 ),
-
                 const SizedBox(height: 10),
-
                 Row(
                   children: [
                     Expanded(
                       child: _buildSeasonCard(
-                        title: 'Autumn',
-                        count: autumn,
-                        icon: Icons.eco_outlined,
+                        title: 'Autumn', count: autumn, icon: Icons.eco_outlined,
                       ),
                     ),
-
                     const SizedBox(width: 10),
-
                     Expanded(
                       child: _buildSeasonCard(
-                        title: 'Winter',
-                        count: winter,
-                        icon: Icons.ac_unit_outlined,
+                        title: 'Winter', count: winter, icon: Icons.ac_unit_outlined,
                       ),
                     ),
                   ],
                 ),
-
                 const SizedBox(height: 24),
-
-                // ==================================================
-                // SEARCH
-                // ==================================================
                 const Text(
                   'Search & Filter',
-
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
-
                 const SizedBox(height: 10),
-
                 TextField(
                   controller: _searchController,
-
                   decoration: InputDecoration(
-                    hintText: 'Search analysis results',
-
+                    hintText: 'Search result, customer UID or colour profile',
                     prefixIcon: const Icon(Icons.search),
-
                     suffixIcon: _searchController.text.isNotEmpty
                         ? IconButton(
-                            onPressed: () {
-                              _searchController.clear();
-                            },
+                            onPressed: _searchController.clear,
                             icon: const Icon(Icons.clear),
                           )
                         : null,
-
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(16),
                     ),
                   ),
                 ),
-
                 const SizedBox(height: 14),
-
-                // ==================================================
-                // SEASON FILTER
-                // ==================================================
                 _buildSeasonFilter(),
-
                 const SizedBox(height: 24),
-
-                // ==================================================
-                // RECORD TITLE
-                // ==================================================
                 Row(
                   children: [
                     const Text(
                       'Analysis Records',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
-
                     const Spacer(),
-
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 5,
-                      ),
-
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                       decoration: BoxDecoration(
                         color: AppColors.secondary,
-
                         borderRadius: BorderRadius.circular(20),
                       ),
-
                       child: Text(
                         '${filtered.length}',
-
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
                           color: AppColors.primary,
@@ -343,18 +251,11 @@ class _AnalysisManagementScreenState extends State<AnalysisManagementScreen> {
                     ),
                   ],
                 ),
-
                 const SizedBox(height: 10),
-
-                // ==================================================
-                // RECORDS
-                // ==================================================
                 if (filtered.isEmpty)
                   _buildEmptyState()
                 else
-                  ...filtered.map((document) {
-                    return _buildAnalysisCard(context, document);
-                  }),
+                  ...filtered.map((document) => _buildAnalysisCard(context, document)),
               ],
             ),
           );
@@ -363,77 +264,41 @@ class _AnalysisManagementScreenState extends State<AnalysisManagementScreen> {
     );
   }
 
-  // ============================================================
-  // TOTAL CARD
-  // ============================================================
-
   Widget _buildTotalCard(int total) {
     return Container(
       padding: const EdgeInsets.all(20),
-
       decoration: BoxDecoration(
         color: AppColors.surface,
-
         borderRadius: BorderRadius.circular(20),
-
         border: Border.all(color: AppColors.border),
       ),
-
       child: Row(
         children: [
           Container(
             width: 58,
             height: 58,
-
             decoration: BoxDecoration(
               color: AppColors.secondary,
-
               borderRadius: BorderRadius.circular(17),
             ),
-
-            child: const Icon(
-              Icons.analytics_outlined,
-              color: AppColors.primary,
-              size: 30,
-            ),
+            child: const Icon(Icons.analytics_outlined, color: AppColors.primary, size: 30),
           ),
-
           const SizedBox(width: 16),
-
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-
               children: [
-                Text(
-                  'Total Analysis Records',
-
-                  style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-                ),
-
+                Text('Total Analysis Records', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
                 const SizedBox(height: 4),
-
-                Text(
-                  '$total',
-
-                  style: const TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                Text('$total', style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
               ],
             ),
           ),
-
           const Icon(Icons.trending_up, color: AppColors.primary),
         ],
       ),
     );
   }
-
-  // ============================================================
-  // SEASON CARD
-  // ============================================================
 
   Widget _buildSeasonCard({
     required String title,
@@ -442,53 +307,30 @@ class _AnalysisManagementScreenState extends State<AnalysisManagementScreen> {
   }) {
     return Container(
       padding: const EdgeInsets.all(16),
-
       decoration: BoxDecoration(
         color: AppColors.surface,
-
         borderRadius: BorderRadius.circular(18),
-
         border: Border.all(color: AppColors.border),
       ),
-
       child: Row(
         children: [
           Container(
             width: 42,
             height: 42,
-
             decoration: BoxDecoration(
               color: AppColors.surfaceMuted,
-
               borderRadius: BorderRadius.circular(12),
             ),
-
             child: Icon(icon, color: AppColors.primary, size: 22),
           ),
-
           const SizedBox(width: 10),
-
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-
               children: [
-                Text(
-                  title,
-
-                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                ),
-
+                Text(title, style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
                 const SizedBox(height: 3),
-
-                Text(
-                  '$count',
-
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                Text('$count', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
               ],
             ),
           ),
@@ -497,31 +339,19 @@ class _AnalysisManagementScreenState extends State<AnalysisManagementScreen> {
     );
   }
 
-  // ============================================================
-  // SEASON FILTER
-  // ============================================================
-
   Widget _buildSeasonFilter() {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
-
       child: Row(
         children: _seasons.map((season) {
           final selected = _selectedSeason == season;
-
           return Padding(
             padding: const EdgeInsets.only(right: 8),
-
             child: ChoiceChip(
               label: Text(season),
               selected: selected,
               showCheckmark: false,
-
-              onSelected: (_) {
-                setState(() {
-                  _selectedSeason = season;
-                });
-              },
+              onSelected: (_) => setState(() => _selectedSeason = season),
             ),
           );
         }).toList(),
@@ -529,97 +359,100 @@ class _AnalysisManagementScreenState extends State<AnalysisManagementScreen> {
     );
   }
 
-  // ============================================================
-  // ANALYSIS CARD
-  // ============================================================
-
   Widget _buildAnalysisCard(
     BuildContext context,
     QueryDocumentSnapshot<Map<String, dynamic>> document,
   ) {
     final data = document.data();
-
     final season = data['season'] as String? ?? 'Unknown';
-
     final undertone = data['undertone'] as String? ?? 'Unknown';
-
     final brightness = data['brightness'] as String? ?? 'Unknown';
-
     final contrast = data['contrast'] as String? ?? 'Unknown';
-
     final imageUrl = data['imageUrl'] as String? ?? '';
-
     final createdAt = data['createdAt'] as Timestamp?;
+    final userId = document.reference.parent.parent?.id ?? '';
 
     return Card(
       elevation: 0,
       margin: const EdgeInsets.only(bottom: 10),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(18),
-        side: const BorderSide(
-          color: AppColors.border,
-        ),
+        side: const BorderSide(color: AppColors.border),
       ),
       clipBehavior: Clip.antiAlias,
-
       child: InkWell(
-        onTap: () {
-          _openResult(context, data);
-        },
-
+        onTap: () => _openResult(context, data, userId),
         child: Padding(
           padding: const EdgeInsets.all(14),
-
           child: Row(
             children: [
               _buildImage(imageUrl),
-
               const SizedBox(width: 14),
-
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-
                   children: [
-                    Text(
-                      season,
-
-                      style: const TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            season,
+                            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        if (userId.isNotEmpty)
+                          FutureBuilder<Map<String, dynamic>?>(
+                            future: _loadCustomer(userId),
+                            builder: (context, snapshot) {
+                              final customerName = snapshot.data?['name'] as String?;
+                              if (customerName == null || customerName.trim().isEmpty) {
+                                return const SizedBox.shrink();
+                              }
+                              return Container(
+                                constraints: const BoxConstraints(maxWidth: 120),
+                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: AppColors.secondary,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  customerName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.primary,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                      ],
                     ),
-
                     const SizedBox(height: 5),
-
                     Text(
-                      '$undertone • '
-                      '$brightness • '
-                      '$contrast',
-
+                      '$undertone • $brightness • $contrast',
                       maxLines: 2,
-
                       overflow: TextOverflow.ellipsis,
-
                       style: TextStyle(color: AppColors.textSecondary),
                     ),
-
                     const SizedBox(height: 6),
-
                     Text(
-                      createdAt == null
-                          ? 'Date unavailable'
-                          : _formatDate(createdAt.toDate()),
-
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textSecondary,
-                      ),
+                      userId.isEmpty ? 'Customer: unavailable' : 'Customer ID: $userId',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 10.5, color: AppColors.textSecondary),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      createdAt == null ? 'Date unavailable' : _formatDate(createdAt.toDate()),
+                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
                     ),
                   ],
                 ),
               ),
-
+              const SizedBox(width: 8),
               const Icon(Icons.arrow_forward_ios, size: 16),
             ],
           ),
@@ -628,145 +461,74 @@ class _AnalysisManagementScreenState extends State<AnalysisManagementScreen> {
     );
   }
 
-  // ============================================================
-  // IMAGE
-  // ============================================================
-
   Widget _buildImage(String imageUrl) {
     if (imageUrl.isEmpty) {
       return Container(
         width: 70,
         height: 70,
-
         decoration: BoxDecoration(
           color: AppColors.secondary,
-
           borderRadius: BorderRadius.circular(14),
         ),
-
-        child: const Icon(
-        Icons.auto_awesome,
-        color: AppColors.primary,
-        size: 30,
-      ),
+        child: const Icon(Icons.auto_awesome, color: AppColors.primary, size: 30),
       );
     }
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(14),
-
       child: Image.network(
         imageUrl,
-
         width: 70,
         height: 70,
-
         fit: BoxFit.cover,
-
-        errorBuilder: (context, error, stackTrace) {
-          return Container(
-            width: 70,
-            height: 70,
-
-            color: AppColors.secondary,
-
-            child: const Icon(
-              Icons.image_not_supported_outlined,
-              color: AppColors.primary,
-            ),
-          );
-        },
+        errorBuilder: (context, error, stackTrace) => Container(
+          width: 70,
+          height: 70,
+          color: AppColors.secondary,
+          child: const Icon(Icons.image_not_supported_outlined, color: AppColors.primary),
+        ),
       ),
     );
   }
 
-  // ============================================================
-  // EMPTY
-  // ============================================================
-
   Widget _buildEmptyState() {
     return Container(
       padding: const EdgeInsets.all(30),
-
       decoration: BoxDecoration(
         color: AppColors.surfaceMuted,
-
         borderRadius: BorderRadius.circular(18),
       ),
-
       child: Column(
         children: [
-          Icon(Icons.analytics_outlined, size: 60, color: AppColors.textMuted),
-
-          const SizedBox(height: 12),
-
-          const Text(
-            'No analysis records found',
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
-              fontSize: 16,
-            ),
-          ),
-
-          const SizedBox(height: 6),
-
+          const Icon(Icons.analytics_outlined, size: 42, color: AppColors.primary),
+          const SizedBox(height: 10),
+          const Text('No matching analysis records', style: TextStyle(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 5),
           Text(
-            _searchController.text.trim().isEmpty &&
-                    _selectedSeason == 'All'
-                ? 'Customer colour analysis results will appear here.'
-                : 'Try changing your search or season filter.',
+            'Try another customer UID, profile value or season filter.',
             textAlign: TextAlign.center,
-            style: TextStyle(
-              color: AppColors.textSecondary,
-            ),
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
           ),
         ],
       ),
     );
   }
 
-  // ============================================================
-  // ERROR
-  // ============================================================
-
   Widget _buildError() {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
-
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-
+          mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline, size: 60),
-
-            const SizedBox(height: 15),
-
-            const Text(
-              'We couldn’t load the analysis records.',
-              style: TextStyle(
-                fontWeight: FontWeight.w700,
-                fontSize: 16,
-              ),
-            ),
-
+            const Icon(Icons.error_outline, size: 48, color: AppColors.error),
+            const SizedBox(height: 12),
+            const Text('Unable to load analysis records', style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
-
             Text(
-              'Please check your connection and try again.',
+              'Check your Firestore index and connection, then try again.',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 13,
-                color: AppColors.textSecondary,
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            OutlinedButton.icon(
-              onPressed: () => setState(() {}),
-              icon: const Icon(Icons.refresh),
-              label: const Text('Try Again'),
+              style: TextStyle(color: AppColors.textSecondary),
             ),
           ],
         ),
@@ -774,15 +536,6 @@ class _AnalysisManagementScreenState extends State<AnalysisManagementScreen> {
     );
   }
 
-  // ============================================================
-  // DATE
-  // ============================================================
-
-  String _formatDate(DateTime date) {
-    final day = date.day.toString().padLeft(2, '0');
-
-    final month = date.month.toString().padLeft(2, '0');
-
-    return '$day/$month/${date.year}';
-  }
+  String _formatDate(DateTime date) =>
+      '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
 }
