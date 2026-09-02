@@ -9,18 +9,24 @@ import '../models/colour_analysis_result.dart';
 class ColourAnalysisService {
   ColourAnalysisService._();
 
-  /// Analyses the selected portrait image using the detected facial-area
-  /// colours plus overall brightness/contrast, then maps the result to the
-  /// four-season framework from the user's colour guide:
+  /// Deterministic on-device colour analysis based on the user's portrait.
   ///
-  /// Winter  = Deep • Cool • Clear
-  /// Summer  = Soft • Cool • Light
-  /// Spring  = Light • Warm • Clear
-  /// Autumn  = Deep • Warm • Muted
+  /// The four-season framework in the TiB colour guide is:
+  /// Winter = Deep • Cool • Clear
+  /// Summer = Soft • Cool • Light
+  /// Spring = Light • Warm • Clear
+  /// Autumn = Deep • Warm • Muted
   ///
-  /// This remains an on-device deterministic analysis rather than a trained
-  /// vision model. The existing ML Kit face detection in AnalysisProvider is
-  /// still used first to ensure there is exactly one face in the source image.
+  /// The result is deliberately scored from several visual signals instead
+  /// of using a single hard-coded fallback. We estimate skin warmth from
+  /// multiple skin-like pixels, skin depth from luminance, clarity from skin
+  /// chroma/saturation, and contrast from the relationship between the skin
+  /// region and darker/lighter surrounding portrait areas.
+  ///
+  /// Face shape is useful for styling recommendations, but it is not used as
+  /// a seasonal-colour determinant: seasonal colour analysis is driven by
+  /// colouring (undertone, depth/brightness and contrast/clarity), not facial
+  /// geometry.
   static Future<ColourAnalysisResult> analyse({
     required File image,
     required String imageUrl,
@@ -33,21 +39,23 @@ class ColourAnalysisService {
     }
 
     final source = img.bakeOrientation(decoded);
-    final sample = _sampleSkinRegion(source);
+    final sample = _samplePortrait(source);
 
-    if (sample.count == 0) {
+    if (sample.skinCount < 8) {
       throw const FormatException(
-        'Unable to analyse the selected image. Please use a clear portrait photo.',
+        'Unable to analyse the selected image. Please use a clear front-facing portrait in natural light.',
       );
     }
 
-    final brightness = _brightness(sample.luminance);
-    final undertone = _undertone(sample.red, sample.green, sample.blue);
-    final contrast = _contrast(source);
+    final brightness = _brightness(sample.skinLuminance);
+    final undertone = _undertone(sample.warmthScore);
+    final contrast = _contrast(sample);
     final season = _season(
       undertone: undertone,
       brightness: brightness,
       contrast: contrast,
+      skinChroma: sample.skinChroma,
+      colourClarity: sample.colourClarity,
     );
 
     final guide = SeasonColourGuide.forSeason(season);
@@ -62,20 +70,23 @@ class ColourAnalysisService {
     );
   }
 
-  static _ColourSample _sampleSkinRegion(img.Image image) {
-    final left = (image.width * 0.25).round();
-    final right = (image.width * 0.75).round();
-    final top = (image.height * 0.18).round();
-    final bottom = (image.height * 0.68).round();
+  static _PortraitSample _samplePortrait(img.Image image) {
+    var skinRed = 0.0;
+    var skinGreen = 0.0;
+    var skinBlue = 0.0;
+    var skinLuminance = 0.0;
+    var skinChroma = 0.0;
+    var skinWarmth = 0.0;
+    var skinCount = 0;
 
-    var red = 0.0;
-    var green = 0.0;
-    var blue = 0.0;
-    var luminance = 0.0;
-    var count = 0;
+    // The central portrait region intentionally avoids most background pixels.
+    final left = (image.width * 0.20).round().clamp(0, image.width - 1);
+    final right = (image.width * 0.80).round().clamp(left + 1, image.width);
+    final top = (image.height * 0.12).round().clamp(0, image.height - 1);
+    final bottom = (image.height * 0.78).round().clamp(top + 1, image.height);
 
-    for (var y = top; y < bottom; y += 6) {
-      for (var x = left; x < right; x += 6) {
+    for (var y = top; y < bottom; y += 4) {
+      for (var x = left; x < right; x += 4) {
         final pixel = image.getPixel(x, y);
         final r = pixel.r.toDouble();
         final g = pixel.g.toDouble();
@@ -83,22 +94,91 @@ class ColourAnalysisService {
 
         if (!_looksLikeSkin(r, g, b)) continue;
 
-        red += r;
-        green += g;
-        blue += b;
-        luminance += (0.2126 * r) + (0.7152 * g) + (0.0722 * b);
-        count++;
+        final luminance = _luminance(r, g, b);
+        final maxValue = math.max(r, math.max(g, b));
+        final minValue = math.min(r, math.min(g, b));
+        final chroma = maxValue - minValue;
+
+        // Warmth is measured with red/green against blue. Keeping the score
+        // per pixel and averaging it prevents one bright skin patch from
+        // deciding the entire analysis.
+        final warmth = ((r - b) * 0.65) + ((g - b) * 0.35);
+
+        skinRed += r;
+        skinGreen += g;
+        skinBlue += b;
+        skinLuminance += luminance;
+        skinChroma += chroma;
+        skinWarmth += warmth;
+        skinCount++;
       }
     }
 
-    if (count == 0) return _ColourSample.empty();
+    if (skinCount == 0) return _PortraitSample.empty();
 
-    return _ColourSample(
-      red: red / count,
-      green: green / count,
-      blue: blue / count,
-      luminance: luminance / count,
-      count: count,
+    final avgSkinR = skinRed / skinCount;
+    final avgSkinG = skinGreen / skinCount;
+    final avgSkinB = skinBlue / skinCount;
+    final avgSkinLuminance = skinLuminance / skinCount;
+    final avgSkinChroma = skinChroma / skinCount;
+    final avgWarmth = skinWarmth / skinCount;
+
+    // Estimate colour clarity from how saturated the skin region is relative
+    // to its luminance. This is intentionally a soft signal rather than a
+    // binary threshold because phone cameras and lighting vary considerably.
+    final colourClarity = (avgSkinChroma / math.max(avgSkinLuminance, 1)) * 100;
+
+    // Sample the whole portrait for tonal extremes. These are later compared
+    // with the skin luminance to estimate visible contrast.
+    var darkest = 255.0;
+    var lightest = 0.0;
+    for (var y = 0; y < image.height; y += 12) {
+      for (var x = 0; x < image.width; x += 12) {
+        final p = image.getPixel(x, y);
+        final value = _luminance(
+          p.r.toDouble(),
+          p.g.toDouble(),
+          p.b.toDouble(),
+        );
+        darkest = math.min(darkest, value);
+        lightest = math.max(lightest, value);
+      }
+    }
+
+    // A secondary dark-region sample approximates hair/eyes/clothing around
+    // the face and is more meaningful for contrast than background-only range.
+    var darkCount = 0;
+    var darkTotal = 0.0;
+    for (var y = top; y < bottom; y += 6) {
+      for (var x = left; x < right; x += 6) {
+        final p = image.getPixel(x, y);
+        final value = _luminance(
+          p.r.toDouble(),
+          p.g.toDouble(),
+          p.b.toDouble(),
+        );
+        if (value < avgSkinLuminance * 0.72) {
+          darkTotal += value;
+          darkCount++;
+        }
+      }
+    }
+
+    final darkReference = darkCount > 0 ? darkTotal / darkCount : darkest;
+    final skinToDarkContrast = avgSkinLuminance - darkReference;
+    final globalRange = lightest - darkest;
+
+    return _PortraitSample(
+      skinRed: avgSkinR,
+      skinGreen: avgSkinG,
+      skinBlue: avgSkinB,
+      skinLuminance: avgSkinLuminance,
+      skinChroma: avgSkinChroma,
+      warmthScore: avgWarmth,
+      colourClarity: colourClarity,
+      skinToDarkContrast: skinToDarkContrast,
+      globalRange: globalRange,
+      skinCount: skinCount,
     );
   }
 
@@ -106,54 +186,47 @@ class ColourAnalysisService {
     final maxValue = math.max(r, math.max(g, b));
     final minValue = math.min(r, math.min(g, b));
 
-    if (maxValue - minValue < 12) return false;
-    if (r < 55 || g < 30 || b < 20) return false;
+    if (maxValue < 45 || maxValue - minValue < 18) return false;
 
-    return r > g * 0.90 && g > b * 0.92;
+    // Normalised chromaticity is more robust to exposure than fixed RGB
+    // comparisons and accepts a wider range of natural skin tones.
+    final sum = r + g + b;
+    if (sum <= 0) return false;
+
+    final nr = r / sum;
+    final ng = g / sum;
+    final nb = b / sum;
+
+    return nr > 0.31 && nr < 0.52 && ng > 0.24 && ng < 0.40 && nb < 0.30;
   }
 
-  static String _undertone(double red, double green, double blue) {
-    final warmScore = ((red - blue) + (green - blue)) / 2;
-    final coolScore = blue - ((red + green) / 2);
-    final difference = warmScore - coolScore;
+  static double _luminance(double r, double g, double b) {
+    return (0.2126 * r) + (0.7152 * g) + (0.0722 * b);
+  }
 
-    if (difference.abs() < 16) return 'Neutral';
-    return difference > 0 ? 'Warm' : 'Cool';
+  static String _undertone(double warmthScore) {
+    // Neutral is intentionally available. It is resolved later using the
+    // other colour dimensions instead of forcing every neutral face into
+    // Autumn.
+    if (warmthScore >= 36) return 'Warm';
+    if (warmthScore <= 23) return 'Cool';
+    return 'Neutral';
   }
 
   static String _brightness(double luminance) {
-    if (luminance >= 190) return 'Light';
-    if (luminance >= 132) return 'Medium';
+    if (luminance >= 184) return 'Light';
+    if (luminance >= 118) return 'Medium';
     return 'Deep';
   }
 
-  static String _contrast(img.Image image) {
-    final values = <double>[];
+  static String _contrast(_PortraitSample sample) {
+    final score = math.max(
+      sample.skinToDarkContrast,
+      sample.globalRange * 0.55,
+    );
 
-    for (var y = 0; y < image.height; y += 16) {
-      for (var x = 0; x < image.width; x += 16) {
-        final p = image.getPixel(x, y);
-        values.add(
-          (0.2126 * p.r) +
-              (0.7152 * p.g) +
-              (0.0722 * p.b),
-        );
-      }
-    }
-
-    if (values.length < 2) return 'Medium';
-
-    var minValue = values.first;
-    var maxValue = values.first;
-
-    for (final value in values) {
-      minValue = math.min(minValue, value);
-      maxValue = math.max(maxValue, value);
-    }
-
-    final range = maxValue - minValue;
-    if (range >= 150) return 'High';
-    if (range >= 95) return 'Medium';
+    if (score >= 105) return 'High';
+    if (score >= 62) return 'Medium';
     return 'Low';
   }
 
@@ -161,49 +234,138 @@ class ColourAnalysisService {
     required String undertone,
     required String brightness,
     required String contrast,
+    required double skinChroma,
+    required double colourClarity,
   }) {
+    // Score all four seasons. This avoids the previous behaviour where any
+    // warm/medium/deep portrait fell straight through to Autumn.
+    final scores = <String, double>{
+      'Spring': 0,
+      'Summer': 0,
+      'Autumn': 0,
+      'Winter': 0,
+    };
+
+    // Temperature dimension.
     if (undertone == 'Warm') {
-      // PDF standard: Spring = Light/Warm/Clear; Autumn = Deep/Warm/Muted.
-      return brightness == 'Light' && contrast != 'Low' ? 'Spring' : 'Autumn';
+      scores['Spring'] = scores['Spring']! + 34;
+      scores['Autumn'] = scores['Autumn']! + 34;
+      scores['Summer'] = scores['Summer']! - 18;
+      scores['Winter'] = scores['Winter']! - 18;
+    } else if (undertone == 'Cool') {
+      scores['Summer'] = scores['Summer']! + 34;
+      scores['Winter'] = scores['Winter']! + 34;
+      scores['Spring'] = scores['Spring']! - 18;
+      scores['Autumn'] = scores['Autumn']! - 18;
+    } else {
+      scores['Spring'] = scores['Spring']! + 8;
+      scores['Summer'] = scores['Summer']! + 8;
+      scores['Autumn'] = scores['Autumn']! + 8;
+      scores['Winter'] = scores['Winter']! + 8;
     }
 
-    if (undertone == 'Cool') {
-      // PDF standard: Summer = Soft/Cool/Light; Winter = Deep/Cool/Clear.
-      return brightness == 'Light' && contrast != 'High' ? 'Summer' : 'Winter';
+    // Depth / brightness dimension.
+    switch (brightness) {
+      case 'Light':
+        scores['Spring'] = scores['Spring']! + 30;
+        scores['Summer'] = scores['Summer']! + 30;
+        scores['Autumn'] = scores['Autumn']! - 8;
+        scores['Winter'] = scores['Winter']! - 8;
+        break;
+      case 'Deep':
+        scores['Autumn'] = scores['Autumn']! + 30;
+        scores['Winter'] = scores['Winter']! + 30;
+        scores['Spring'] = scores['Spring']! - 8;
+        scores['Summer'] = scores['Summer']! - 8;
+        break;
+      default:
+        scores['Spring'] = scores['Spring']! + 12;
+        scores['Summer'] = scores['Summer']! + 12;
+        scores['Autumn'] = scores['Autumn']! + 12;
+        scores['Winter'] = scores['Winter']! + 12;
     }
 
-    // Neutral undertones need a visual tie-breaker. Light/soft colouring is
-    // placed into Summer, while deeper/high-contrast colouring is placed into
-    // Winter; medium/deep lower-contrast colouring leans Autumn.
-    if (brightness == 'Light' && contrast != 'High') return 'Summer';
-    if (contrast == 'High') return brightness == 'Light' ? 'Spring' : 'Winter';
-    if (brightness == 'Deep') return 'Autumn';
-    return 'Autumn';
+    // Contrast dimension maps directly to the guide's clear/muted axis.
+    if (contrast == 'High') {
+      scores['Spring'] = scores['Spring']! + 22;
+      scores['Winter'] = scores['Winter']! + 22;
+      scores['Summer'] = scores['Summer']! - 6;
+      scores['Autumn'] = scores['Autumn']! - 6;
+    } else if (contrast == 'Low') {
+      scores['Summer'] = scores['Summer']! + 22;
+      scores['Autumn'] = scores['Autumn']! + 22;
+      scores['Spring'] = scores['Spring']! - 6;
+      scores['Winter'] = scores['Winter']! - 6;
+    } else {
+      scores['Spring'] = scores['Spring']! + 8;
+      scores['Summer'] = scores['Summer']! + 8;
+      scores['Autumn'] = scores['Autumn']! + 8;
+      scores['Winter'] = scores['Winter']! + 8;
+    }
+
+    // Clarity is the tie-breaker between clear and muted seasons.
+    final clearBonus = math.min(18, math.max(0, colourClarity * 1.6));
+    final mutedBonus = math.min(18, math.max(0, 12 - colourClarity * 1.2));
+    scores['Spring'] = scores['Spring']! + clearBonus;
+    scores['Winter'] = scores['Winter']! + clearBonus;
+    scores['Summer'] = scores['Summer']! + mutedBonus;
+    scores['Autumn'] = scores['Autumn']! + mutedBonus;
+
+    // Skin chroma provides another gentle tie-breaker for photographs with
+    // similar brightness/contrast. Higher chroma favours clear seasons.
+    if (skinChroma >= 42) {
+      scores['Spring'] = scores['Spring']! + 8;
+      scores['Winter'] = scores['Winter']! + 8;
+    } else if (skinChroma <= 28) {
+      scores['Summer'] = scores['Summer']! + 8;
+      scores['Autumn'] = scores['Autumn']! + 8;
+    }
+
+    // Neutral faces should not always fall into one season. Use the measured
+    // dimensions as the final tie-breaker and choose the highest score.
+    return scores.entries.reduce(
+      (best, entry) => entry.value > best.value ? entry : best,
+    ).key;
   }
 }
 
-class _ColourSample {
-  final double red;
-  final double green;
-  final double blue;
-  final double luminance;
-  final int count;
+class _PortraitSample {
+  final double skinRed;
+  final double skinGreen;
+  final double skinBlue;
+  final double skinLuminance;
+  final double skinChroma;
+  final double warmthScore;
+  final double colourClarity;
+  final double skinToDarkContrast;
+  final double globalRange;
+  final int skinCount;
 
-  const _ColourSample({
-    required this.red,
-    required this.green,
-    required this.blue,
-    required this.luminance,
-    required this.count,
+  const _PortraitSample({
+    required this.skinRed,
+    required this.skinGreen,
+    required this.skinBlue,
+    required this.skinLuminance,
+    required this.skinChroma,
+    required this.warmthScore,
+    required this.colourClarity,
+    required this.skinToDarkContrast,
+    required this.globalRange,
+    required this.skinCount,
   });
 
-  factory _ColourSample.empty() {
-    return const _ColourSample(
-      red: 0,
-      green: 0,
-      blue: 0,
-      luminance: 0,
-      count: 0,
+  factory _PortraitSample.empty() {
+    return const _PortraitSample(
+      skinRed: 0,
+      skinGreen: 0,
+      skinBlue: 0,
+      skinLuminance: 0,
+      skinChroma: 0,
+      warmthScore: 0,
+      colourClarity: 0,
+      skinToDarkContrast: 0,
+      globalRange: 0,
+      skinCount: 0,
     );
   }
 }
