@@ -8,7 +8,6 @@ import '../main/main_screen.dart';
 import '../onboarding/flash_profile_flow.dart';
 import '../staff/staff_console_screen.dart';
 import 'auth_service.dart';
-import 'email_verification_screen.dart';
 import 'password_reset_screen.dart';
 import 'register_screen.dart';
 
@@ -19,11 +18,15 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
+enum _LoginStage { idle, signingIn }
+
 class _LoginScreenState extends State<LoginScreen> {
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
   bool obscurePassword = true;
-  bool isLoading = false;
+  _LoginStage _stage = _LoginStage.idle;
+
+  bool get isLoading => _stage != _LoginStage.idle;
 
   @override
   void dispose() {
@@ -40,22 +43,22 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    setState(() => isLoading = true);
+    setState(() => _stage = _LoginStage.signingIn);
     try {
       await AuthService.login(email: email, password: password);
       await _routeAuthenticatedUser();
-    } on FirebaseAuthException catch (e) {
-      _showMessage(_authErrorMessage(e));
+    } on FirebaseAuthException catch (error) {
+      _showMessage(_authErrorMessage(error));
     } catch (_) {
       _showMessage('Login failed. Please try again.');
     } finally {
-      if (mounted) setState(() => isLoading = false);
+      if (mounted) setState(() => _stage = _LoginStage.idle);
     }
   }
 
   Future<void> loginWithGoogle() async {
     if (isLoading) return;
-    setState(() => isLoading = true);
+    setState(() => _stage = _LoginStage.signingIn);
     try {
       final credential = await AuthService.loginWithGoogle();
       if (credential == null) {
@@ -63,12 +66,12 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
       await _routeAuthenticatedUser();
-    } on FirebaseAuthException catch (e) {
-      _showMessage(_authErrorMessage(e));
-    } catch (e) {
-      _showMessage('Google sign-in failed — ${e.toString()}');
+    } on FirebaseAuthException catch (error) {
+      _showMessage(_authErrorMessage(error));
+    } catch (error) {
+      _showMessage('Google sign-in failed — ${error.toString()}');
     } finally {
-      if (mounted) setState(() => isLoading = false);
+      if (mounted) setState(() => _stage = _LoginStage.idle);
     }
   }
 
@@ -115,8 +118,8 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  String _authErrorMessage(FirebaseAuthException e) {
-    switch (e.code) {
+  String _authErrorMessage(FirebaseAuthException error) {
+    switch (error.code) {
       case 'invalid-email':
         return 'Please enter a valid email address.';
       case 'wrong-password':
@@ -137,7 +140,7 @@ class _LoginScreenState extends State<LoginScreen> {
       case 'google-id-token-missing':
         return 'Google did not return a valid sign-in token.';
       default:
-        return e.message ?? 'Authentication failed.';
+        return error.message ?? 'Authentication failed.';
     }
   }
 
@@ -255,6 +258,7 @@ class _LoginScreenState extends State<LoginScreen> {
               TextField(
                 controller: emailController,
                 keyboardType: TextInputType.emailAddress,
+                textInputAction: TextInputAction.next,
                 decoration: const InputDecoration(hintText: 'you@example.com'),
               ),
               const SizedBox(height: 15),
@@ -263,6 +267,7 @@ class _LoginScreenState extends State<LoginScreen> {
               TextField(
                 controller: passwordController,
                 obscureText: obscurePassword,
+                textInputAction: TextInputAction.done,
                 onSubmitted: (_) => login(),
                 decoration: InputDecoration(
                   hintText: 'Enter your password',
