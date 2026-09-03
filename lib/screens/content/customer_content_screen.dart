@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
@@ -14,8 +15,25 @@ class CustomerContentScreen extends StatefulWidget {
 class _CustomerContentScreenState extends State<CustomerContentScreen> {
   String _filter = 'All';
   String _query = '';
+  bool _isPremium = false;
 
   final List<String> _types = const ['All', 'Learning', 'Colour Guide', 'Style Tip', 'AI Styling'];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMembership();
+  }
+
+  Future<void> _loadMembership() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    try {
+      final snapshot = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      if (!mounted) return;
+      setState(() => _isPremium = snapshot.data()?['isPremium'] as bool? ?? false);
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -45,6 +63,9 @@ class _CustomerContentScreenState extends State<CustomerContentScreen> {
 
           final docs = [...?snapshot.data?.docs];
           docs.sort((a, b) {
+            final aFeatured = a.data()['isFeatured'] == true;
+            final bFeatured = b.data()['isFeatured'] == true;
+            if (aFeatured != bFeatured) return aFeatured ? -1 : 1;
             final aValue = a.data()['createdAt'];
             final bValue = b.data()['createdAt'];
             final aDate = aValue is Timestamp ? aValue.toDate() : DateTime.fromMillisecondsSinceEpoch(0);
@@ -63,12 +84,18 @@ class _CustomerContentScreenState extends State<CustomerContentScreen> {
           }).toList();
 
           return RefreshIndicator(
-            onRefresh: () async => setState(() {}),
+            onRefresh: () async => _loadMembership(),
             child: ListView(
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 30),
               children: [
-                const Text('Learn, discover and style better', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900)),
+                Row(
+                  children: [
+                    const Expanded(child: Text('Learn, discover and style better', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900))),
+                    if (_isPremium)
+                      const Chip(label: Text('PREMIUM'), avatar: Icon(Icons.workspace_premium_outlined, size: 15)),
+                  ],
+                ),
                 const SizedBox(height: 6),
                 Text('Content published by your TiB styling team.', style: TextStyle(color: AppColors.textSecondary)),
                 const SizedBox(height: 16),
@@ -132,17 +159,18 @@ class _CustomerContentScreenState extends State<CustomerContentScreen> {
     final body = data['body'] as String? ?? '';
     final type = data['type'] as String? ?? 'Learning';
     final featured = data['isFeatured'] as bool? ?? false;
+    final premium = data['isPremium'] as bool? ?? false;
 
     return Card(
       elevation: 0,
       margin: const EdgeInsets.only(bottom: 10),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
-        side: const BorderSide(color: AppColors.border),
+        side: BorderSide(color: premium ? AppColors.premiumAccentLight : AppColors.border),
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(20),
-        onTap: () => _openArticle(context, title, description, body, type),
+        onTap: () => _openArticle(context, title, description, body, type, premium),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Row(
@@ -151,8 +179,8 @@ class _CustomerContentScreenState extends State<CustomerContentScreen> {
               Container(
                 width: 52,
                 height: 52,
-                decoration: BoxDecoration(color: AppColors.secondary, borderRadius: BorderRadius.circular(15)),
-                child: const Icon(Icons.menu_book_outlined, color: AppColors.primary),
+                decoration: BoxDecoration(color: premium ? AppColors.premiumAccentLight : AppColors.secondary, borderRadius: BorderRadius.circular(15)),
+                child: Icon(premium ? Icons.workspace_premium_outlined : Icons.menu_book_outlined, color: AppColors.primary),
               ),
               const SizedBox(width: 13),
               Expanded(
@@ -163,15 +191,27 @@ class _CustomerContentScreenState extends State<CustomerContentScreen> {
                       children: [
                         Expanded(child: Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800))),
                         if (featured) const Icon(Icons.star_rounded, size: 18, color: AppColors.primary),
+                        if (premium) const Padding(padding: EdgeInsets.only(left: 5), child: Icon(Icons.lock_outline_rounded, size: 17, color: AppColors.primary)),
                       ],
                     ),
                     const SizedBox(height: 6),
                     Text(description, maxLines: 3, overflow: TextOverflow.ellipsis, style: TextStyle(color: AppColors.textSecondary, height: 1.4, fontSize: 12)),
                     const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                      decoration: BoxDecoration(color: AppColors.surfaceMuted, borderRadius: BorderRadius.circular(10)),
-                      child: Text(type, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.primaryDark)),
+                    Wrap(
+                      spacing: 6,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                          decoration: BoxDecoration(color: AppColors.surfaceMuted, borderRadius: BorderRadius.circular(10)),
+                          child: Text(type, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.primaryDark)),
+                        ),
+                        if (premium)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                            decoration: BoxDecoration(color: AppColors.premiumAccentLight, borderRadius: BorderRadius.circular(10)),
+                            child: const Text('PREMIUM', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: AppColors.premiumAccentDark)),
+                          ),
+                      ],
                     ),
                   ],
                 ),
@@ -185,7 +225,21 @@ class _CustomerContentScreenState extends State<CustomerContentScreen> {
     );
   }
 
-  void _openArticle(BuildContext context, String title, String description, String body, String type) {
+  void _openArticle(BuildContext context, String title, String description, String body, String type, bool premium) {
+    if (premium && !_isPremium) {
+      showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Premium Content'),
+          content: const Text('This article is available to Premium members. Your current account does not have Premium access.'),
+          actions: [
+            FilledButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Got it')),
+          ],
+        ),
+      );
+      return;
+    }
+
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -196,7 +250,12 @@ class _CustomerContentScreenState extends State<CustomerContentScreen> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(22, 4, 22, 30),
             children: [
-              Text(type.toUpperCase(), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: AppColors.primary, letterSpacing: 1.2)),
+              Row(
+                children: [
+                  Expanded(child: Text(type.toUpperCase(), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: AppColors.primary, letterSpacing: 1.2))),
+                  if (premium) const Icon(Icons.workspace_premium_outlined, color: AppColors.primary, size: 20),
+                ],
+              ),
               const SizedBox(height: 8),
               Text(title, style: const TextStyle(fontSize: 25, fontWeight: FontWeight.w900, height: 1.08)),
               const SizedBox(height: 10),
