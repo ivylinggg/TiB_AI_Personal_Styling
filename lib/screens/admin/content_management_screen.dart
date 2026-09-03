@@ -130,11 +130,20 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
     );
     if (confirmed != true) return;
     try {
-      await document.reference.update({'isPublished': !current, 'updatedAt': FieldValue.serverTimestamp()});
+      final willPublish = !current;
+      await document.reference.update({'isPublished': willPublish, 'updatedAt': FieldValue.serverTimestamp()});
+      if (willPublish) {
+        await _announcePublishedContent(
+          title: data['title'] as String? ?? 'New TiB content',
+          body: data['description'] as String? ?? '',
+          contentId: document.id,
+          type: data['type'] as String? ?? 'Learning',
+        );
+      }
       if (!mounted) return;
       await loadContents();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(current ? 'Content unpublished.' : 'Content published to all customers.')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(willPublish ? 'Content published to all customers.' : 'Content unpublished.')));
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not update this content. Please try again.')));
@@ -188,12 +197,13 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
 
   Future<void> _announcePublishedContent({required String title, required String body, required String contentId, required String type}) async {
     final users = await FirebaseFirestore.instance.collection('users').get();
+    if (users.docs.isEmpty) return;
     final batch = FirebaseFirestore.instance.batch();
     for (final user in users.docs) {
       final ref = user.reference.collection('notifications').doc();
       batch.set(ref, {
-        'title': 'New TiB content',
-        'body': body,
+        'title': 'New TiB content: $title',
+        'body': body.isEmpty ? 'New content is now available in TiB Style Hub.' : body,
         'type': 'content',
         'contentId': contentId,
         'contentType': type,
@@ -201,7 +211,7 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
         'createdAt': FieldValue.serverTimestamp(),
       });
     }
-    if (users.docs.isNotEmpty) await batch.commit();
+    await batch.commit();
   }
 
   @override
@@ -223,7 +233,12 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
               child: TextField(
                 controller: searchController,
-                decoration: InputDecoration(hintText: 'Search title, description or type...', prefixIcon: const Icon(Icons.search), suffixIcon: searchController.text.isEmpty ? null : IconButton(onPressed: searchController.clear, icon: const Icon(Icons.clear)), border: OutlineInputBorder(borderRadius: BorderRadius.circular(16))),
+                decoration: InputDecoration(
+                  hintText: 'Search title, description or type...',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: searchController.text.isEmpty ? null : IconButton(onPressed: searchController.clear, icon: const Icon(Icons.clear)),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                ),
               ),
             ),
             SizedBox(
@@ -232,8 +247,16 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 scrollDirection: Axis.horizontal,
                 itemCount: contentTypes.length,
-                separatorBuilder: (_, _) => const SizedBox(width: 8),
-                itemBuilder: (_, index) => ChoiceChip(label: Text(contentTypes[index]), selected: selectedType == contentTypes[index], showCheckmark: false, onSelected: (_) { setState(() => selectedType = contentTypes[index]); filterContents(); }),
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                itemBuilder: (_, index) => ChoiceChip(
+                  label: Text(contentTypes[index]),
+                  selected: selectedType == contentTypes[index],
+                  showCheckmark: false,
+                  onSelected: (_) {
+                    setState(() => selectedType = contentTypes[index]);
+                    filterContents();
+                  },
+                ),
               ),
             ),
             const SizedBox(height: 4),
@@ -243,28 +266,65 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 scrollDirection: Axis.horizontal,
                 itemCount: contentStatuses.length + 1,
-                separatorBuilder: (_, _) => const SizedBox(width: 8),
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
                 itemBuilder: (_, index) {
-                  if (index == contentStatuses.length) return FilterChip(label: const Text('Featured only'), selected: featuredOnly, showCheckmark: false, onSelected: (value) { setState(() => featuredOnly = value); filterContents(); });
+                  if (index == contentStatuses.length) {
+                    return FilterChip(
+                      label: const Text('Featured only'),
+                      selected: featuredOnly,
+                      showCheckmark: false,
+                      onSelected: (value) {
+                        setState(() => featuredOnly = value);
+                        filterContents();
+                      },
+                    );
+                  }
                   final status = contentStatuses[index];
-                  return ChoiceChip(label: Text(status), selected: selectedStatus == status, showCheckmark: false, onSelected: (_) { setState(() => selectedStatus = status); filterContents(); });
+                  return ChoiceChip(
+                    label: Text(status),
+                    selected: selectedStatus == status,
+                    showCheckmark: false,
+                    onSelected: (_) {
+                      setState(() => selectedStatus = status);
+                      filterContents();
+                    },
+                  );
                 },
               ),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
-              child: Align(alignment: Alignment.centerLeft, child: Text('${filteredContents.length} of ${contents.length} content items', style: TextStyle(color: AppColors.textSecondary, fontSize: 13, fontWeight: FontWeight.w600))),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text('${filteredContents.length} of ${contents.length} content items', style: TextStyle(color: AppColors.textSecondary, fontSize: 13, fontWeight: FontWeight.w600)),
+              ),
             ),
             Expanded(
               child: isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : filteredContents.isEmpty
-                      ? ListView(physics: const AlwaysScrollableScrollPhysics(), children: const [SizedBox(height: 150), Center(child: Column(children: [Icon(Icons.library_books_outlined, size: 64, color: AppColors.primary), SizedBox(height: 16), Text('No content found', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)), SizedBox(height: 6), Text('Use Create to add your first learning resource.', textAlign: TextAlign.center)]))])
+                      ? ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          children: const [
+                            SizedBox(height: 150),
+                            Center(
+                              child: Column(
+                                children: [
+                                  Icon(Icons.library_books_outlined, size: 64, color: AppColors.primary),
+                                  SizedBox(height: 16),
+                                  Text('No content found', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                                  SizedBox(height: 6),
+                                  Text('Use Create to add your first learning resource.', textAlign: TextAlign.center),
+                                ],
+                              ),
+                            ),
+                          ],
+                        )
                       : ListView.separated(
                           physics: const AlwaysScrollableScrollPhysics(),
                           padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
                           itemCount: filteredContents.length,
-                          separatorBuilder: (_, _) => const SizedBox(height: 10),
+                          separatorBuilder: (_, __) => const SizedBox(height: 10),
                           itemBuilder: (_, index) {
                             final document = filteredContents[index];
                             final data = document.data();
@@ -289,9 +349,27 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
                                 ]),
                                 trailing: PopupMenuButton<String>(
                                   onSelected: (value) {
-                                    switch (value) { case 'view': openContentDetail(context, data); break; case 'edit': editContent(document); break; case 'publish': togglePublished(document); break; case 'delete': deleteContent(document); break; }
+                                    switch (value) {
+                                      case 'view':
+                                        openContentDetail(context, data);
+                                        break;
+                                      case 'edit':
+                                        editContent(document);
+                                        break;
+                                      case 'publish':
+                                        togglePublished(document);
+                                        break;
+                                      case 'delete':
+                                        deleteContent(document);
+                                        break;
+                                    }
                                   },
-                                  itemBuilder: (_) => [const PopupMenuItem(value: 'view', child: Text('View')), const PopupMenuItem(value: 'edit', child: Text('Edit')), PopupMenuItem(value: 'publish', child: Text(published ? 'Unpublish' : 'Publish')), const PopupMenuItem(value: 'delete', child: Text('Delete'))],
+                                  itemBuilder: (_) => [
+                                    const PopupMenuItem(value: 'view', child: Text('View')),
+                                    const PopupMenuItem(value: 'edit', child: Text('Edit')),
+                                    PopupMenuItem(value: 'publish', child: Text(published ? 'Unpublish' : 'Publish')),
+                                    const PopupMenuItem(value: 'delete', child: Text('Delete')),
+                                  ],
                                 ),
                               ),
                             );
@@ -301,6 +379,17 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _statusChip(String text, bool active) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: active ? AppColors.success.withValues(alpha: .12) : AppColors.surfaceMuted,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(text, style: TextStyle(color: active ? AppColors.success : AppColors.textSecondary, fontSize: 10.5, fontWeight: FontWeight.w800)),
     );
   }
 }
@@ -352,31 +441,45 @@ class _ContentFormDialogState extends State<_ContentFormDialog> {
     setState(() => isSaving = true);
     try {
       final collection = FirebaseFirestore.instance.collection('content');
-      final payload = {'title': title, 'description': description, 'body': body, 'type': selectedType, 'isPublished': isPublished, 'isFeatured': isFeatured, 'isPremium': isPremium, 'updatedAt': FieldValue.serverTimestamp()};
-      final wasPublished = widget.initialPublished;
+      final payload = {
+        'title': title,
+        'description': description,
+        'body': body,
+        'type': selectedType,
+        'isPublished': isPublished,
+        'isFeatured': isFeatured,
+        'isPremium': isPremium,
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
       if (widget.documentId == null) {
-        final ref = await collection.add({...payload, 'createdAt': FieldValue.serverTimestamp()});
+        final document = await collection.add({...payload, 'createdAt': FieldValue.serverTimestamp()});
         if (isPublished) {
-          final parent = context.findAncestorStateOfType<_ContentManagementScreenState>();
-          try {
-            await parent?._announcePublishedContent(title: title, body: 'New TiB content is now available: $title', contentId: ref.id, type: selectedType);
-          } catch (_) {}
+          final users = await collection.firestore.collection('users').get();
+          if (users.docs.isNotEmpty) {
+            final batch = collection.firestore.batch();
+            for (final user in users.docs) {
+              batch.set(user.reference.collection('notifications').doc(), {
+                'title': 'New TiB content: $title',
+                'body': description,
+                'type': 'content',
+                'contentId': document.id,
+                'contentType': selectedType,
+                'read': false,
+                'createdAt': FieldValue.serverTimestamp(),
+              });
+            }
+            await batch.commit();
+          }
         }
       } else {
         await collection.doc(widget.documentId).update(payload);
-        if (!wasPublished && isPublished) {
-          final parent = context.findAncestorStateOfType<_ContentManagementScreenState>();
-          try {
-            await parent?._announcePublishedContent(title: title, body: 'New TiB content is now available: $title', contentId: widget.documentId!, type: selectedType);
-          } catch (_) {}
-        }
       }
       if (!mounted) return;
       Navigator.pop(context, true);
-    } catch (error) {
+    } catch (_) {
       if (!mounted) return;
       setState(() => isSaving = false);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not save content: $error')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not save this content. Please try again.')));
     }
   }
 
@@ -393,13 +496,13 @@ class _ContentFormDialogState extends State<_ContentFormDialog> {
             const SizedBox(height: 16),
             TextField(controller: descriptionController, maxLines: 3, decoration: const InputDecoration(labelText: 'Short Description *', prefixIcon: Icon(Icons.short_text))),
             const SizedBox(height: 16),
-            DropdownButtonFormField<String>(initialValue: selectedType, decoration: const InputDecoration(labelText: 'Content Type', prefixIcon: Icon(Icons.category_outlined)), items: types.map((type) => DropdownMenuItem(value: type, child: Text(type))).toList(), onChanged: isSaving ? null : (value) { if (value != null) setState(() => selectedType = value); }),
+            DropdownButtonFormField<String>(initialValue: selectedType, decoration: const InputDecoration(labelText: 'Content Type', prefixIcon: Icon(Icons.category_outlined)), items: types.map((type) => DropdownMenuItem(value: type, child: Text(type))).toList(), onChanged: (value) { if (value != null) setState(() => selectedType = value); }),
             const SizedBox(height: 16),
             TextField(controller: bodyController, maxLines: 8, decoration: const InputDecoration(labelText: 'Content *', alignLabelWithHint: true, prefixIcon: Icon(Icons.article_outlined))),
             const SizedBox(height: 12),
-            SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('Published'), value: isPublished, onChanged: isSaving ? null : (value) => setState(() => isPublished = value)),
-            SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('Featured'), value: isFeatured, onChanged: isSaving ? null : (value) => setState(() => isFeatured = value)),
-            SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('Premium'), value: isPremium, onChanged: isSaving ? null : (value) => setState(() => isPremium = value)),
+            SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('Published'), value: isPublished, onChanged: (value) => setState(() => isPublished = value)),
+            SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('Featured'), value: isFeatured, onChanged: (value) => setState(() => isFeatured = value)),
+            SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('Premium'), value: isPremium, onChanged: (value) => setState(() => isPremium = value)),
           ]),
         ),
       ),
