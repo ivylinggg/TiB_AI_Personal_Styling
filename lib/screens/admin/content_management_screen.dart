@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../services/community_service.dart';
 import 'content_detail_screen.dart';
 
 class ContentManagementScreen extends StatefulWidget {
@@ -121,7 +122,9 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text(current ? 'Unpublish Content?' : 'Publish Content?'),
-        content: Text(current ? '“$title” will no longer be shown to customers.' : '“$title” will become visible to customers.'),
+        content: Text(current
+            ? '“$title” will no longer be shown to customers.'
+            : '“$title” will become visible to customers and linked to the shared TiB Forum.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
           FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: Text(current ? 'Unpublish' : 'Publish')),
@@ -133,20 +136,19 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
       final willPublish = !current;
       await document.reference.update({'isPublished': willPublish, 'updatedAt': FieldValue.serverTimestamp()});
       if (willPublish) {
-        await _announcePublishedContent(
-          title: data['title'] as String? ?? 'New TiB content',
-          body: data['description'] as String? ?? '',
-          contentId: document.id,
-          type: data['type'] as String? ?? 'Learning',
-        );
+        await _publishToCommunity(document.id, data);
+      } else {
+        await _removeCommunityPostsForContent(document.id);
       }
       if (!mounted) return;
       await loadContents();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(willPublish ? 'Content published to all customers.' : 'Content unpublished.')));
-    } catch (_) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(willPublish
+          ? 'Published to customers and shared TiB Forum.'
+          : 'Unpublished and removed from shared TiB Forum.')));
+    } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not update this content. Please try again.')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not update this content: $error')));
     }
   }
 
@@ -165,14 +167,60 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
     );
     if (confirmed != true) return;
     try {
+      await _removeCommunityPostsForContent(document.id);
       await document.reference.delete();
       if (!mounted) return;
       await loadContents();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Content deleted successfully.')));
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not delete this content. Please try again.')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not delete this content: $error')));
+    }
+  }
+
+  Future<void> _publishToCommunity(String contentId, Map<String, dynamic> data) async {
+    final title = data['title'] as String? ?? 'New TiB content';
+    final body = data['body'] as String? ?? data['description'] as String? ?? '';
+    final type = data['type'] as String? ?? 'Learning';
+    final existing = await FirebaseFirestore.instance
+        .collection('forum_posts')
+        .where('contentId', isEqualTo: contentId)
+        .limit(1)
+        .get();
+    if (existing.docs.isEmpty) {
+      await CommunityService.createContentForumPost(
+        contentId: contentId,
+        title: title,
+        body: body,
+        type: type,
+      );
+    }
+    await _announcePublishedContent(
+      title: title,
+      body: data['description'] as String? ?? '',
+      contentId: contentId,
+      type: type,
+    );
+  }
+
+  Future<void> _removeCommunityPostsForContent(String contentId) async {
+    final snapshot = await FirebaseFirestore.instance
+        .collection('forum_posts')
+        .where('contentId', isEqualTo: contentId)
+        .get();
+    for (final post in snapshot.docs) {
+      final comments = await post.reference.collection('comments').get();
+      final likes = await post.reference.collection('likes').get();
+      final batch = FirebaseFirestore.instance.batch();
+      for (final comment in comments.docs) {
+        batch.delete(comment.reference);
+      }
+      for (final like in likes.docs) {
+        batch.delete(like.reference);
+      }
+      batch.delete(post.reference);
+      await batch.commit();
     }
   }
 
@@ -198,7 +246,8 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
   Future<void> _announcePublishedContent({required String title, required String body, required String contentId, required String type}) async {
     final users = await FirebaseFirestore.instance.collection('users').get();
     if (users.docs.isEmpty) return;
-    final batch = FirebaseFirestore.instance.batch();
+    WriteBatch batch = FirebaseFirestore.instance.batch();
+    var operations = 0;
     for (final user in users.docs) {
       final ref = user.reference.collection('notifications').doc();
       batch.set(ref, {
@@ -210,8 +259,14 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
         'read': false,
         'createdAt': FieldValue.serverTimestamp(),
       });
+      operations++;
+      if (operations == 450) {
+        await batch.commit();
+        batch = FirebaseFirestore.instance.batch();
+        operations = 0;
+      }
     }
-    await batch.commit();
+    if (operations > 0) await batch.commit();
   }
 
   @override
@@ -350,18 +405,10 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
                                 trailing: PopupMenuButton<String>(
                                   onSelected: (value) {
                                     switch (value) {
-                                      case 'view':
-                                        openContentDetail(context, data);
-                                        break;
-                                      case 'edit':
-                                        editContent(document);
-                                        break;
-                                      case 'publish':
-                                        togglePublished(document);
-                                        break;
-                                      case 'delete':
-                                        deleteContent(document);
-                                        break;
+                                      case 'view': openContentDetail(context, data); break;
+                                      case 'edit': editContent(document); break;
+                                      case 'publish': togglePublished(document); break;
+                                      case 'delete': deleteContent(document); break;
                                     }
                                   },
                                   itemBuilder: (_) => [
@@ -385,10 +432,7 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
   Widget _statusChip(String text, bool active) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: active ? AppColors.success.withValues(alpha: .12) : AppColors.surfaceMuted,
-        borderRadius: BorderRadius.circular(20),
-      ),
+      decoration: BoxDecoration(color: active ? AppColors.success.withValues(alpha: .12) : AppColors.surfaceMuted, borderRadius: BorderRadius.circular(20)),
       child: Text(text, style: TextStyle(color: active ? AppColors.success : AppColors.textSecondary, fontSize: 10.5, fontWeight: FontWeight.w800)),
     );
   }
@@ -454,32 +498,77 @@ class _ContentFormDialogState extends State<_ContentFormDialog> {
       if (widget.documentId == null) {
         final document = await collection.add({...payload, 'createdAt': FieldValue.serverTimestamp()});
         if (isPublished) {
-          final users = await collection.firestore.collection('users').get();
-          if (users.docs.isNotEmpty) {
-            final batch = collection.firestore.batch();
-            for (final user in users.docs) {
-              batch.set(user.reference.collection('notifications').doc(), {
-                'title': 'New TiB content: $title',
-                'body': description,
-                'type': 'content',
-                'contentId': document.id,
-                'contentType': selectedType,
-                'read': false,
-                'createdAt': FieldValue.serverTimestamp(),
-              });
-            }
-            await batch.commit();
-          }
+          await _publishNewContent(document.id, title, description, body, selectedType);
         }
       } else {
+        final beforePublished = widget.initialPublished;
         await collection.doc(widget.documentId).update(payload);
+        if (isPublished && !beforePublished) {
+          await _publishNewContent(widget.documentId!, title, description, body, selectedType);
+        } else if (!isPublished && beforePublished) {
+          await _removeForumPost(widget.documentId!);
+        } else if (isPublished && beforePublished) {
+          await _syncExistingForumPost(widget.documentId!, title, body, selectedType);
+        }
       }
       if (!mounted) return;
       Navigator.pop(context, true);
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
       setState(() => isSaving = false);
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not save this content. Please try again.')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not save this content: $error')));
+    }
+  }
+
+  Future<void> _publishNewContent(String contentId, String title, String description, String body, String type) async {
+    final existing = await FirebaseFirestore.instance.collection('forum_posts').where('contentId', isEqualTo: contentId).limit(1).get();
+    if (existing.docs.isEmpty) {
+      await CommunityService.createContentForumPost(contentId: contentId, title: title, body: body, type: type);
+    }
+    final users = await FirebaseFirestore.instance.collection('users').get();
+    if (users.docs.isNotEmpty) {
+      WriteBatch batch = FirebaseFirestore.instance.batch();
+      var operations = 0;
+      for (final user in users.docs) {
+        batch.set(user.reference.collection('notifications').doc(), {
+          'title': 'New TiB content: $title',
+          'body': description,
+          'type': 'content',
+          'contentId': contentId,
+          'contentType': type,
+          'read': false,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+        operations++;
+        if (operations == 450) {
+          await batch.commit();
+          batch = FirebaseFirestore.instance.batch();
+          operations = 0;
+        }
+      }
+      if (operations > 0) await batch.commit();
+    }
+  }
+
+  Future<void> _syncExistingForumPost(String contentId, String title, String body, String type) async {
+    final snapshot = await FirebaseFirestore.instance.collection('forum_posts').where('contentId', isEqualTo: contentId).limit(1).get();
+    if (snapshot.docs.isEmpty) {
+      await CommunityService.createContentForumPost(contentId: contentId, title: title, body: body, type: type);
+      return;
+    }
+    await snapshot.docs.first.reference.update({
+      'title': title,
+      'body': body,
+      'category': type,
+      'contentTitle': title,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> _removeForumPost(String contentId) async {
+    final snapshot = await FirebaseFirestore.instance.collection('forum_posts').where('contentId', isEqualTo: contentId).get();
+    for (final post in snapshot.docs) {
+      await post.reference.delete();
     }
   }
 
