@@ -19,15 +19,15 @@ class _ContentForumHubScreenState extends State<ContentForumHubScreen> {
   String _query = '';
   static const _filters = ['All', 'Customer Posts', 'TiB Content'];
 
+  CollectionReference<Map<String, dynamic>> get _posts => FirebaseFirestore.instance.collection('forum_posts');
+
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
   }
 
-  DateTime _date(dynamic value) => value is Timestamp
-      ? value.toDate()
-      : DateTime.fromMillisecondsSinceEpoch(0);
+  DateTime _date(dynamic value) => value is Timestamp ? value.toDate() : DateTime.fromMillisecondsSinceEpoch(0);
 
   String _relativeDate(dynamic value) {
     final date = _date(value);
@@ -40,8 +40,7 @@ class _ContentForumHubScreenState extends State<ContentForumHubScreen> {
     return 'Just now';
   }
 
-  bool _official(Map<String, dynamic> data) =>
-      data['isOfficial'] == true || data['source'] == 'admin_content';
+  bool _official(Map<String, dynamic> data) => data['isOfficial'] == true || data['source'] == 'admin_content' || data['source'] == 'admin_forum';
 
   bool _matches(Map<String, dynamic> data) {
     final official = _official(data);
@@ -54,11 +53,16 @@ class _ContentForumHubScreenState extends State<ContentForumHubScreen> {
       'TiB Content' => official,
       _ => true,
     };
-    return filterMatch &&
-        (query.isEmpty ||
-            title.contains(query) ||
-            body.contains(query) ||
-            category.contains(query));
+    return filterMatch && (query.isEmpty || title.contains(query) || body.contains(query) || category.contains(query));
+  }
+
+  Future<String> _currentAuthorName(String uid) async {
+    final user = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+    final data = user.data() ?? <String, dynamic>{};
+    final profileName = (data['name'] as String?)?.trim();
+    if (profileName?.isNotEmpty == true) return profileName!;
+    final displayName = FirebaseAuth.instance.currentUser?.displayName?.trim();
+    return displayName?.isNotEmpty == true ? displayName! : 'TiB Admin';
   }
 
   Future<void> _openPost(QueryDocumentSnapshot<Map<String, dynamic>> doc) async {
@@ -89,18 +93,16 @@ class _ContentForumHubScreenState extends State<ContentForumHubScreen> {
             final trimmed = text.trim();
             if (uid == null || trimmed.isEmpty) return false;
             try {
-              final user = await FirebaseFirestore.instance.collection('users').doc(uid).get();
-              final userData = user.data() ?? <String, dynamic>{};
-              final name = (userData['name'] as String?)?.trim();
-              final role = userData['role'] as String? ?? 'admin';
+              final roleSnapshot = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+              final userData = roleSnapshot.data() ?? <String, dynamic>{};
               final commentRef = doc.reference.collection('comments').doc();
               final batch = FirebaseFirestore.instance.batch();
               batch.set(commentRef, {
                 'body': trimmed,
                 'authorId': uid,
-                'authorName': name?.isNotEmpty == true ? name : 'TiB Admin',
-                'authorRole': role,
-                'isOfficial': role == 'admin',
+                'authorName': await _currentAuthorName(uid),
+                'authorRole': userData['role'] as String? ?? 'admin',
+                'isOfficial': userData['role'] == 'admin',
                 'createdAt': FieldValue.serverTimestamp(),
               });
               batch.update(doc.reference, {
@@ -151,32 +153,96 @@ class _ContentForumHubScreenState extends State<ContentForumHubScreen> {
     }
   }
 
+  Future<void> _createAdminPost() async {
+    final titleController = TextEditingController();
+    final bodyController = TextEditingController();
+    String category = 'General';
+    bool saving = false;
+
+    try {
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (dialogBuildContext, setDialogState) => AlertDialog(
+            title: const Text('Create Forum Post'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(controller: titleController, enabled: !saving, decoration: const InputDecoration(labelText: 'Title', hintText: 'Announcement or discussion topic')),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    initialValue: category,
+                    decoration: const InputDecoration(labelText: 'Category'),
+                    items: const ['General', 'Outfit', 'Colour', 'Styling', 'AI Styling'].map((item) => DropdownMenuItem<String>(value: item, child: Text(item))).toList(),
+                    onChanged: saving ? null : (value) => setDialogState(() => category = value ?? 'General'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(controller: bodyController, enabled: !saving, minLines: 4, maxLines: 7, decoration: const InputDecoration(labelText: 'Post', hintText: 'Write a post for the TiB community.')),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: saving ? null : () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+              FilledButton(
+                onPressed: saving ? null : () async {
+                  final title = titleController.text.trim();
+                  final body = bodyController.text.trim();
+                  final uid = FirebaseAuth.instance.currentUser?.uid;
+                  if (uid == null || title.isEmpty || body.isEmpty) {
+                    ScaffoldMessenger.of(dialogBuildContext).showSnackBar(const SnackBar(content: Text('Please enter a title and post body.')));
+                    return;
+                  }
+                  setDialogState(() => saving = true);
+                  try {
+                    final name = await _currentAuthorName(uid);
+                    await _posts.add({
+                      'title': title,
+                      'body': body,
+                      'category': category,
+                      'authorId': uid,
+                      'authorName': name,
+                      'authorRole': 'admin',
+                      'isOfficial': true,
+                      'source': 'admin_forum',
+                      'likeCount': 0,
+                      'commentCount': 0,
+                      'createdAt': FieldValue.serverTimestamp(),
+                      'lastActivityAt': FieldValue.serverTimestamp(),
+                    });
+                    if (dialogContext.mounted) Navigator.pop(dialogContext);
+                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Your official forum post is now live.')));
+                  } catch (error) {
+                    if (!dialogContext.mounted) return;
+                    setDialogState(() => saving = false);
+                    ScaffoldMessenger.of(dialogBuildContext).showSnackBar(SnackBar(content: Text('Could not create post: $error')));
+                  }
+                },
+                child: Text(saving ? 'Posting...' : 'Post'),
+              ),
+            ],
+          ),
+        ),
+      );
+    } finally {
+      titleController.dispose();
+      bodyController.dispose();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Forum'),
-        actions: [
-          IconButton(
-            tooltip: 'Create forum post',
-            onPressed: _createAdminPost,
-            icon: const Icon(Icons.add_comment_outlined),
-          ),
-        ],
+        actions: [IconButton(tooltip: 'Create forum post', onPressed: _createAdminPost, icon: const Icon(Icons.add_comment_outlined))],
       ),
       backgroundColor: AppColors.background,
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _createAdminPost,
-        icon: const Icon(Icons.edit_outlined),
-        label: const Text('Create Post'),
-      ),
+      floatingActionButton: FloatingActionButton.extended(onPressed: _createAdminPost, icon: const Icon(Icons.edit_outlined), label: const Text('Create Post')),
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: FirebaseFirestore.instance.collection('forum_posts').snapshots(),
+        stream: _posts.snapshots(),
         builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return Center(child: Text('Could not load forum: ${snapshot.error}'));
-          }
-
+          if (snapshot.hasError) return Center(child: Text('Could not load forum: ${snapshot.error}'));
           final docs = [...?snapshot.data?.docs];
           docs.sort((a, b) {
             final aOfficial = _official(a.data());
@@ -197,26 +263,12 @@ class _ContentForumHubScreenState extends State<ContentForumHubScreen> {
                     TextField(
                       controller: _searchController,
                       onChanged: (value) => setState(() => _query = value.trim()),
-                      decoration: InputDecoration(
-                        hintText: 'Search forum',
-                        prefixIcon: const Icon(Icons.search),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
-                      ),
+                      decoration: InputDecoration(hintText: 'Search forum', prefixIcon: const Icon(Icons.search), border: OutlineInputBorder(borderRadius: BorderRadius.circular(16))),
                     ),
                     const SizedBox(height: 10),
                     SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: _filters.map((item) => Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: ChoiceChip(
-                            label: Text(item),
-                            selected: _filter == item,
-                            showCheckmark: false,
-                            onSelected: (_) => setState(() => _filter = item),
-                          ),
-                        )).toList(),
-                      ),
+                      child: Row(children: _filters.map((item) => Padding(padding: const EdgeInsets.only(right: 8), child: ChoiceChip(label: Text(item), selected: _filter == item, showCheckmark: false, onSelected: (_) => setState(() => _filter = item)))).toList()),
                     ),
                   ],
                 ),
@@ -239,27 +291,13 @@ class _ContentForumHubScreenState extends State<ContentForumHubScreen> {
 
                           return Card(
                             elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(18),
-                              side: BorderSide(color: official ? AppColors.primarySoft : AppColors.border),
-                            ),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18), side: BorderSide(color: official ? AppColors.primarySoft : AppColors.border)),
                             child: ListTile(
                               onTap: () => _openPost(doc),
                               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                              leading: CircleAvatar(
-                                backgroundColor: official ? AppColors.primarySoft : AppColors.secondary,
-                                child: Icon(official ? Icons.auto_awesome_outlined : Icons.forum_outlined, color: AppColors.primary),
-                              ),
-                              title: Row(
-                                children: [
-                                  Expanded(child: Text(title, style: const TextStyle(fontWeight: FontWeight.w800))),
-                                  if (official) const Icon(Icons.verified_rounded, size: 17, color: AppColors.primary),
-                                ],
-                              ),
-                              subtitle: Padding(
-                                padding: const EdgeInsets.only(top: 5),
-                                child: Text('$author · $category\n${data['commentCount'] ?? 0} replies · ${_relativeDate(data['lastActivityAt'] ?? data['createdAt'])}'),
-                              ),
+                              leading: CircleAvatar(backgroundColor: official ? AppColors.primarySoft : AppColors.secondary, child: Icon(official ? Icons.auto_awesome_outlined : Icons.forum_outlined, color: AppColors.primary)),
+                              title: Row(children: [Expanded(child: Text(title, style: const TextStyle(fontWeight: FontWeight.w800))), if (official) const Icon(Icons.verified_rounded, size: 17, color: AppColors.primary)]),
+                              subtitle: Padding(padding: const EdgeInsets.only(top: 5), child: Text('$author · $category\n${data['commentCount'] ?? 0} replies · ${_relativeDate(data['lastActivityAt'] ?? data['createdAt'])}')),
                               isThreeLine: true,
                               trailing: Row(
                                 mainAxisSize: MainAxisSize.min,
@@ -273,21 +311,17 @@ class _ContentForumHubScreenState extends State<ContentForumHubScreen> {
                                           final content = await FirebaseFirestore.instance.collection('content').doc(contentId).get();
                                           if (!content.exists || !context.mounted) return;
                                           final contentData = content.data()!;
-                                          await Navigator.of(context).push<void>(
-                                            MaterialPageRoute(
-                                              builder: (_) => ContentDetailScreen(
-                                                title: contentData['title'] as String? ?? title,
-                                                description: contentData['description'] as String? ?? '',
-                                                body: contentData['body'] as String? ?? data['body'] as String? ?? '',
-                                                type: contentData['type'] as String? ?? category,
-                                                isPublished: contentData['isPublished'] as bool? ?? true,
-                                                isFeatured: contentData['isFeatured'] as bool? ?? false,
-                                                isPremium: contentData['isPremium'] as bool? ?? false,
-                                                createdAt: (contentData['createdAt'] as Timestamp?)?.toDate(),
-                                                updatedAt: (contentData['updatedAt'] as Timestamp?)?.toDate(),
-                                              ),
-                                            ),
-                                          );
+                                          await Navigator.of(context).push<void>(MaterialPageRoute(builder: (_) => ContentDetailScreen(
+                                            title: contentData['title'] as String? ?? title,
+                                            description: contentData['description'] as String? ?? '',
+                                            body: contentData['body'] as String? ?? data['body'] as String? ?? '',
+                                            type: contentData['type'] as String? ?? category,
+                                            isPublished: contentData['isPublished'] as bool? ?? true,
+                                            isFeatured: contentData['isFeatured'] as bool? ?? false,
+                                            isPremium: contentData['isPremium'] as bool? ?? false,
+                                            createdAt: (contentData['createdAt'] as Timestamp?)?.toDate(),
+                                            updatedAt: (contentData['updatedAt'] as Timestamp?)?.toDate(),
+                                          )));
                                         } catch (_) {}
                                       },
                                     ),
@@ -295,9 +329,7 @@ class _ContentForumHubScreenState extends State<ContentForumHubScreen> {
                                     onSelected: (value) {
                                       if (value == 'delete') _deletePost(doc);
                                     },
-                                    itemBuilder: (_) => const [
-                                      PopupMenuItem(value: 'delete', child: Text('Delete')),
-                                    ],
+                                    itemBuilder: (_) => const [PopupMenuItem(value: 'delete', child: Text('Delete'))],
                                   ),
                                 ],
                               ),
@@ -311,97 +343,5 @@ class _ContentForumHubScreenState extends State<ContentForumHubScreen> {
         },
       ),
     );
-  }
-
-  Future<void> _createAdminPost() async {
-    final titleController = TextEditingController();
-    final bodyController = TextEditingController();
-    String category = 'General';
-    bool saving = false;
-
-    try {
-      await showDialog<void>(
-        context: context,
-        builder: (dialogContext) => StatefulBuilder(
-          builder: (dialogBuildContext, setDialogState) => AlertDialog(
-            title: const Text('Create Forum Post'),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: titleController,
-                    decoration: const InputDecoration(
-                      labelText: 'Title',
-                      hintText: 'Announcement or discussion topic',
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    initialValue: category,
-                    decoration: const InputDecoration(labelText: 'Category'),
-                    items: const [
-                      'General',
-                      'Outfit',
-                      'Colour',
-                      'Styling',
-                      'AI Styling',
-                    ].map((item) => DropdownMenuItem<String>(value: item, child: Text(item))).toList(),
-                    onChanged: saving ? null : (value) => setDialogState(() => category = value ?? 'General'),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: bodyController,
-                    minLines: 4,
-                    maxLines: 7,
-                    decoration: const InputDecoration(labelText: 'Post', hintText: 'Write a post for the TiB community.'),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(onPressed: saving ? null : () => Navigator.pop(dialogContext), child: const Text('Cancel')),
-              FilledButton(
-                onPressed: saving ? null : () async {
-                  final title = titleController.text.trim();
-                  final body = bodyController.text.trim();
-                  final uid = FirebaseAuth.instance.currentUser?.uid;
-                  if (uid == null || title.isEmpty || body.isEmpty) return;
-                  setDialogState(() => saving = true);
-                  try {
-                    final user = await FirebaseFirestore.instance.collection('users').doc(uid).get();
-                    final userData = user.data() ?? <String, dynamic>{};
-                    final name = (userData['name'] as String?)?.trim();
-                    await FirebaseFirestore.instance.collection('forum_posts').add({
-                      'title': title,
-                      'body': body,
-                      'category': category,
-                      'authorId': uid,
-                      'authorName': name?.isNotEmpty == true ? name : 'TiB Admin',
-                      'authorRole': 'admin',
-                      'isOfficial': true,
-                      'source': 'admin_forum',
-                      'likeCount': 0,
-                      'commentCount': 0,
-                      'createdAt': FieldValue.serverTimestamp(),
-                      'lastActivityAt': FieldValue.serverTimestamp(),
-                    });
-                    if (dialogContext.mounted) Navigator.pop(dialogContext);
-                  } catch (error) {
-                    if (!dialogContext.mounted) return;
-                    setDialogState(() => saving = false);
-                    ScaffoldMessenger.of(dialogBuildContext).showSnackBar(SnackBar(content: Text('Could not create post: $error')));
-                  }
-                },
-                child: Text(saving ? 'Posting...' : 'Post'),
-              ),
-            ],
-          ),
-        ),
-      );
-    } finally {
-      titleController.dispose();
-      bodyController.dispose();
-    }
   }
 }
