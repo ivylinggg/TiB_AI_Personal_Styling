@@ -79,7 +79,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     if (mounted) setState(() => isLoading = true);
 
     try {
-      final snapshot = await FirebaseFirestore.instance.collection('users').get();
+      final snapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .get(const GetOptions(source: Source.server));
+
       final documents = [...snapshot.docs]
         ..sort((a, b) {
           final aValue = a.data()['createdAt'];
@@ -174,6 +177,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     final role = (data['role'] as String? ?? 'customer').toLowerCase();
 
     if (role != 'customer') {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Only customer accounts can be deleted from this page.')),
       );
@@ -181,6 +185,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     }
 
     if (FirebaseAuth.instance.currentUser?.uid == userId) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('You cannot delete your own admin account here.')),
       );
@@ -230,8 +235,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
     try {
       result = await FirestoreService.deleteCustomerData(userId);
-    } catch (error) {
-      deletionError = error;
+    } catch (e) {
+      deletionError = e;
     }
 
     if (result != null && result.imageUrls.isNotEmpty) {
@@ -247,6 +252,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     if (mounted) Navigator.of(context, rootNavigator: true).pop();
 
     if (result != null) {
+      if (!mounted) return;
       await loadUsers();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -259,7 +265,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Could not fully delete this customer. Please refresh and try again. ($deletionError)'),
+          content: Text(
+            'Could not fully delete this customer. Please refresh and try again. (${deletionError ?? 'Unknown error'})',
+          ),
         ),
       );
     }
@@ -270,25 +278,33 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   Widget _statusChip(String text, Color background, Color foreground) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-      decoration: BoxDecoration(color: background, borderRadius: BorderRadius.circular(20)),
-      child: Text(text, style: TextStyle(color: foreground, fontSize: 10, fontWeight: FontWeight.bold)),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(color: foreground, fontSize: 10, fontWeight: FontWeight.bold),
+      ),
     );
   }
 
   Widget _filterChip(String label) {
+    final isSelected = selectedStatus == label;
     return FilterChip(
       label: Text(label),
       showCheckmark: false,
-      selected: selectedStatus == label,
+      selected: isSelected,
       onSelected: (_) => changeStatusFilter(label),
     );
   }
 
   Widget _roleFilterChip(String label) {
+    final isSelected = selectedRole == label;
     return FilterChip(
       label: Text(label),
       showCheckmark: false,
-      selected: selectedRole == label,
+      selected: isSelected,
       onSelected: (_) => changeRoleFilter(label),
     );
   }
@@ -328,19 +344,34 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     radius: 28,
                     backgroundColor: AppColors.secondary,
                     backgroundImage: photoUrl.isNotEmpty ? NetworkImage(photoUrl) : null,
-                    child: photoUrl.isEmpty ? const Icon(Icons.person, color: AppColors.primary, size: 28) : null,
+                    child: photoUrl.isEmpty
+                        ? const Icon(Icons.person, color: AppColors.primary, size: 28)
+                        : null,
                   ),
                   const SizedBox(width: 14),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                        Text(
+                          name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                        ),
                         const SizedBox(height: 4),
-                        Text(email, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                        Text(
+                          email,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                        ),
                         if (staffId.isNotEmpty) ...[
                           const SizedBox(height: 4),
-                          Text('Staff ID: $staffId', style: TextStyle(color: AppColors.primaryDark, fontSize: 11, fontWeight: FontWeight.w700)),
+                          Text(
+                            'Staff ID: $staffId',
+                            style: TextStyle(color: AppColors.primaryDark, fontSize: 11, fontWeight: FontWeight.w700),
+                          ),
                         ],
                         const SizedBox(height: 8),
                         Wrap(
@@ -350,10 +381,13 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                             _statusChip(normalizedRole.toUpperCase(), AppColors.surfaceMuted, AppColors.primaryDark),
                             _statusChip(
                               isActive ? 'ACTIVE' : 'INACTIVE',
-                              isActive ? AppColors.success.withValues(alpha: .12) : AppColors.error.withValues(alpha: .12),
+                              isActive
+                                  ? AppColors.success.withValues(alpha: .12)
+                                  : AppColors.error.withValues(alpha: .12),
                               isActive ? AppColors.success : AppColors.error,
                             ),
-                            if (isPremium) _statusChip('PREMIUM', AppColors.premiumAccentLight, AppColors.premiumAccentDark),
+                            if (isPremium)
+                              _statusChip('PREMIUM', AppColors.premiumAccentLight, AppColors.premiumAccentDark),
                           ],
                         ),
                       ],
@@ -387,7 +421,12 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               const SizedBox(height: 10),
               Row(
                 children: [
-                  Expanded(child: Text(_formatCreatedAt(createdAt), style: TextStyle(color: AppColors.textSecondary, fontSize: 11))),
+                  Expanded(
+                    child: Text(
+                      _formatCreatedAt(createdAt),
+                      style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                    ),
+                  ),
                   OutlinedButton.icon(
                     onPressed: () => showUserDetails(document),
                     icon: const Icon(Icons.visibility_outlined, size: 17),
@@ -430,7 +469,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   Widget _smallInfo(IconData icon, String title, String value) {
     return Container(
       padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(color: AppColors.surfaceMuted, borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceMuted,
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Row(
         children: [
           Icon(icon, size: 19, color: AppColors.primary),
@@ -451,29 +493,53 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   }
 
   Widget _emptyState() {
-    final hasFilters = searchController.text.trim().isNotEmpty || selectedStatus != 'All' || selectedRole != 'All';
+    final hasFilters = searchController.text.trim().isNotEmpty ||
+        selectedStatus != 'All' ||
+        selectedRole != 'All';
+
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(20, 90, 20, 24),
       children: [
-        Icon(hasFilters ? Icons.search_off_rounded : Icons.people_outline_rounded, size: 64, color: AppColors.textSecondary),
+        Icon(
+          hasFilters ? Icons.search_off_rounded : Icons.people_outline_rounded,
+          size: 64,
+          color: AppColors.textSecondary,
+        ),
         const SizedBox(height: 16),
-        Center(child: Text(hasFilters ? 'No matching users' : 'No users found', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17))),
+        Center(
+          child: Text(
+            hasFilters ? 'No matching users' : 'No users found',
+            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
+          ),
+        ),
         const SizedBox(height: 6),
-        Center(child: Text(hasFilters ? 'Try changing the search or filters.' : 'There are no user documents available in Firestore.', textAlign: TextAlign.center, style: TextStyle(color: AppColors.textSecondary))),
+        Center(
+          child: Text(
+            hasFilters
+                ? 'Try changing the search or filters.'
+                : 'There are no user documents available in Firestore.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: AppColors.textSecondary),
+          ),
+        ),
       ],
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final visibleUsers = filteredUsers;
+    final results = filteredUsers;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('User Management'),
         actions: [
-          IconButton(tooltip: 'Refresh', onPressed: isLoading ? null : loadUsers, icon: const Icon(Icons.refresh)),
+          IconButton(
+            tooltip: 'Refresh',
+            onPressed: isLoading ? null : loadUsers,
+            icon: const Icon(Icons.refresh),
+          ),
         ],
       ),
       body: RefreshIndicator(
@@ -487,7 +553,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 decoration: InputDecoration(
                   hintText: 'Search name, email, role, UID or Staff ID',
                   prefixIcon: const Icon(Icons.search),
-                  suffixIcon: searchController.text.isNotEmpty ? IconButton(onPressed: searchController.clear, icon: const Icon(Icons.clear)) : null,
+                  suffixIcon: searchController.text.isNotEmpty
+                      ? IconButton(onPressed: searchController.clear, icon: const Icon(Icons.clear))
+                      : null,
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
                 ),
               ),
@@ -497,15 +565,20 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
               child: Row(
                 children: [
-                  _filterChip('All'), const SizedBox(width: 8),
-                  _filterChip('Active'), const SizedBox(width: 8),
+                  _filterChip('All'),
+                  const SizedBox(width: 8),
+                  _filterChip('Active'),
+                  const SizedBox(width: 8),
                   _filterChip('Inactive'),
                   const SizedBox(width: 18),
                   const Text('Role:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
                   const SizedBox(width: 8),
-                  _roleFilterChip('All'), const SizedBox(width: 8),
-                  _roleFilterChip('customer'), const SizedBox(width: 8),
-                  _roleFilterChip('staff'), const SizedBox(width: 8),
+                  _roleFilterChip('All'),
+                  const SizedBox(width: 8),
+                  _roleFilterChip('customer'),
+                  const SizedBox(width: 8),
+                  _roleFilterChip('staff'),
+                  const SizedBox(width: 8),
                   _roleFilterChip('admin'),
                 ],
               ),
@@ -514,7 +587,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
               child: Row(
                 children: [
-                  Text('${visibleUsers.length} shown', style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600)),
+                  Text('${results.length} shown', style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600)),
                   const Spacer(),
                   Text('Total: ${users.length}', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
                 ],
@@ -523,13 +596,13 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             Expanded(
               child: isLoading
                   ? const Center(child: CircularProgressIndicator())
-                  : visibleUsers.isEmpty
+                  : results.isEmpty
                       ? _emptyState()
                       : ListView.builder(
                           physics: const AlwaysScrollableScrollPhysics(),
                           padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-                          itemCount: visibleUsers.length,
-                          itemBuilder: (context, index) => _buildUserCard(visibleUsers[index]),
+                          itemCount: results.length,
+                          itemBuilder: (context, index) => _buildUserCard(results[index]),
                         ),
             ),
           ],
