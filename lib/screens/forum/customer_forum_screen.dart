@@ -13,6 +13,7 @@ class CustomerForumScreen extends StatefulWidget {
 
 class _CustomerForumScreenState extends State<CustomerForumScreen> {
   final _searchController = TextEditingController();
+  final _commentController = TextEditingController();
   String _category = 'All';
   String _query = '';
 
@@ -28,11 +29,38 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
   @override
   void dispose() {
     _searchController.dispose();
+    _commentController.dispose();
     super.dispose();
   }
 
   Stream<QuerySnapshot<Map<String, dynamic>>> _postsStream() {
     return FirebaseFirestore.instance.collection('forum_posts').snapshots();
+  }
+
+  bool _matches(Map<String, dynamic> data) {
+    final category = data['category'] as String? ?? 'General';
+    final title = (data['title'] as String? ?? '').toLowerCase();
+    final body = (data['body'] as String? ?? '').toLowerCase();
+    final query = _query.toLowerCase();
+    return (_category == 'All' || category == _category) &&
+        (query.isEmpty ||
+            title.contains(query) ||
+            body.contains(query) ||
+            category.toLowerCase().contains(query));
+  }
+
+  DateTime _date(dynamic value) => value is Timestamp
+      ? value.toDate()
+      : DateTime.fromMillisecondsSinceEpoch(0);
+
+  String _relativeDate(dynamic value) {
+    final date = _date(value);
+    final difference = DateTime.now().difference(date);
+    if (difference.inDays > 30) return '${difference.inDays ~/ 30}mo ago';
+    if (difference.inDays >= 1) return '${difference.inDays}d ago';
+    if (difference.inHours >= 1) return '${difference.inHours}h ago';
+    if (difference.inMinutes >= 1) return '${difference.inMinutes}m ago';
+    return 'Just now';
   }
 
   Future<void> _createPost() async {
@@ -66,12 +94,10 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
                       decoration: const InputDecoration(labelText: 'Category'),
                       items: _categories
                           .where((item) => item != 'All')
-                          .map(
-                            (item) => DropdownMenuItem(
-                              value: item,
-                              child: Text(item),
-                            ),
-                          )
+                          .map((item) => DropdownMenuItem(
+                                value: item,
+                                child: Text(item),
+                              ))
                           .toList(),
                       onChanged: saving
                           ? null
@@ -182,311 +208,6 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
     }
   }
 
-  bool _matches(Map<String, dynamic> data) {
-    final category = data['category'] as String? ?? 'General';
-    final title = (data['title'] as String? ?? '').toLowerCase();
-    final body = (data['body'] as String? ?? '').toLowerCase();
-    final query = _query.toLowerCase();
-    return (_category == 'All' || category == _category) &&
-        (query.isEmpty ||
-            title.contains(query) ||
-            body.contains(query) ||
-            category.toLowerCase().contains(query));
-  }
-
-  DateTime _date(dynamic value) => value is Timestamp
-      ? value.toDate()
-      : DateTime.fromMillisecondsSinceEpoch(0);
-
-  String _relativeDate(dynamic value) {
-    final date = _date(value);
-    final difference = DateTime.now().difference(date);
-    if (difference.inDays > 30) return '${difference.inDays ~/ 30}mo ago';
-    if (difference.inDays >= 1) return '${difference.inDays}d ago';
-    if (difference.inHours >= 1) return '${difference.inHours}h ago';
-    if (difference.inMinutes >= 1) return '${difference.inMinutes}m ago';
-    return 'Just now';
-  }
-
-  Future<void> _openPost(
-    QueryDocumentSnapshot<Map<String, dynamic>> document,
-  ) async {
-    final data = document.data();
-    final title = data['title'] as String? ?? 'Forum post';
-    final body = data['body'] as String? ?? '';
-    final category = data['category'] as String? ?? 'General';
-    final author = data['authorName'] as String? ?? 'TiB User';
-    final postId = document.id;
-    final commentsStream = FirebaseFirestore.instance
-        .collection('forum_posts')
-        .doc(postId)
-        .collection('comments')
-        .snapshots();
-
-    try {
-      await showModalBottomSheet<void>(
-        context: context,
-        useSafeArea: true,
-        isScrollControlled: true,
-        enableDrag: true,
-        backgroundColor: Colors.transparent,
-        builder: (sheetContext) {
-          final screenHeight = MediaQuery.sizeOf(sheetContext).height;
-          final keyboardInset = MediaQuery.viewInsetsOf(sheetContext).bottom;
-          final sheetHeight = (screenHeight * 0.82).clamp(420.0, 760.0);
-
-          return AnimatedPadding(
-            duration: const Duration(milliseconds: 180),
-            curve: Curves.easeOut,
-            padding: EdgeInsets.only(bottom: keyboardInset),
-            child: Material(
-              color: Theme.of(sheetContext).colorScheme.surface,
-              clipBehavior: Clip.antiAlias,
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(28),
-              ),
-              child: SizedBox(
-                height: sheetHeight,
-                child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                  stream: commentsStream,
-                  builder: (sheetBuildContext, snapshot) {
-                    final comments = [...?snapshot.data?.docs];
-                    comments.sort(
-                      (a, b) => _date(a.data()['createdAt'])
-                          .compareTo(_date(b.data()['createdAt'])),
-                    );
-
-                    return Column(
-                      children: [
-                        const SizedBox(height: 10),
-                        Container(
-                          width: 42,
-                          height: 4,
-                          decoration: BoxDecoration(
-                            color: Theme.of(sheetBuildContext)
-                                .colorScheme
-                                .outlineVariant,
-                            borderRadius: BorderRadius.circular(99),
-                          ),
-                        ),
-                        Expanded(
-                          child: CustomScrollView(
-                            keyboardDismissBehavior:
-                                ScrollViewKeyboardDismissBehavior.onDrag,
-                            slivers: [
-                              SliverPadding(
-                                padding: const EdgeInsets.fromLTRB(
-                                  20,
-                                  18,
-                                  20,
-                                  12,
-                                ),
-                                sliver: SliverList(
-                                  delegate: SliverChildListDelegate([
-                                    Row(
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 9,
-                                            vertical: 5,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: AppColors.surfaceMuted,
-                                            borderRadius:
-                                                BorderRadius.circular(10),
-                                          ),
-                                          child: Text(
-                                            category,
-                                            style: const TextStyle(
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.w800,
-                                            ),
-                                          ),
-                                        ),
-                                        const Spacer(),
-                                        Icon(
-                                          Icons.forum_outlined,
-                                          color: AppColors.primary,
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 12),
-                                    Text(
-                                      title,
-                                      style: const TextStyle(
-                                        fontSize: 24,
-                                        fontWeight: FontWeight.w900,
-                                        height: 1.12,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 7),
-                                    Text(
-                                      'Posted by $author · ${_relativeDate(data['createdAt'])}',
-                                      style: const TextStyle(
-                                        color: AppColors.textSecondary,
-                                        fontSize: 11,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 16),
-                                    Text(
-                                      body,
-                                      style: const TextStyle(
-                                        fontSize: 14,
-                                        height: 1.6,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 16),
-                                    Row(
-                                      children: [
-                                        OutlinedButton.icon(
-                                          onPressed: () => _toggleLike(
-                                            document.reference,
-                                          ),
-                                          icon: const Icon(
-                                            Icons.favorite_border_rounded,
-                                          ),
-                                          label: Text(
-                                            'Like ${data['likeCount'] ?? 0}',
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          '${comments.length} comments',
-                                          style: const TextStyle(
-                                            color: AppColors.textSecondary,
-                                            fontSize: 12,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 14),
-                                    const Text(
-                                      'COMMENTS',
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w900,
-                                        letterSpacing: 1.1,
-                                        color: AppColors.textSecondary,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                  ]),
-                                ),
-                              ),
-                              if (comments.isEmpty)
-                                const SliverFillRemaining(
-                                  hasScrollBody: false,
-                                  child: Center(
-                                    child: Text(
-                                      'Be the first to join the conversation.',
-                                    ),
-                                  ),
-                                )
-                              else
-                                SliverPadding(
-                                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 18),
-                                  sliver: SliverList.separated(
-                                    itemCount: comments.length,
-                                    separatorBuilder: (_, __) =>
-                                        const SizedBox(height: 8),
-                                    itemBuilder: (context, index) {
-                                      final comment = comments[index].data();
-                                      return Container(
-                                        padding: const EdgeInsets.all(12),
-                                        decoration: BoxDecoration(
-                                          color: AppColors.surfaceMuted,
-                                          borderRadius:
-                                              BorderRadius.circular(15),
-                                        ),
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              comment['authorName'] as String? ??
-                                                  'TiB User',
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.w800,
-                                                fontSize: 12,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              comment['body'] as String? ?? '',
-                                              style: const TextStyle(
-                                                fontSize: 12.5,
-                                                height: 1.4,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
-                          decoration: BoxDecoration(
-                            color: Theme.of(sheetBuildContext)
-                                .colorScheme
-                                .surface,
-                            border: Border(
-                              top: BorderSide(
-                                color: Theme.of(sheetBuildContext)
-                                    .colorScheme
-                                    .outlineVariant,
-                              ),
-                            ),
-                          ),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Expanded(
-                                child: TextField(
-                                  controller: _commentController,
-                                  textInputAction: TextInputAction.send,
-                                  minLines: 1,
-                                  maxLines: 4,
-                                  onSubmitted: (_) => _addComment(
-                                    document,
-                                    _commentController,
-                                  ),
-                                  decoration: const InputDecoration(
-                                    hintText: 'Write a reply...',
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              IconButton.filled(
-                                tooltip: 'Send reply',
-                                onPressed: () => _addComment(
-                                  document,
-                                  _commentController,
-                                ),
-                                icon: const Icon(Icons.send_rounded),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    );
-                  },
-                ),
-              ),
-            ),
-          );
-        },
-      );
-    } finally {
-      _commentController.clear();
-    }
-  }
-
-  final _commentController = TextEditingController();
-
   Future<void> _toggleLike(
     DocumentReference<Map<String, dynamic>> postReference,
   ) async {
@@ -498,16 +219,10 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
       final existing = await reactionRef.get();
       if (existing.exists) {
         await reactionRef.delete();
-        await postReference.update({
-          'likeCount': FieldValue.increment(-1),
-        });
+        await postReference.update({'likeCount': FieldValue.increment(-1)});
       } else {
-        await reactionRef.set({
-          'createdAt': FieldValue.serverTimestamp(),
-        });
-        await postReference.update({
-          'likeCount': FieldValue.increment(1),
-        });
+        await reactionRef.set({'createdAt': FieldValue.serverTimestamp()});
+        await postReference.update({'likeCount': FieldValue.increment(1)});
       }
     } catch (error) {
       if (!mounted) return;
@@ -518,10 +233,9 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
   }
 
   Future<void> _addComment(
-    QueryDocumentSnapshot<Map<String, dynamic>> document,
-    TextEditingController commentController,
+    DocumentReference<Map<String, dynamic>> postReference,
   ) async {
-    final text = commentController.text.trim();
+    final text = _commentController.text.trim();
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null || text.isEmpty) return;
 
@@ -534,7 +248,7 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
       final profileName = (userData['name'] as String?)?.trim();
       final displayName = FirebaseAuth.instance.currentUser?.displayName?.trim();
 
-      await document.reference.collection('comments').add({
+      await postReference.collection('comments').add({
         'body': text,
         'authorId': uid,
         'authorName': profileName?.isNotEmpty == true
@@ -542,15 +256,50 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
             : (displayName?.isNotEmpty == true ? displayName : 'TiB User'),
         'createdAt': FieldValue.serverTimestamp(),
       });
-      await document.reference.update({
-        'commentCount': FieldValue.increment(1),
-      });
-      commentController.clear();
+      await postReference.update({'commentCount': FieldValue.increment(1)});
+      _commentController.clear();
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Could not send reply: $error')),
       );
+    }
+  }
+
+  Future<void> _openPost(
+    QueryDocumentSnapshot<Map<String, dynamic>> document,
+  ) async {
+    final data = document.data();
+    final title = data['title'] as String? ?? 'Forum post';
+    final body = data['body'] as String? ?? '';
+    final category = data['category'] as String? ?? 'General';
+    final author = data['authorName'] as String? ?? 'TiB User';
+    final postReference = document.reference;
+
+    _commentController.clear();
+
+    await showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => _ForumPostSheet(
+        title: title,
+        body: body,
+        category: category,
+        author: author,
+        postReference: postReference,
+        initialLikeCount: (data['likeCount'] as num?)?.toInt() ?? 0,
+        initialCommentCount: (data['commentCount'] as num?)?.toInt() ?? 0,
+        relativeDate: _relativeDate(data['createdAt']),
+        commentController: _commentController,
+        onToggleLike: () => _toggleLike(postReference),
+        onAddComment: () => _addComment(postReference),
+      ),
+    );
+
+    if (mounted) {
+      _commentController.clear();
     }
   }
 
@@ -705,14 +454,17 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: _postsStream(),
         builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Center(child: Text('Could not load forum: ${snapshot.error}'));
+          }
+
           final documents = [...?snapshot.data?.docs];
           documents.sort(
             (a, b) => _date(b.data()['createdAt'])
                 .compareTo(_date(a.data()['createdAt'])),
           );
-          final visible = documents
-              .where((document) => _matches(document.data()))
-              .toList();
+          final visible =
+              documents.where((document) => _matches(document.data())).toList();
 
           return RefreshIndicator(
             onRefresh: () async {},
@@ -729,7 +481,7 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
                   ),
                 ),
                 const SizedBox(height: 6),
-                Text(
+                const Text(
                   'Ask questions, share outfit ideas and learn from the whole TiB community.',
                   style: TextStyle(
                     color: AppColors.textSecondary,
@@ -774,9 +526,9 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
                     const Text(
                       'COMMUNITY POSTS',
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: 10,
                         fontWeight: FontWeight.w900,
-                        letterSpacing: 1.2,
+                        letterSpacing: 1.3,
                         color: AppColors.textSecondary,
                       ),
                     ),
@@ -791,20 +543,17 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
                   ],
                 ),
                 const SizedBox(height: 10),
-                if (snapshot.hasError)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 28),
-                    child: Text(
-                      'Could not load the forum right now.\n${snapshot.error}',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: AppColors.error),
-                    ),
+                if (snapshot.connectionState == ConnectionState.waiting &&
+                    documents.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.all(40),
+                    child: Center(child: CircularProgressIndicator()),
                   )
                 else if (visible.isEmpty)
                   const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 48),
+                    padding: EdgeInsets.fromLTRB(0, 30, 0, 40),
                     child: Center(
-                      child: Text('No posts match your current filters.'),
+                      child: Text('No posts match your search yet.'),
                     ),
                   )
                 else
@@ -813,6 +562,266 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+class _ForumPostSheet extends StatelessWidget {
+  const _ForumPostSheet({
+    required this.title,
+    required this.body,
+    required this.category,
+    required this.author,
+    required this.postReference,
+    required this.initialLikeCount,
+    required this.initialCommentCount,
+    required this.relativeDate,
+    required this.commentController,
+    required this.onToggleLike,
+    required this.onAddComment,
+  });
+
+  final String title;
+  final String body;
+  final String category;
+  final String author;
+  final DocumentReference<Map<String, dynamic>> postReference;
+  final int initialLikeCount;
+  final int initialCommentCount;
+  final String relativeDate;
+  final TextEditingController commentController;
+  final Future<void> Function() onToggleLike;
+  final Future<void> Function() onAddComment;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+      child: Material(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        clipBehavior: Clip.antiAlias,
+        child: SizedBox(
+          height: MediaQuery.sizeOf(context).height * .82,
+          child: Column(
+            children: [
+              const SizedBox(height: 12),
+              Container(
+                width: 42,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.outlineVariant,
+                  borderRadius: BorderRadius.circular(99),
+                ),
+              ),
+              Expanded(
+                child: CustomScrollView(
+                  slivers: [
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(20, 18, 20, 14),
+                      sliver: SliverToBoxAdapter(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 9,
+                                    vertical: 5,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.surfaceMuted,
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Text(
+                                    category,
+                                    style: const TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
+                                const Spacer(),
+                                Icon(
+                                  Icons.forum_outlined,
+                                  color: AppColors.primary,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              title,
+                              style: const TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.w900,
+                                height: 1.12,
+                              ),
+                            ),
+                            const SizedBox(height: 7),
+                            Text(
+                              'Posted by $author · $relativeDate',
+                              style: const TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 11,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              body,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                height: 1.6,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                              stream: postReference.snapshots(),
+                              builder: (context, postSnapshot) {
+                                final liveData =
+                                    postSnapshot.data?.data() ?? const <String, dynamic>{};
+                                final likeCount =
+                                    (liveData['likeCount'] as num?)?.toInt() ??
+                                        initialLikeCount;
+                                final commentCount =
+                                    (liveData['commentCount'] as num?)?.toInt() ??
+                                        initialCommentCount;
+                                return Row(
+                                  children: [
+                                    OutlinedButton.icon(
+                                      onPressed: () async => onToggleLike(),
+                                      icon: const Icon(
+                                        Icons.favorite_border_rounded,
+                                      ),
+                                      label: Text('Like $likeCount'),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      '$commentCount comments',
+                                      style: const TextStyle(
+                                        color: AppColors.textSecondary,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              },
+                            ),
+                            const SizedBox(height: 14),
+                            const Text(
+                              'COMMENTS',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 1.1,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                      stream: postReference.collection('comments').snapshots(),
+                      builder: (context, snapshot) {
+                        final comments = [...?snapshot.data?.docs];
+                        comments.sort(
+                          (a, b) => (a.data()['createdAt'] is Timestamp ? (a.data()['createdAt'] as Timestamp).toDate() : DateTime.fromMillisecondsSinceEpoch(0))
+                              .compareTo(a.data()['createdAt'] is Timestamp ? (b.data()['createdAt'] as Timestamp).toDate() : DateTime.fromMillisecondsSinceEpoch(0)),
+                        );
+
+                        if (comments.isEmpty) {
+                          return const SliverFillRemaining(
+                            hasScrollBody: false,
+                            child: Center(
+                              child: Text(
+                                'Be the first to join the conversation.',
+                              ),
+                            ),
+                          );
+                        }
+
+                        return SliverPadding(
+                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                          sliver: SliverList.separated(
+                            itemCount: comments.length,
+                            separatorBuilder: (_, __) => const SizedBox(height: 8),
+                            itemBuilder: (context, index) {
+                              final comment = comments[index].data();
+                              return Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: AppColors.surfaceMuted,
+                                  borderRadius: BorderRadius.circular(15),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      comment['authorName'] as String? ??
+                                          'TiB User',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      comment['body'] as String? ?? '',
+                                      style: const TextStyle(
+                                        fontSize: 12.5,
+                                        height: 1.4,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surface,
+                  border: Border(
+                    top: BorderSide(
+                      color: Theme.of(context).colorScheme.outlineVariant,
+                    ),
+                  ),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: commentController,
+                        textInputAction: TextInputAction.send,
+                        minLines: 1,
+                        maxLines: 4,
+                        onSubmitted: (_) => onAddComment(),
+                        decoration: const InputDecoration(
+                          hintText: 'Write a reply...',
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton.filled(
+                      tooltip: 'Send reply',
+                      onPressed: () => onAddComment(),
+                      icon: const Icon(Icons.send_rounded),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
