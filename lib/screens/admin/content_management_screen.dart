@@ -1,11 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../services/community_service.dart';
 import 'content_detail_screen.dart';
-import '../forum/customer_forum_screen.dart';
 
 class ContentManagementScreen extends StatefulWidget {
   const ContentManagementScreen({super.key});
@@ -211,8 +209,12 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
       final comments = await post.reference.collection('comments').get();
       final likes = await post.reference.collection('likes').get();
       final batch = FirebaseFirestore.instance.batch();
-      for (final comment in comments.docs) batch.delete(comment.reference);
-      for (final like in likes.docs) batch.delete(like.reference);
+      for (final comment in comments.docs) {
+        batch.delete(comment.reference);
+      }
+      for (final like in likes.docs) {
+        batch.delete(like.reference);
+      }
       batch.delete(post.reference);
       await batch.commit();
     }
@@ -344,35 +346,62 @@ class _ContentFormDialogState extends State<_ContentFormDialog> {
     final title = titleController.text.trim();
     final description = descriptionController.text.trim();
     final body = bodyController.text.trim();
-    if (title.isEmpty || description.isEmpty || body.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please complete the title, description and content fields.')));
-      return;
-    }
+    if (title.isEmpty || body.isEmpty) return;
     setState(() => isSaving = true);
     try {
-      final collection = FirebaseFirestore.instance.collection('content');
-      final payload = {
-        'title': title,
-        'description': description,
-        'body': body,
-        'type': selectedType,
-        'isPublished': isPublished,
-        'isFeatured': isFeatured,
-        'isPremium': isPremium,
-        'updatedAt': FieldValue.serverTimestamp(),
-      };
       if (widget.documentId == null) {
-        final document = await collection.add({...payload, 'createdAt': FieldValue.serverTimestamp()});
-        if (isPublished) await _publishNewContent(document.id, title, description, body, selectedType);
+        final docRef = await FirebaseFirestore.instance.collection('content').add({
+          'title': title,
+          'description': description,
+          'body': body,
+          'type': selectedType,
+          'isPublished': isPublished,
+          'isFeatured': isFeatured,
+          'isPremium': isPremium,
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        if (isPublished) {
+          await CommunityService.createContentForumPost(contentId: docRef.id, title: title, body: body, type: selectedType);
+        }
       } else {
         final wasPublished = widget.initialPublished;
-        await collection.doc(widget.documentId).update(payload);
-        if (isPublished && !wasPublished) {
-          await _publishNewContent(widget.documentId!, title, description, body, selectedType);
+        await FirebaseFirestore.instance.collection('content').doc(widget.documentId).update({
+          'title': title,
+          'description': description,
+          'body': body,
+          'type': selectedType,
+          'isPublished': isPublished,
+          'isFeatured': isFeatured,
+          'isPremium': isPremium,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        final forumQuery = await FirebaseFirestore.instance.collection('forum_posts').where('contentId', isEqualTo: widget.documentId).limit(1).get();
+        if (isPublished && forumQuery.docs.isEmpty) {
+          await CommunityService.createContentForumPost(contentId: widget.documentId!, title: title, body: body, type: selectedType);
+        } else if (isPublished && forumQuery.docs.isNotEmpty) {
+          await forumQuery.docs.first.reference.update({
+            'title': title,
+            'body': body,
+            'category': selectedType,
+            'contentTitle': title,
+            'lastActivityAt': FieldValue.serverTimestamp(),
+          });
         } else if (!isPublished && wasPublished) {
-          await _removeForumPost(widget.documentId!);
-        } else if (isPublished && wasPublished) {
-          await _syncExistingForumPost(widget.documentId!, title, body, selectedType);
+          final snapshot = await FirebaseFirestore.instance.collection('forum_posts').where('contentId', isEqualTo: widget.documentId).get();
+          for (final post in snapshot.docs) {
+            final comments = await post.reference.collection('comments').get();
+            final likes = await post.reference.collection('likes').get();
+            final batch = FirebaseFirestore.instance.batch();
+            for (final comment in comments.docs) {
+              batch.delete(comment.reference);
+            }
+            for (final like in likes.docs) {
+              batch.delete(like.reference);
+            }
+            batch.delete(post.reference);
+            await batch.commit();
+          }
         }
       }
       if (!mounted) return;
@@ -380,90 +409,43 @@ class _ContentFormDialogState extends State<_ContentFormDialog> {
     } catch (error) {
       if (!mounted) return;
       setState(() => isSaving = false);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not save this content: $error')));
-    }
-  }
-
-  Future<void> _publishNewContent(String contentId, String title, String description, String body, String type) async {
-    final existing = await FirebaseFirestore.instance.collection('forum_posts').where('contentId', isEqualTo: contentId).limit(1).get();
-    if (existing.docs.isEmpty) {
-      await CommunityService.createContentForumPost(contentId: contentId, title: title, body: body, type: type);
-    }
-    await _notifyUsers(title, description, contentId, type);
-  }
-
-  Future<void> _notifyUsers(String title, String description, String contentId, String type) async {
-    final users = await FirebaseFirestore.instance.collection('users').get();
-    WriteBatch batch = FirebaseFirestore.instance.batch();
-    var operations = 0;
-    for (final user in users.docs) {
-      batch.set(user.reference.collection('notifications').doc(), {
-        'title': 'New TiB content: $title',
-        'body': description,
-        'type': 'content',
-        'contentId': contentId,
-        'contentType': type,
-        'read': false,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-      operations++;
-      if (operations == 450) {
-        await batch.commit();
-        batch = FirebaseFirestore.instance.batch();
-        operations = 0;
-      }
-    }
-    if (operations > 0) await batch.commit();
-  }
-
-  Future<void> _syncExistingForumPost(String contentId, String title, String body, String type) async {
-    final snapshot = await FirebaseFirestore.instance.collection('forum_posts').where('contentId', isEqualTo: contentId).limit(1).get();
-    if (snapshot.docs.isEmpty) {
-      await CommunityService.createContentForumPost(contentId: contentId, title: title, body: body, type: type);
-      return;
-    }
-    await snapshot.docs.first.reference.update({'title': title, 'body': body, 'category': type, 'contentTitle': title, 'updatedAt': FieldValue.serverTimestamp()});
-  }
-
-  Future<void> _removeForumPost(String contentId) async {
-    final snapshot = await FirebaseFirestore.instance.collection('forum_posts').where('contentId', isEqualTo: contentId).get();
-    for (final post in snapshot.docs) {
-      final comments = await post.reference.collection('comments').get();
-      final likes = await post.reference.collection('likes').get();
-      final batch = FirebaseFirestore.instance.batch();
-      for (final comment in comments.docs) batch.delete(comment.reference);
-      for (final like in likes.docs) batch.delete(like.reference);
-      batch.delete(post.reference);
-      await batch.commit();
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not save content: $error')));
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final editing = widget.documentId != null;
     return AlertDialog(
-      title: Text(editing ? 'Edit Content' : 'Create Content'),
-      content: SizedBox(
-        width: 500,
-        child: SingleChildScrollView(
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            TextField(controller: titleController, decoration: const InputDecoration(labelText: 'Title *', prefixIcon: Icon(Icons.title))),
-            const SizedBox(height: 16),
-            TextField(controller: descriptionController, maxLines: 3, decoration: const InputDecoration(labelText: 'Short Description *', prefixIcon: Icon(Icons.short_text))),
-            const SizedBox(height: 16),
-            DropdownButtonFormField<String>(initialValue: selectedType, decoration: const InputDecoration(labelText: 'Content Type', prefixIcon: Icon(Icons.category_outlined)), items: types.map((type) => DropdownMenuItem(value: type, child: Text(type))).toList(), onChanged: (value) { if (value != null) setState(() => selectedType = value); }),
-            const SizedBox(height: 16),
-            TextField(controller: bodyController, maxLines: 8, decoration: const InputDecoration(labelText: 'Content *', alignLabelWithHint: true, prefixIcon: Icon(Icons.article_outlined))),
-            const SizedBox(height: 12),
-            SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('Published'), value: isPublished, onChanged: (value) => setState(() => isPublished = value)),
-            SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('Featured'), value: isFeatured, onChanged: (value) => setState(() => isFeatured = value)),
-            SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('Premium'), value: isPremium, onChanged: (value) => setState(() => isPremium = value)),
-          ]),
+      title: Text(widget.documentId == null ? 'Create Content' : 'Edit Content'),
+      content: SingleChildScrollView(
+        child: SizedBox(
+          width: 520,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(controller: titleController, enabled: !isSaving, decoration: const InputDecoration(labelText: 'Title')),
+              const SizedBox(height: 12),
+              TextField(controller: descriptionController, enabled: !isSaving, decoration: const InputDecoration(labelText: 'Description')),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: selectedType,
+                decoration: const InputDecoration(labelText: 'Type'),
+                items: types.map((type) => DropdownMenuItem(value: type, child: Text(type))).toList(),
+                onChanged: isSaving ? null : (value) => setState(() => selectedType = value ?? types.first),
+              ),
+              const SizedBox(height: 12),
+              TextField(controller: bodyController, enabled: !isSaving, minLines: 6, maxLines: 12, decoration: const InputDecoration(labelText: 'Content body')),
+              const SizedBox(height: 12),
+              SwitchListTile(value: isPublished, onChanged: isSaving ? null : (value) => setState(() => isPublished = value), title: const Text('Published'), contentPadding: EdgeInsets.zero),
+              SwitchListTile(value: isFeatured, onChanged: isSaving ? null : (value) => setState(() => isFeatured = value), title: const Text('Featured'), contentPadding: EdgeInsets.zero),
+              SwitchListTile(value: isPremium, onChanged: isSaving ? null : (value) => setState(() => isPremium = value), title: const Text('Premium'), contentPadding: EdgeInsets.zero),
+            ],
+          ),
         ),
       ),
       actions: [
         TextButton(onPressed: isSaving ? null : () => Navigator.pop(context, false), child: const Text('Cancel')),
-        FilledButton.icon(onPressed: isSaving ? null : save, icon: isSaving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.save_rounded), label: Text(isSaving ? 'Saving...' : 'Save')),
+        FilledButton(onPressed: isSaving ? null : save, child: Text(isSaving ? 'Saving...' : 'Save')),
       ],
     );
   }
