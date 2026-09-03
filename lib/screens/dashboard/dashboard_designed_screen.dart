@@ -78,10 +78,7 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
 
     try {
       final challenge = await (_challengeFuture ?? Future.value(DailyChallengeService.today()));
-      final completed = await DailyChallengeService.complete(
-        uid,
-        challenge: challenge,
-      );
+      final completed = await DailyChallengeService.complete(uid, challenge: challenge);
 
       if (!mounted) return;
       setState(() {
@@ -242,13 +239,9 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) return _loadingCard('YOUR STYLE JOURNEY');
         final journey = snapshot.data;
-        if (journey == null) {
-          return _card(
-            child: const Text('Your style journey will appear here.', style: TextStyle(color: AppColors.textSecondary)),
-          );
-        }
-
+        if (journey == null) return _loadingCard('YOUR STYLE JOURNEY');
         final progress = journey.progress.clamp(0.0, 1.0);
+        final levelText = 'Level ${journey.level} • ${journey.levelTitle}';
         return _card(
           child: InkWell(
             onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TibStyleJourneyScreen())),
@@ -258,13 +251,13 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(children: [const Expanded(child: Text('YOUR STYLE JOURNEY', style: TextStyle(color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: .35))), Text('${journey.completedChallenges} completed', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12))]),
+                  Row(children: [const Expanded(child: Text('YOUR STYLE JOURNEY', style: TextStyle(color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: .35))), Text(levelText, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12))]),
                   const SizedBox(height: 10),
-                  Text(journey.levelTitle, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+                  Text('${journey.points} XP • ${journey.completedChallenges} challenges', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
                   const SizedBox(height: 8),
                   ClipRRect(borderRadius: BorderRadius.circular(20), child: LinearProgressIndicator(value: progress, minHeight: 8, backgroundColor: AppColors.surfaceMuted)),
                   const SizedBox(height: 8),
-                  Text('${journey.points} XP · ${journey.streak} day streak', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                  Text('${journey.streak}-day streak', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
                 ],
               ),
             ),
@@ -291,7 +284,13 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
               const SizedBox(height: 5),
               Text(challenge.description, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12.5, height: 1.4)),
               const SizedBox(height: 14),
-              SizedBox(width: double.infinity, child: ElevatedButton(onPressed: _challengeCompleted || _completingChallenge ? null : _completeChallenge, child: Text(_challengeCompleted ? 'Completed today' : _completingChallenge ? 'Saving...' : 'Mark as completed')),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _challengeCompleted || _completingChallenge ? null : _completeChallenge,
+                  child: Text(_challengeCompleted ? 'Completed today' : _completingChallenge ? 'Saving...' : 'Mark as completed'),
+                ),
+              ),
             ],
           ),
         );
@@ -326,8 +325,7 @@ class _LearningPreviewCard extends StatelessWidget {
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: ContentService.publishedContentStream(),
       builder: (context, snapshot) {
-        final data = snapshot.data;
-        final docs = data == null ? <QueryDocumentSnapshot<Map<String, dynamic>>>[] : data.docs.toList();
+        final docs = [...?snapshot.data?.docs];
         docs.sort((a, b) {
           final aFeatured = a.data()['isFeatured'] == true;
           final bFeatured = b.data()['isFeatured'] == true;
@@ -346,18 +344,16 @@ class _LearningPreviewCard extends StatelessWidget {
               children: [
                 Row(children: [const Expanded(child: Text('LEARN WITH TIB', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: .6, color: AppColors.textSecondary))), TextButton(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CustomerContentScreen())), child: const Text('View all'))]),
                 const SizedBox(height: 8),
-                if (snapshot.connectionState == ConnectionState.waiting && data == null)
-                  const LinearProgressIndicator(minHeight: 5)
-                else if (preview.isEmpty)
+                if (preview.isEmpty)
                   const Text('New styling guides will appear here.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12))
                 else
                   ...preview.map((doc) {
-                    final item = doc.data();
+                    final data = doc.data();
                     return ListTile(
                       contentPadding: EdgeInsets.zero,
                       leading: const CircleAvatar(backgroundColor: AppColors.secondary, child: Icon(Icons.menu_book_outlined, color: AppColors.primary)),
-                      title: Text(item['title'] as String? ?? 'TiB Guide', style: const TextStyle(fontWeight: FontWeight.w800)),
-                      subtitle: Text(item['description'] as String? ?? '', maxLines: 2, overflow: TextOverflow.ellipsis),
+                      title: Text(data['title'] as String? ?? 'TiB Guide', style: const TextStyle(fontWeight: FontWeight.w800)),
+                      subtitle: Text(data['description'] as String? ?? '', maxLines: 2, overflow: TextOverflow.ellipsis),
                       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CustomerContentScreen())),
                     );
                   }),
