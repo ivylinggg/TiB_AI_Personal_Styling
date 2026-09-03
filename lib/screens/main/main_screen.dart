@@ -12,6 +12,7 @@ import '../ai/ai_hub_screen.dart';
 import '../analysis/analysis_screen.dart';
 import '../auth/login_screen.dart';
 import '../dashboard/dashboard_designed_screen.dart';
+import '../forum/customer_forum_screen.dart';
 import '../profile/profile_screen.dart';
 import '../wardrobe/wardrobe_screen.dart';
 
@@ -32,6 +33,7 @@ class _MainScreenState extends State<MainScreen> {
     AnalysisScreen(),
     AIHubScreen(),
     WardrobeScreen(),
+    CustomerForumScreen(),
     ProfileScreen(),
   ];
 
@@ -64,7 +66,6 @@ class _MainScreenState extends State<MainScreen> {
   Future<void> _showNotifications() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     HapticFeedback.lightImpact();
-
     if (uid == null) return;
 
     final notificationRef = FirebaseFirestore.instance
@@ -83,9 +84,7 @@ class _MainScreenState extends State<MainScreen> {
           'createdAt': FieldValue.serverTimestamp(),
         });
       }
-    } catch (_) {
-      // The empty-state UI below remains usable even when the first write is unavailable.
-    }
+    } catch (_) {}
 
     if (!mounted) return;
 
@@ -117,12 +116,7 @@ class _MainScreenState extends State<MainScreen> {
                     children: [
                       Row(
                         children: [
-                          const Expanded(
-                            child: Text(
-                              'Notifications',
-                              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
-                            ),
-                          ),
+                          const Expanded(child: Text('Notifications', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900))),
                           if (docs.isNotEmpty)
                             TextButton(
                               onPressed: () async {
@@ -172,18 +166,12 @@ class _MainScreenState extends State<MainScreen> {
                               return Card(
                                 elevation: 0,
                                 color: read ? AppColors.surface : AppColors.secondary.withValues(alpha: .42),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(17),
-                                  side: const BorderSide(color: AppColors.border),
-                                ),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(17), side: const BorderSide(color: AppColors.border)),
                                 child: ListTile(
                                   contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
                                   leading: CircleAvatar(
                                     backgroundColor: AppColors.surfaceMuted,
-                                    child: Icon(
-                                      read ? Icons.notifications_none_rounded : Icons.notifications_active_rounded,
-                                      color: AppColors.primary,
-                                    ),
+                                    child: Icon(read ? Icons.notifications_none_rounded : Icons.notifications_active_rounded, color: AppColors.primary),
                                   ),
                                   title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
                                   subtitle: Padding(
@@ -245,9 +233,7 @@ class _MainScreenState extends State<MainScreen> {
       );
     } on FirebaseAuthException catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not log out: ${error.message ?? 'Please try again.'}')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not log out: ${error.message ?? 'Please try again.'}')));
     }
   }
 
@@ -266,53 +252,20 @@ class _MainScreenState extends State<MainScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  greeting,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 30,
-                    height: 1.12,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.textPrimary,
-                    letterSpacing: -0.7,
-                  ),
-                ),
+                Text(greeting, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 30, height: 1.12, fontWeight: FontWeight.w800, color: AppColors.textPrimary, letterSpacing: -0.7)),
                 const SizedBox(height: 6),
-                Text(
-                  widget.adminPreview ? 'Customer dashboard preview' : 'Your personal styling space',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    height: 1.2,
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
+                Text(widget.adminPreview ? 'Customer dashboard preview' : 'Your personal styling space', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 18, height: 1.2, fontWeight: FontWeight.w500, color: AppColors.textSecondary)),
               ],
             ),
           ),
           const SizedBox(width: 14),
           if (widget.adminPreview) ...[
-            _topActionButton(
-              icon: Icons.admin_panel_settings_outlined,
-              tooltip: 'Return to Admin',
-              onTap: _returnToAdmin,
-            ),
+            _topActionButton(icon: Icons.admin_panel_settings_outlined, tooltip: 'Return to Admin', onTap: _returnToAdmin),
             const SizedBox(width: 12),
           ],
-          _topActionButton(
-            icon: Icons.notifications_none_rounded,
-            tooltip: 'Notifications',
-            onTap: _showNotifications,
-          ),
+          _topActionButton(icon: Icons.notifications_none_rounded, tooltip: 'Notifications', onTap: _showNotifications),
           const SizedBox(width: 12),
-          _topActionButton(
-            icon: Icons.logout_rounded,
-            tooltip: 'Log out',
-            onTap: _logout,
-          ),
+          _topActionButton(icon: Icons.logout_rounded, tooltip: 'Log out', onTap: _logout),
         ],
       ),
     );
@@ -332,10 +285,7 @@ class _MainScreenState extends State<MainScreen> {
           child: Container(
             width: 64,
             height: 64,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: AppColors.border),
-            ),
+            decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: AppColors.border)),
             child: Icon(icon, color: AppColors.primary, size: 29),
           ),
         ),
@@ -380,6 +330,7 @@ class _MainScreenState extends State<MainScreen> {
                 const NavigationDestination(icon: Icon(Icons.palette_outlined), selectedIcon: Icon(Icons.palette_rounded), label: 'Colour'),
                 NavigationDestination(icon: _aiIcon(false), selectedIcon: _aiIcon(true), label: 'Style'),
                 const NavigationDestination(icon: Icon(Icons.checkroom_outlined), selectedIcon: Icon(Icons.checkroom_rounded), label: 'Wardrobe'),
+                const NavigationDestination(icon: Icon(Icons.forum_outlined), selectedIcon: Icon(Icons.forum_rounded), label: 'Forum'),
                 const NavigationDestination(icon: Icon(Icons.person_outline_rounded), selectedIcon: Icon(Icons.person_rounded), label: 'Profile'),
               ],
             ),
