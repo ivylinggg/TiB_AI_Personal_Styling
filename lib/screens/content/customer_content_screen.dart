@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../services/content_service.dart';
-import '../forum/customer_forum_screen.dart';
 
 class CustomerContentScreen extends StatefulWidget {
   const CustomerContentScreen({super.key});
@@ -38,16 +37,7 @@ class _CustomerContentScreenState extends State<CustomerContentScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('TiB Style Hub'),
-        actions: [
-          IconButton(
-            tooltip: 'Forum',
-            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CustomerForumScreen())),
-            icon: const Icon(Icons.forum_outlined),
-          ),
-        ],
-      ),
+      appBar: AppBar(title: const Text('TiB Style Hub')),
       backgroundColor: AppColors.background,
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: ContentService.publishedContentStream(),
@@ -89,9 +79,8 @@ class _CustomerContentScreenState extends State<CustomerContentScreen> {
             final title = (data['title'] as String? ?? '').toLowerCase();
             final description = (data['description'] as String? ?? '').toLowerCase();
             final type = data['type'] as String? ?? 'Learning';
-            final matchesType = _filter == 'All' || type == _filter;
-            final matchesQuery = _query.isEmpty || title.contains(_query) || description.contains(_query) || type.toLowerCase().contains(_query);
-            return matchesType && matchesQuery;
+            return (_filter == 'All' || type == _filter) &&
+                (_query.isEmpty || title.contains(_query) || description.contains(_query) || type.toLowerCase().contains(_query));
           }).toList();
 
           final featured = visible.where((doc) => doc.data()['isFeatured'] == true).take(3).toList();
@@ -110,66 +99,42 @@ class _CustomerContentScreenState extends State<CustomerContentScreen> {
                   ],
                 ),
                 const SizedBox(height: 5),
-                Text('Discover styling ideas and content from the TiB team.', style: TextStyle(color: AppColors.textSecondary, height: 1.35)),
-                const SizedBox(height: 16),
-                Card(
-                  elevation: 0,
-                  color: AppColors.secondary,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(20),
-                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CustomerForumScreen())),
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 15, 14, 15),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 46,
-                            height: 46,
-                            decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(14)),
-                            child: const Icon(Icons.forum_outlined, color: AppColors.primary),
-                          ),
-                          const SizedBox(width: 12),
-                          const Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('TiB Forum', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14.5)),
-                                SizedBox(height: 3),
-                                Text('Ask, share and discuss styling with the whole TiB community.', style: TextStyle(fontSize: 11.5, height: 1.35)),
-                              ],
-                            ),
-                          ),
-                          const Icon(Icons.chevron_right_rounded, color: AppColors.primary),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
+                const Text('Discover styling ideas and content from the TiB team.', style: TextStyle(color: AppColors.textSecondary, height: 1.35)),
                 const SizedBox(height: 16),
                 TextField(
                   onChanged: (value) => setState(() => _query = value.trim().toLowerCase()),
-                  decoration: InputDecoration(hintText: 'Search content', prefixIcon: const Icon(Icons.search), border: OutlineInputBorder(borderRadius: BorderRadius.circular(16))),
+                  decoration: InputDecoration(
+                    hintText: 'Search content',
+                    prefixIcon: const Icon(Icons.search),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
-                    children: _types.map((type) => Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: ChoiceChip(label: Text(type), selected: _filter == type, showCheckmark: false, onSelected: (_) => setState(() => _filter = type)),
-                    )).toList(),
+                    children: _types.map((type) {
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: ChoiceChip(
+                          label: Text(type),
+                          selected: _filter == type,
+                          showCheckmark: false,
+                          onSelected: (_) => setState(() => _filter = type),
+                        ),
+                      );
+                    }).toList(),
                   ),
                 ),
                 const SizedBox(height: 20),
                 if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData)
                   const Padding(padding: EdgeInsets.only(top: 100), child: Center(child: CircularProgressIndicator()))
                 else if (visible.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 100),
+                  const Padding(
+                    padding: EdgeInsets.only(top: 100),
                     child: Center(
                       child: Column(
-                        children: const [
+                        children: [
                           Icon(Icons.menu_book_outlined, size: 54, color: AppColors.primary),
                           SizedBox(height: 12),
                           Text('No content available', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
@@ -197,7 +162,7 @@ class _CustomerContentScreenState extends State<CustomerContentScreen> {
                   Row(
                     children: [
                       const Expanded(child: Text('STYLE FEED', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.2, color: AppColors.textSecondary))),
-                      Text('${feed.length} posts', style: TextStyle(fontSize: 10.5, color: AppColors.textMuted)),
+                      Text('${feed.length} posts', style: const TextStyle(fontSize: 10.5, color: AppColors.textMuted)),
                     ],
                   ),
                   const SizedBox(height: 9),
@@ -219,7 +184,6 @@ class _CustomerContentScreenState extends State<CustomerContentScreen> {
     final description = data['description'] as String? ?? '';
     final type = data['type'] as String? ?? 'Learning';
     final premium = data['isPremium'] as bool? ?? false;
-
     return SizedBox(
       width: 270,
       child: Card(
@@ -231,18 +195,15 @@ class _CustomerContentScreenState extends State<CustomerContentScreen> {
           onTap: () => _openArticle(context, title, description, data['body'] as String? ?? '', type, premium),
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(children: [_typeBadge(type), const Spacer(), const Icon(Icons.star_rounded, size: 18, color: AppColors.primary)]),
-                const SizedBox(height: 14),
-                Text(title, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, height: 1.15)),
-                const SizedBox(height: 7),
-                Expanded(child: Text(description, maxLines: 3, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11.5, height: 1.35, color: AppColors.textSecondary))),
-                const SizedBox(height: 6),
-                Row(children: [const Icon(Icons.arrow_forward_rounded, size: 16, color: AppColors.primary), const SizedBox(width: 5), const Text('Read', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: AppColors.primaryDark)), if (premium) ...[const Spacer(), const Icon(Icons.lock_outline_rounded, size: 15, color: AppColors.primary)]]),
-              ],
-            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [_typeBadge(type), const Spacer(), const Icon(Icons.star_rounded, size: 18, color: AppColors.primary)]),
+              const SizedBox(height: 14),
+              Text(title, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, height: 1.15)),
+              const SizedBox(height: 7),
+              Expanded(child: Text(description, maxLines: 3, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11.5, height: 1.35, color: AppColors.textSecondary))),
+              const SizedBox(height: 6),
+              Row(children: [const Icon(Icons.arrow_forward_rounded, size: 16, color: AppColors.primary), const SizedBox(width: 5), const Text('Read', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: AppColors.primaryDark)), if (premium) ...[const Spacer(), const Icon(Icons.lock_outline_rounded, size: 15, color: AppColors.primary)]]),
+            ]),
           ),
         ),
       ),
@@ -256,7 +217,6 @@ class _CustomerContentScreenState extends State<CustomerContentScreen> {
     final type = data['type'] as String? ?? 'Learning';
     final featured = data['isFeatured'] as bool? ?? false;
     final premium = data['isPremium'] as bool? ?? false;
-
     return Card(
       elevation: 0,
       margin: const EdgeInsets.only(bottom: 10),
@@ -275,18 +235,9 @@ class _CustomerContentScreenState extends State<CustomerContentScreen> {
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
                   const SizedBox(height: 5),
-                  Text(description, maxLines: 3, overflow: TextOverflow.ellipsis, style: TextStyle(color: AppColors.textSecondary, height: 1.4, fontSize: 12)),
+                  Text(description, maxLines: 3, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.textSecondary, height: 1.4, fontSize: 12)),
                   const SizedBox(height: 9),
                   Row(children: [_typeBadge(type), if (featured) ...[const SizedBox(width: 8), const Icon(Icons.star_rounded, size: 17, color: AppColors.primary)]]),
-                  const SizedBox(height: 11),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CustomerForumScreen())),
-                      icon: const Icon(Icons.forum_outlined, size: 16),
-                      label: const Text('Discuss in Forum'),
-                    ),
-                  ),
                 ]),
               ),
               const SizedBox(width: 5),
@@ -329,7 +280,6 @@ class _CustomerContentScreenState extends State<CustomerContentScreen> {
       );
       return;
     }
-
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -347,18 +297,6 @@ class _CustomerContentScreenState extends State<CustomerContentScreen> {
               Text(description, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.45)),
               const SizedBox(height: 22),
               Text(body, style: const TextStyle(fontSize: 14, height: 1.65)),
-              const SizedBox(height: 22),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: () {
-                    Navigator.pop(sheetContext);
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const CustomerForumScreen()));
-                  },
-                  icon: const Icon(Icons.forum_outlined),
-                  label: const Text('Discuss in TiB Forum'),
-                ),
-              ),
             ],
           ),
         ),
