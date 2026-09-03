@@ -164,6 +164,7 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
                               'createdAt': FieldValue.serverTimestamp(),
                               'lastActivityAt': FieldValue.serverTimestamp(),
                               'isOfficial': false,
+                              'source': 'customer_forum',
                             });
 
                             if (dialogContext.mounted) {
@@ -254,13 +255,15 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
       final current =
           (postSnapshot.data()?['likeCount'] as num?)?.toInt() ?? 0;
 
+      final batch = FirebaseFirestore.instance.batch();
       if (existing.exists) {
-        await likeRef.delete();
-        await postRef.update({'likeCount': current > 0 ? current - 1 : 0});
+        batch.delete(likeRef);
+        batch.update(postRef, {'likeCount': current > 0 ? current - 1 : 0});
       } else {
-        await likeRef.set({'createdAt': FieldValue.serverTimestamp()});
-        await postRef.update({'likeCount': current + 1});
+        batch.set(likeRef, {'createdAt': FieldValue.serverTimestamp()});
+        batch.update(postRef, {'likeCount': current + 1});
       }
+      await batch.commit();
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -291,7 +294,7 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
     final body = data['body'] as String? ?? '';
     final category = data['category'] as String? ?? 'General';
     final author = data['authorName'] as String? ?? 'TiB User';
-    final official = data['isOfficial'] == true;
+    final official = data['isOfficial'] == true || data['source'] == 'admin_content';
 
     return Card(
       elevation: 0,
@@ -620,11 +623,11 @@ class _ForumPostDetailScreenState extends State<ForumPostDetailScreen> {
       if (!mounted) return;
       if (success) {
         _commentController.clear();
-        await Future<void>.delayed(const Duration(milliseconds: 120));
+        await Future<void>.delayed(const Duration(milliseconds: 150));
         if (mounted && _scrollController.hasClients) {
           await _scrollController.animateTo(
             _scrollController.position.maxScrollExtent,
-            duration: const Duration(milliseconds: 280),
+            duration: const Duration(milliseconds: 300),
             curve: Curves.easeOut,
           );
         }
@@ -647,78 +650,97 @@ class _ForumPostDetailScreenState extends State<ForumPostDetailScreen> {
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
-      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: widget.postReference.collection('comments').snapshots(),
-        builder: (context, commentsSnapshot) {
-          final comments = [...?commentsSnapshot.data?.docs];
-          comments.sort((a, b) => _date(a.data()['createdAt'])
-              .compareTo(_date(b.data()['createdAt'])));
+      body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+        stream: widget.postReference.snapshots(),
+        builder: (context, postSnapshot) {
+          final postData = postSnapshot.data?.data() ?? widget.initialData;
+          final commentsQuery = widget.postReference.collection('comments');
 
-          if (commentsSnapshot.hasError) {
-            return Column(
-              children: [
-                const Expanded(
-                  child: Center(child: Text('Unable to load replies.')),
-                ),
-                _replyBar(theme),
-              ],
-            );
-          }
+          return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            stream: commentsQuery.snapshots(),
+            builder: (context, commentsSnapshot) {
+              final comments = [...?commentsSnapshot.data?.docs];
+              comments.sort((a, b) => _date(a.data()['createdAt'])
+                  .compareTo(_date(b.data()['createdAt'])));
 
-          return Column(
-            children: [
-              Expanded(
-                child: ListView(
-                  controller: _scrollController,
-                  keyboardDismissBehavior:
-                      ScrollViewKeyboardDismissBehavior.onDrag,
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+              if (commentsSnapshot.hasError || postSnapshot.hasError) {
+                return Column(
                   children: [
-                    _originalPostCard(widget.initialData),
-                    const SizedBox(height: 22),
-                    Row(
+                    Expanded(
+                      child: ListView(
+                        controller: _scrollController,
+                        padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+                        children: [
+                          _originalPostCard(postData),
+                          const SizedBox(height: 22),
+                          const Text(
+                            'Replies could not be loaded right now.',
+                            style: TextStyle(color: AppColors.error),
+                          ),
+                        ],
+                      ),
+                    ),
+                    _replyBar(theme),
+                  ],
+                );
+              }
+
+              return Column(
+                children: [
+                  Expanded(
+                    child: ListView(
+                      controller: _scrollController,
+                      keyboardDismissBehavior:
+                          ScrollViewKeyboardDismissBehavior.onDrag,
+                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
                       children: [
-                        const Text(
-                          'REPLIES',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 1.3,
-                            color: AppColors.textSecondary,
-                          ),
+                        _originalPostCard(postData),
+                        const SizedBox(height: 22),
+                        Row(
+                          children: [
+                            const Text(
+                              'REPLIES',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 1.3,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                            const Spacer(),
+                            Text(
+                              '${comments.length}',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: AppColors.textMuted,
+                              ),
+                            ),
+                          ],
                         ),
-                        const Spacer(),
-                        Text(
-                          '${comments.length}',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: AppColors.textMuted,
-                          ),
-                        ),
+                        const SizedBox(height: 10),
+                        if (commentsSnapshot.connectionState ==
+                                ConnectionState.waiting &&
+                            comments.isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.all(30),
+                            child: Center(child: CircularProgressIndicator()),
+                          )
+                        else if (comments.isEmpty)
+                          _emptyReplies()
+                        else
+                          ...comments.asMap().entries.map(
+                                (entry) => _replyCard(
+                                  entry.value.data(),
+                                  entry.key == comments.length - 1,
+                                ),
+                              ),
                       ],
                     ),
-                    const SizedBox(height: 10),
-                    if (commentsSnapshot.connectionState ==
-                            ConnectionState.waiting &&
-                        comments.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.all(30),
-                        child: Center(child: CircularProgressIndicator()),
-                      )
-                    else if (comments.isEmpty)
-                      _emptyReplies()
-                    else
-                      ...comments.asMap().entries.map(
-                            (entry) => _replyCard(
-                              entry.value.data(),
-                              entry.key == comments.length - 1,
-                            ),
-                          ),
-                  ],
-                ),
-              ),
-              _replyBar(theme),
-            ],
+                  ),
+                  _replyBar(theme),
+                ],
+              );
+            },
           );
         },
       ),
@@ -726,12 +748,13 @@ class _ForumPostDetailScreenState extends State<ForumPostDetailScreen> {
   }
 
   Widget _originalPostCard(Map<String, dynamic> data) {
-    final official = data['isOfficial'] == true;
+    final official = data['isOfficial'] == true || data['source'] == 'admin_content';
     final category = data['category'] as String? ?? 'General';
     final author = data['authorName'] as String? ?? 'TiB User';
     final title = data['title'] as String? ?? 'Forum post';
     final body = data['body'] as String? ?? '';
     final likeCount = (data['likeCount'] as num?)?.toInt() ?? 0;
+    final commentCount = (data['commentCount'] as num?)?.toInt() ?? 0;
 
     return Card(
       elevation: 0,
@@ -808,7 +831,7 @@ class _ForumPostDetailScreenState extends State<ForumPostDetailScreen> {
                 ),
                 const SizedBox(width: 10),
                 Text(
-                  '${data['commentCount'] ?? 0} replies',
+                  '$commentCount replies',
                   style: const TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 12,
