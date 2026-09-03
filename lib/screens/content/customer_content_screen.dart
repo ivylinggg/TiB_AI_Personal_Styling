@@ -17,13 +17,7 @@ class _CustomerContentScreenState extends State<CustomerContentScreen> {
   String _query = '';
   bool _isPremium = false;
 
-  final List<String> _types = const [
-    'All',
-    'Learning',
-    'Colour Guide',
-    'Style Tip',
-    'AI Styling',
-  ];
+  final List<String> _types = const ['All', 'Learning', 'Colour Guide', 'Style Tip', 'AI Styling'];
 
   @override
   void initState() {
@@ -87,10 +81,7 @@ class _CustomerContentScreenState extends State<CustomerContentScreen> {
             final description = (data['description'] as String? ?? '').toLowerCase();
             final type = data['type'] as String? ?? 'Learning';
             final matchesType = _filter == 'All' || type == _filter;
-            final matchesQuery = _query.isEmpty ||
-                title.contains(_query) ||
-                description.contains(_query) ||
-                type.toLowerCase().contains(_query);
+            final matchesQuery = _query.isEmpty || title.contains(_query) || description.contains(_query) || type.toLowerCase().contains(_query);
             return matchesType && matchesQuery;
           }).toList();
 
@@ -105,24 +96,12 @@ class _CustomerContentScreenState extends State<CustomerContentScreen> {
               children: [
                 Row(
                   children: [
-                    const Expanded(
-                      child: Text(
-                        'TiB Style Hub',
-                        style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900),
-                      ),
-                    ),
-                    if (_isPremium)
-                      const Chip(
-                        label: Text('PREMIUM'),
-                        avatar: Icon(Icons.workspace_premium_outlined, size: 15),
-                      ),
+                    const Expanded(child: Text('TiB Style Hub', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900))),
+                    if (_isPremium) const Chip(label: Text('PREMIUM'), avatar: Icon(Icons.workspace_premium_outlined, size: 15)),
                   ],
                 ),
                 const SizedBox(height: 5),
-                Text(
-                  'Discover styling ideas, learn from TiB and join the conversation.',
-                  style: TextStyle(color: AppColors.textSecondary, height: 1.35),
-                ),
+                Text('Discover styling ideas, learn from TiB and join the conversation.', style: TextStyle(color: AppColors.textSecondary, height: 1.35)),
                 const SizedBox(height: 16),
                 _communityPrompt(context),
                 const SizedBox(height: 16),
@@ -138,27 +117,20 @@ class _CustomerContentScreenState extends State<CustomerContentScreen> {
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
-                    children: _types
-                        .map(
-                          (type) => Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: ChoiceChip(
-                              label: Text(type),
-                              selected: _filter == type,
-                              showCheckmark: false,
-                              onSelected: (_) => setState(() => _filter = type),
-                            ),
-                          ),
-                        )
-                        .toList(),
+                    children: _types.map((type) => Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: ChoiceChip(
+                        label: Text(type),
+                        selected: _filter == type,
+                        showCheckmark: false,
+                        onSelected: (_) => setState(() => _filter = type),
+                      ),
+                    )).toList(),
                   ),
                 ),
                 const SizedBox(height: 20),
                 if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData)
-                  const Padding(
-                    padding: EdgeInsets.only(top: 100),
-                    child: Center(child: CircularProgressIndicator()),
-                  )
+                  const Padding(padding: EdgeInsets.only(top: 100), child: Center(child: CircularProgressIndicator()))
                 else if (visible.isEmpty)
                   Padding(
                     padding: const EdgeInsets.only(top: 100),
@@ -169,11 +141,7 @@ class _CustomerContentScreenState extends State<CustomerContentScreen> {
                           const SizedBox(height: 12),
                           const Text('No posts or guides found', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
                           const SizedBox(height: 6),
-                          Text(
-                            'Try another category or search term.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(color: AppColors.textSecondary),
-                          ),
+                          Text('Try another category or search term.', textAlign: TextAlign.center, style: TextStyle(color: AppColors.textSecondary)),
                         ],
                       ),
                     ),
@@ -195,20 +163,12 @@ class _CustomerContentScreenState extends State<CustomerContentScreen> {
                   ],
                   Row(
                     children: [
-                      const Expanded(
-                        child: Text(
-                          'STYLE FEED',
-                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.2, color: AppColors.textSecondary),
-                        ),
-                      ),
+                      const Expanded(child: Text('STYLE FEED', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.2, color: AppColors.textSecondary))),
                       Text('${feed.length} posts', style: TextStyle(fontSize: 10.5, color: AppColors.textMuted)),
                     ],
                   ),
                   const SizedBox(height: 9),
-                  if (feed.isEmpty)
-                    const Text('Featured content is available above.', style: TextStyle(color: AppColors.textSecondary))
-                  else
-                    ...feed.map((doc) => _contentCard(context, doc.data())),
+                  if (feed.isEmpty) const Text('Featured content is available above.', style: TextStyle(color: AppColors.textSecondary)) else ...feed.map((doc) => _contentCard(context, doc.data())),
                 ],
               ],
             ),
@@ -230,15 +190,7 @@ class _CustomerContentScreenState extends State<CustomerContentScreen> {
           padding: const EdgeInsets.fromLTRB(16, 15, 14, 15),
           child: Row(
             children: [
-              Container(
-                width: 46,
-                height: 46,
-                decoration: BoxDecoration(
-                  color: AppColors.background,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: const Icon(Icons.forum_outlined, color: AppColors.primary),
-              ),
+              Container(width: 46, height: 46, decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(14)), child: const Icon(Icons.forum_outlined, color: AppColors.primary)),
               const SizedBox(width: 12),
               const Expanded(
                 child: Column(
@@ -269,10 +221,7 @@ class _CustomerContentScreenState extends State<CustomerContentScreen> {
       child: Card(
         elevation: 0,
         margin: EdgeInsets.zero,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: const BorderSide(color: AppColors.primarySoft),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: const BorderSide(color: AppColors.primarySoft)),
         child: InkWell(
           borderRadius: BorderRadius.circular(20),
           onTap: () => _openArticle(context, title, description, data['body'] as String? ?? '', type, premium),
@@ -281,31 +230,13 @@ class _CustomerContentScreenState extends State<CustomerContentScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    _typeBadge(type),
-                    const Spacer(),
-                    const Icon(Icons.star_rounded, size: 18, color: AppColors.primary),
-                  ],
-                ),
+                Row(children: [_typeBadge(type), const Spacer(), const Icon(Icons.star_rounded, size: 18, color: AppColors.primary)]),
                 const SizedBox(height: 14),
                 Text(title, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, height: 1.15)),
                 const SizedBox(height: 7),
-                Expanded(
-                  child: Text(description, maxLines: 3, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11.5, height: 1.35, color: AppColors.textSecondary)),
-                ),
+                Expanded(child: Text(description, maxLines: 3, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11.5, height: 1.35, color: AppColors.textSecondary))),
                 const SizedBox(height: 6),
-                Row(
-                  children: [
-                    const Icon(Icons.arrow_forward_rounded, size: 16, color: AppColors.primary),
-                    const SizedBox(width: 5),
-                    const Text('Read & discuss', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: AppColors.primaryDark)),
-                    if (premium) ...[
-                      const Spacer(),
-                      const Icon(Icons.lock_outline_rounded, size: 15, color: AppColors.primary),
-                    ],
-                  ],
-                ),
+                Row(children: [const Icon(Icons.arrow_forward_rounded, size: 16, color: AppColors.primary), const SizedBox(width: 5), const Text('Read & discuss', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: AppColors.primaryDark)), if (premium) ...[const Spacer(), const Icon(Icons.lock_outline_rounded, size: 15, color: AppColors.primary)]]),
               ],
             ),
           ),
@@ -327,10 +258,7 @@ class _CustomerContentScreenState extends State<CustomerContentScreen> {
     return Card(
       elevation: 0,
       margin: const EdgeInsets.only(bottom: 10),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: BorderSide(color: premium ? AppColors.premiumAccentLight : AppColors.border),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: BorderSide(color: premium ? AppColors.premiumAccentLight : AppColors.border)),
       child: InkWell(
         borderRadius: BorderRadius.circular(20),
         onTap: () => _openArticle(context, title, description, body, type, premium),
@@ -339,15 +267,7 @@ class _CustomerContentScreenState extends State<CustomerContentScreen> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 54,
-                height: 54,
-                decoration: BoxDecoration(
-                  color: premium ? AppColors.premiumAccentLight : AppColors.secondary,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Icon(premium ? Icons.workspace_premium_outlined : _typeIcon(type), color: AppColors.primary),
-              ),
+              Container(width: 54, height: 54, decoration: BoxDecoration(color: premium ? AppColors.premiumAccentLight : AppColors.secondary, borderRadius: BorderRadius.circular(16)), child: Icon(premium ? Icons.workspace_premium_outlined : _typeIcon(type), color: AppColors.primary)),
               const SizedBox(width: 13),
               Expanded(
                 child: Column(
@@ -357,27 +277,9 @@ class _CustomerContentScreenState extends State<CustomerContentScreen> {
                     const SizedBox(height: 5),
                     Text(description, maxLines: 3, overflow: TextOverflow.ellipsis, style: TextStyle(color: AppColors.textSecondary, height: 1.4, fontSize: 12)),
                     const SizedBox(height: 9),
-                    Row(
-                      children: [
-                        _typeBadge(type),
-                        const SizedBox(width: 8),
-                        if (date != null) Text(_relativeDate(date), style: const TextStyle(fontSize: 10.5, color: AppColors.textMuted)),
-                        if (featured) ...[
-                          const Spacer(),
-                          const Icon(Icons.star_rounded, size: 17, color: AppColors.primary),
-                        ],
-                      ],
-                    ),
+                    Row(children: [_typeBadge(type), const SizedBox(width: 8), if (date != null) Text(_relativeDate(date), style: const TextStyle(fontSize: 10.5, color: AppColors.textMuted)), if (featured) ...[const Spacer(), const Icon(Icons.star_rounded, size: 17, color: AppColors.primary)]]),
                     const SizedBox(height: 11),
-                    Row(
-                      children: [
-                        _actionPill(Icons.favorite_border_rounded, 'Like'),
-                        const SizedBox(width: 7),
-                        _actionPill(Icons.bookmark_border_rounded, 'Save'),
-                        const SizedBox(width: 7),
-                        _actionPill(Icons.forum_outlined, 'Discuss'),
-                      ],
-                    ),
+                    Row(children: [_actionPill(Icons.favorite_border_rounded, 'Like', () => _toggleReaction(context, 'Like')), const SizedBox(width: 7), _actionPill(Icons.bookmark_border_rounded, 'Save', () => _toggleReaction(context, 'Save')), const SizedBox(width: 7), _actionPill(Icons.forum_outlined, 'Discuss', () => _openCommunityThread(context, title))]),
                   ],
                 ),
               ),
@@ -390,20 +292,14 @@ class _CustomerContentScreenState extends State<CustomerContentScreen> {
     );
   }
 
-  Widget _actionPill(IconData icon, String label) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceMuted,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: AppColors.textSecondary),
-          const SizedBox(width: 4),
-          Text(label, style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700, color: AppColors.textSecondary)),
-        ],
+  Widget _actionPill(IconData icon, String label, VoidCallback onTap) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+        decoration: BoxDecoration(color: AppColors.surfaceMuted, borderRadius: BorderRadius.circular(10)),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(icon, size: 14, color: AppColors.textSecondary), const SizedBox(width: 4), Text(label, style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700, color: AppColors.textSecondary))]),
       ),
     );
   }
@@ -418,14 +314,10 @@ class _CustomerContentScreenState extends State<CustomerContentScreen> {
 
   IconData _typeIcon(String type) {
     switch (type) {
-      case 'Colour Guide':
-        return Icons.palette_outlined;
-      case 'Style Tip':
-        return Icons.tips_and_updates_outlined;
-      case 'AI Styling':
-        return Icons.auto_awesome_outlined;
-      default:
-        return Icons.menu_book_outlined;
+      case 'Colour Guide': return Icons.palette_outlined;
+      case 'Style Tip': return Icons.tips_and_updates_outlined;
+      case 'AI Styling': return Icons.auto_awesome_outlined;
+      default: return Icons.menu_book_outlined;
     }
   }
 
@@ -445,9 +337,7 @@ class _CustomerContentScreenState extends State<CustomerContentScreen> {
         builder: (dialogContext) => AlertDialog(
           title: const Text('Premium Content'),
           content: const Text('This article is available to Premium members. Your current account does not have Premium access.'),
-          actions: [
-            FilledButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Got it')),
-          ],
+          actions: [FilledButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Got it'))],
         ),
       );
       return;
@@ -463,12 +353,7 @@ class _CustomerContentScreenState extends State<CustomerContentScreen> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(22, 4, 22, 30),
             children: [
-              Row(
-                children: [
-                  Expanded(child: Text(type.toUpperCase(), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: AppColors.primary, letterSpacing: 1.2))),
-                  if (premium) const Icon(Icons.workspace_premium_outlined, color: AppColors.primary, size: 20),
-                ],
-              ),
+              Row(children: [Expanded(child: Text(type.toUpperCase(), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: AppColors.primary, letterSpacing: 1.2))), if (premium) const Icon(Icons.workspace_premium_outlined, color: AppColors.primary, size: 20)]),
               const SizedBox(height: 8),
               Text(title, style: const TextStyle(fontSize: 25, fontWeight: FontWeight.w900, height: 1.08)),
               const SizedBox(height: 10),
@@ -476,15 +361,7 @@ class _CustomerContentScreenState extends State<CustomerContentScreen> {
               const SizedBox(height: 22),
               Text(body, style: const TextStyle(fontSize: 14, height: 1.65)),
               const SizedBox(height: 22),
-              Row(
-                children: [
-                  Expanded(child: OutlinedButton.icon(onPressed: () => _showComingSoon(context), icon: const Icon(Icons.favorite_border_rounded), label: const Text('Like'))),
-                  const SizedBox(width: 8),
-                  Expanded(child: OutlinedButton.icon(onPressed: () => _showComingSoon(context), icon: const Icon(Icons.bookmark_border_rounded), label: const Text('Save'))),
-                  const SizedBox(width: 8),
-                  Expanded(child: FilledButton.icon(onPressed: () => _showComingSoon(context), icon: const Icon(Icons.forum_outlined), label: const Text('Discuss'))),
-                ],
-              ),
+              Row(children: [Expanded(child: OutlinedButton.icon(onPressed: () => _toggleReaction(context, 'Like'), icon: const Icon(Icons.favorite_border_rounded), label: const Text('Like'))), const SizedBox(width: 8), Expanded(child: OutlinedButton.icon(onPressed: () => _toggleReaction(context, 'Save'), icon: const Icon(Icons.bookmark_border_rounded), label: const Text('Save'))), const SizedBox(width: 8), Expanded(child: FilledButton.icon(onPressed: () => _openCommunityThread(context, title), icon: const Icon(Icons.forum_outlined), label: const Text('Discuss')))]),
             ],
           ),
         ),
@@ -492,9 +369,38 @@ class _CustomerContentScreenState extends State<CustomerContentScreen> {
     );
   }
 
-  void _showComingSoon(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Community discussion will be connected next.')),
+  Future<void> _toggleReaction(BuildContext context, String label) async {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$label is ready for the community layer.')));
+  }
+
+  Future<void> _openCommunityThread(BuildContext context, String title) async {
+    final controller = TextEditingController();
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) => Padding(
+        padding: EdgeInsets.fromLTRB(20, 12, 20, MediaQuery.viewInsetsOf(sheetContext).bottom + 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Discuss: $title', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+            const SizedBox(height: 8),
+            const Text('Start the conversation around this styling topic.', style: TextStyle(color: AppColors.textSecondary)),
+            const SizedBox(height: 14),
+            TextField(controller: controller, maxLines: 4, decoration: const InputDecoration(hintText: 'Ask a styling question...', border: OutlineInputBorder())),
+            const SizedBox(height: 12),
+            SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: () { if (controller.text.trim().isEmpty) return; Navigator.pop(sheetContext); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Your question is ready to be published when Community is enabled.'))); }, icon: const Icon(Icons.send_rounded), label: const Text('Post question'))),
+          ],
+        ),
+      ),
     );
+    controller.dispose();
+  }
+
+  void _showComingSoon(BuildContext context) {
+    _openCommunityThread(context, 'TiB Style Hub');
   }
 }
