@@ -134,7 +134,7 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
       if (!mounted) return;
       await loadContents();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(current ? 'Content unpublished.' : 'Content published.')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(current ? 'Content unpublished.' : 'Content published to all customers.')));
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not update this content. Please try again.')));
@@ -186,12 +186,22 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
     );
   }
 
-  Widget _statusChip(String text, bool active) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(color: active ? AppColors.success.withValues(alpha: .12) : AppColors.surfaceMuted, borderRadius: BorderRadius.circular(20)),
-      child: Text(text, style: TextStyle(color: active ? AppColors.success : AppColors.textSecondary, fontSize: 10.5, fontWeight: FontWeight.w800)),
-    );
+  Future<void> _announcePublishedContent({required String title, required String body, required String contentId, required String type}) async {
+    final users = await FirebaseFirestore.instance.collection('users').get();
+    final batch = FirebaseFirestore.instance.batch();
+    for (final user in users.docs) {
+      final ref = user.reference.collection('notifications').doc();
+      batch.set(ref, {
+        'title': 'New TiB content',
+        'body': body,
+        'type': 'content',
+        'contentId': contentId,
+        'contentType': type,
+        'read': false,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    }
+    if (users.docs.isNotEmpty) await batch.commit();
   }
 
   @override
@@ -343,17 +353,30 @@ class _ContentFormDialogState extends State<_ContentFormDialog> {
     try {
       final collection = FirebaseFirestore.instance.collection('content');
       final payload = {'title': title, 'description': description, 'body': body, 'type': selectedType, 'isPublished': isPublished, 'isFeatured': isFeatured, 'isPremium': isPremium, 'updatedAt': FieldValue.serverTimestamp()};
+      final wasPublished = widget.initialPublished;
       if (widget.documentId == null) {
-        await collection.add({...payload, 'createdAt': FieldValue.serverTimestamp()});
+        final ref = await collection.add({...payload, 'createdAt': FieldValue.serverTimestamp()});
+        if (isPublished) {
+          final parent = context.findAncestorStateOfType<_ContentManagementScreenState>();
+          try {
+            await parent?._announcePublishedContent(title: title, body: 'New TiB content is now available: $title', contentId: ref.id, type: selectedType);
+          } catch (_) {}
+        }
       } else {
         await collection.doc(widget.documentId).update(payload);
+        if (!wasPublished && isPublished) {
+          final parent = context.findAncestorStateOfType<_ContentManagementScreenState>();
+          try {
+            await parent?._announcePublishedContent(title: title, body: 'New TiB content is now available: $title', contentId: widget.documentId!, type: selectedType);
+          } catch (_) {}
+        }
       }
       if (!mounted) return;
       Navigator.pop(context, true);
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
       setState(() => isSaving = false);
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not save this content. Please try again.')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not save content: $error')));
     }
   }
 
@@ -370,13 +393,13 @@ class _ContentFormDialogState extends State<_ContentFormDialog> {
             const SizedBox(height: 16),
             TextField(controller: descriptionController, maxLines: 3, decoration: const InputDecoration(labelText: 'Short Description *', prefixIcon: Icon(Icons.short_text))),
             const SizedBox(height: 16),
-            DropdownButtonFormField<String>(initialValue: selectedType, decoration: const InputDecoration(labelText: 'Content Type', prefixIcon: Icon(Icons.category_outlined)), items: types.map((type) => DropdownMenuItem(value: type, child: Text(type))).toList(), onChanged: (value) { if (value != null) setState(() => selectedType = value); }),
+            DropdownButtonFormField<String>(initialValue: selectedType, decoration: const InputDecoration(labelText: 'Content Type', prefixIcon: Icon(Icons.category_outlined)), items: types.map((type) => DropdownMenuItem(value: type, child: Text(type))).toList(), onChanged: isSaving ? null : (value) { if (value != null) setState(() => selectedType = value); }),
             const SizedBox(height: 16),
             TextField(controller: bodyController, maxLines: 8, decoration: const InputDecoration(labelText: 'Content *', alignLabelWithHint: true, prefixIcon: Icon(Icons.article_outlined))),
             const SizedBox(height: 12),
-            SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('Published'), value: isPublished, onChanged: (value) => setState(() => isPublished = value)),
-            SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('Featured'), value: isFeatured, onChanged: (value) => setState(() => isFeatured = value)),
-            SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('Premium'), value: isPremium, onChanged: (value) => setState(() => isPremium = value)),
+            SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('Published'), value: isPublished, onChanged: isSaving ? null : (value) => setState(() => isPublished = value)),
+            SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('Featured'), value: isFeatured, onChanged: isSaving ? null : (value) => setState(() => isFeatured = value)),
+            SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('Premium'), value: isPremium, onChanged: isSaving ? null : (value) => setState(() => isPremium = value)),
           ]),
         ),
       ),
