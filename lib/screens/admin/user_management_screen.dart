@@ -40,6 +40,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   Future<void> loadUsers() async {
     if (mounted) setState(() => isLoading = true);
     try {
+      // Read directly from the server. This prevents a stale/partial local
+      // cache from reporting a count while the list itself appears empty.
       final snapshot = await FirebaseFirestore.instance
           .collection('users')
           .get(const GetOptions(source: Source.server));
@@ -60,9 +62,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       if (!mounted) return;
       setState(() {
         users = documents;
+        filteredUsers = _filterDocuments(documents);
         isLoading = false;
       });
-      filterUsers();
     } on FirebaseException catch (error) {
       if (!mounted) return;
       setState(() => isLoading = false);
@@ -85,11 +87,12 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     }
   }
 
-  void filterUsers() {
-    if (!mounted) return;
+  List<QueryDocumentSnapshot<Map<String, dynamic>>> _filterDocuments(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> source,
+  ) {
     final query = searchController.text.trim().toLowerCase();
 
-    final results = users.where((document) {
+    return source.where((document) {
       final data = document.data();
       final name = (data['name'] ?? '').toString().toLowerCase();
       final email = (data['email'] ?? '').toString().toLowerCase();
@@ -120,8 +123,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
       return matchesSearch && matchesStatus && matchesRole;
     }).toList();
+  }
 
-    setState(() => filteredUsers = results);
+  void filterUsers() {
+    if (!mounted) return;
+    setState(() => filteredUsers = _filterDocuments(users));
   }
 
   void changeStatusFilter(String status) {
@@ -688,46 +694,46 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               child: isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : filteredUsers.isEmpty
-                  ? ListView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      children: [
-                        const SizedBox(height: 170),
-                        Center(
-                          child: Column(
-                            children: [
-                              const Icon(Icons.people_outline, size: 70),
-                              const SizedBox(height: 16),
-                              const Text(
-                                'No users found',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 16,
-                                ),
+                      ? ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          children: [
+                            const SizedBox(height: 170),
+                            Center(
+                              child: Column(
+                                children: [
+                                  const Icon(Icons.people_outline, size: 70),
+                                  const SizedBox(height: 16),
+                                  const Text(
+                                    'No users found',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    searchController.text.trim().isEmpty &&
+                                            selectedRole == 'All' &&
+                                            selectedStatus == 'All'
+                                        ? 'There are no users yet.'
+                                        : 'Try a different search or filter.',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                ],
                               ),
-                              const SizedBox(height: 6),
-                              Text(
-                                searchController.text.trim().isEmpty &&
-                                        selectedRole == 'All' &&
-                                        selectedStatus == 'All'
-                                    ? 'There are no users yet.'
-                                    : 'Try a different search or filter.',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color: AppColors.textSecondary,
-                                ),
-                              ),
-                            ],
-                          ),
+                            ),
+                          ],
+                        )
+                      : ListView.builder(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                          itemCount: filteredUsers.length,
+                          itemBuilder: (context, index) =>
+                              _buildUserCard(filteredUsers[index]),
                         ),
-                      ],
-                    )
-                  : ListView.builder(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-                      itemCount: filteredUsers.length,
-                      itemBuilder: (context, index) =>
-                          _buildUserCard(filteredUsers[index]),
-                    ),
             ),
           ],
         ),
