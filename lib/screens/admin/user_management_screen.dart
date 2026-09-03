@@ -67,11 +67,10 @@ class _AdminUser {
 
 class _UserManagementScreenState extends State<UserManagementScreen> {
   final TextEditingController searchController = TextEditingController();
-
   List<_AdminUser> users = const [];
   bool isLoading = true;
-  String? loadError;
   bool isDeleting = false;
+  String? loadError;
   String selectedStatus = 'All';
   String selectedRole = 'All';
 
@@ -168,9 +167,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not update user: $error')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not update user: $error')));
     }
   }
 
@@ -219,7 +216,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       await loadUsers();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Deleted ${result.wardrobeItemsDeleted} wardrobe, ${result.preferencesDeleted} preference and ${result.analysisRecordsDeleted} analysis record(s).')),
+        SnackBar(
+          content: Text(
+            'Deleted ${result.wardrobeItemsDeleted} wardrobe, ${result.preferencesDeleted} preference and ${result.analysisRecordsDeleted} analysis record(s).',
+          ),
+        ),
       );
     } catch (error) {
       if (!mounted) return;
@@ -330,46 +331,48 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        user.createdAt == null
-                            ? 'Created date unavailable'
-                            : 'Joined ${user.createdAt!.day.toString().padLeft(2, '0')}/${user.createdAt!.month.toString().padLeft(2, '0')}/${user.createdAt!.year}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
-                      ),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      user.createdAt == null
+                          ? 'Created date unavailable'
+                          : 'Joined ${user.createdAt!.day.toString().padLeft(2, '0')}/${user.createdAt!.month.toString().padLeft(2, '0')}/${user.createdAt!.year}',
+                      style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
                     ),
-                    const SizedBox(width: 8),
-                    Flexible(
-                      child: OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size(0, 48),
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                        ),
+                  ),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: SizedBox(
+                      height: 48,
+                      child: FilledButton.icon(
                         onPressed: () => showUserDetails(user),
                         icon: const Icon(Icons.visibility_outlined, size: 17),
                         label: const Text('View'),
                       ),
                     ),
-                    const SizedBox(width: 4),
-                    IconButton(
+                  ),
+                  const SizedBox(width: 4),
+                  SizedBox(
+                    width: 44,
+                    height: 48,
+                    child: IconButton(
                       tooltip: user.isActive ? 'Deactivate account' : 'Activate account',
                       onPressed: isDeleting ? null : () => toggleUserStatus(user),
                       icon: Icon(user.isActive ? Icons.block_outlined : Icons.check_circle_outline, color: user.isActive ? AppColors.error : AppColors.success),
                     ),
-                    if (isCustomer)
-                      IconButton(
+                  ),
+                  if (isCustomer)
+                    SizedBox(
+                      width: 44,
+                      height: 48,
+                      child: IconButton(
                         tooltip: 'Delete customer data',
                         onPressed: isDeleting ? null : () => deleteCustomer(user),
                         icon: const Icon(Icons.delete_outline, color: AppColors.error),
                       ),
-                  ],
-                ),
+                    ),
+                ],
               ),
             ],
           ),
