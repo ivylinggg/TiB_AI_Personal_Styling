@@ -3,12 +3,8 @@ import 'package:flutter/material.dart';
 
 import 'admin_user_360_screen.dart';
 
-/// Compatibility entry point used by User Management.
-///
-/// The admin View action continues to target CustomerDetailScreen, while
-/// the actual customer inspection is now provided by the richer 360 view.
 class CustomerDetailScreen extends StatelessWidget {
-  final QueryDocumentSnapshot<Map<String, dynamic>> userDocument;
+  final DocumentSnapshot<Map<String, dynamic>> userDocument;
 
   const CustomerDetailScreen({
     super.key,
@@ -17,7 +13,7 @@ class CustomerDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final data = userDocument.data();
+    final data = userDocument.data() ?? const <String, dynamic>{};
     final storedUid = data['uid'];
     final userId = storedUid is String && storedUid.trim().isNotEmpty
         ? storedUid.trim()
