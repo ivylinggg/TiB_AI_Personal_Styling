@@ -5,12 +5,93 @@ class CommunityService {
 
   static final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  static Stream<QuerySnapshot<Map<String, dynamic>>> forumPostsStream() {
-    return _db.collection('forum_posts').snapshots();
+  static CollectionReference<Map<String, dynamic>> get posts =>
+      _db.collection('forum_posts');
+
+  static Stream<QuerySnapshot<Map<String, dynamic>>> forumPostsStream() =>
+      posts.snapshots();
+
+  static Stream<QuerySnapshot<Map<String, dynamic>>> commentsStream(
+    String postId,
+  ) =>
+      posts.doc(postId).collection('comments').orderBy('createdAt').snapshots();
+
+  static Future<DocumentReference<Map<String, dynamic>>> createPost({
+    required String title,
+    required String body,
+    required String category,
+    required String authorId,
+    required String authorName,
+    String? contentId,
+    String? contentTitle,
+  }) async {
+    final data = <String, dynamic>{
+      'title': title.trim(),
+      'body': body.trim(),
+      'category': category,
+      'authorId': authorId,
+      'authorName': authorName.trim().isEmpty ? 'TiB User' : authorName.trim(),
+      'likeCount': 0,
+      'commentCount': 0,
+      'createdAt': FieldValue.serverTimestamp(),
+      'lastActivityAt': FieldValue.serverTimestamp(),
+    };
+
+    if (contentId != null && contentId.isNotEmpty) {
+      data['source'] = 'admin_content';
+      data['contentId'] = contentId;
+      data['contentTitle'] = contentTitle ?? title;
+    }
+
+    return posts.add(data);
   }
 
-  static Stream<QuerySnapshot<Map<String, dynamic>>> commentsStream(String postId) {
-    return _db.collection('forum_posts').doc(postId).collection('comments').snapshots();
+  static Future<void> addComment({
+    required String postId,
+    required String authorId,
+    required String authorName,
+    required String body,
+  }) async {
+    final trimmed = body.trim();
+    if (trimmed.isEmpty) return;
+
+    final batch = _db.batch();
+    final commentRef = posts.doc(postId).collection('comments').doc();
+    batch.set(commentRef, {
+      'body': trimmed,
+      'authorId': authorId,
+      'authorName': authorName.trim().isEmpty ? 'TiB User' : authorName.trim(),
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+    batch.update(posts.doc(postId), {
+      'commentCount': FieldValue.increment(1),
+      'lastActivityAt': FieldValue.serverTimestamp(),
+    });
+    await batch.commit();
+  }
+
+  static Future<void> toggleLike({
+    required String postId,
+    required String userId,
+  }) async {
+    final postRef = posts.doc(postId);
+    final likeRef = postRef.collection('likes').doc(userId);
+    final postSnapshot = await postRef.get();
+    final currentCount =
+        (postSnapshot.data()?['likeCount'] as num?)?.toInt() ?? 0;
+    final existing = await likeRef.get();
+
+    final batch = _db.batch();
+    if (existing.exists) {
+      batch.delete(likeRef);
+      batch.update(postRef, {
+        'likeCount': currentCount > 0 ? currentCount - 1 : 0,
+      });
+    } else {
+      batch.set(likeRef, {'createdAt': FieldValue.serverTimestamp()});
+      batch.update(postRef, {'likeCount': currentCount + 1});
+    }
+    await batch.commit();
   }
 
   static Future<void> createAdminContentAnnouncement({
@@ -20,7 +101,8 @@ class CommunityService {
     required String contentId,
   }) async {
     final users = await _db.collection('users').get();
-    final batch = _db.batch();
+    WriteBatch batch = _db.batch();
+    var operations = 0;
 
     for (final user in users.docs) {
       final ref = user.reference.collection('notifications').doc();
@@ -33,9 +115,18 @@ class CommunityService {
         'read': false,
         'createdAt': FieldValue.serverTimestamp(),
       });
+      operations++;
+
+      if (operations == 450) {
+        await batch.commit();
+        batch = _db.batch();
+        operations = 0;
+      }
     }
 
-    await batch.commit();
+    if (operations > 0) {
+      await batch.commit();
+    }
   }
 
   static Future<void> createContentForumPost({
@@ -44,7 +135,7 @@ class CommunityService {
     required String body,
     required String type,
   }) async {
-    await _db.collection('forum_posts').add({
+    await posts.add({
       'title': title,
       'body': body,
       'category': type,
@@ -52,10 +143,12 @@ class CommunityService {
       'authorName': 'TiB Team',
       'source': 'admin_content',
       'contentId': contentId,
+      'contentTitle': title,
       'isOfficial': true,
       'likeCount': 0,
       'commentCount': 0,
       'createdAt': FieldValue.serverTimestamp(),
+      'lastActivityAt': FieldValue.serverTimestamp(),
     });
   }
 }
