@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -202,15 +201,21 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
         return _card(child: InkWell(
           onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TibStyleJourneyScreen())),
           borderRadius: BorderRadius.circular(18),
-          child: Padding(padding: const EdgeInsets.all(2), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [const Expanded(child: Text('YOUR STYLE JOURNEY', style: TextStyle(color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: .35))), Text(levelText, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12))]),
-            const SizedBox(height: 10),
-            Text('${journey.points} XP • ${journey.completedChallenges} challenges', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
-            const SizedBox(height: 8),
-            ClipRRect(borderRadius: BorderRadius.circular(20), child: LinearProgressIndicator(value: progress, minHeight: 8, backgroundColor: AppColors.surfaceMuted)),
-            const SizedBox(height: 8),
-            Text('${journey.streak}-day streak', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-          ])),
+          child: Padding(
+            padding: const EdgeInsets.all(2),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [const Expanded(child: Text('YOUR STYLE JOURNEY', style: TextStyle(color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: .35))), Text(levelText, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12))]),
+                const SizedBox(height: 10),
+                Text('${journey.points} XP • ${journey.completedChallenges} challenges', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 8),
+                ClipRRect(borderRadius: BorderRadius.circular(20), child: LinearProgressIndicator(value: progress, minHeight: 8, backgroundColor: AppColors.surfaceMuted)),
+                const SizedBox(height: 8),
+                Text('${journey.streak}-day streak', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+              ],
+            ),
+          ),
         ));
       },
     );
@@ -230,7 +235,13 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
           const SizedBox(height: 5),
           Text(challenge.description, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12.5, height: 1.4)),
           const SizedBox(height: 14),
-          SizedBox(width: double.infinity, child: ElevatedButton(onPressed: _challengeCompleted || _completingChallenge ? null : _completeChallenge, child: Text(_challengeCompleted ? 'Completed today' : _completingChallenge ? 'Saving...' : 'Mark as completed')),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _challengeCompleted || _completingChallenge ? null : _completeChallenge,
+              child: Text(_challengeCompleted ? 'Completed today' : _completingChallenge ? 'Saving...' : 'Mark as completed'),
+            ),
+          ),
         ]));
       },
     );
