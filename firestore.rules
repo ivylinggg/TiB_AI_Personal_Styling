@@ -44,7 +44,7 @@ service cloud.firestore {
     match /content/{contentId} {
       allow create, update, delete: if isAdmin();
       allow get: if isAdmin() || (isSignedIn() && resource.data.isPublished == true && (!isContentPremium(resource.data) || isPremiumUser()));
-      allow list: if isAdmin() || (isSignedIn() && resource.data.isPublished == true);
+      allow list: if isAdmin() || (isSignedIn() && resource.data.isPublished == true && (!isContentPremium(resource.data) || isPremiumUser()));
     }
 
     match /forum_posts/{postId} {
