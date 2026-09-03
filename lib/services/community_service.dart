@@ -1,20 +1,16 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class CommunityService {
   CommunityService._();
 
   static final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  static CollectionReference<Map<String, dynamic>> get posts =>
-      _db.collection('forum_posts');
+  static CollectionReference<Map<String, dynamic>> get posts => _db.collection('forum_posts');
 
-  static Stream<QuerySnapshot<Map<String, dynamic>>> forumPostsStream() =>
-      posts.snapshots();
+  static Stream<QuerySnapshot<Map<String, dynamic>>> forumPostsStream() => posts.snapshots();
 
-  static Stream<QuerySnapshot<Map<String, dynamic>>> commentsStream(
-    String postId,
-  ) =>
-      posts.doc(postId).collection('comments').orderBy('createdAt').snapshots();
+  static Stream<QuerySnapshot<Map<String, dynamic>>> commentsStream(String postId) => posts.doc(postId).collection('comments').snapshots();
 
   static Future<DocumentReference<Map<String, dynamic>>> createPost({
     required String title,
@@ -36,13 +32,15 @@ class CommunityService {
       'createdAt': FieldValue.serverTimestamp(),
       'lastActivityAt': FieldValue.serverTimestamp(),
     };
-
     if (contentId != null && contentId.isNotEmpty) {
       data['source'] = 'admin_content';
       data['contentId'] = contentId;
       data['contentTitle'] = contentTitle ?? title;
+      data['isOfficial'] = false;
+    } else {
+      data['source'] = 'customer_forum';
+      data['isOfficial'] = false;
     }
-
     return posts.add(data);
   }
 
@@ -54,39 +52,32 @@ class CommunityService {
   }) async {
     final trimmed = body.trim();
     if (trimmed.isEmpty) return;
-
     final batch = _db.batch();
-    final commentRef = posts.doc(postId).collection('comments').doc();
+    final postRef = posts.doc(postId);
+    final commentRef = postRef.collection('comments').doc();
     batch.set(commentRef, {
       'body': trimmed,
       'authorId': authorId,
       'authorName': authorName.trim().isEmpty ? 'TiB User' : authorName.trim(),
       'createdAt': FieldValue.serverTimestamp(),
     });
-    batch.update(posts.doc(postId), {
+    batch.update(postRef, {
       'commentCount': FieldValue.increment(1),
       'lastActivityAt': FieldValue.serverTimestamp(),
     });
     await batch.commit();
   }
 
-  static Future<void> toggleLike({
-    required String postId,
-    required String userId,
-  }) async {
+  static Future<void> toggleLike({required String postId, required String userId}) async {
     final postRef = posts.doc(postId);
     final likeRef = postRef.collection('likes').doc(userId);
     final postSnapshot = await postRef.get();
-    final currentCount =
-        (postSnapshot.data()?['likeCount'] as num?)?.toInt() ?? 0;
+    final currentCount = (postSnapshot.data()?['likeCount'] as num?)?.toInt() ?? 0;
     final existing = await likeRef.get();
-
     final batch = _db.batch();
     if (existing.exists) {
       batch.delete(likeRef);
-      batch.update(postRef, {
-        'likeCount': currentCount > 0 ? currentCount - 1 : 0,
-      });
+      batch.update(postRef, {'likeCount': currentCount > 0 ? currentCount - 1 : 0});
     } else {
       batch.set(likeRef, {'createdAt': FieldValue.serverTimestamp()});
       batch.update(postRef, {'likeCount': currentCount + 1});
@@ -103,10 +94,8 @@ class CommunityService {
     final users = await _db.collection('users').get();
     WriteBatch batch = _db.batch();
     var operations = 0;
-
     for (final user in users.docs) {
-      final ref = user.reference.collection('notifications').doc();
-      batch.set(ref, {
+      batch.set(user.reference.collection('notifications').doc(), {
         'title': title,
         'body': body,
         'type': 'content',
@@ -116,34 +105,34 @@ class CommunityService {
         'createdAt': FieldValue.serverTimestamp(),
       });
       operations++;
-
       if (operations == 450) {
         await batch.commit();
         batch = _db.batch();
         operations = 0;
       }
     }
-
-    if (operations > 0) {
-      await batch.commit();
-    }
+    if (operations > 0) await batch.commit();
   }
 
-  static Future<void> createContentForumPost({
+  static Future<DocumentReference<Map<String, dynamic>>> createContentForumPost({
     required String contentId,
     required String title,
     required String body,
     required String type,
   }) async {
-    await posts.add({
-      'title': title,
-      'body': body,
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      throw StateError('You must be signed in to publish community content.');
+    }
+    return posts.add({
+      'title': title.trim(),
+      'body': body.trim(),
       'category': type,
-      'authorId': 'tib_admin',
+      'authorId': uid,
       'authorName': 'TiB Team',
       'source': 'admin_content',
       'contentId': contentId,
-      'contentTitle': title,
+      'contentTitle': title.trim(),
       'isOfficial': true,
       'likeCount': 0,
       'commentCount': 0,
