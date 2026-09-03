@@ -112,8 +112,8 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
               _styleJourneyCard(),
               const SizedBox(height: 16),
               _todayTaskCard(),
-              const SizedBox(height: 16),
-              const _LearningPreviewCard(),
+              const SizedBox(height: 18),
+              const _StyleHubPreviewCard(),
             ],
           ),
         ),
@@ -317,8 +317,8 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
   }
 }
 
-class _LearningPreviewCard extends StatelessWidget {
-  const _LearningPreviewCard();
+class _StyleHubPreviewCard extends StatelessWidget {
+  const _StyleHubPreviewCard();
 
   @override
   Widget build(BuildContext context) {
@@ -330,38 +330,105 @@ class _LearningPreviewCard extends StatelessWidget {
           final aFeatured = a.data()['isFeatured'] == true;
           final bFeatured = b.data()['isFeatured'] == true;
           if (aFeatured != bFeatured) return aFeatured ? -1 : 1;
-          return 0;
+          final aValue = a.data()['createdAt'];
+          final bValue = b.data()['createdAt'];
+          final aDate = aValue is Timestamp ? aValue.toDate() : DateTime.fromMillisecondsSinceEpoch(0);
+          final bDate = bValue is Timestamp ? bValue.toDate() : DateTime.fromMillisecondsSinceEpoch(0);
+          return bDate.compareTo(aDate);
         });
+
         final preview = docs.take(2).toList();
 
-        return Card(
-          elevation: 0,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24), side: const BorderSide(color: AppColors.primarySoft)),
+        return Container(
+          decoration: BoxDecoration(
+            color: AppColors.background,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: AppColors.primarySoft),
+          ),
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(children: [const Expanded(child: Text('LEARN WITH TIB', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: .6, color: AppColors.textSecondary))), TextButton(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CustomerContentScreen())), child: const Text('View all'))]),
-                const SizedBox(height: 8),
-                if (preview.isEmpty)
-                  const Text('New styling guides will appear here.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12))
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('TIB STYLE HUB', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: .7, color: AppColors.textSecondary)),
+                          SizedBox(height: 4),
+                          Text('What’s inspiring you today?', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900)),
+                        ],
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CustomerContentScreen())),
+                      child: const Text('Explore all'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 7),
+                Text(
+                  'Browse styling stories, colour guides and quick tips — like a little fashion forum made for your journey.',
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.4),
+                ),
+                const SizedBox(height: 14),
+                if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData)
+                  const LinearProgressIndicator(minHeight: 5)
+                else if (preview.isEmpty)
+                  const Text('New styling stories will appear here.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12))
                 else
                   ...preview.map((doc) {
                     final data = doc.data();
-                    return ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const CircleAvatar(backgroundColor: AppColors.secondary, child: Icon(Icons.menu_book_outlined, color: AppColors.primary)),
-                      title: Text(data['title'] as String? ?? 'TiB Guide', style: const TextStyle(fontWeight: FontWeight.w800)),
-                      subtitle: Text(data['description'] as String? ?? '', maxLines: 2, overflow: TextOverflow.ellipsis),
-                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CustomerContentScreen())),
+                    final type = data['type'] as String? ?? 'Learning';
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceMuted,
+                        borderRadius: BorderRadius.circular(17),
+                      ),
+                      child: ListTile(
+                        dense: true,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
+                        leading: CircleAvatar(
+                          backgroundColor: AppColors.background,
+                          child: Icon(_contentIcon(type), color: AppColors.primary, size: 18),
+                        ),
+                        title: Text(data['title'] as String? ?? 'TiB Story', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5)),
+                        subtitle: Text(type, style: const TextStyle(fontSize: 10.5, color: AppColors.textSecondary)),
+                        trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
+                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CustomerContentScreen())),
+                      ),
                     );
                   }),
+                const SizedBox(height: 3),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CustomerContentScreen())),
+                    icon: const Icon(Icons.forum_outlined, size: 18),
+                    label: const Text('Open Style Hub & discuss'),
+                  ),
+                ),
               ],
             ),
           ),
         );
       },
     );
+  }
+
+  IconData _contentIcon(String type) {
+    switch (type) {
+      case 'Colour Guide':
+        return Icons.palette_outlined;
+      case 'Style Tip':
+        return Icons.checkroom_outlined;
+      case 'AI Styling':
+        return Icons.auto_awesome_outlined;
+      default:
+        return Icons.menu_book_outlined;
+    }
   }
 }
