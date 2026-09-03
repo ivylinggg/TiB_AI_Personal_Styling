@@ -27,12 +27,12 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   void initState() {
     super.initState();
     loadUsers();
-    searchController.addListener(filterUsers);
+    searchController.addListener(_applyFilters);
   }
 
   @override
   void dispose() {
-    searchController.removeListener(filterUsers);
+    searchController.removeListener(_applyFilters);
     searchController.dispose();
     super.dispose();
   }
@@ -40,8 +40,6 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   Future<void> loadUsers() async {
     if (mounted) setState(() => isLoading = true);
     try {
-      // Read directly from the server. This prevents a stale/partial local
-      // cache from reporting a count while the list itself appears empty.
       final snapshot = await FirebaseFirestore.instance
           .collection('users')
           .get(const GetOptions(source: Source.server));
@@ -60,14 +58,18 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         });
 
       if (!mounted) return;
+      final results = _filterDocuments(documents);
       setState(() {
         users = documents;
-        filteredUsers = _filterDocuments(documents);
+        filteredUsers = results;
         isLoading = false;
       });
     } on FirebaseException catch (error) {
       if (!mounted) return;
-      setState(() => isLoading = false);
+      setState(() {
+        isLoading = false;
+        filteredUsers = [];
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -76,12 +78,16 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           action: SnackBarAction(label: 'Retry', onPressed: loadUsers),
         ),
       );
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
-      setState(() => isLoading = false);
+      setState(() {
+        isLoading = false;
+        filteredUsers = [];
+      });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('We couldn’t load the users. Please try again.'),
+        SnackBar(
+          content: Text('We couldn’t load the users: $error'),
+          action: SnackBarAction(label: 'Retry', onPressed: loadUsers),
         ),
       );
     }
@@ -125,19 +131,22 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     }).toList();
   }
 
-  void filterUsers() {
+  void _applyFilters() {
     if (!mounted) return;
-    setState(() => filteredUsers = _filterDocuments(users));
+    final results = _filterDocuments(users);
+    setState(() => filteredUsers = results);
   }
 
   void changeStatusFilter(String status) {
+    if (selectedStatus == status) return;
     setState(() => selectedStatus = status);
-    filterUsers();
+    _applyFilters();
   }
 
   void changeRoleFilter(String role) {
+    if (selectedRole == role) return;
     setState(() => selectedRole = role);
-    filterUsers();
+    _applyFilters();
   }
 
   Future<void> toggleUserStatus(
@@ -163,12 +172,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           ),
         ),
       );
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not update this user. Please try again.'),
-        ),
+        SnackBar(content: Text('Could not update this user: $error')),
       );
     }
   }
@@ -231,9 +238,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             child: const Text('Cancel'),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.error,
-            ),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
             onPressed: () => Navigator.pop(dialogContext, true),
             child: const Text('Delete Permanently'),
           ),
@@ -445,9 +450,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                               isActive
                                   ? AppColors.success.withValues(alpha: .12)
                                   : AppColors.error.withValues(alpha: .12),
-                              isActive
-                                  ? AppColors.success
-                                  : AppColors.error,
+                              isActive ? AppColors.success : AppColors.error,
                             ),
                             if (isPremium)
                               _statusChip(
@@ -606,6 +609,41 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     );
   }
 
+  Widget _emptyState() {
+    final hasFilters = searchController.text.trim().isNotEmpty ||
+        selectedStatus != 'All' ||
+        selectedRole != 'All';
+
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(20, 90, 20, 24),
+      children: [
+        Icon(
+          hasFilters ? Icons.search_off_rounded : Icons.people_outline_rounded,
+          size: 64,
+          color: AppColors.textSecondary,
+        ),
+        const SizedBox(height: 16),
+        Center(
+          child: Text(
+            hasFilters ? 'No matching users' : 'No users found',
+            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Center(
+          child: Text(
+            hasFilters
+                ? 'Try changing the search or filters.'
+                : 'There are no user documents available in Firestore.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: AppColors.textSecondary),
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -694,39 +732,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               child: isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : filteredUsers.isEmpty
-                      ? ListView(
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          children: [
-                            const SizedBox(height: 170),
-                            Center(
-                              child: Column(
-                                children: [
-                                  const Icon(Icons.people_outline, size: 70),
-                                  const SizedBox(height: 16),
-                                  const Text(
-                                    'No users found',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 16,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    searchController.text.trim().isEmpty &&
-                                            selectedRole == 'All' &&
-                                            selectedStatus == 'All'
-                                        ? 'There are no users yet.'
-                                        : 'Try a different search or filter.',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      color: AppColors.textSecondary,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        )
+                      ? _emptyState()
                       : ListView.builder(
                           physics: const AlwaysScrollableScrollPhysics(),
                           padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
