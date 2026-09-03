@@ -67,10 +67,11 @@ class _AdminUser {
 
 class _UserManagementScreenState extends State<UserManagementScreen> {
   final TextEditingController searchController = TextEditingController();
+
   List<_AdminUser> users = const [];
   bool isLoading = true;
-  bool isDeleting = false;
   String? loadError;
+  bool isDeleting = false;
   String selectedStatus = 'All';
   String selectedRole = 'All';
 
@@ -329,34 +330,46 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      user.createdAt == null
-                          ? 'Created date unavailable'
-                          : 'Joined ${user.createdAt!.day.toString().padLeft(2, '0')}/${user.createdAt!.month.toString().padLeft(2, '0')}/${user.createdAt!.year}',
-                      style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+              SizedBox(
+                width: double.infinity,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        user.createdAt == null
+                            ? 'Created date unavailable'
+                            : 'Joined ${user.createdAt!.day.toString().padLeft(2, '0')}/${user.createdAt!.month.toString().padLeft(2, '0')}/${user.createdAt!.year}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                      ),
                     ),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: () => showUserDetails(user),
-                    icon: const Icon(Icons.visibility_outlined, size: 17),
-                    label: const Text('View'),
-                  ),
-                  const SizedBox(width: 6),
-                  IconButton(
-                    tooltip: user.isActive ? 'Deactivate account' : 'Activate account',
-                    onPressed: isDeleting ? null : () => toggleUserStatus(user),
-                    icon: Icon(user.isActive ? Icons.block_outlined : Icons.check_circle_outline, color: user.isActive ? AppColors.error : AppColors.success),
-                  ),
-                  if (isCustomer)
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(0, 48),
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                        ),
+                        onPressed: () => showUserDetails(user),
+                        icon: const Icon(Icons.visibility_outlined, size: 17),
+                        label: const Text('View'),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
                     IconButton(
-                      tooltip: 'Delete customer data',
-                      onPressed: isDeleting ? null : () => deleteCustomer(user),
-                      icon: const Icon(Icons.delete_outline, color: AppColors.error),
+                      tooltip: user.isActive ? 'Deactivate account' : 'Activate account',
+                      onPressed: isDeleting ? null : () => toggleUserStatus(user),
+                      icon: Icon(user.isActive ? Icons.block_outlined : Icons.check_circle_outline, color: user.isActive ? AppColors.error : AppColors.success),
                     ),
-                ],
+                    if (isCustomer)
+                      IconButton(
+                        tooltip: 'Delete customer data',
+                        onPressed: isDeleting ? null : () => deleteCustomer(user),
+                        icon: const Icon(Icons.delete_outline, color: AppColors.error),
+                      ),
+                  ],
+                ),
               ),
             ],
           ),
