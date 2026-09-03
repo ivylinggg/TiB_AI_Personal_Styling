@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -76,9 +77,7 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
     setState(() => _completingChallenge = true);
 
     try {
-      final challenge = await (
-        _challengeFuture ?? Future.value(DailyChallengeService.today())
-      );
+      final challenge = await (_challengeFuture ?? Future.value(DailyChallengeService.today()));
       final completed = await DailyChallengeService.complete(
         uid,
         challenge: challenge,
@@ -242,7 +241,13 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
       future: _journeyFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) return _loadingCard('YOUR STYLE JOURNEY');
-        final journey = snapshot.data ?? TibStyleJourney.initial();
+        final journey = snapshot.data;
+        if (journey == null) {
+          return _card(
+            child: const Text('Your style journey will appear here.', style: TextStyle(color: AppColors.textSecondary)),
+          );
+        }
+
         final progress = journey.progress.clamp(0.0, 1.0);
         return _card(
           child: InkWell(
@@ -253,13 +258,13 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(children: [const Expanded(child: Text('YOUR STYLE JOURNEY', style: TextStyle(color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: .35))), Text('${journey.completedSteps}/${journey.totalSteps}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12))]),
+                  Row(children: [const Expanded(child: Text('YOUR STYLE JOURNEY', style: TextStyle(color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: .35))), Text('${journey.completedChallenges} completed', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12))]),
                   const SizedBox(height: 10),
-                  Text(journey.currentTitle, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+                  Text(journey.levelTitle, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
                   const SizedBox(height: 8),
                   ClipRRect(borderRadius: BorderRadius.circular(20), child: LinearProgressIndicator(value: progress, minHeight: 8, backgroundColor: AppColors.surfaceMuted)),
                   const SizedBox(height: 8),
-                  Text(journey.currentDescription, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                  Text('${journey.points} XP · ${journey.streak} day streak', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
                 ],
               ),
             ),
@@ -321,7 +326,8 @@ class _LearningPreviewCard extends StatelessWidget {
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: ContentService.publishedContentStream(),
       builder: (context, snapshot) {
-        final docs = [...?snapshot.data?.docs];
+        final data = snapshot.data;
+        final docs = data == null ? <QueryDocumentSnapshot<Map<String, dynamic>>>[] : data.docs.toList();
         docs.sort((a, b) {
           final aFeatured = a.data()['isFeatured'] == true;
           final bFeatured = b.data()['isFeatured'] == true;
@@ -340,16 +346,18 @@ class _LearningPreviewCard extends StatelessWidget {
               children: [
                 Row(children: [const Expanded(child: Text('LEARN WITH TIB', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: .6, color: AppColors.textSecondary))), TextButton(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CustomerContentScreen())), child: const Text('View all'))]),
                 const SizedBox(height: 8),
-                if (preview.isEmpty)
+                if (snapshot.connectionState == ConnectionState.waiting && data == null)
+                  const LinearProgressIndicator(minHeight: 5)
+                else if (preview.isEmpty)
                   const Text('New styling guides will appear here.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12))
                 else
                   ...preview.map((doc) {
-                    final data = doc.data();
+                    final item = doc.data();
                     return ListTile(
                       contentPadding: EdgeInsets.zero,
                       leading: const CircleAvatar(backgroundColor: AppColors.secondary, child: Icon(Icons.menu_book_outlined, color: AppColors.primary)),
-                      title: Text(data['title'] as String? ?? 'TiB Guide', style: const TextStyle(fontWeight: FontWeight.w800)),
-                      subtitle: Text(data['description'] as String? ?? '', maxLines: 2, overflow: TextOverflow.ellipsis),
+                      title: Text(item['title'] as String? ?? 'TiB Guide', style: const TextStyle(fontWeight: FontWeight.w800)),
+                      subtitle: Text(item['description'] as String? ?? '', maxLines: 2, overflow: TextOverflow.ellipsis),
                       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CustomerContentScreen())),
                     );
                   }),
