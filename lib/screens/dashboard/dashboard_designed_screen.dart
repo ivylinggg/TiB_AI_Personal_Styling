@@ -6,12 +6,10 @@ import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
 import '../../models/colour_analysis_result.dart';
 import '../../providers/analysis_provider.dart';
-import '../../services/content_service.dart';
 import '../../services/daily_challenge_service.dart';
 import '../../services/tib_style_journey_service.dart';
-import '../../services/today_recommendation_service.dart';
+import '../../services.today_recommendation_service.dart';
 import '../../widgets/colour_swatch.dart';
-import '../content/customer_content_screen.dart';
 import 'tib_style_journey_screen.dart';
 
 class DashboardDesignedScreen extends StatefulWidget {
@@ -36,19 +34,16 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
 
   void _loadDashboard() {
     if (!mounted) return;
-
     final provider = context.read<AnalysisProvider>();
     final uid = FirebaseAuth.instance.currentUser?.uid;
     final analysis = provider.result;
 
     _recommendationFuture = TodayRecommendationService.getRecommendation(analysis: analysis);
-
     if (uid != null) {
       _challengeFuture = DailyChallengeService.personalizedToday(uid, analysis: analysis);
       _journeyFuture = TibStyleJourneyService.load(uid);
       _loadCompletion(uid);
     }
-
     setState(() {});
   }
 
@@ -69,7 +64,6 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null || _challengeCompleted || _completingChallenge) return;
     setState(() => _completingChallenge = true);
-
     try {
       final challenge = await (_challengeFuture ?? Future.value(DailyChallengeService.today()));
       final completed = await DailyChallengeService.complete(uid, challenge: challenge);
@@ -105,8 +99,6 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
               _styleJourneyCard(),
               const SizedBox(height: 16),
               _todayTaskCard(),
-              const SizedBox(height: 18),
-              const _StyleHubPreviewCard(),
             ],
           ),
         ),
@@ -134,7 +126,6 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
         if (snapshot.connectionState == ConnectionState.waiting) return _loadingCard("TODAY'S RECOMMENDATION");
         final recommendation = snapshot.data ?? TodayRecommendationService.build(analysis: result);
         final colour = recommendation.colour == '—' ? 'Choose from your palette' : recommendation.colour;
-
         return _card(
           padding: const EdgeInsets.fromLTRB(22, 20, 22, 21),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -173,7 +164,6 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
         Text('Complete a colour analysis to unlock your personalised palette.', style: TextStyle(color: AppColors.textSecondary)),
       ]));
     }
-
     return _card(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       const Text('YOUR COLOUR PROFILE', style: TextStyle(color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: .35)),
       const SizedBox(height: 10),
@@ -257,90 +247,5 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
   String _colourEncouragement(String colour) {
     if (colour == '—') return 'Start with your colour analysis and let your palette guide today’s look.';
     return '$colour can be a beautiful anchor for today’s outfit. Keep the rest simple and let it stand out.';
-  }
-}
-
-class _StyleHubPreviewCard extends StatelessWidget {
-  const _StyleHubPreviewCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: ContentService.publishedContentStream(),
-      builder: (context, snapshot) {
-        final docs = [...?snapshot.data?.docs];
-        docs.sort((a, b) {
-          final aFeatured = a.data()['isFeatured'] == true;
-          final bFeatured = b.data()['isFeatured'] == true;
-          if (aFeatured != bFeatured) return aFeatured ? -1 : 1;
-          final aValue = a.data()['createdAt'];
-          final bValue = b.data()['createdAt'];
-          final aDate = aValue is Timestamp ? aValue.toDate() : DateTime.fromMillisecondsSinceEpoch(0);
-          final bDate = bValue is Timestamp ? bValue.toDate() : DateTime.fromMillisecondsSinceEpoch(0);
-          return bDate.compareTo(aDate);
-        });
-        final preview = docs.take(2).toList();
-
-        return Container(
-          decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(24), border: Border.all(color: AppColors.primarySoft)),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('TIB STYLE HUB', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: .7, color: AppColors.textSecondary)),
-                  SizedBox(height: 4),
-                  Text('What’s inspiring you today?', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900)),
-                ])),
-                TextButton(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CustomerContentScreen())), child: const Text('Explore all')),
-              ]),
-              const SizedBox(height: 7),
-              const Text('Browse styling stories, colour guides and quick tips — and then take the conversation to TiB Forum.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.4)),
-              const SizedBox(height: 14),
-              if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData)
-                const LinearProgressIndicator(minHeight: 5)
-              else if (preview.isEmpty)
-                const Text('New styling stories will appear here.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12))
-              else
-                ...preview.map((doc) {
-                  final data = doc.data();
-                  final type = data['type'] as String? ?? 'Learning';
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    decoration: BoxDecoration(color: AppColors.surfaceMuted, borderRadius: BorderRadius.circular(17)),
-                    child: ListTile(
-                      dense: true,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
-                      leading: CircleAvatar(backgroundColor: AppColors.background, child: Icon(_contentIcon(type), color: AppColors.primary, size: 18)),
-                      title: Text(data['title'] as String? ?? 'TiB Story', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5)),
-                      subtitle: Text(type, style: const TextStyle(fontSize: 10.5, color: AppColors.textSecondary)),
-                      trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
-                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CustomerContentScreen())),
-                    ),
-                  );
-                }),
-              const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CustomerContentScreen())),
-                  icon: const Icon(Icons.auto_stories_outlined, size: 18),
-                  label: const Text('Explore TiB Content'),
-                ),
-              ),
-            ]),
-          ),
-        );
-      },
-    );
-  }
-
-  IconData _contentIcon(String type) {
-    switch (type) {
-      case 'Colour Guide': return Icons.palette_outlined;
-      case 'Style Tip': return Icons.checkroom_outlined;
-      case 'AI Styling': return Icons.auto_awesome_outlined;
-      default: return Icons.menu_book_outlined;
-    }
   }
 }
