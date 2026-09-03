@@ -17,8 +17,9 @@ class UserManagementScreen extends StatefulWidget {
 class _UserManagementScreenState extends State<UserManagementScreen> {
   final TextEditingController searchController = TextEditingController();
 
-  List<QueryDocumentSnapshot<Map<String, dynamic>>> users = [];
+  List<_AdminUser> users = const [];
   bool isLoading = true;
+  String? loadError;
   bool isDeleting = false;
   String selectedStatus = 'All';
   String selectedRole = 'All';
@@ -26,178 +27,128 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   @override
   void initState() {
     super.initState();
-    searchController.addListener(_onSearchChanged);
+    searchController.addListener(_refreshFilters);
     loadUsers();
   }
 
   @override
   void dispose() {
-    searchController.removeListener(_onSearchChanged);
+    searchController.removeListener(_refreshFilters);
     searchController.dispose();
     super.dispose();
   }
 
-  void _onSearchChanged() {
+  void _refreshFilters() {
     if (mounted) setState(() {});
   }
 
-  List<QueryDocumentSnapshot<Map<String, dynamic>>> get filteredUsers {
+  List<_AdminUser> get filteredUsers {
     final query = searchController.text.trim().toLowerCase();
+    return users.where((user) {
+      final matchesSearch = query.isEmpty ||
+          user.name.toLowerCase().contains(query) ||
+          user.email.toLowerCase().contains(query) ||
+          user.role.toLowerCase().contains(query) ||
+          user.uid.toLowerCase().contains(query) ||
+          user.staffId.toLowerCase().contains(query);
 
-    return users.where((document) {
-      final data = document.data();
-      final name = (data['name'] ?? '').toString().toLowerCase();
-      final email = (data['email'] ?? '').toString().toLowerCase();
-      final role = (data['role'] ?? 'customer').toString().toLowerCase();
-      final uid = (data['uid'] ?? document.id).toString().toLowerCase();
-      final staffId = (data['staffId'] ?? '').toString().toLowerCase();
-      final active = data['isActive'] is bool ? data['isActive'] as bool : true;
+      final matchesStatus = selectedStatus == 'All' ||
+          (selectedStatus == 'Active' && user.isActive) ||
+          (selectedStatus == 'Inactive' && !user.isActive);
 
-      final normalizedRole = role == 'staff' ? 'consultant' : role;
+      final normalizedRole = user.role == 'staff' ? 'consultant' : user.role;
       final selectedNormalizedRole = selectedRole.toLowerCase() == 'staff'
           ? 'consultant'
           : selectedRole.toLowerCase();
-
-      final matchesSearch = query.isEmpty ||
-          name.contains(query) ||
-          email.contains(query) ||
-          role.contains(query) ||
-          normalizedRole.contains(query) ||
-          uid.contains(query) ||
-          staffId.contains(query);
-      final matchesStatus = selectedStatus == 'All' ||
-          (selectedStatus == 'Active' && active) ||
-          (selectedStatus == 'Inactive' && !active);
       final matchesRole = selectedRole == 'All' ||
           normalizedRole == selectedNormalizedRole;
 
       return matchesSearch && matchesStatus && matchesRole;
-    }).toList();
+    }).toList(growable: false);
   }
 
   Future<void> loadUsers() async {
-    if (mounted) setState(() => isLoading = true);
+    if (mounted) {
+      setState(() {
+        isLoading = true;
+        loadError = null;
+      });
+    }
 
     try {
       final snapshot = await FirebaseFirestore.instance
           .collection('users')
           .get(const GetOptions(source: Source.server));
 
-      final documents = [...snapshot.docs]
+      final loaded = snapshot.docs.map(_AdminUser.fromDocument).toList()
         ..sort((a, b) {
-          final aValue = a.data()['createdAt'];
-          final bValue = b.data()['createdAt'];
-          final aDate = aValue is Timestamp
-              ? aValue.toDate()
-              : DateTime.fromMillisecondsSinceEpoch(0);
-          final bDate = bValue is Timestamp
-              ? bValue.toDate()
-              : DateTime.fromMillisecondsSinceEpoch(0);
+          final aDate = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+          final bDate = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
           return bDate.compareTo(aDate);
         });
 
       if (!mounted) return;
       setState(() {
-        users = documents;
+        users = loaded;
         isLoading = false;
       });
     } on FirebaseException catch (error) {
       if (!mounted) return;
-      setState(() => isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('We couldn’t load users: ${error.message ?? error.code}'),
-          action: SnackBarAction(label: 'Retry', onPressed: loadUsers),
-        ),
-      );
+      setState(() {
+        isLoading = false;
+        loadError = '${error.code}: ${error.message ?? 'Unable to load users.'}';
+      });
     } catch (error) {
       if (!mounted) return;
-      setState(() => isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('We couldn’t load the users: $error')),
-      );
+      setState(() {
+        isLoading = false;
+        loadError = error.toString();
+      });
     }
   }
 
-  void changeStatusFilter(String status) {
-    setState(() => selectedStatus = status);
-  }
-
-  void changeRoleFilter(String role) {
-    setState(() => selectedRole = role);
-  }
-
-  Future<void> toggleUserStatus(
-    QueryDocumentSnapshot<Map<String, dynamic>> document,
-  ) async {
-    final currentStatus = document.data()['isActive'] as bool? ?? true;
-    final newStatus = !currentStatus;
-
+  Future<void> toggleUserStatus(_AdminUser user) async {
     try {
-      await document.reference.update({
-        'isActive': newStatus,
+      await FirebaseFirestore.instance.collection('users').doc(user.documentId).update({
+        'isActive': !user.isActive,
         'updatedAt': FieldValue.serverTimestamp(),
       });
       await loadUsers();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(newStatus ? 'User account activated.' : 'User account deactivated.'),
-        ),
-      );
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not update this user: $error')),
+        SnackBar(content: Text('Could not update user: $error')),
       );
     }
   }
 
-  Future<void> showUserDetails(
-    QueryDocumentSnapshot<Map<String, dynamic>> document,
-  ) async {
+  Future<void> showUserDetails(_AdminUser user) async {
+    final document = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.documentId)
+        .get();
+    if (!mounted || !document.exists) return;
+
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => CustomerDetailScreen(userDocument: document),
+        builder: (_) => CustomerDetailScreen(
+          userDocument: document,
+        ),
       ),
     );
     if (mounted) await loadUsers();
   }
 
-  Future<void> deleteCustomer(
-    QueryDocumentSnapshot<Map<String, dynamic>> document,
-  ) async {
-    if (isDeleting) return;
-
-    final data = document.data();
-    final name = data['name'] as String? ?? 'Unknown User';
-    final email = data['email'] as String? ?? 'No email';
-    final userId = data['uid'] as String? ?? document.id;
-    final role = (data['role'] as String? ?? 'customer').toLowerCase();
-
-    if (role != 'customer') {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Only customer accounts can be deleted from this page.')),
-      );
-      return;
-    }
-
-    if (FirebaseAuth.instance.currentUser?.uid == userId) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('You cannot delete your own admin account here.')),
-      );
-      return;
-    }
+  Future<void> deleteCustomer(_AdminUser user) async {
+    if (isDeleting || user.role != 'customer') return;
 
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Delete Customer?'),
         content: Text(
-          'This permanently removes the customer’s Firebase data, including profile, wardrobe, preferences, saved looks, analysis history and consultation history.\n\n$name\n$email',
+          'This permanently removes the customer Firebase data.\n\n${user.name}\n${user.email}',
         ),
         actions: [
           TextButton(
@@ -216,63 +167,34 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     if (confirmed != true || !mounted) return;
 
     setState(() => isDeleting = true);
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const AlertDialog(
-        content: Row(
-          children: [
-            SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.5)),
-            SizedBox(width: 20),
-            Expanded(child: Text('Deleting customer...')),
-          ],
-        ),
-      ),
-    );
-
-    CustomerDeletionResult? result;
-    Object? deletionError;
-
     try {
-      result = await FirestoreService.deleteCustomerData(userId);
-    } catch (e) {
-      deletionError = e;
-    }
-
-    if (result != null && result.imageUrls.isNotEmpty) {
-      await Future.wait(
-        result.imageUrls.map((url) async {
-          try {
-            await StorageService.deleteImageByUrl(url);
-          } catch (_) {}
-        }),
-      );
-    }
-
-    if (mounted) Navigator.of(context, rootNavigator: true).pop();
-
-    if (result != null) {
-      if (!mounted) return;
+      final result = await FirestoreService.deleteCustomerData(user.uid);
+      if (result.imageUrls.isNotEmpty) {
+        await Future.wait(
+          result.imageUrls.map((url) async {
+            try {
+              await StorageService.deleteImageByUrl(url);
+            } catch (_) {}
+          }),
+        );
+      }
       await loadUsers();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Customer deleted: ${result.wardrobeItemsDeleted} wardrobe, ${result.preferencesDeleted} preference and ${result.analysisRecordsDeleted} analysis record(s) removed.',
+            'Deleted ${result.wardrobeItemsDeleted} wardrobe, ${result.preferencesDeleted} preference and ${result.analysisRecordsDeleted} analysis record(s).',
           ),
         ),
       );
-    } else if (mounted) {
+    } catch (error) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Could not fully delete this customer. Please refresh and try again. (${deletionError ?? 'Unknown error'})',
-          ),
-        ),
+        SnackBar(content: Text('Could not delete customer: $error')),
       );
+    } finally {
+      if (mounted) setState(() => isDeleting = false);
     }
-
-    if (mounted) setState(() => isDeleting = false);
   }
 
   Widget _statusChip(String text, Color background, Color foreground) {
@@ -284,210 +206,127 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       ),
       child: Text(
         text,
-        style: TextStyle(color: foreground, fontSize: 10, fontWeight: FontWeight.bold),
-      ),
-    );
-  }
-
-  Widget _filterChip(String label) {
-    final isSelected = selectedStatus == label;
-    return FilterChip(
-      label: Text(label),
-      showCheckmark: false,
-      selected: isSelected,
-      onSelected: (_) => changeStatusFilter(label),
-    );
-  }
-
-  Widget _roleFilterChip(String label) {
-    final isSelected = selectedRole == label;
-    return FilterChip(
-      label: Text(label),
-      showCheckmark: false,
-      selected: isSelected,
-      onSelected: (_) => changeRoleFilter(label),
-    );
-  }
-
-  Widget _buildUserCard(QueryDocumentSnapshot<Map<String, dynamic>> document) {
-    final data = document.data();
-    final name = data['name'] as String? ?? 'Unknown User';
-    final email = data['email'] as String? ?? 'No email';
-    final role = data['role'] as String? ?? 'customer';
-    final normalizedRole = role.toLowerCase() == 'staff' ? 'consultant' : role.toLowerCase();
-    final isActive = data['isActive'] as bool? ?? true;
-    final isPremium = data['isPremium'] as bool? ?? false;
-    final colourSeason = data['colourSeason'] as String? ?? 'Not analysed';
-    final skinTone = data['skinTone'] as String? ?? 'Not analysed';
-    final staffId = data['staffId'] as String? ?? '';
-    final createdAt = data['createdAt'];
-    final photoUrl = data['photoUrl'] as String? ?? '';
-    final isCustomer = normalizedRole == 'customer';
-
-    return Card(
-      elevation: 0,
-      margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
-        side: const BorderSide(color: AppColors.border),
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: () => showUserDetails(document),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  CircleAvatar(
-                    radius: 28,
-                    backgroundColor: AppColors.secondary,
-                    backgroundImage: photoUrl.isNotEmpty ? NetworkImage(photoUrl) : null,
-                    child: photoUrl.isEmpty
-                        ? const Icon(Icons.person, color: AppColors.primary, size: 28)
-                        : null,
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          email,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
-                        ),
-                        if (staffId.isNotEmpty) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            'Staff ID: $staffId',
-                            style: TextStyle(color: AppColors.primaryDark, fontSize: 11, fontWeight: FontWeight.w700),
-                          ),
-                        ],
-                        const SizedBox(height: 8),
-                        Wrap(
-                          spacing: 6,
-                          runSpacing: 5,
-                          children: [
-                            _statusChip(normalizedRole.toUpperCase(), AppColors.surfaceMuted, AppColors.primaryDark),
-                            _statusChip(
-                              isActive ? 'ACTIVE' : 'INACTIVE',
-                              isActive
-                                  ? AppColors.success.withValues(alpha: .12)
-                                  : AppColors.error.withValues(alpha: .12),
-                              isActive ? AppColors.success : AppColors.error,
-                            ),
-                            if (isPremium)
-                              _statusChip('PREMIUM', AppColors.premiumAccentLight, AppColors.premiumAccentDark),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Icon(Icons.arrow_forward_ios, size: 15),
-                ],
-              ),
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  Expanded(
-                    child: _smallInfo(
-                      isCustomer ? Icons.palette_outlined : Icons.badge_outlined,
-                      isCustomer ? 'Colour Season' : 'Role',
-                      isCustomer ? colourSeason : (normalizedRole == 'admin' ? 'Administrator' : 'Staff'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _smallInfo(
-                      isCustomer ? Icons.face_outlined : Icons.verified_user_outlined,
-                      isCustomer ? 'Skin Tone' : 'Status',
-                      isCustomer ? skinTone : (isActive ? 'Active' : 'Inactive'),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              const Divider(height: 1),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      _formatCreatedAt(createdAt),
-                      style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
-                    ),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: () => showUserDetails(document),
-                    icon: const Icon(Icons.visibility_outlined, size: 17),
-                    label: const Text('View'),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    tooltip: isActive ? 'Disable account' : 'Activate account',
-                    onPressed: isDeleting ? null : () => toggleUserStatus(document),
-                    icon: Icon(
-                      isActive ? Icons.block_outlined : Icons.check_circle_outline,
-                      color: isActive ? AppColors.error : AppColors.success,
-                    ),
-                  ),
-                  if (isCustomer)
-                    IconButton(
-                      tooltip: 'Delete customer data',
-                      onPressed: isDeleting ? null : () => deleteCustomer(document),
-                      icon: const Icon(Icons.delete_outline, color: AppColors.error),
-                    ),
-                ],
-              ),
-            ],
-          ),
+        style: TextStyle(
+          color: foreground,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
         ),
       ),
     );
   }
 
-  String _formatCreatedAt(dynamic value) {
-    DateTime? date;
-    if (value is Timestamp) date = value.toDate();
-    if (value is DateTime) date = value;
-    if (date == null) return 'Created date unavailable';
-    final day = date.day.toString().padLeft(2, '0');
-    final month = date.month.toString().padLeft(2, '0');
-    return 'Joined $day/$month/${date.year}';
-  }
+  Widget _userTile(_AdminUser user) {
+    final normalizedRole = user.role == 'staff' ? 'consultant' : user.role;
+    final isCustomer = normalizedRole == 'customer';
 
-  Widget _smallInfo(IconData icon, String title, String value) {
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceMuted,
-        borderRadius: BorderRadius.circular(12),
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      elevation: 0,
+      color: AppColors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: const BorderSide(color: AppColors.border),
       ),
-      child: Row(
-        children: [
-          Icon(icon, size: 19, color: AppColors.primary),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
-                const SizedBox(height: 2),
-                Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-              ],
-            ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
+        leading: CircleAvatar(
+          radius: 28,
+          backgroundColor: AppColors.secondary,
+          child: user.photoUrl.isEmpty
+              ? const Icon(Icons.person, color: AppColors.primary)
+              : ClipOval(
+                  child: Image.network(
+                    user.photoUrl,
+                    width: 56,
+                    height: 56,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => const Icon(
+                      Icons.person,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ),
+        ),
+        title: Text(
+          user.name,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontWeight: FontWeight.w800),
+        ),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 5),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(user.email, maxLines: 1, overflow: TextOverflow.ellipsis),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 6,
+                runSpacing: 5,
+                children: [
+                  _statusChip(
+                    normalizedRole.toUpperCase(),
+                    AppColors.surfaceMuted,
+                    AppColors.primaryDark,
+                  ),
+                  _statusChip(
+                    user.isActive ? 'ACTIVE' : 'INACTIVE',
+                    user.isActive
+                        ? AppColors.success.withValues(alpha: .12)
+                        : AppColors.error.withValues(alpha: .12),
+                    user.isActive ? AppColors.success : AppColors.error,
+                  ),
+                  if (user.isPremium)
+                    _statusChip(
+                      'PREMIUM',
+                      AppColors.premiumAccentLight,
+                      AppColors.premiumAccentDark,
+                    ),
+                ],
+              ),
+              const SizedBox(height: 7),
+              Text(
+                isCustomer
+                    ? 'Season: ${user.colourSeason}  •  Skin: ${user.skinTone}'
+                    : 'Role: ${normalizedRole == 'admin' ? 'Administrator' : 'Staff'}  •  ${user.isActive ? 'Active' : 'Inactive'}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
+        onTap: () => showUserDetails(user),
+        trailing: PopupMenuButton<String>(
+          onSelected: (action) {
+            switch (action) {
+              case 'view':
+                showUserDetails(user);
+                break;
+              case 'status':
+                toggleUserStatus(user);
+                break;
+              case 'delete':
+                deleteCustomer(user);
+                break;
+            }
+          },
+          itemBuilder: (_) => [
+            const PopupMenuItem(value: 'view', child: Text('View details')),
+            PopupMenuItem(
+              value: 'status',
+              child: Text(user.isActive ? 'Deactivate' : 'Activate'),
+            ),
+            if (isCustomer)
+              const PopupMenuItem(
+                value: 'delete',
+                child: Text('Delete customer'),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -499,8 +338,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(20, 90, 20, 24),
       children: [
+        const SizedBox(height: 80),
         Icon(
           hasFilters ? Icons.search_off_rounded : Icons.people_outline_rounded,
           size: 64,
@@ -510,7 +349,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         Center(
           child: Text(
             hasFilters ? 'No matching users' : 'No users found',
-            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
+            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
           ),
         ),
         const SizedBox(height: 6),
@@ -518,9 +357,42 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           child: Text(
             hasFilters
                 ? 'Try changing the search or filters.'
-                : 'There are no user documents available in Firestore.',
+                : 'No user documents were returned from Firestore.',
             textAlign: TextAlign.center,
             style: TextStyle(color: AppColors.textSecondary),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _errorState() {
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      children: [
+        const SizedBox(height: 80),
+        const Icon(Icons.cloud_off_rounded, size: 64),
+        const SizedBox(height: 16),
+        const Center(
+          child: Text(
+            'Unable to load users',
+            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Text(
+            loadError ?? 'Unknown Firestore error.',
+            textAlign: TextAlign.center,
+          ),
+        ),
+        const SizedBox(height: 18),
+        Center(
+          child: FilledButton.icon(
+            onPressed: loadUsers,
+            icon: const Icon(Icons.refresh_rounded),
+            label: const Text('Retry'),
           ),
         ),
       ],
@@ -554,9 +426,14 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   hintText: 'Search name, email, role, UID or Staff ID',
                   prefixIcon: const Icon(Icons.search),
                   suffixIcon: searchController.text.isNotEmpty
-                      ? IconButton(onPressed: searchController.clear, icon: const Icon(Icons.clear))
+                      ? IconButton(
+                          onPressed: searchController.clear,
+                          icon: const Icon(Icons.clear),
+                        )
                       : null,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                 ),
               ),
             ),
@@ -571,7 +448,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   const SizedBox(width: 8),
                   _filterChip('Inactive'),
                   const SizedBox(width: 18),
-                  const Text('Role:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                  const Text(
+                    'Role:',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                  ),
                   const SizedBox(width: 8),
                   _roleFilterChip('All'),
                   const SizedBox(width: 8),
@@ -587,27 +467,111 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
               child: Row(
                 children: [
-                  Text('${results.length} shown', style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600)),
+                  Text(
+                    '${results.length} shown',
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   const Spacer(),
-                  Text('Total: ${users.length}', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                  Text(
+                    'Total: ${users.length}',
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
                 ],
               ),
             ),
             Expanded(
               child: isLoading
                   ? const Center(child: CircularProgressIndicator())
-                  : results.isEmpty
-                      ? _emptyState()
-                      : ListView.builder(
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-                          itemCount: results.length,
-                          itemBuilder: (context, index) => _buildUserCard(results[index]),
-                        ),
+                  : loadError != null
+                      ? _errorState()
+                      : results.isEmpty
+                          ? _emptyState()
+                          : ListView.separated(
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                              itemCount: results.length,
+                              separatorBuilder: (_, __) => const SizedBox(height: 0),
+                              itemBuilder: (_, index) => _userTile(results[index]),
+                            ),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _filterChip(String label) {
+    return FilterChip(
+      label: Text(label),
+      showCheckmark: false,
+      selected: selectedStatus == label,
+      onSelected: (_) => setState(() => selectedStatus = label),
+    );
+  }
+
+  Widget _roleFilterChip(String label) {
+    return FilterChip(
+      label: Text(label),
+      showCheckmark: false,
+      selected: selectedRole == label,
+      onSelected: (_) => setState(() => selectedRole = label),
+    );
+  }
+}
+
+class _AdminUser {
+  final String documentId;
+  final String uid;
+  final String name;
+  final String email;
+  final String role;
+  final String staffId;
+  final bool isActive;
+  final bool isPremium;
+  final String colourSeason;
+  final String skinTone;
+  final String photoUrl;
+  final DateTime? createdAt;
+
+  const _AdminUser({
+    required this.documentId,
+    required this.uid,
+    required this.name,
+    required this.email,
+    required this.role,
+    required this.staffId,
+    required this.isActive,
+    required this.isPremium,
+    required this.colourSeason,
+    required this.skinTone,
+    required this.photoUrl,
+    required this.createdAt,
+  });
+
+  factory _AdminUser.fromDocument(
+    QueryDocumentSnapshot<Map<String, dynamic>> document,
+  ) {
+    final data = document.data();
+    final created = data['createdAt'];
+    return _AdminUser(
+      documentId: document.id,
+      uid: (data['uid'] ?? document.id).toString(),
+      name: (data['name'] ?? 'Unknown User').toString(),
+      email: (data['email'] ?? 'No email').toString(),
+      role: (data['role'] ?? 'customer').toString().toLowerCase(),
+      staffId: (data['staffId'] ?? '').toString(),
+      isActive: data['isActive'] is bool ? data['isActive'] as bool : true,
+      isPremium: data['isPremium'] is bool ? data['isPremium'] as bool : false,
+      colourSeason: (data['colourSeason'] ?? 'Not analysed').toString(),
+      skinTone: (data['skinTone'] ?? 'Not analysed').toString(),
+      photoUrl: (data['photoUrl'] ?? '').toString(),
+      createdAt: created is Timestamp ? created.toDate() : null,
     );
   }
 }
