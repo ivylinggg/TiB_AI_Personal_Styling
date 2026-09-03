@@ -8,7 +8,7 @@ import '../../models/colour_analysis_result.dart';
 import '../../providers/analysis_provider.dart';
 import '../../services/daily_challenge_service.dart';
 import '../../services/tib_style_journey_service.dart';
-import '../../services.today_recommendation_service.dart';
+import '../../services/today_recommendation_service.dart';
 import '../../widgets/colour_swatch.dart';
 import 'tib_style_journey_screen.dart';
 
@@ -230,7 +230,7 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> {
           const SizedBox(height: 5),
           Text(challenge.description, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12.5, height: 1.4)),
           const SizedBox(height: 14),
-          SizedBox(width: double.infinity, child: ElevatedButton(onPressed: _challengeCompleted || _completingChallenge ? null : _completeChallenge, child: Text(_challengeCompleted ? 'Completed today' : _completingChallenge ? 'Saving...' : 'Mark as completed'))),
+          SizedBox(width: double.infinity, child: ElevatedButton(onPressed: _challengeCompleted || _completingChallenge ? null : _completeChallenge, child: Text(_challengeCompleted ? 'Completed today' : _completingChallenge ? 'Saving...' : 'Mark as completed')),
         ]));
       },
     );
