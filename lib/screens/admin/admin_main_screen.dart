@@ -7,7 +7,7 @@ import 'admin_dashboard_screen.dart';
 import 'admin_profile_screen.dart';
 import 'analysis_management_screen.dart';
 import 'consultation_management_screen.dart';
-import 'content_management_screen.dart';
+import 'content_forum_hub_screen.dart';
 import 'premium_management_screen.dart';
 import 'staff_management_screen.dart';
 import 'user_management_screen.dart';
@@ -161,7 +161,7 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
             AdminDashboardScreen(onNavigate: _navigateTo),
             const UserManagementScreen(),
             const AnalysisManagementScreen(),
-            const ContentManagementScreen(),
+            const ContentForumHubScreen(),
             const PremiumManagementScreen(),
             const AdminProfileScreen(),
             const ConsultationManagementScreen(),
