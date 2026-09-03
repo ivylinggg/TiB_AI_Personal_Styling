@@ -57,13 +57,18 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
         builder: (dialogContext) => StatefulBuilder(
           builder: (dialogBuildContext, setDialogState) => AlertDialog(
             title: const Text('Create a forum post'),
-            content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
-              TextField(controller: titleController, decoration: const InputDecoration(labelText: 'Title', hintText: 'What do you want to discuss?')),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(initialValue: category, decoration: const InputDecoration(labelText: 'Category'), items: _categories.where((item) => item != 'All').map((item) => DropdownMenuItem(value: item, child: Text(item))).toList(), onChanged: saving ? null : (value) => setDialogState(() => category = value ?? 'General')),
-              const SizedBox(height: 12),
-              TextField(controller: bodyController, minLines: 4, maxLines: 7, decoration: const InputDecoration(labelText: 'Post', hintText: 'Share your styling question, idea or experience.')),
-            ])),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(controller: titleController, decoration: const InputDecoration(labelText: 'Title', hintText: 'What do you want to discuss?')),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(initialValue: category, decoration: const InputDecoration(labelText: 'Category'), items: _categories.where((item) => item != 'All').map((item) => DropdownMenuItem(value: item, child: Text(item))).toList(), onChanged: saving ? null : (value) => setDialogState(() => category = value ?? 'General')),
+                  const SizedBox(height: 12),
+                  TextField(controller: bodyController, minLines: 4, maxLines: 7, decoration: const InputDecoration(labelText: 'Post', hintText: 'Share your styling question, idea or experience.')),
+                ],
+              ),
+            ),
             actions: [
               TextButton(onPressed: saving ? null : () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
               FilledButton(
@@ -162,12 +167,7 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
   }
 
   Future<void> _openPost(QueryDocumentSnapshot<Map<String, dynamic>> document) async {
-    await Navigator.of(context).push<void>(MaterialPageRoute(builder: (_) => ForumPostDetailScreen(
-      postReference: document.reference,
-      initialData: document.data(),
-      onToggleLike: () => _toggleLike(document.reference),
-      onAddComment: (text) => _addComment(document.reference, text),
-    )));
+    await Navigator.of(context).push<void>(MaterialPageRoute(builder: (_) => ForumPostDetailScreen(postReference: document.reference, initialData: document.data(), onToggleLike: () => _toggleLike(document.reference), onAddComment: (text) => _addComment(document.reference, text))));
   }
 
   Widget _postCard(QueryDocumentSnapshot<Map<String, dynamic>> document) {
@@ -304,71 +304,109 @@ class _ForumPostDetailScreenState extends State<ForumPostDetailScreen> {
     }
   }
 
+  Widget _replyCard(Map<String, dynamic> comment) {
+    final official = comment['isOfficial'] == true || comment['authorRole'] == 'admin';
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: official ? AppColors.primarySoft.withValues(alpha: .25) : AppColors.surface, borderRadius: BorderRadius.circular(18), border: Border.all(color: official ? AppColors.primarySoft : AppColors.border)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          CircleAvatar(radius: 16, backgroundColor: official ? AppColors.primarySoft : AppColors.secondary, child: Icon(official ? Icons.auto_awesome_outlined : Icons.person_outline_rounded, size: 17, color: AppColors.primary)),
+          const SizedBox(width: 8),
+          Expanded(child: Text(comment['authorName'] as String? ?? 'TiB User', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800))),
+          if (official) const Text('TiB Team', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: AppColors.primary)),
+          const SizedBox(width: 7),
+          Text(_relativeDate(comment['createdAt']), style: const TextStyle(fontSize: 9.5, color: AppColors.textMuted)),
+        ]),
+        const SizedBox(height: 10),
+        Text(comment['body'] as String? ?? '', style: const TextStyle(fontSize: 13, height: 1.5)),
+      ]),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Scaffold(
+      appBar: AppBar(title: const Text('Discussion')),
       backgroundColor: AppColors.background,
-      appBar: AppBar(title: const Text('Forum Discussion')),
       body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
         stream: widget.postReference.snapshots(),
         builder: (context, postSnapshot) {
-          final postData = postSnapshot.data?.data() ?? widget.initialData;
-          return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-            stream: widget.postReference.collection('comments').snapshots(),
-            builder: (context, commentsSnapshot) {
-              if (postSnapshot.hasError || commentsSnapshot.hasError) {
-                return Column(children: [Expanded(child: ListView(controller: _scrollController, padding: const EdgeInsets.fromLTRB(20, 16, 20, 28), children: [_originalPostCard(postData), const SizedBox(height: 22), Text('Unable to load replies: ${commentsSnapshot.error ?? postSnapshot.error}', style: const TextStyle(color: AppColors.error))])), _replyBar(theme)]);
-              }
-              final comments = [...?commentsSnapshot.data?.docs];
-              comments.sort((a, b) => _date(a.data()['createdAt']).compareTo(_date(b.data()['createdAt'])));
-              return Column(children: [
-                Expanded(child: ListView(controller: _scrollController, keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag, padding: const EdgeInsets.fromLTRB(20, 16, 20, 28), children: [
-                  _originalPostCard(postData),
-                  const SizedBox(height: 22),
-                  Row(children: [const Text('REPLIES', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.3, color: AppColors.textSecondary)), const Spacer(), Text('${comments.length}', style: const TextStyle(fontSize: 11, color: AppColors.textMuted))]),
-                  const SizedBox(height: 10),
-                  if (commentsSnapshot.connectionState == ConnectionState.waiting && comments.isEmpty) const Padding(padding: EdgeInsets.all(30), child: Center(child: CircularProgressIndicator()))
-                  else if (comments.isEmpty) _emptyReplies()
-                  else ...comments.asMap().entries.map((entry) => _replyCard(entry.value.data(), entry.key == comments.length - 1)),
-                ])),
-                _replyBar(theme),
-              ]);
-            },
-          );
+          if (postSnapshot.hasError) return Center(child: Text('Could not load post: ${postSnapshot.error}'));
+          final data = postSnapshot.data?.data() ?? widget.initialData;
+          final official = data['isOfficial'] == true || data['source'] == 'admin_content';
+          final title = data['title'] as String? ?? 'Forum post';
+          final body = data['body'] as String? ?? '';
+          final author = data['authorName'] as String? ?? 'TiB User';
+          final category = data['category'] as String? ?? 'General';
+          return Column(children: [
+            Expanded(
+              child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                stream: widget.postReference.collection('comments').snapshots(),
+                builder: (context, commentsSnapshot) {
+                  if (commentsSnapshot.hasError) return Center(child: Text('Could not load replies: ${commentsSnapshot.error}'));
+                  final comments = [...?commentsSnapshot.data?.docs];
+                  comments.sort((a, b) => _date(a.data()['createdAt']).compareTo(_date(b.data()['createdAt'])));
+                  return ListView(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+                    children: [
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(18),
+                        decoration: BoxDecoration(color: official ? AppColors.primarySoft.withValues(alpha: .24) : AppColors.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: official ? AppColors.primarySoft : AppColors.border)),
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Row(children: [
+                            Container(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5), decoration: BoxDecoration(color: official ? AppColors.primarySoft : AppColors.surfaceMuted, borderRadius: BorderRadius.circular(10)), child: Text(official ? 'TiB Team' : category.toUpperCase(), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: AppColors.primaryDark))),
+                            const Spacer(),
+                            Text(_relativeDate(data['createdAt']), style: const TextStyle(fontSize: 10, color: AppColors.textMuted)),
+                          ]),
+                          const SizedBox(height: 12),
+                          Text(title, style: const TextStyle(fontSize: 25, fontWeight: FontWeight.w900, height: 1.12)),
+                          const SizedBox(height: 7),
+                          Text('Posted by $author', style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+                          const SizedBox(height: 14),
+                          Text(body, style: const TextStyle(fontSize: 14, height: 1.6)),
+                          const SizedBox(height: 14),
+                          Row(children: [
+                            TextButton.icon(onPressed: widget.onToggleLike, icon: const Icon(Icons.favorite_border_rounded, size: 18), label: Text('${data['likeCount'] ?? 0}')),
+                            const SizedBox(width: 8),
+                            const Icon(Icons.forum_outlined, size: 17, color: AppColors.textMuted),
+                            const SizedBox(width: 5),
+                            Text('${comments.length} replies', style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+                          ]),
+                        ]),
+                      ),
+                      const SizedBox(height: 22),
+                      const Text('REPLIES', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.3, color: AppColors.textSecondary)),
+                      const SizedBox(height: 10),
+                      if (commentsSnapshot.connectionState == ConnectionState.waiting && comments.isEmpty)
+                        const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator()))
+                      else if (comments.isEmpty)
+                        Container(padding: const EdgeInsets.all(18), decoration: BoxDecoration(color: AppColors.surfaceMuted, borderRadius: BorderRadius.circular(16)), child: const Text('No replies yet. Start the conversation below.'))
+                      else
+                        ...comments.map((commentDoc) => _replyCard(commentDoc.data())),
+                    ],
+                  );
+                },
+              ),
+            ),
+            SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 8, 14, 12),
+                child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                  Expanded(child: TextField(controller: _commentController, focusNode: _commentFocusNode, minLines: 1, maxLines: 4, textInputAction: TextInputAction.newline, decoration: InputDecoration(hintText: 'Write a reply...', filled: true, fillColor: AppColors.surface, border: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: const BorderSide(color: AppColors.border)), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: const BorderSide(color: AppColors.border))))),
+                  const SizedBox(width: 8),
+                  IconButton.filled(onPressed: _sending ? null : _send, icon: _sending ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.send_rounded)),
+                ]),
+              ),
+            ),
+          ]);
         },
       ),
     );
   }
-
-  Widget _originalPostCard(Map<String, dynamic> data) {
-    final official = data['isOfficial'] == true || data['source'] == 'admin_content';
-    final category = data['category'] as String? ?? 'General';
-    final author = data['authorName'] as String? ?? 'TiB User';
-    final title = data['title'] as String? ?? 'Forum post';
-    final body = data['body'] as String? ?? '';
-    final likeCount = (data['likeCount'] as num?)?.toInt() ?? 0;
-    final commentCount = (data['commentCount'] as num?)?.toInt() ?? 0;
-    return Card(elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22), side: BorderSide(color: official ? AppColors.primarySoft : AppColors.border)), child: Padding(padding: const EdgeInsets.all(18), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [Container(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5), decoration: BoxDecoration(color: official ? AppColors.primarySoft : AppColors.surfaceMuted, borderRadius: BorderRadius.circular(10)), child: Text(official ? 'TiB Team' : category, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: AppColors.primaryDark))), if (official) ...[const SizedBox(width: 6), const Icon(Icons.verified_rounded, size: 16, color: AppColors.primary)]]),
-      const SizedBox(height: 12), Text(title, style: const TextStyle(fontSize: 25, fontWeight: FontWeight.w900, height: 1.1)),
-      const SizedBox(height: 7), Text('Posted by $author · ${_relativeDate(data['createdAt'])}', style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
-      const SizedBox(height: 16), Text(body, style: const TextStyle(fontSize: 14, height: 1.6)),
-      const SizedBox(height: 16), Row(children: [OutlinedButton.icon(onPressed: widget.onToggleLike, icon: const Icon(Icons.favorite_border_rounded), label: Text('Like $likeCount')), const SizedBox(width: 10), Text('$commentCount replies', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12))]),
-    ])));
-  }
-
-  Widget _replyCard(Map<String, dynamic> data, bool last) {
-    final author = data['authorName'] as String? ?? 'TiB User';
-    final body = data['body'] as String? ?? '';
-    final official = data['isOfficial'] == true || data['authorRole'] == 'admin';
-    return Container(margin: EdgeInsets.only(bottom: last ? 0 : 10), padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(18), border: Border.all(color: official ? AppColors.primarySoft : AppColors.border)), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      CircleAvatar(radius: 19, backgroundColor: official ? AppColors.primarySoft : AppColors.secondary, child: Icon(official ? Icons.auto_awesome_outlined : Icons.person_outline_rounded, size: 19, color: AppColors.primary)),
-      const SizedBox(width: 10), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [Expanded(child: Text(author, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800))), if (official) const Padding(padding: EdgeInsets.only(right: 6), child: Text('TiB TEAM', style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w900, color: AppColors.primary))), Text(_relativeDate(data['createdAt']), style: const TextStyle(fontSize: 9.5, color: AppColors.textMuted))]), const SizedBox(height: 6), Text(body, style: const TextStyle(fontSize: 13, height: 1.45))]))
-    ]));
-  }
-
-  Widget _emptyReplies() => Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: AppColors.surfaceMuted, borderRadius: BorderRadius.circular(16)), child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('No replies yet.', style: TextStyle(fontWeight: FontWeight.w700)), SizedBox(height: 4), Text('Be the first to join the conversation.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12))]));
-
-  Widget _replyBar(ThemeData theme) => Material(color: theme.colorScheme.surface, elevation: 8, child: SafeArea(top: false, child: Padding(padding: const EdgeInsets.fromLTRB(16, 10, 16, 12), child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [Expanded(child: TextField(controller: _commentController, focusNode: _commentFocusNode, minLines: 1, maxLines: 4, textInputAction: TextInputAction.send, onSubmitted: (_) => _send(), decoration: const InputDecoration(hintText: 'Write a reply...'))), const SizedBox(width: 8), IconButton.filled(onPressed: _sending ? null : _send, tooltip: 'Send reply', icon: _sending ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.send_rounded))]))));
 }
