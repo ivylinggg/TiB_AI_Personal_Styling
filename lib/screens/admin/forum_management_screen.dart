@@ -21,7 +21,9 @@ class _ForumManagementScreenState extends State<ForumManagementScreen> {
       : DateTime.fromMillisecondsSinceEpoch(0);
 
   String _relativeDate(dynamic value) {
-    final difference = DateTime.now().difference(_date(value));
+    final date = _date(value);
+    if (date.millisecondsSinceEpoch == 0) return 'Just now';
+    final difference = DateTime.now().difference(date);
     if (difference.inDays > 30) return '${difference.inDays ~/ 30}mo ago';
     if (difference.inDays >= 1) return '${difference.inDays}d ago';
     if (difference.inHours >= 1) return '${difference.inHours}h ago';
@@ -42,11 +44,12 @@ class _ForumManagementScreenState extends State<ForumManagementScreen> {
       _ => true,
     };
 
-    return filterMatches &&
-        (query.isEmpty ||
-            title.contains(query) ||
-            body.contains(query) ||
-            category.contains(query));
+    final searchMatches = query.isEmpty ||
+        title.contains(query) ||
+        body.contains(query) ||
+        category.contains(query);
+
+    return filterMatches && searchMatches;
   }
 
   Future<void> _deletePost(
@@ -79,6 +82,7 @@ class _ForumManagementScreenState extends State<ForumManagementScreen> {
       final comments = await doc.reference.collection('comments').get();
       final likes = await doc.reference.collection('likes').get();
       final batch = FirebaseFirestore.instance.batch();
+
       for (final comment in comments.docs) {
         batch.delete(comment.reference);
       }
@@ -104,17 +108,17 @@ class _ForumManagementScreenState extends State<ForumManagementScreen> {
     BuildContext context,
     QueryDocumentSnapshot<Map<String, dynamic>> doc,
   ) async {
-    final rootContext = context;
+    final parentContext = context;
     await showModalBottomSheet<void>(
-      context: context,
+      context: parentContext,
       useSafeArea: true,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _AdminForumPostSheet(
         reference: doc.reference,
-        onDelete: () {
-          Navigator.of(context).pop();
-          return _deletePost(rootContext, doc);
+        onDelete: () async {
+          Navigator.of(parentContext).pop();
+          await _deletePost(parentContext, doc);
         },
       ),
     );
@@ -138,16 +142,13 @@ class _ForumManagementScreenState extends State<ForumManagementScreen> {
             final bTime = b.data()['lastActivityAt'] ?? b.data()['createdAt'];
             return _date(bTime).compareTo(_date(aTime));
           });
-          final visible = docs.where((doc) => _matches(doc.data())).toList();
 
-          if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
+          final visible = docs.where((doc) => _matches(doc.data())).toList();
 
           return Column(
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
                 child: Column(
                   children: [
                     TextField(
@@ -164,14 +165,14 @@ class _ForumManagementScreenState extends State<ForumManagementScreen> {
                     SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
                       child: Row(
-                        children: _filters.map((filter) {
+                        children: _filters.map((item) {
                           return Padding(
                             padding: const EdgeInsets.only(right: 8),
                             child: ChoiceChip(
-                              label: Text(filter),
-                              selected: _filter == filter,
+                              label: Text(item),
+                              selected: _filter == item,
                               showCheckmark: false,
-                              onSelected: (_) => setState(() => _filter = filter),
+                              onSelected: (_) => setState(() => _filter = item),
                             ),
                           );
                         }).toList(),
@@ -193,7 +194,6 @@ class _ForumManagementScreenState extends State<ForumManagementScreen> {
                           final official = data['isOfficial'] == true ||
                               data['source'] == 'admin_content';
                           final title = data['title'] as String? ?? 'Untitled post';
-                          final body = data['body'] as String? ?? '';
                           final author = data['authorName'] as String? ?? 'TiB User';
                           final category = data['category'] as String? ?? 'General';
 
@@ -243,7 +243,7 @@ class _ForumManagementScreenState extends State<ForumManagementScreen> {
                                 itemBuilder: (_) => const [
                                   PopupMenuItem(
                                     value: 'view',
-                                    child: Text('View discussion'),
+                                    child: Text('View'),
                                   ),
                                   PopupMenuItem(
                                     value: 'delete',
@@ -292,16 +292,20 @@ class _AdminForumPostSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: AppColors.background,
-      borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
       clipBehavior: Clip.antiAlias,
       child: SafeArea(
         top: false,
         child: SizedBox(
-          height: MediaQuery.sizeOf(context).height * .86,
+          height: MediaQuery.sizeOf(context).height * .82,
           child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
             stream: reference.snapshots(),
             builder: (context, postSnapshot) {
-              final data = postSnapshot.data?.data() ?? const <String, dynamic>{};
+              if (postSnapshot.hasError) {
+                return Center(child: Text('Could not load post: ${postSnapshot.error}'));
+              }
+
+              final data = postSnapshot.data?.data() ?? <String, dynamic>{};
               final official = data['isOfficial'] == true || data['source'] == 'admin_content';
               final title = data['title'] as String? ?? 'Forum post';
               final body = data['body'] as String? ?? '';
@@ -310,148 +314,144 @@ class _AdminForumPostSheet extends StatelessWidget {
 
               return Column(
                 children: [
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                   Container(
                     width: 42,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: AppColors.textMuted,
+                      color: AppColors.border,
                       borderRadius: BorderRadius.circular(99),
                     ),
                   ),
                   Expanded(
-                    child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                      stream: reference.collection('comments').snapshots(),
-                      builder: (context, commentsSnapshot) {
-                        final comments = [...?commentsSnapshot.data?.docs];
-                        comments.sort(
-                          (a, b) => _date(a.data()['createdAt'])
-                              .compareTo(_date(b.data()['createdAt'])),
-                        );
+                    child: ListView(
+                      padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
+                      children: [
+                        Text(
+                          official ? 'TiB CONTENT' : category.toUpperCase(),
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1.2,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          title,
+                          style: const TextStyle(
+                            fontSize: 25,
+                            fontWeight: FontWeight.w900,
+                            height: 1.1,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Posted by $author · ${_relativeDate(data['createdAt'])}',
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 11,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          body,
+                          style: const TextStyle(fontSize: 14, height: 1.6),
+                        ),
+                        const SizedBox(height: 22),
+                        const Text(
+                          'REPLIES',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1.2,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                          stream: reference.collection('comments').snapshots(),
+                          builder: (context, commentsSnapshot) {
+                            if (commentsSnapshot.hasError) {
+                              return Text(
+                                'Could not load replies: ${commentsSnapshot.error}',
+                                style: const TextStyle(color: AppColors.error),
+                              );
+                            }
 
-                        return ListView(
-                          padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
-                          children: [
-                            Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-                                  decoration: BoxDecoration(
-                                    color: official ? AppColors.primarySoft : AppColors.surfaceMuted,
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: Text(
-                                    official ? 'TiB Team' : category,
-                                    style: const TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w800,
-                                      color: AppColors.primaryDark,
-                                    ),
-                                  ),
-                                ),
-                                if (official) ...[
-                                  const SizedBox(width: 6),
-                                  const Icon(Icons.verified_rounded, size: 16, color: AppColors.primary),
-                                ],
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            Text(
-                              title,
-                              style: const TextStyle(fontSize: 25, fontWeight: FontWeight.w900),
-                            ),
-                            const SizedBox(height: 7),
-                            Text(
-                              'Posted by $author · ${_relativeDate(data['createdAt'])}',
-                              style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
-                            ),
-                            const SizedBox(height: 14),
-                            Text(body, style: const TextStyle(fontSize: 14, height: 1.6)),
-                            const SizedBox(height: 22),
-                            Row(
-                              children: [
-                                const Text(
-                                  'REPLIES',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: 1.3,
-                                    color: AppColors.textSecondary,
-                                  ),
-                                ),
-                                const Spacer(),
-                                Text('${comments.length}'),
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-                            if (commentsSnapshot.hasError)
-                              Text('Could not load replies: ${commentsSnapshot.error}')
-                            else if (comments.isEmpty)
-                              const Padding(
+                            final comments = [...?commentsSnapshot.data?.docs];
+                            comments.sort(
+                              (a, b) => _date(a.data()['createdAt'])
+                                  .compareTo(_date(b.data()['createdAt'])),
+                            );
+
+                            if (commentsSnapshot.connectionState == ConnectionState.waiting && comments.isEmpty) {
+                              return const Padding(
                                 padding: EdgeInsets.all(24),
-                                child: Center(child: Text('No replies yet.')),
-                              )
-                            else
-                              ...comments.map((doc) {
-                                final comment = doc.data();
+                                child: Center(child: CircularProgressIndicator()),
+                              );
+                            }
+
+                            if (comments.isEmpty) {
+                              return Container(
+                                padding: const EdgeInsets.all(20),
+                                decoration: BoxDecoration(
+                                  color: AppColors.surfaceMuted,
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: const Text('No replies yet.'),
+                              );
+                            }
+
+                            return Column(
+                              children: comments.map((commentDoc) {
+                                final comment = commentDoc.data();
                                 return Container(
-                                  margin: const EdgeInsets.only(bottom: 10),
-                                  padding: const EdgeInsets.all(14),
+                                  width: double.infinity,
+                                  margin: const EdgeInsets.only(bottom: 9),
+                                  padding: const EdgeInsets.all(13),
                                   decoration: BoxDecoration(
                                     color: AppColors.surface,
-                                    borderRadius: BorderRadius.circular(18),
+                                    borderRadius: BorderRadius.circular(16),
                                     border: Border.all(color: AppColors.border),
                                   ),
-                                  child: Row(
+                                  child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      CircleAvatar(
-                                        radius: 18,
-                                        backgroundColor: AppColors.secondary,
-                                        child: const Icon(
-                                          Icons.person_outline_rounded,
-                                          size: 18,
-                                          color: AppColors.primary,
+                                      Text(
+                                        comment['authorName'] as String? ?? 'TiB User',
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w800,
                                         ),
                                       ),
-                                      const SizedBox(width: 10),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              comment['authorName'] as String? ?? 'TiB User',
-                                              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
-                                            ),
-                                            const SizedBox(height: 5),
-                                            Text(
-                                              comment['body'] as String? ?? '',
-                                              style: const TextStyle(fontSize: 13, height: 1.45),
-                                            ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              _relativeDate(comment['createdAt']),
-                                              style: const TextStyle(fontSize: 9.5, color: AppColors.textMuted),
-                                            ),
-                                          ],
+                                      const SizedBox(height: 5),
+                                      Text(
+                                        comment['body'] as String? ?? '',
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          height: 1.45,
                                         ),
                                       ),
                                     ],
                                   ),
                                 );
-                              }),
-                            const SizedBox(height: 14),
-                            SizedBox(
-                              width: double.infinity,
-                              child: FilledButton.icon(
-                                onPressed: onDelete,
-                                icon: const Icon(Icons.delete_outline_rounded),
-                                label: const Text('Remove Post'),
-                              ),
-                            ),
-                          ],
-                        );
-                      },
+                              }).toList(),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: onDelete,
+                        icon: const Icon(Icons.delete_outline_rounded),
+                        label: const Text('Remove Post'),
+                      ),
                     ),
                   ),
                 ],
