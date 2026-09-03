@@ -1,4 +1,4 @@
-import 'package:cloud_functions/cloud_functions.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
@@ -17,11 +17,9 @@ class _StaffCreateScreenState extends State<StaffCreateScreen> {
   final _email = TextEditingController();
   final _trainer = TextEditingController();
   final _photo = TextEditingController();
-  final _password = TextEditingController();
   final _score = TextEditingController();
   final _notes = TextEditingController();
   bool _groomingCompleted = false;
-  bool _obscurePassword = true;
   String _role = 'consultant';
   bool _saving = false;
 
@@ -33,7 +31,6 @@ class _StaffCreateScreenState extends State<StaffCreateScreen> {
       _email,
       _trainer,
       _photo,
-      _password,
       _score,
       _notes,
     ]) {
@@ -45,6 +42,8 @@ class _StaffCreateScreenState extends State<StaffCreateScreen> {
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
 
+    final staffId = _staffId.text.trim();
+    final email = _email.text.trim().toLowerCase();
     final scoreText = _score.text.trim();
     final scoreValue = double.tryParse(scoreText);
     if (scoreText.isNotEmpty && scoreValue == null) {
@@ -54,32 +53,56 @@ class _StaffCreateScreenState extends State<StaffCreateScreen> {
 
     setState(() => _saving = true);
     try {
-      final callable = FirebaseFunctions.instanceFor(region: 'asia-southeast1')
-          .httpsCallable('createStaffAccount');
-      final result = await callable.call(<String, dynamic>{
-        'staffId': _staffId.text.trim(),
+      final users = FirebaseFirestore.instance.collection('users');
+      final existingStaff = await users
+          .where('staffId', isEqualTo: staffId)
+          .limit(1)
+          .get();
+      if (existingStaff.docs.isNotEmpty) {
+        _message('This Staff ID is already registered.');
+        return;
+      }
+
+      final existingEmail = await users
+          .where('email', isEqualTo: email)
+          .limit(1)
+          .get();
+      if (existingEmail.docs.isNotEmpty) {
+        _message('This email is already linked to a profile.');
+        return;
+      }
+
+      final uid = users.doc().id;
+      await users.doc(uid).set({
+        'uid': uid,
+        'staffId': staffId,
         'name': _name.text.trim(),
-        'email': _email.text.trim().toLowerCase(),
+        'email': email,
         'trainerName': _trainer.text.trim(),
         'photoUrl': _photo.text.trim(),
-        'password': _password.text,
         'role': _role,
+        'isActive': true,
+        'isPremium': false,
+        'onboardingComplete': true,
         'groomingCompleted': _groomingCompleted,
         'groomingScore': scoreValue,
         'groomingNotes': _notes.text.trim(),
+        'registeredAt': FieldValue.serverTimestamp(),
+        'groomingCompletedAt': _groomingCompleted
+            ? FieldValue.serverTimestamp()
+            : null,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
       });
 
-      final data = result.data;
       if (!mounted) return;
       await showDialog<void>(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Text('Staff Account Created'),
-          content: Text(
-            'The Firebase Authentication account and staff profile are ready.\n\n'
-            'Staff ID: ${data is Map ? data['staffId'] ?? _staffId.text.trim() : _staffId.text.trim()}\n'
-            'Email: ${data is Map ? data['email'] ?? _email.text.trim() : _email.text.trim()}\n\n'
-            'The staff member can sign in with the temporary password and use Forgot password later to set a new password.',
+          title: const Text('Staff Profile Created'),
+          content: const Text(
+            'The staff profile has been added successfully.\n\n'
+            'Authentication account creation is temporarily kept outside this flow while the project remains on Firebase\'s free plan.',
           ),
           actions: [
             FilledButton(
@@ -91,29 +114,12 @@ class _StaffCreateScreenState extends State<StaffCreateScreen> {
       );
       if (!mounted) return;
       Navigator.pop(context, true);
-    } on FirebaseFunctionsException catch (error) {
-      _message(_functionsError(error));
+    } on FirebaseException catch (error) {
+      _message(error.message ?? 'Could not create the staff profile.');
     } catch (_) {
-      _message('Could not create staff account. Please try again.');
+      _message('Could not create the staff profile. Please try again.');
     } finally {
       if (mounted) setState(() => _saving = false);
-    }
-  }
-
-  String _functionsError(FirebaseFunctionsException error) {
-    switch (error.code) {
-      case 'unauthenticated':
-        return 'Your admin session has expired. Please sign in again.';
-      case 'permission-denied':
-        return 'Only an active administrator can create staff accounts.';
-      case 'already-exists':
-        return error.message ?? 'The Staff ID or email is already registered.';
-      case 'invalid-argument':
-        return error.message ?? 'Please check the staff details.';
-      case 'unavailable':
-        return 'Staff account service is temporarily unavailable.';
-      default:
-        return error.message ?? 'Could not create staff account.';
     }
   }
 
@@ -169,11 +175,11 @@ class _StaffCreateScreenState extends State<StaffCreateScreen> {
                   padding: EdgeInsets.all(16),
                   child: Row(
                     children: [
-                      Icon(Icons.verified_user_outlined),
+                      Icon(Icons.badge_outlined),
                       SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          'This creates a real Firebase Authentication account and the matching staff profile. Only active administrators can use this flow.',
+                          'Create the staff profile now. Firebase Authentication account creation will be added later without blocking the rest of the staff workflow.',
                           style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
                         ),
                       ),
@@ -182,8 +188,16 @@ class _StaffCreateScreenState extends State<StaffCreateScreen> {
                 ),
               ),
               const SizedBox(height: 20),
-              _field(_staffId, 'Staff ID', validator: (value) => _required(value, 'Staff ID')),
-              _field(_name, 'Name', validator: (value) => _required(value, 'Name')),
+              _field(
+                _staffId,
+                'Staff ID',
+                validator: (value) => _required(value, 'Staff ID'),
+              ),
+              _field(
+                _name,
+                'Name',
+                validator: (value) => _required(value, 'Name'),
+              ),
               _field(
                 _email,
                 'Email',
@@ -200,29 +214,6 @@ class _StaffCreateScreenState extends State<StaffCreateScreen> {
               ),
               _field(_trainer, 'Trainer Name'),
               _field(_photo, 'Photo URL', keyboardType: TextInputType.url),
-              TextFormField(
-                controller: _password,
-                obscureText: _obscurePassword,
-                validator: (value) {
-                  if (value == null || value.isEmpty) return 'Temporary password is required';
-                  if (value.length < 8) return 'Use at least 8 characters';
-                  return null;
-                },
-                decoration: InputDecoration(
-                  labelText: 'Temporary Password',
-                  helperText: 'Give this password to the staff member securely.',
-                  border: const OutlineInputBorder(),
-                  suffixIcon: IconButton(
-                    onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
-                    icon: Icon(
-                      _obscurePassword
-                          ? Icons.visibility_outlined
-                          : Icons.visibility_off_outlined,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 initialValue: _role,
                 decoration: const InputDecoration(
@@ -239,7 +230,9 @@ class _StaffCreateScreenState extends State<StaffCreateScreen> {
                     child: Text('Administrator'),
                   ),
                 ],
-                onChanged: (value) => setState(() => _role = value ?? 'consultant'),
+                onChanged: (value) => setState(
+                  () => _role = value ?? 'consultant',
+                ),
               ),
               const SizedBox(height: 12),
               SwitchListTile.adaptive(
@@ -249,12 +242,16 @@ class _StaffCreateScreenState extends State<StaffCreateScreen> {
                   style: TextStyle(fontWeight: FontWeight.w700),
                 ),
                 value: _groomingCompleted,
-                onChanged: (value) => setState(() => _groomingCompleted = value),
+                onChanged: (value) => setState(
+                  () => _groomingCompleted = value,
+                ),
               ),
               _field(
                 _score,
                 'Grooming Score',
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
               ),
               _field(
                 _notes,
@@ -265,7 +262,9 @@ class _StaffCreateScreenState extends State<StaffCreateScreen> {
               FilledButton.icon(
                 onPressed: _saving ? null : _save,
                 icon: const Icon(Icons.person_add_alt_1_rounded),
-                label: Text(_saving ? 'Creating account...' : 'Create Staff Account'),
+                label: Text(
+                  _saving ? 'Saving...' : 'Create Staff Profile',
+                ),
               ),
             ],
           ),
