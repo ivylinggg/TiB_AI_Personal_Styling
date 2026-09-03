@@ -75,7 +75,7 @@ service cloud.firestore {
     }
 
     match /forum_posts/{postId} {
-      allow read: if isSignedIn();
+      allow get, list: if isSignedIn();
       allow create: if isSignedIn()
         && request.resource.data.authorId == request.auth.uid;
       allow update: if isSignedIn()
