@@ -2,12 +2,14 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../forum/customer_forum_screen.dart';
 import '../main/main_screen.dart';
 import 'admin_dashboard_screen.dart';
 import 'admin_profile_screen.dart';
 import 'analysis_management_screen.dart';
 import 'consultation_management_screen.dart';
 import 'content_management_screen.dart';
+import 'forum_management_screen.dart';
 import 'premium_management_screen.dart';
 import 'staff_management_screen.dart';
 import 'user_management_screen.dart';
@@ -35,10 +37,7 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
   }
 
   Future<void> _verifyAdministratorAccess() async {
-    if (mounted) {
-      setState(() => _isCheckingAccess = true);
-    }
-
+    if (mounted) setState(() => _isCheckingAccess = true);
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
@@ -50,13 +49,11 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
         });
         return;
       }
-
       final document = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
       final data = document.data();
       final role = (data?['role'] as String? ?? '').trim().toLowerCase();
       final isActive = data?['isActive'] as bool? ?? true;
       final isAdmin = role == 'admin';
-
       if (!mounted) return;
       setState(() {
         _isCheckingAccess = false;
@@ -137,40 +134,11 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
               const ListTile(
                 contentPadding: EdgeInsets.zero,
                 title: Text('Switch Role Dashboard'),
-                subtitle: Text(
-                  'Preview another role without changing your real Firebase role.',
-                ),
+                subtitle: Text('Preview another role without changing your real Firebase role.'),
               ),
-              _ModeTile(
-                title: 'Administrator',
-                subtitle: 'Manage users, content, premium, staff and analytics',
-                icon: Icons.admin_panel_settings_outlined,
-                selected: _mode == AdminMode.administrator,
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  _setMode(AdminMode.administrator);
-                },
-              ),
-              _ModeTile(
-                title: 'Consultant',
-                subtitle: 'Accept and answer live customer requests',
-                icon: Icons.support_agent_outlined,
-                selected: _mode == AdminMode.consultantPreview,
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  _setMode(AdminMode.consultantPreview);
-                },
-              ),
-              _ModeTile(
-                title: 'Customer Dashboard',
-                subtitle: 'Open the complete customer dashboard and features',
-                icon: Icons.person_outline_rounded,
-                selected: _mode == AdminMode.customerPreview,
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  _setMode(AdminMode.customerPreview);
-                },
-              ),
+              _ModeTile(title: 'Administrator', subtitle: 'Manage users, content, premium, staff, analytics and forum', icon: Icons.admin_panel_settings_outlined, selected: _mode == AdminMode.administrator, onTap: () { Navigator.pop(sheetContext); _setMode(AdminMode.administrator); }),
+              _ModeTile(title: 'Consultant', subtitle: 'Accept and answer live customer requests', icon: Icons.support_agent_outlined, selected: _mode == AdminMode.consultantPreview, onTap: () { Navigator.pop(sheetContext); _setMode(AdminMode.consultantPreview); }),
+              _ModeTile(title: 'Customer Dashboard', subtitle: 'Open the complete customer dashboard and features', icon: Icons.person_outline_rounded, selected: _mode == AdminMode.customerPreview, onTap: () { Navigator.pop(sheetContext); _setMode(AdminMode.customerPreview); }),
             ],
           ),
         ),
@@ -190,17 +158,12 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
           const AdminProfileScreen(),
           const ConsultationManagementScreen(),
           const StaffManagementScreen(),
+          const ForumManagementScreen(),
         ];
       case AdminMode.consultantPreview:
-        return [
-          const ConsultationManagementScreen(),
-          const AdminProfileScreen(),
-        ];
+        return [const ConsultationManagementScreen(), const AdminProfileScreen()];
       case AdminMode.customerPreview:
-        return [
-          const MainScreen(adminPreview: true),
-          const AdminProfileScreen(),
-        ];
+        return [const MainScreen(adminPreview: true), const AdminProfileScreen()];
     }
   }
 
@@ -216,17 +179,12 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
           NavigationDestination(icon: Icon(Icons.admin_panel_settings_outlined), selectedIcon: Icon(Icons.admin_panel_settings), label: 'Admin'),
           NavigationDestination(icon: Icon(Icons.support_agent_outlined), selectedIcon: Icon(Icons.support_agent), label: 'Consult'),
           NavigationDestination(icon: Icon(Icons.badge_outlined), selectedIcon: Icon(Icons.badge_rounded), label: 'Staff'),
+          NavigationDestination(icon: Icon(Icons.forum_outlined), selectedIcon: Icon(Icons.forum_rounded), label: 'Forum'),
         ];
       case AdminMode.consultantPreview:
-        return const [
-          NavigationDestination(icon: Icon(Icons.support_agent_outlined), selectedIcon: Icon(Icons.support_agent), label: 'Live Consultancy'),
-          NavigationDestination(icon: Icon(Icons.admin_panel_settings_outlined), selectedIcon: Icon(Icons.admin_panel_settings), label: 'Admin'),
-        ];
+        return const [NavigationDestination(icon: Icon(Icons.support_agent_outlined), selectedIcon: Icon(Icons.support_agent), label: 'Live Consultancy'), NavigationDestination(icon: Icon(Icons.admin_panel_settings_outlined), selectedIcon: Icon(Icons.admin_panel_settings), label: 'Admin')];
       case AdminMode.customerPreview:
-        return const [
-          NavigationDestination(icon: Icon(Icons.person_outline_rounded), selectedIcon: Icon(Icons.person_rounded), label: 'Customer'),
-          NavigationDestination(icon: Icon(Icons.admin_panel_settings_outlined), selectedIcon: Icon(Icons.admin_panel_settings), label: 'Admin'),
-        ];
+        return const [NavigationDestination(icon: Icon(Icons.person_outline_rounded), selectedIcon: Icon(Icons.person_rounded), label: 'Customer'), NavigationDestination(icon: Icon(Icons.admin_panel_settings_outlined), selectedIcon: Icon(Icons.admin_panel_settings), label: 'Admin')];
     }
   }
 
@@ -251,22 +209,11 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
             children: [
               const Icon(Icons.lock_outline_rounded, size: 64),
               const SizedBox(height: 18),
-              const Text(
-                'Access Restricted',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
-                textAlign: TextAlign.center,
-              ),
+              const Text('Access Restricted', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800), textAlign: TextAlign.center),
               const SizedBox(height: 8),
-              Text(
-                _accessError ?? 'Administrator access is required.',
-                textAlign: TextAlign.center,
-              ),
+              Text(_accessError ?? 'Administrator access is required.', textAlign: TextAlign.center),
               const SizedBox(height: 18),
-              FilledButton.icon(
-                onPressed: _isCheckingAccess ? null : _verifyAdministratorAccess,
-                icon: const Icon(Icons.refresh_rounded),
-                label: const Text('Check Again'),
-              ),
+              FilledButton.icon(onPressed: _isCheckingAccess ? null : _verifyAdministratorAccess, icon: const Icon(Icons.refresh_rounded), label: const Text('Check Again')),
             ],
           ),
         ),
@@ -276,15 +223,8 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isCheckingAccess) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
-
-    if (!_hasAdminAccess) {
-      return _buildAccessDenied();
-    }
+    if (_isCheckingAccess) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    if (!_hasAdminAccess) return _buildAccessDenied();
 
     final pages = _pages;
     final destinations = _destinations;
@@ -295,72 +235,21 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
         titleSpacing: 16,
         title: Row(
           children: [
-            CircleAvatar(
-              radius: 16,
-              backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
-              child: Icon(_modeIcon, size: 18),
-            ),
+            CircleAvatar(radius: 16, backgroundColor: Theme.of(context).colorScheme.secondaryContainer, child: Icon(_modeIcon, size: 18)),
             const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Flexible(
-                        child: Text(
-                          _modeLabel,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
-                        ),
-                      ),
-                      if (_mode != AdminMode.administrator) ...[
-                        const SizedBox(width: 7),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.secondaryContainer,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Text(
-                            'PREVIEW',
-                            style: TextStyle(fontSize: 8, fontWeight: FontWeight.w800),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                  Text(
-                    _modeDescription,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ],
-              ),
-            ),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [Flexible(child: Text(_modeLabel, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800))), if (_mode != AdminMode.administrator) ...[const SizedBox(width: 7), Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3), decoration: BoxDecoration(color: Theme.of(context).colorScheme.secondaryContainer, borderRadius: BorderRadius.circular(8)), child: const Text('PREVIEW', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w800)))]],
+              Text(_modeDescription, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodySmall),
+            ])),
           ],
         ),
         actions: [
-          IconButton(
-            tooltip: 'Refresh administrator access',
-            onPressed: _isCheckingAccess ? null : _verifyAdministratorAccess,
-            icon: const Icon(Icons.refresh_rounded),
-          ),
-          IconButton(
-            tooltip: 'Switch Role Dashboard',
-            onPressed: _showModeSelector,
-            icon: const Icon(Icons.swap_horiz_rounded),
-          ),
+          IconButton(tooltip: 'Refresh administrator access', onPressed: _isCheckingAccess ? null : _verifyAdministratorAccess, icon: const Icon(Icons.refresh_rounded)),
+          IconButton(tooltip: 'Switch Role Dashboard', onPressed: _showModeSelector, icon: const Icon(Icons.swap_horiz_rounded)),
         ],
       ),
       body: IndexedStack(index: safeIndex, children: pages),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: safeIndex,
-        onDestinationSelected: _navigateTo,
-        destinations: destinations,
-      ),
+      bottomNavigationBar: NavigationBar(selectedIndex: safeIndex, onDestinationSelected: _navigateTo, destinations: destinations),
     );
   }
 }
@@ -372,13 +261,7 @@ class _ModeTile extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
 
-  const _ModeTile({
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.selected,
-    required this.onTap,
-  });
+  const _ModeTile({required this.title, required this.subtitle, required this.icon, required this.selected, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
