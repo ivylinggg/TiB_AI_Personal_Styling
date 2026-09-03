@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -61,55 +62,162 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Future<void> _showNotifications() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
     HapticFeedback.lightImpact();
+
+    if (uid == null) return;
+
+    final notificationRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('notifications');
+
+    try {
+      final snapshot = await notificationRef.limit(50).get();
+      if (snapshot.docs.isEmpty) {
+        await notificationRef.add({
+          'title': 'Welcome to TiB',
+          'body': 'Your personal styling space is ready. Explore your wardrobe and discover a look that feels like you.',
+          'type': 'system',
+          'read': false,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+    } catch (_) {
+      // The empty-state UI below remains usable even when the first write is unavailable.
+    }
+
+    if (!mounted) return;
+
     await showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
       showDragHandle: true,
       backgroundColor: AppColors.background,
       builder: (sheetContext) {
         return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Notifications', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
-                const SizedBox(height: 14),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: AppColors.border),
-                  ),
-                  child: const Row(
+          child: SizedBox(
+            height: MediaQuery.sizeOf(sheetContext).height * 0.72,
+            child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: notificationRef.limit(50).snapshots(),
+              builder: (context, snapshot) {
+                final docs = [...?snapshot.data?.docs];
+                docs.sort((a, b) {
+                  final aValue = a.data()['createdAt'];
+                  final bValue = b.data()['createdAt'];
+                  final aDate = aValue is Timestamp ? aValue.toDate() : DateTime.fromMillisecondsSinceEpoch(0);
+                  final bDate = bValue is Timestamp ? bValue.toDate() : DateTime.fromMillisecondsSinceEpoch(0);
+                  return bDate.compareTo(aDate);
+                });
+
+                return Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.auto_awesome_rounded, color: AppColors.primary),
-                      SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Your TiB styling space is ready', style: TextStyle(fontWeight: FontWeight.w800)),
-                            SizedBox(height: 5),
-                            Text('Explore your wardrobe and discover a look that feels like you.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.4)),
-                          ],
-                        ),
+                      Row(
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              'Notifications',
+                              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
+                            ),
+                          ),
+                          if (docs.isNotEmpty)
+                            TextButton(
+                              onPressed: () async {
+                                final batch = FirebaseFirestore.instance.batch();
+                                for (final doc in docs) {
+                                  if (doc.data()['read'] != true) {
+                                    batch.update(doc.reference, {'read': true});
+                                  }
+                                }
+                                await batch.commit();
+                              },
+                              child: const Text('Mark all read'),
+                            ),
+                        ],
                       ),
+                      const SizedBox(height: 12),
+                      if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData)
+                        const Expanded(child: Center(child: CircularProgressIndicator()))
+                      else if (docs.isEmpty)
+                        const Expanded(
+                          child: Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.notifications_none_rounded, size: 52, color: AppColors.primary),
+                                SizedBox(height: 12),
+                                Text('No notifications yet', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                                SizedBox(height: 6),
+                                Text('We’ll keep important styling updates here.', textAlign: TextAlign.center),
+                              ],
+                            ),
+                          ),
+                        )
+                      else
+                        Expanded(
+                          child: ListView.separated(
+                            itemCount: docs.length,
+                            separatorBuilder: (_, _) => const SizedBox(height: 8),
+                            itemBuilder: (context, index) {
+                              final doc = docs[index];
+                              final data = doc.data();
+                              final read = data['read'] == true;
+                              final title = data['title'] as String? ?? 'TiB update';
+                              final body = data['body'] as String? ?? '';
+                              final createdAt = data['createdAt'];
+
+                              return Card(
+                                elevation: 0,
+                                color: read ? AppColors.surface : AppColors.secondary.withValues(alpha: .42),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(17),
+                                  side: const BorderSide(color: AppColors.border),
+                                ),
+                                child: ListTile(
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
+                                  leading: CircleAvatar(
+                                    backgroundColor: AppColors.surfaceMuted,
+                                    child: Icon(
+                                      read ? Icons.notifications_none_rounded : Icons.notifications_active_rounded,
+                                      color: AppColors.primary,
+                                    ),
+                                  ),
+                                  title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+                                  subtitle: Padding(
+                                    padding: const EdgeInsets.only(top: 4),
+                                    child: Text('$body\n${_formatNotificationDate(createdAt)}'),
+                                  ),
+                                  isThreeLine: true,
+                                  onTap: () async {
+                                    if (!read) await doc.reference.update({'read': true});
+                                  },
+                                ),
+                              );
+                            },
+                          ),
+                        ),
                     ],
                   ),
-                ),
-                const SizedBox(height: 10),
-                const Text('No new notifications', style: TextStyle(color: AppColors.textMuted, fontSize: 11.5)),
-              ],
+                );
+              },
             ),
           ),
         );
       },
     );
+  }
+
+  String _formatNotificationDate(dynamic value) {
+    if (value is! Timestamp) return 'Just now';
+    final date = value.toDate();
+    final day = date.day.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    final hour = date.hour.toString().padLeft(2, '0');
+    final minute = date.minute.toString().padLeft(2, '0');
+    return '$day/$month/${date.year} · $hour:$minute';
   }
 
   Future<void> _logout() async {
