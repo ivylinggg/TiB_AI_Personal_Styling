@@ -2,7 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
-import '../forum/customer_forum_screen.dart';
 import '../main/main_screen.dart';
 import 'admin_dashboard_screen.dart';
 import 'admin_profile_screen.dart';
@@ -72,38 +71,23 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
     }
   }
 
-  String get _modeLabel {
-    switch (_mode) {
-      case AdminMode.administrator:
-        return 'Administrator';
-      case AdminMode.consultantPreview:
-        return 'Consultant Console';
-      case AdminMode.customerPreview:
-        return 'Customer Preview';
-    }
-  }
+  String get _modeLabel => switch (_mode) {
+        AdminMode.administrator => 'Administrator',
+        AdminMode.consultantPreview => 'Consultant Console',
+        AdminMode.customerPreview => 'Customer Preview',
+      };
 
-  String get _modeDescription {
-    switch (_mode) {
-      case AdminMode.administrator:
-        return 'Full administration access';
-      case AdminMode.consultantPreview:
-        return 'Respond to live customer consultations';
-      case AdminMode.customerPreview:
-        return 'Preview the complete customer dashboard';
-    }
-  }
+  String get _modeDescription => switch (_mode) {
+        AdminMode.administrator => 'Full administration access',
+        AdminMode.consultantPreview => 'Respond to live customer consultations',
+        AdminMode.customerPreview => 'Preview the complete customer dashboard',
+      };
 
-  IconData get _modeIcon {
-    switch (_mode) {
-      case AdminMode.administrator:
-        return Icons.admin_panel_settings_outlined;
-      case AdminMode.consultantPreview:
-        return Icons.support_agent_rounded;
-      case AdminMode.customerPreview:
-        return Icons.person_outline_rounded;
-    }
-  }
+  IconData get _modeIcon => switch (_mode) {
+        AdminMode.administrator => Icons.admin_panel_settings_outlined,
+        AdminMode.consultantPreview => Icons.support_agent_rounded,
+        AdminMode.customerPreview => Icons.person_outline_rounded,
+      };
 
   void _setMode(AdminMode mode) {
     if (_mode == mode) return;
@@ -136,9 +120,36 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
                 title: Text('Switch Role Dashboard'),
                 subtitle: Text('Preview another role without changing your real Firebase role.'),
               ),
-              _ModeTile(title: 'Administrator', subtitle: 'Manage users, content, premium, staff, analytics and forum', icon: Icons.admin_panel_settings_outlined, selected: _mode == AdminMode.administrator, onTap: () { Navigator.pop(sheetContext); _setMode(AdminMode.administrator); }),
-              _ModeTile(title: 'Consultant', subtitle: 'Accept and answer live customer requests', icon: Icons.support_agent_outlined, selected: _mode == AdminMode.consultantPreview, onTap: () { Navigator.pop(sheetContext); _setMode(AdminMode.consultantPreview); }),
-              _ModeTile(title: 'Customer Dashboard', subtitle: 'Open the complete customer dashboard and features', icon: Icons.person_outline_rounded, selected: _mode == AdminMode.customerPreview, onTap: () { Navigator.pop(sheetContext); _setMode(AdminMode.customerPreview); }),
+              _ModeTile(
+                title: 'Administrator',
+                subtitle: 'Manage users, content, forum, premium, staff and analytics',
+                icon: Icons.admin_panel_settings_outlined,
+                selected: _mode == AdminMode.administrator,
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _setMode(AdminMode.administrator);
+                },
+              ),
+              _ModeTile(
+                title: 'Consultant',
+                subtitle: 'Accept and answer live customer requests',
+                icon: Icons.support_agent_outlined,
+                selected: _mode == AdminMode.consultantPreview,
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _setMode(AdminMode.consultantPreview);
+                },
+              ),
+              _ModeTile(
+                title: 'Customer Dashboard',
+                subtitle: 'Open the complete customer dashboard and features',
+                icon: Icons.person_outline_rounded,
+                selected: _mode == AdminMode.customerPreview,
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _setMode(AdminMode.customerPreview);
+                },
+              ),
             ],
           ),
         ),
@@ -146,47 +157,49 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
     );
   }
 
-  List<Widget> get _pages {
-    switch (_mode) {
-      case AdminMode.administrator:
-        return [
-          AdminDashboardScreen(onNavigate: _navigateTo),
-          const UserManagementScreen(),
-          const AnalysisManagementScreen(),
-          const ContentManagementScreen(),
-          const PremiumManagementScreen(),
-          const AdminProfileScreen(),
-          const ConsultationManagementScreen(),
-          const StaffManagementScreen(),
-          const ForumManagementScreen(),
-        ];
-      case AdminMode.consultantPreview:
-        return [const ConsultationManagementScreen(), const AdminProfileScreen()];
-      case AdminMode.customerPreview:
-        return [const MainScreen(adminPreview: true), const AdminProfileScreen()];
-    }
-  }
+  List<Widget> get _pages => switch (_mode) {
+        AdminMode.administrator => [
+            AdminDashboardScreen(onNavigate: _navigateTo),
+            const UserManagementScreen(),
+            const AnalysisManagementScreen(),
+            const ContentManagementScreen(),
+            const PremiumManagementScreen(),
+            const AdminProfileScreen(),
+            const ConsultationManagementScreen(),
+            const StaffManagementScreen(),
+            const ForumManagementScreen(),
+          ],
+        AdminMode.consultantPreview => [
+            const ConsultationManagementScreen(),
+            const AdminProfileScreen(),
+          ],
+        AdminMode.customerPreview => [
+            const MainScreen(adminPreview: true),
+            const AdminProfileScreen(),
+          ],
+      };
 
-  List<NavigationDestination> get _destinations {
-    switch (_mode) {
-      case AdminMode.administrator:
-        return const [
-          NavigationDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard), label: 'Dashboard'),
-          NavigationDestination(icon: Icon(Icons.people_outline), selectedIcon: Icon(Icons.people), label: 'Users'),
-          NavigationDestination(icon: Icon(Icons.analytics_outlined), selectedIcon: Icon(Icons.analytics), label: 'Analysis'),
-          NavigationDestination(icon: Icon(Icons.library_books_outlined), selectedIcon: Icon(Icons.library_books), label: 'Content'),
-          NavigationDestination(icon: Icon(Icons.workspace_premium_outlined), selectedIcon: Icon(Icons.workspace_premium), label: 'Premium'),
-          NavigationDestination(icon: Icon(Icons.admin_panel_settings_outlined), selectedIcon: Icon(Icons.admin_panel_settings), label: 'Admin'),
-          NavigationDestination(icon: Icon(Icons.support_agent_outlined), selectedIcon: Icon(Icons.support_agent), label: 'Consult'),
-          NavigationDestination(icon: Icon(Icons.badge_outlined), selectedIcon: Icon(Icons.badge_rounded), label: 'Staff'),
-          NavigationDestination(icon: Icon(Icons.forum_outlined), selectedIcon: Icon(Icons.forum_rounded), label: 'Forum'),
-        ];
-      case AdminMode.consultantPreview:
-        return const [NavigationDestination(icon: Icon(Icons.support_agent_outlined), selectedIcon: Icon(Icons.support_agent), label: 'Live Consultancy'), NavigationDestination(icon: Icon(Icons.admin_panel_settings_outlined), selectedIcon: Icon(Icons.admin_panel_settings), label: 'Admin')];
-      case AdminMode.customerPreview:
-        return const [NavigationDestination(icon: Icon(Icons.person_outline_rounded), selectedIcon: Icon(Icons.person_rounded), label: 'Customer'), NavigationDestination(icon: Icon(Icons.admin_panel_settings_outlined), selectedIcon: Icon(Icons.admin_panel_settings), label: 'Admin')];
-    }
-  }
+  List<NavigationDestination> get _destinations => switch (_mode) {
+        AdminMode.administrator => const [
+            NavigationDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard), label: 'Dashboard'),
+            NavigationDestination(icon: Icon(Icons.people_outline), selectedIcon: Icon(Icons.people), label: 'Users'),
+            NavigationDestination(icon: Icon(Icons.analytics_outlined), selectedIcon: Icon(Icons.analytics), label: 'Analysis'),
+            NavigationDestination(icon: Icon(Icons.library_books_outlined), selectedIcon: Icon(Icons.library_books), label: 'Content'),
+            NavigationDestination(icon: Icon(Icons.workspace_premium_outlined), selectedIcon: Icon(Icons.workspace_premium), label: 'Premium'),
+            NavigationDestination(icon: Icon(Icons.admin_panel_settings_outlined), selectedIcon: Icon(Icons.admin_panel_settings), label: 'Admin'),
+            NavigationDestination(icon: Icon(Icons.support_agent_outlined), selectedIcon: Icon(Icons.support_agent), label: 'Consult'),
+            NavigationDestination(icon: Icon(Icons.badge_outlined), selectedIcon: Icon(Icons.badge_rounded), label: 'Staff'),
+            NavigationDestination(icon: Icon(Icons.forum_outlined), selectedIcon: Icon(Icons.forum_rounded), label: 'Forum'),
+          ],
+        AdminMode.consultantPreview => const [
+            NavigationDestination(icon: Icon(Icons.support_agent_outlined), selectedIcon: Icon(Icons.support_agent), label: 'Live Consultancy'),
+            NavigationDestination(icon: Icon(Icons.admin_panel_settings_outlined), selectedIcon: Icon(Icons.admin_panel_settings), label: 'Admin'),
+          ],
+        AdminMode.customerPreview => const [
+            NavigationDestination(icon: Icon(Icons.person_outline_rounded), selectedIcon: Icon(Icons.person_rounded), label: 'Customer'),
+            NavigationDestination(icon: Icon(Icons.admin_panel_settings_outlined), selectedIcon: Icon(Icons.admin_panel_settings), label: 'Admin'),
+          ],
+      };
 
   void _navigateTo(int index) {
     if (index < 0) return;
@@ -237,10 +250,27 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
           children: [
             CircleAvatar(radius: 16, backgroundColor: Theme.of(context).colorScheme.secondaryContainer, child: Icon(_modeIcon, size: 18)),
             const SizedBox(width: 10),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [Flexible(child: Text(_modeLabel, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800))), if (_mode != AdminMode.administrator) ...[const SizedBox(width: 7), Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3), decoration: BoxDecoration(color: Theme.of(context).colorScheme.secondaryContainer, borderRadius: BorderRadius.circular(8)), child: const Text('PREVIEW', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w800)))]],
-              Text(_modeDescription, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodySmall),
-            ])),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(child: Text(_modeLabel, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800))),
+                      if (_mode != AdminMode.administrator) ...[
+                        const SizedBox(width: 7),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                          decoration: BoxDecoration(color: Theme.of(context).colorScheme.secondaryContainer, borderRadius: BorderRadius.circular(8)),
+                          child: const Text('PREVIEW', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w800)),
+                        ),
+                      ],
+                    ],
+                  ),
+                  Text(_modeDescription, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodySmall),
+                ],
+              ),
+            ),
           ],
         ),
         actions: [
