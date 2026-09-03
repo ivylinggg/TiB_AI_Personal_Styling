@@ -13,30 +13,15 @@ class ContentManagementScreen extends StatefulWidget {
 
 class _ContentManagementScreenState extends State<ContentManagementScreen> {
   final TextEditingController searchController = TextEditingController();
-
   List<QueryDocumentSnapshot<Map<String, dynamic>>> contents = [];
   List<QueryDocumentSnapshot<Map<String, dynamic>>> filteredContents = [];
-
   bool isLoading = true;
-
   String selectedType = 'All';
   String selectedStatus = 'All';
   bool featuredOnly = false;
 
-  final List<String> contentTypes = const [
-    'All',
-    'Learning',
-    'Colour Guide',
-    'Style Tip',
-    'AI Styling',
-  ];
-
-  final List<String> contentStatuses = const [
-    'All',
-    'Published',
-    'Draft',
-    'Premium',
-  ];
+  final List<String> contentTypes = const ['All', 'Learning', 'Colour Guide', 'Style Tip', 'AI Styling'];
+  final List<String> contentStatuses = const ['All', 'Published', 'Draft', 'Premium'];
 
   @override
   void initState() {
@@ -53,74 +38,60 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
   }
 
   Future<void> loadContents() async {
+    if (mounted) setState(() => isLoading = true);
     try {
-      if (mounted) setState(() => isLoading = true);
-
-      final snapshot = await FirebaseFirestore.instance
-          .collection('content')
-          .orderBy('createdAt', descending: true)
-          .get();
-
+      final snapshot = await FirebaseFirestore.instance.collection('content').get();
+      final docs = snapshot.docs.toList()
+        ..sort((a, b) => _dateValue(b.data()['createdAt']).compareTo(_dateValue(a.data()['createdAt'])));
       if (!mounted) return;
-
       setState(() {
-        contents = snapshot.docs;
+        contents = docs;
         isLoading = false;
       });
       filterContents();
+    } on FirebaseException catch (error) {
+      if (!mounted) return;
+      setState(() => isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not load content: ${error.message ?? error.code}')));
     } catch (_) {
       if (!mounted) return;
       setState(() => isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('We couldn’t load the content. Please try again.')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not load content. Please try again.')));
     }
+  }
+
+  DateTime _dateValue(dynamic value) {
+    if (value is Timestamp) return value.toDate();
+    if (value is DateTime) return value;
+    return DateTime.fromMillisecondsSinceEpoch(0);
   }
 
   void filterContents() {
     if (!mounted) return;
     final query = searchController.text.trim().toLowerCase();
-
-    setState(() {
-      filteredContents = contents.where((document) {
-        final data = document.data();
-        final title = (data['title'] as String? ?? '').toLowerCase();
-        final description = (data['description'] as String? ?? '').toLowerCase();
-        final type = data['type'] as String? ?? 'Learning';
-        final isPublished = data['isPublished'] as bool? ?? false;
-        final isFeatured = data['isFeatured'] as bool? ?? false;
-        final isPremium = data['isPremium'] as bool? ?? false;
-
-        final matchesSearch = query.isEmpty ||
-            title.contains(query) ||
-            description.contains(query) ||
-            type.toLowerCase().contains(query);
-        final matchesType = selectedType == 'All' || type == selectedType;
-
-        bool matchesStatus = true;
-        switch (selectedStatus) {
-          case 'Published':
-            matchesStatus = isPublished;
-            break;
-          case 'Draft':
-            matchesStatus = !isPublished;
-            break;
-          case 'Premium':
-            matchesStatus = isPremium;
-            break;
-        }
-
-        final matchesFeatured = !featuredOnly || isFeatured;
-        return matchesSearch && matchesType && matchesStatus && matchesFeatured;
-      }).toList();
-    });
+    final results = contents.where((document) {
+      final data = document.data();
+      final title = (data['title'] as String? ?? '').toLowerCase();
+      final description = (data['description'] as String? ?? '').toLowerCase();
+      final type = data['type'] as String? ?? 'Learning';
+      final published = data['isPublished'] as bool? ?? false;
+      final featured = data['isFeatured'] as bool? ?? false;
+      final premium = data['isPremium'] as bool? ?? false;
+      final matchesSearch = query.isEmpty || title.contains(query) || description.contains(query) || type.toLowerCase().contains(query);
+      final matchesType = selectedType == 'All' || type == selectedType;
+      final matchesStatus = switch (selectedStatus) {
+        'Published' => published,
+        'Draft' => !published,
+        'Premium' => premium,
+        _ => true,
+      };
+      return matchesSearch && matchesType && matchesStatus && (!featuredOnly || featured);
+    }).toList();
+    setState(() => filteredContents = results);
   }
 
   Future<void> createContent() async {
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (_) => const _ContentFormDialog(),
-    );
+    final result = await showDialog<bool>(context: context, builder: (_) => const _ContentFormDialog());
     if (result == true) await loadContents();
   }
 
@@ -146,46 +117,32 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
     final data = document.data();
     final current = data['isPublished'] as bool? ?? false;
     final title = data['title'] as String? ?? 'this content';
-
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text(current ? 'Unpublish Content?' : 'Publish Content?'),
-        content: Text(current
-            ? '“$title” will no longer be shown to customers.'
-            : '“$title” will become visible to customers.'),
+        content: Text(current ? '“$title” will no longer be shown to customers.' : '“$title” will become visible to customers.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
           FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: Text(current ? 'Unpublish' : 'Publish')),
         ],
       ),
     );
-
     if (confirmed != true) return;
-
     try {
-      await FirebaseFirestore.instance.collection('content').doc(document.id).update({
-        'isPublished': !current,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      await document.reference.update({'isPublished': !current, 'updatedAt': FieldValue.serverTimestamp()});
       if (!mounted) return;
       await loadContents();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(current ? 'Content unpublished.' : 'Content published.')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(current ? 'Content unpublished.' : 'Content published.')));
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not update this content. Please try again.')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not update this content. Please try again.')));
     }
   }
 
   Future<void> deleteContent(QueryDocumentSnapshot<Map<String, dynamic>> document) async {
-    final data = document.data();
-    final title = data['title'] as String? ?? 'this content';
-
+    final title = document.data()['title'] as String? ?? 'this content';
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -197,32 +154,24 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
         ],
       ),
     );
-
     if (confirmed != true) return;
-
     try {
-      await FirebaseFirestore.instance.collection('content').doc(document.id).delete();
+      await document.reference.delete();
       if (!mounted) return;
       await loadContents();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Content deleted successfully.')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Content deleted successfully.')));
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not delete this content. Please try again.')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not delete this content. Please try again.')));
     }
   }
 
   void openContentDetail(BuildContext context, Map<String, dynamic> data) {
-    final createdAt = data['createdAt'] as Timestamp?;
-    final updatedAt = data['updatedAt'] as Timestamp?;
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => ContentDetailScreen(
+        builder: (_) => ContentDetailScreen(
           title: data['title'] as String? ?? 'Untitled',
           description: data['description'] as String? ?? '',
           body: data['body'] as String? ?? '',
@@ -230,28 +179,18 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
           isPublished: data['isPublished'] as bool? ?? false,
           isFeatured: data['isFeatured'] as bool? ?? false,
           isPremium: data['isPremium'] as bool? ?? false,
-          createdAt: createdAt?.toDate(),
-          updatedAt: updatedAt?.toDate(),
+          createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
+          updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
         ),
       ),
     );
   }
 
-  Widget buildStatusChip(String text, bool active) {
+  Widget _statusChip(String text, bool active) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: active ? AppColors.success.withValues(alpha: 0.12) : AppColors.surfaceMuted,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(
-          color: active ? AppColors.success : AppColors.textSecondary,
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
+      decoration: BoxDecoration(color: active ? AppColors.success.withValues(alpha: .12) : AppColors.surfaceMuted, borderRadius: BorderRadius.circular(20)),
+      child: Text(text, style: TextStyle(color: active ? AppColors.success : AppColors.textSecondary, fontSize: 10.5, fontWeight: FontWeight.w800)),
     );
   }
 
@@ -261,15 +200,11 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
       appBar: AppBar(
         title: const Text('Content Management'),
         actions: [
-          IconButton(tooltip: 'Refresh', onPressed: loadContents, icon: const Icon(Icons.refresh)),
-          IconButton(onPressed: createContent, icon: const Icon(Icons.add), tooltip: 'Create Content'),
+          IconButton(tooltip: 'Refresh', onPressed: isLoading ? null : loadContents, icon: const Icon(Icons.refresh)),
+          IconButton(tooltip: 'Create Content', onPressed: createContent, icon: const Icon(Icons.add)),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: createContent,
-        icon: const Icon(Icons.add),
-        label: const Text('Create'),
-      ),
+      floatingActionButton: FloatingActionButton.extended(onPressed: createContent, icon: const Icon(Icons.add), label: const Text('Create')),
       body: RefreshIndicator(
         onRefresh: loadContents,
         child: Column(
@@ -278,14 +213,7 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
               child: TextField(
                 controller: searchController,
-                decoration: InputDecoration(
-                  hintText: 'Search title, description or type...',
-                  prefixIcon: const Icon(Icons.search),
-                  suffixIcon: searchController.text.isNotEmpty
-                      ? IconButton(onPressed: () => searchController.clear(), icon: const Icon(Icons.clear))
-                      : null,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
-                ),
+                decoration: InputDecoration(hintText: 'Search title, description or type...', prefixIcon: const Icon(Icons.search), suffixIcon: searchController.text.isEmpty ? null : IconButton(onPressed: searchController.clear, icon: const Icon(Icons.clear)), border: OutlineInputBorder(borderRadius: BorderRadius.circular(16))),
               ),
             ),
             SizedBox(
@@ -295,18 +223,7 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
                 scrollDirection: Axis.horizontal,
                 itemCount: contentTypes.length,
                 separatorBuilder: (_, _) => const SizedBox(width: 8),
-                itemBuilder: (context, index) {
-                  final type = contentTypes[index];
-                  return ChoiceChip(
-                    label: Text(type),
-                    selected: selectedType == type,
-                    showCheckmark: false,
-                    onSelected: (_) {
-                      setState(() => selectedType = type);
-                      filterContents();
-                    },
-                  );
-                },
+                itemBuilder: (_, index) => ChoiceChip(label: Text(contentTypes[index]), selected: selectedType == contentTypes[index], showCheckmark: false, onSelected: (_) { setState(() => selectedType = contentTypes[index]); filterContents(); }),
               ),
             ),
             const SizedBox(height: 4),
@@ -317,140 +234,54 @@ class _ContentManagementScreenState extends State<ContentManagementScreen> {
                 scrollDirection: Axis.horizontal,
                 itemCount: contentStatuses.length + 1,
                 separatorBuilder: (_, _) => const SizedBox(width: 8),
-                itemBuilder: (context, index) {
-                  if (index == contentStatuses.length) {
-                    return FilterChip(
-                      label: const Text('Featured only'),
-                      selected: featuredOnly,
-                      showCheckmark: false,
-                      onSelected: (value) {
-                        setState(() => featuredOnly = value);
-                        filterContents();
-                      },
-                    );
-                  }
+                itemBuilder: (_, index) {
+                  if (index == contentStatuses.length) return FilterChip(label: const Text('Featured only'), selected: featuredOnly, showCheckmark: false, onSelected: (value) { setState(() => featuredOnly = value); filterContents(); });
                   final status = contentStatuses[index];
-                  return ChoiceChip(
-                    label: Text(status),
-                    selected: selectedStatus == status,
-                    showCheckmark: false,
-                    onSelected: (_) {
-                      setState(() => selectedStatus = status);
-                      filterContents();
-                    },
-                  );
+                  return ChoiceChip(label: Text(status), selected: selectedStatus == status, showCheckmark: false, onSelected: (_) { setState(() => selectedStatus = status); filterContents(); });
                 },
               ),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  '${filteredContents.length} of ${contents.length} content item${contents.length == 1 ? '' : 's'}',
-                  style: TextStyle(color: AppColors.textSecondary, fontSize: 13, fontWeight: FontWeight.w600),
-                ),
-              ),
+              child: Align(alignment: Alignment.centerLeft, child: Text('${filteredContents.length} of ${contents.length} content items', style: TextStyle(color: AppColors.textSecondary, fontSize: 13, fontWeight: FontWeight.w600))),
             ),
             Expanded(
               child: isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : filteredContents.isEmpty
-                      ? ListView(
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          children: [
-                            const SizedBox(height: 150),
-                            Center(
-                              child: Column(
-                                children: [
-                                  const Icon(Icons.library_books_outlined, size: 64, color: AppColors.primary),
-                                  const SizedBox(height: 16),
-                                  const Text('No content found', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    searchController.text.trim().isEmpty && selectedType == 'All' && selectedStatus == 'All' && !featuredOnly
-                                        ? 'Create your first learning resource to show it here.'
-                                        : 'Try a different search or filter combination.',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(color: AppColors.textSecondary),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        )
+                      ? ListView(physics: const AlwaysScrollableScrollPhysics(), children: const [SizedBox(height: 150), Center(child: Column(children: [Icon(Icons.library_books_outlined, size: 64, color: AppColors.primary), SizedBox(height: 16), Text('No content found', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)), SizedBox(height: 6), Text('Use Create to add your first learning resource.', textAlign: TextAlign.center)]))])
                       : ListView.separated(
                           physics: const AlwaysScrollableScrollPhysics(),
                           padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
                           itemCount: filteredContents.length,
                           separatorBuilder: (_, _) => const SizedBox(height: 10),
-                          itemBuilder: (context, index) {
+                          itemBuilder: (_, index) {
                             final document = filteredContents[index];
                             final data = document.data();
                             final title = data['title'] as String? ?? 'Untitled';
                             final description = data['description'] as String? ?? '';
                             final type = data['type'] as String? ?? 'Learning';
-                            final isPublished = data['isPublished'] as bool? ?? false;
-                            final isFeatured = data['isFeatured'] as bool? ?? false;
-                            final isPremiumContent = data['isPremium'] as bool? ?? false;
-
+                            final published = data['isPublished'] as bool? ?? false;
+                            final featured = data['isFeatured'] as bool? ?? false;
+                            final premium = data['isPremium'] as bool? ?? false;
                             return Card(
                               elevation: 0,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(18),
-                                side: const BorderSide(color: AppColors.border),
-                              ),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18), side: const BorderSide(color: AppColors.border)),
                               child: ListTile(
                                 onTap: () => openContentDetail(context, data),
                                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                                leading: CircleAvatar(
-                                  backgroundColor: AppColors.secondary,
-                                  child: const Icon(Icons.library_books_outlined, color: AppColors.primary),
-                                ),
-                                title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-                                subtitle: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    if (description.isNotEmpty) ...[
-                                      const SizedBox(height: 4),
-                                      Text(description, maxLines: 2, overflow: TextOverflow.ellipsis),
-                                    ],
-                                    const SizedBox(height: 8),
-                                    Wrap(
-                                      spacing: 6,
-                                      runSpacing: 6,
-                                      children: [
-                                        Chip(label: Text(type), visualDensity: VisualDensity.compact),
-                                        buildStatusChip(isPublished ? 'PUBLISHED' : 'DRAFT', isPublished),
-                                        if (isFeatured) buildStatusChip('FEATURED', true),
-                                        if (isPremiumContent) buildStatusChip('PREMIUM', true),
-                                      ],
-                                    ),
-                                  ],
-                                ),
+                                leading: CircleAvatar(backgroundColor: AppColors.secondary, child: const Icon(Icons.library_books_outlined, color: AppColors.primary)),
+                                title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+                                subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                  if (description.isNotEmpty) ...[const SizedBox(height: 4), Text(description, maxLines: 2, overflow: TextOverflow.ellipsis)],
+                                  const SizedBox(height: 8),
+                                  Wrap(spacing: 6, runSpacing: 6, children: [Chip(label: Text(type), visualDensity: VisualDensity.compact), _statusChip(published ? 'PUBLISHED' : 'DRAFT', published), if (featured) _statusChip('FEATURED', true), if (premium) _statusChip('PREMIUM', true)]),
+                                ]),
                                 trailing: PopupMenuButton<String>(
                                   onSelected: (value) {
-                                    switch (value) {
-                                      case 'view':
-                                        openContentDetail(context, data);
-                                        break;
-                                      case 'edit':
-                                        editContent(document);
-                                        break;
-                                      case 'publish':
-                                        togglePublished(document);
-                                        break;
-                                      case 'delete':
-                                        deleteContent(document);
-                                        break;
-                                    }
+                                    switch (value) { case 'view': openContentDetail(context, data); break; case 'edit': editContent(document); break; case 'publish': togglePublished(document); break; case 'delete': deleteContent(document); break; }
                                   },
-                                  itemBuilder: (context) => [
-                                    const PopupMenuItem(value: 'view', child: Text('View')),
-                                    const PopupMenuItem(value: 'edit', child: Text('Edit')),
-                                    PopupMenuItem(value: 'publish', child: Text(isPublished ? 'Unpublish' : 'Publish')),
-                                    const PopupMenuItem(value: 'delete', child: Text('Delete')),
-                                  ],
+                                  itemBuilder: (_) => [const PopupMenuItem(value: 'view', child: Text('View')), const PopupMenuItem(value: 'edit', child: Text('Edit')), PopupMenuItem(value: 'publish', child: Text(published ? 'Unpublish' : 'Publish')), const PopupMenuItem(value: 'delete', child: Text('Delete'))],
                                 ),
                               ),
                             );
@@ -474,44 +305,23 @@ class _ContentFormDialog extends StatefulWidget {
   final bool initialFeatured;
   final bool initialPremium;
 
-  const _ContentFormDialog({
-    this.documentId,
-    this.initialTitle = '',
-    this.initialDescription = '',
-    this.initialBody = '',
-    this.initialType = 'Learning',
-    this.initialPublished = false,
-    this.initialFeatured = false,
-    this.initialPremium = false,
-  });
+  const _ContentFormDialog({this.documentId, this.initialTitle = '', this.initialDescription = '', this.initialBody = '', this.initialType = 'Learning', this.initialPublished = false, this.initialFeatured = false, this.initialPremium = false});
 
   @override
   State<_ContentFormDialog> createState() => _ContentFormDialogState();
 }
 
 class _ContentFormDialogState extends State<_ContentFormDialog> {
-  late final TextEditingController titleController;
-  late final TextEditingController descriptionController;
-  late final TextEditingController bodyController;
-  late String selectedType;
-  late bool isPublished;
-  late bool isFeatured;
-  late bool isPremium;
+  late final TextEditingController titleController = TextEditingController(text: widget.initialTitle);
+  late final TextEditingController descriptionController = TextEditingController(text: widget.initialDescription);
+  late final TextEditingController bodyController = TextEditingController(text: widget.initialBody);
+  late String selectedType = widget.initialType;
+  late bool isPublished = widget.initialPublished;
+  late bool isFeatured = widget.initialFeatured;
+  late bool isPremium = widget.initialPremium;
   bool isSaving = false;
 
-  final List<String> types = const ['Learning', 'Colour Guide', 'Style Tip', 'AI Styling'];
-
-  @override
-  void initState() {
-    super.initState();
-    titleController = TextEditingController(text: widget.initialTitle);
-    descriptionController = TextEditingController(text: widget.initialDescription);
-    bodyController = TextEditingController(text: widget.initialBody);
-    selectedType = widget.initialType;
-    isPublished = widget.initialPublished;
-    isFeatured = widget.initialFeatured;
-    isPremium = widget.initialPremium;
-  }
+  final types = const ['Learning', 'Colour Guide', 'Style Tip', 'AI Styling'];
 
   @override
   void dispose() {
@@ -525,102 +335,49 @@ class _ContentFormDialogState extends State<_ContentFormDialog> {
     final title = titleController.text.trim();
     final description = descriptionController.text.trim();
     final body = bodyController.text.trim();
-
     if (title.isEmpty || description.isEmpty || body.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please complete the title, description and content fields.')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please complete the title, description and content fields.')));
       return;
     }
-
-    if (!mounted) return;
     setState(() => isSaving = true);
-
     try {
       final collection = FirebaseFirestore.instance.collection('content');
+      final payload = {'title': title, 'description': description, 'body': body, 'type': selectedType, 'isPublished': isPublished, 'isFeatured': isFeatured, 'isPremium': isPremium, 'updatedAt': FieldValue.serverTimestamp()};
       if (widget.documentId == null) {
-        await collection.add({
-          'title': title,
-          'description': description,
-          'body': body,
-          'type': selectedType,
-          'isPublished': isPublished,
-          'isFeatured': isFeatured,
-          'isPremium': isPremium,
-          'createdAt': FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
+        await collection.add({...payload, 'createdAt': FieldValue.serverTimestamp()});
       } else {
-        await collection.doc(widget.documentId).update({
-          'title': title,
-          'description': description,
-          'body': body,
-          'type': selectedType,
-          'isPublished': isPublished,
-          'isFeatured': isFeatured,
-          'isPremium': isPremium,
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
+        await collection.doc(widget.documentId).update(payload);
       }
-
       if (!mounted) return;
       Navigator.pop(context, true);
     } catch (_) {
       if (!mounted) return;
       setState(() => isSaving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not save this content. Please try again.')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not save this content. Please try again.')));
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final isEditing = widget.documentId != null;
+    final editing = widget.documentId != null;
     return AlertDialog(
-      title: Text(isEditing ? 'Edit Content' : 'Create Content'),
+      title: Text(editing ? 'Edit Content' : 'Create Content'),
       content: SizedBox(
         width: 500,
         child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(controller: titleController, decoration: const InputDecoration(labelText: 'Title *', prefixIcon: Icon(Icons.title))),
-              const SizedBox(height: 16),
-              TextField(controller: descriptionController, maxLines: 3, decoration: const InputDecoration(labelText: 'Short Description *', alignLabelWithHint: true, prefixIcon: Icon(Icons.short_text))),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                initialValue: selectedType,
-                decoration: const InputDecoration(labelText: 'Content Type', prefixIcon: Icon(Icons.category_outlined)),
-                items: types.map((type) => DropdownMenuItem(value: type, child: Text(type))).toList(),
-                onChanged: (value) => value == null ? null : setState(() => selectedType = value),
-              ),
-              const SizedBox(height: 16),
-              TextField(controller: bodyController, maxLines: 8, decoration: const InputDecoration(labelText: 'Content *', alignLabelWithHint: true, prefixIcon: Icon(Icons.article_outlined))),
-              const SizedBox(height: 12),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Published'),
-                subtitle: const Text('Published content can be shown to customers.'),
-                value: isPublished,
-                onChanged: (value) => setState(() => isPublished = value),
-              ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Featured'),
-                subtitle: const Text('Highlight this content in the customer app.'),
-                value: isFeatured,
-                onChanged: (value) => setState(() => isFeatured = value),
-              ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Premium'),
-                subtitle: const Text('Restrict this content to Premium customers.'),
-                value: isPremium,
-                onChanged: (value) => setState(() => isPremium = value),
-              ),
-            ],
-          ),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            TextField(controller: titleController, decoration: const InputDecoration(labelText: 'Title *', prefixIcon: Icon(Icons.title))),
+            const SizedBox(height: 16),
+            TextField(controller: descriptionController, maxLines: 3, decoration: const InputDecoration(labelText: 'Short Description *', prefixIcon: Icon(Icons.short_text))),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<String>(initialValue: selectedType, decoration: const InputDecoration(labelText: 'Content Type', prefixIcon: Icon(Icons.category_outlined)), items: types.map((type) => DropdownMenuItem(value: type, child: Text(type))).toList(), onChanged: (value) { if (value != null) setState(() => selectedType = value); }),
+            const SizedBox(height: 16),
+            TextField(controller: bodyController, maxLines: 8, decoration: const InputDecoration(labelText: 'Content *', alignLabelWithHint: true, prefixIcon: Icon(Icons.article_outlined))),
+            const SizedBox(height: 12),
+            SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('Published'), value: isPublished, onChanged: (value) => setState(() => isPublished = value)),
+            SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('Featured'), value: isFeatured, onChanged: (value) => setState(() => isFeatured = value)),
+            SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('Premium'), value: isPremium, onChanged: (value) => setState(() => isPremium = value)),
+          ]),
         ),
       ),
       actions: [
