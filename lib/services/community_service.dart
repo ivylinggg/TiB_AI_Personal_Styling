@@ -36,7 +36,7 @@ class CommunityService {
       data['source'] = 'admin_content';
       data['contentId'] = contentId;
       data['contentTitle'] = contentTitle ?? title;
-      data['isOfficial'] = false;
+      data['isOfficial'] = true;
     } else {
       data['source'] = 'customer_forum';
       data['isOfficial'] = false;
@@ -124,12 +124,21 @@ class CommunityService {
     if (uid == null) {
       throw StateError('You must be signed in to publish community content.');
     }
+
+    final userSnapshot = await _db.collection('users').doc(uid).get();
+    final userData = userSnapshot.data() ?? <String, dynamic>{};
+    final profileName = (userData['name'] as String?)?.trim();
+    final authName = FirebaseAuth.instance.currentUser?.displayName?.trim();
+    final authorName = profileName?.isNotEmpty == true
+        ? profileName!
+        : (authName?.isNotEmpty == true ? authName! : 'TiB Team');
+
     return posts.add({
       'title': title.trim(),
       'body': body.trim(),
       'category': type,
       'authorId': uid,
-      'authorName': 'TiB Team',
+      'authorName': authorName,
       'source': 'admin_content',
       'contentId': contentId,
       'contentTitle': title.trim(),
