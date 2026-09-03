@@ -74,6 +74,30 @@ service cloud.firestore {
       allow list: if isAdmin() || (isSignedIn() && resource.data.isPublished == true);
     }
 
+    match /forum_posts/{postId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.authorId == request.auth.uid;
+      allow update: if isSignedIn()
+        && (resource.data.authorId == request.auth.uid || isAdmin());
+      allow delete: if isSignedIn()
+        && (resource.data.authorId == request.auth.uid || isAdmin());
+
+      match /comments/{commentId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn()
+          && request.resource.data.authorId == request.auth.uid;
+        allow update, delete: if isSignedIn()
+          && (resource.data.authorId == request.auth.uid || isAdmin());
+      }
+
+      match /likes/{userId} {
+        allow read: if isSignedIn();
+        allow create: if isOwner(userId);
+        allow delete: if isOwner(userId);
+      }
+    }
+
     match /consultations/{userId} {
       allow get, create, update: if isOwner(userId) || isConsultant();
       allow list: if isConsultant();
