@@ -42,7 +42,6 @@ class _LoginScreenState extends State<LoginScreen> {
       _showMessage('Please enter your email and password.');
       return;
     }
-
     setState(() => _stage = _LoginStage.signingIn);
     try {
       await AuthService.login(email: email, password: password);
@@ -82,65 +81,35 @@ class _LoginScreenState extends State<LoginScreen> {
       _showMessage('Your account is currently inactive.');
       return;
     }
-
     final role = await AuthService.getCurrentUserRole();
     if (!mounted) return;
-
     if (role == 'admin') {
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => const AdminMainScreen()),
-        (_) => false,
-      );
+      Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const AdminMainScreen()), (_) => false);
       return;
     }
-
     if (role == 'consultant' || role == 'staff') {
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => const StaffConsoleScreen()),
-        (_) => false,
-      );
+      Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const StaffConsoleScreen()), (_) => false);
       return;
     }
-
     final profile = await AuthService.getCurrentUserProfile();
     if (!mounted) return;
     final onboardingComplete = profile['onboardingComplete'] == true;
-    final Widget destination = onboardingComplete
-        ? const MainScreen()
-        : const FlashProfileFlow();
-
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (_) => destination),
-      (_) => false,
-    );
+    Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => onboardingComplete ? const MainScreen() : const FlashProfileFlow()), (_) => false);
   }
 
   String _authErrorMessage(FirebaseAuthException error) {
     switch (error.code) {
-      case 'invalid-email':
-        return 'Please enter a valid email address.';
+      case 'invalid-email': return 'Please enter a valid email address.';
       case 'wrong-password':
-      case 'invalid-credential':
-        return 'Incorrect email or password.';
-      case 'user-not-found':
-        return 'No account was found with this email.';
-      case 'user-disabled':
-        return 'This account has been disabled.';
-      case 'too-many-requests':
-        return 'Too many attempts. Please try again later.';
-      case 'network-request-failed':
-        return 'Network error. Check your connection.';
-      case 'operation-not-allowed':
-        return 'This sign-in method is not enabled yet.';
-      case 'account-exists-with-different-credential':
-        return 'An account already exists with a different sign-in method.';
-      case 'google-id-token-missing':
-        return 'Google did not return a valid sign-in token.';
-      default:
-        return error.message ?? 'Authentication failed.';
+      case 'invalid-credential': return 'Incorrect email or password.';
+      case 'user-not-found': return 'No account was found with this email.';
+      case 'user-disabled': return 'This account has been disabled.';
+      case 'too-many-requests': return 'Too many attempts. Please try again later.';
+      case 'network-request-failed': return 'Network error. Check your connection.';
+      case 'operation-not-allowed': return 'This sign-in method is not enabled yet.';
+      case 'account-exists-with-different-credential': return 'An account already exists with a different sign-in method.';
+      case 'google-id-token-missing': return 'Google did not return a valid sign-in token.';
+      default: return error.message ?? 'Authentication failed.';
     }
   }
 
@@ -148,9 +117,7 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
-      );
+      ..showSnackBar(SnackBar(content: Text(message), behavior: SnackBarBehavior.floating));
   }
 
   @override
@@ -159,110 +126,66 @@ class _LoginScreenState extends State<LoginScreen> {
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24, 20, 24, 30),
+          padding: const EdgeInsets.fromLTRB(22, 14, 22, 28),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Align(
                 alignment: Alignment.centerRight,
-                child: TextButton(onPressed: () {}, child: const Text('About TiB')),
+                child: TextButton(onPressed: () {}, child: const Text('About VYEA')),
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 4),
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.fromLTRB(24, 26, 24, 25),
+                height: 430,
                 decoration: BoxDecoration(
                   gradient: AppGradients.blush,
-                  borderRadius: BorderRadius.circular(30),
+                  borderRadius: BorderRadius.circular(28),
+                  image: const DecorationImage(
+                    image: AssetImage('assets/images/onboarding_hero.png'),
+                    fit: BoxFit.cover,
+                    opacity: .62,
+                  ),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 54,
-                      height: 54,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: .82),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.auto_awesome_rounded,
-                        color: AppColors.primaryDark,
-                        size: 25,
-                      ),
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(28),
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Colors.white.withValues(alpha: .08), AppColors.primaryDark.withValues(alpha: .62)],
                     ),
-                    const SizedBox(height: 24),
-                    const Text(
-                      'TiB',
-                      style: TextStyle(
-                        fontSize: 42,
-                        fontWeight: FontWeight.w300,
-                        letterSpacing: -2,
-                      ),
-                    ),
-                    const SizedBox(height: 5),
-                    const Text(
-                      'Your personal style,\nmade simple.',
-                      style: TextStyle(
-                        fontSize: 24,
-                        height: 1.08,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -.6,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    const Text(
-                      'Colours, clothes and AI styling that feel like you.',
-                      style: TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 12.5,
-                        height: 1.4,
-                      ),
-                    ),
-                  ],
+                  ),
+                  padding: const EdgeInsets.fromLTRB(22, 24, 22, 24),
+                  child: const Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      Text('VYEA', style: TextStyle(color: Colors.white, fontSize: 46, fontWeight: FontWeight.w300, letterSpacing: -2)),
+                      SizedBox(height: 5),
+                      Text('STYLE BUT PERSONAL', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 2.5)),
+                      SizedBox(height: 16),
+                      Text('A more confident you.', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800, height: 1.06)),
+                      SizedBox(height: 8),
+                      Text('Your colours. Your wardrobe. Your way.', style: TextStyle(color: Colors.white70, fontSize: 12.5, height: 1.4)),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 28),
-              const Text(
-                'Welcome back',
-                style: TextStyle(
-                  fontSize: 27,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -.5,
-                ),
-              ),
+              const Text('Welcome Back', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, letterSpacing: -.6)),
               const SizedBox(height: 6),
-              const Text(
-                'Let’s continue your personal style journey.',
-                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-              ),
-              const SizedBox(height: 21),
+              const Text('Sign in and continue your personal style journey.', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+              const SizedBox(height: 18),
               _socialButton('Continue with Google', Icons.g_mobiledata, loginWithGoogle),
-              const SizedBox(height: 20),
-              const Row(
-                children: [
-                  Expanded(child: Divider()),
-                  Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 12),
-                    child: Text(
-                      'or email',
-                      style: TextStyle(color: AppColors.textMuted, fontSize: 11),
-                    ),
-                  ),
-                  Expanded(child: Divider()),
-                ],
-              ),
-              const SizedBox(height: 20),
-              const Text('Email', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 16),
+              const Row(children: [Expanded(child: Divider()), Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('or sign in with email', style: TextStyle(color: AppColors.textMuted, fontSize: 10.5))), Expanded(child: Divider())]),
+              const SizedBox(height: 18),
+              _fieldLabel('Email'),
               const SizedBox(height: 7),
-              TextField(
-                controller: emailController,
-                keyboardType: TextInputType.emailAddress,
-                textInputAction: TextInputAction.next,
-                decoration: const InputDecoration(hintText: 'you@example.com'),
-              ),
+              TextField(controller: emailController, keyboardType: TextInputType.emailAddress, textInputAction: TextInputAction.next, decoration: const InputDecoration(hintText: 'you@example.com')),
               const SizedBox(height: 15),
-              const Text('Password', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+              _fieldLabel('Password'),
               const SizedBox(height: 7),
               TextField(
                 controller: passwordController,
@@ -273,50 +196,15 @@ class _LoginScreenState extends State<LoginScreen> {
                   hintText: 'Enter your password',
                   suffixIcon: IconButton(
                     onPressed: () => setState(() => obscurePassword = !obscurePassword),
-                    icon: Icon(
-                      obscurePassword
-                          ? Icons.visibility_off_outlined
-                          : Icons.visibility_outlined,
-                    ),
+                    icon: Icon(obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined),
                   ),
                 ),
               ),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: isLoading
-                      ? null
-                      : () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => PasswordResetScreen(
-                                initialEmail: emailController.text.trim(),
-                              ),
-                            ),
-                          ),
-                  child: const Text('Forgot password?'),
-                ),
-              ),
-              const SizedBox(height: 3),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: isLoading ? null : login,
-                  child: Text(isLoading ? 'Signing in…' : 'Sign In'),
-                ),
-              ),
-              const SizedBox(height: 18),
-              Center(
-                child: TextButton(
-                  onPressed: isLoading
-                      ? null
-                      : () => Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (_) => const RegisterScreen()),
-                          ),
-                  child: const Text('New here? Create your style profile'),
-                ),
-              ),
+              Align(alignment: Alignment.centerRight, child: TextButton(onPressed: isLoading ? null : () => Navigator.push(context, MaterialPageRoute(builder: (_) => PasswordResetScreen(initialEmail: emailController.text.trim()))), child: const Text('Forgot Password?'))),
+              const SizedBox(height: 2),
+              SizedBox(width: double.infinity, child: ElevatedButton(onPressed: isLoading ? null : login, child: Text(isLoading ? 'Signing in…' : 'Sign In')),
+              const SizedBox(height: 15),
+              Center(child: TextButton(onPressed: isLoading ? null : () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RegisterScreen())), child: const Text('New here? Create your style profile'))),
             ],
           ),
         ),
@@ -324,14 +212,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Widget _socialButton(String label, IconData icon, VoidCallback onTap) {
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton.icon(
-        onPressed: isLoading ? null : onTap,
-        icon: Icon(icon, size: 21),
-        label: Text(label),
-      ),
-    );
-  }
+  Widget _fieldLabel(String label) => Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700));
+
+  Widget _socialButton(String label, IconData icon, VoidCallback onTap) => SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: isLoading ? null : onTap, icon: Icon(icon, size: 21), label: Text(label)));
 }
