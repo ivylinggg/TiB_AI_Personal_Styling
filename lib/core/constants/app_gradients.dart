@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
 
-/// Editorial gradients used across TiB. Keep them soft and low-contrast so
-/// photography and wardrobe colours remain the visual focus.
+/// VYEA gradients — restrained, editorial and low-contrast.
+///
+/// The core product stays neutral. Colourful accents are reserved for
+/// colour-analysis content where they carry meaning.
 class AppGradients {
   AppGradients._();
 
@@ -15,37 +17,37 @@ class AppGradients {
   static const LinearGradient ai = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [Color(0xFFC9B2E8), Color(0xFFF0C9BB)],
+    colors: [Color(0xFFF2ECE5), Color(0xFFE5D8CA)],
   );
 
   static const LinearGradient premium = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [Color(0xFFBCA4E1), Color(0xFFE8C9C0)],
+    colors: [Color(0xFFF6F0E8), Color(0xFFE4D5C2)],
   );
 
   static const LinearGradient soft = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [Color(0xFFFFFDFB), Color(0xFFF0E8F8)],
+    colors: [AppColors.white, AppColors.ivory],
   );
 
   static const LinearGradient blush = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [Color(0xFFF7D9CB), Color(0xFFE7DDF3)],
+    colors: [Color(0xFFF8EFEB), Color(0xFFF0E7E1)],
   );
 
   static const LinearGradient sage = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [Color(0xFFE8EDDF), Color(0xFFF5EDE8)],
+    colors: [Color(0xFFF0F0E9), Color(0xFFE9E6DF)],
   );
 
   static const LinearGradient peach = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [Color(0xFFFFE7DC), Color(0xFFF6EAF4)],
+    colors: [Color(0xFFF8EEE8), Color(0xFFF1E6DE)],
   );
 
   static LinearGradient season(String? seasonName) {
