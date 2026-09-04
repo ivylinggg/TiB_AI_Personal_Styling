@@ -117,73 +117,224 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24, 16, 24, 30),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(children: [
-                IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18)),
-                const Spacer(),
-                const Text('CREATE PROFILE', style: TextStyle(fontSize: 9, letterSpacing: 1.2, fontWeight: FontWeight.w800, color: AppColors.textMuted)),
-                const SizedBox(width: 8),
-              ]),
-              const SizedBox(height: 13),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.fromLTRB(22, 23, 22, 22),
-                decoration: BoxDecoration(gradient: AppGradients.soft, borderRadius: BorderRadius.circular(27)),
-                child: const Column(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final wide = constraints.maxWidth >= 760;
+            return SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(wide ? 48 : 22, 18, wide ? 48 : 22, 30),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 1080),
+                  child: wide
+                      ? Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(child: _visualPanel()),
+                            const SizedBox(width: 42),
+                            SizedBox(width: 420, child: _formPanel()),
+                          ],
+                        )
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _visualPanel(),
+                            const SizedBox(height: 28),
+                            _formPanel(),
+                          ],
+                        ),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _visualPanel() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'VYEA',
+          style: TextStyle(
+            color: AppColors.primary,
+            fontSize: 15,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 4.2,
+          ),
+        ),
+        const SizedBox(height: 9),
+        const Text(
+          'STYLE BUT PERSONAL',
+          style: TextStyle(
+            color: AppColors.textPrimary,
+            fontSize: 10,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 2.8,
+          ),
+        ),
+        const SizedBox(height: 18),
+        AspectRatio(
+          aspectRatio: 0.84,
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(30),
+              image: const DecorationImage(
+                image: AssetImage('assets/images/onboarding_hero.png'),
+                fit: BoxFit.cover,
+              ),
+            ),
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(30),
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Colors.transparent, AppColors.primaryDark],
+                ),
+              ),
+              padding: const EdgeInsets.all(24),
+              child: const Align(
+                alignment: Alignment.bottomLeft,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('A little about you.', style: TextStyle(fontSize: 27, fontWeight: FontWeight.w800, letterSpacing: -.6)),
-                    SizedBox(height: 8),
-                    Text('Create your account first. Then TiB will help you discover your colours, style personality and wardrobe.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5, height: 1.45)),
+                    Text(
+                      'FIND YOUR\nSIGNATURE STYLE.',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 30,
+                        height: 1.02,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -.8,
+                      ),
+                    ),
+                    SizedBox(height: 10),
+                    Text(
+                      'Start with your profile.\nWe’ll take it from there.',
+                      style: TextStyle(color: Colors.white70, fontSize: 12.5, height: 1.5),
+                    ),
                   ],
                 ),
               ),
-              const SizedBox(height: 25),
-              const Text('YOUR NAME', style: TextStyle(fontSize: 9.5, letterSpacing: 1, fontWeight: FontWeight.w800, color: AppColors.textMuted)),
-              const SizedBox(height: 7),
-              TextField(controller: nameController, textInputAction: TextInputAction.next, decoration: const InputDecoration(hintText: 'What should TiB call you?', prefixIcon: Icon(Icons.person_outline_rounded))),
-              const SizedBox(height: 17),
-              const Text('EMAIL', style: TextStyle(fontSize: 9.5, letterSpacing: 1, fontWeight: FontWeight.w800, color: AppColors.textMuted)),
-              const SizedBox(height: 7),
-              TextField(controller: emailController, keyboardType: TextInputType.emailAddress, textInputAction: TextInputAction.next, decoration: const InputDecoration(hintText: 'you@example.com', prefixIcon: Icon(Icons.mail_outline_rounded))),
-              const SizedBox(height: 17),
-              const Text('PASSWORD', style: TextStyle(fontSize: 9.5, letterSpacing: 1, fontWeight: FontWeight.w800, color: AppColors.textMuted)),
-              const SizedBox(height: 7),
-              TextField(
-                controller: passwordController,
-                obscureText: obscurePassword,
-                textInputAction: TextInputAction.next,
-                decoration: InputDecoration(
-                  hintText: 'Create a password',
-                  prefixIcon: const Icon(Icons.lock_outline_rounded),
-                  suffixIcon: IconButton(onPressed: () => setState(() => obscurePassword = !obscurePassword), icon: Icon(obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined)),
-                ),
-              ),
-              const SizedBox(height: 17),
-              const Text('CONFIRM PASSWORD', style: TextStyle(fontSize: 9.5, letterSpacing: 1, fontWeight: FontWeight.w800, color: AppColors.textMuted)),
-              const SizedBox(height: 7),
-              TextField(
-                controller: confirmPasswordController,
-                obscureText: obscureConfirmPassword,
-                textInputAction: TextInputAction.done,
-                onSubmitted: (_) { if (!isLoading) register(); },
-                decoration: InputDecoration(
-                  hintText: 'Enter the password again',
-                  prefixIcon: const Icon(Icons.lock_outline_rounded),
-                  suffixIcon: IconButton(onPressed: () => setState(() => obscureConfirmPassword = !obscureConfirmPassword), icon: Icon(obscureConfirmPassword ? Icons.visibility_off_outlined : Icons.visibility_outlined)),
-                ),
-              ),
-              const SizedBox(height: 25),
-              SizedBox(width: double.infinity, child: PrimaryButton(text: isLoading ? 'Creating your profile…' : 'Create My Profile', icon: Icons.arrow_forward_rounded, onPressed: isLoading ? null : register)),
-              const SizedBox(height: 15),
-              Center(child: TextButton(onPressed: isLoading ? null : () => Navigator.pop(context), child: const Text('Already have an account? Sign In'))),
-            ],
+            ),
           ),
         ),
+        const SizedBox(height: 14),
+        const Text(
+          'Your style starts with you.',
+          style: TextStyle(
+            color: AppColors.brown,
+            fontSize: 13,
+            fontStyle: FontStyle.italic,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _formPanel() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Create your profile',
+          style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, letterSpacing: -.7),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'A few details first. Your personalised styling journey comes next.',
+          style: TextStyle(color: AppColors.textSecondary, fontSize: 13, height: 1.4),
+        ),
+        const SizedBox(height: 24),
+        _fieldLabel('YOUR NAME'),
+        const SizedBox(height: 7),
+        TextField(
+          controller: nameController,
+          textInputAction: TextInputAction.next,
+          decoration: const InputDecoration(
+            hintText: 'What should VYEA call you?',
+            prefixIcon: Icon(Icons.person_outline_rounded),
+          ),
+        ),
+        const SizedBox(height: 17),
+        _fieldLabel('EMAIL'),
+        const SizedBox(height: 7),
+        TextField(
+          controller: emailController,
+          keyboardType: TextInputType.emailAddress,
+          textInputAction: TextInputAction.next,
+          decoration: const InputDecoration(
+            hintText: 'you@example.com',
+            prefixIcon: Icon(Icons.mail_outline_rounded),
+          ),
+        ),
+        const SizedBox(height: 17),
+        _fieldLabel('PASSWORD'),
+        const SizedBox(height: 7),
+        TextField(
+          controller: passwordController,
+          obscureText: obscurePassword,
+          textInputAction: TextInputAction.next,
+          decoration: InputDecoration(
+            hintText: 'Create a password',
+            prefixIcon: const Icon(Icons.lock_outline_rounded),
+            suffixIcon: IconButton(
+              onPressed: () => setState(() => obscurePassword = !obscurePassword),
+              icon: Icon(obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined),
+            ),
+          ),
+        ),
+        const SizedBox(height: 17),
+        _fieldLabel('CONFIRM PASSWORD'),
+        const SizedBox(height: 7),
+        TextField(
+          controller: confirmPasswordController,
+          obscureText: obscureConfirmPassword,
+          textInputAction: TextInputAction.done,
+          onSubmitted: (_) {
+            if (!isLoading) register();
+          },
+          decoration: InputDecoration(
+            hintText: 'Enter the password again',
+            prefixIcon: const Icon(Icons.lock_outline_rounded),
+            suffixIcon: IconButton(
+              onPressed: () => setState(() => obscureConfirmPassword = !obscureConfirmPassword),
+              icon: Icon(obscureConfirmPassword ? Icons.visibility_off_outlined : Icons.visibility_outlined),
+            ),
+          ),
+        ),
+        const SizedBox(height: 25),
+        SizedBox(
+          width: double.infinity,
+          child: PrimaryButton(
+            text: isLoading ? 'Creating your profile…' : 'Create My Profile',
+            icon: Icons.arrow_forward_rounded,
+            onPressed: isLoading ? null : register,
+          ),
+        ),
+        const SizedBox(height: 15),
+        Center(
+          child: TextButton(
+            onPressed: isLoading ? null : () => Navigator.pop(context),
+            child: const Text('Already have an account? Sign In'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _fieldLabel(String label) {
+    return Text(
+      label,
+      style: const TextStyle(
+        color: AppColors.textSecondary,
+        fontSize: 10,
+        fontWeight: FontWeight.w800,
+        letterSpacing: 1.1,
       ),
     );
   }
