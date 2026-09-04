@@ -77,7 +77,7 @@ class _MainScreenState extends State<MainScreen> {
       final snapshot = await notificationRef.limit(50).get();
       if (snapshot.docs.isEmpty) {
         await notificationRef.add({
-          'title': 'Welcome to TiB',
+          'title': 'Welcome to VYEA',
           'body': 'Your personal styling space is ready. Explore your wardrobe and discover a look that feels like you.',
           'type': 'system',
           'read': false,
@@ -159,7 +159,7 @@ class _MainScreenState extends State<MainScreen> {
                               final doc = docs[index];
                               final data = doc.data();
                               final read = data['read'] == true;
-                              final title = data['title'] as String? ?? 'TiB update';
+                              final title = data['title'] as String? ?? 'VYEA update';
                               final body = data['body'] as String? ?? '';
                               final createdAt = data['createdAt'];
 
@@ -243,7 +243,7 @@ class _MainScreenState extends State<MainScreen> {
     final greeting = displayName?.isNotEmpty == true ? 'Hi, $displayName' : 'Welcome back';
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
@@ -252,19 +252,21 @@ class _MainScreenState extends State<MainScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(greeting, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 30, height: 1.12, fontWeight: FontWeight.w800, color: AppColors.textPrimary, letterSpacing: -0.7)),
-                const SizedBox(height: 6),
-                Text(widget.adminPreview ? 'Customer dashboard preview' : 'Your personal styling space', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 18, height: 1.2, fontWeight: FontWeight.w500, color: AppColors.textSecondary)),
+                const Text('VYEA', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, letterSpacing: 3.2, color: AppColors.brown)),
+                const SizedBox(height: 5),
+                Text(greeting, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 25, height: 1.12, fontWeight: FontWeight.w700, color: AppColors.textPrimary, letterSpacing: -0.5)),
+                const SizedBox(height: 3),
+                Text(widget.adminPreview ? 'Customer dashboard preview' : 'Style, but personal.', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13, height: 1.2, fontWeight: FontWeight.w500, color: AppColors.textSecondary)),
               ],
             ),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 12),
           if (widget.adminPreview) ...[
             _topActionButton(icon: Icons.admin_panel_settings_outlined, tooltip: 'Return to Admin', onTap: _returnToAdmin),
-            const SizedBox(width: 12),
+            const SizedBox(width: 8),
           ],
           _topActionButton(icon: Icons.notifications_none_rounded, tooltip: 'Notifications', onTap: _showNotifications),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
           _topActionButton(icon: Icons.logout_rounded, tooltip: 'Log out', onTap: _logout),
         ],
       ),
@@ -276,17 +278,16 @@ class _MainScreenState extends State<MainScreen> {
       message: tooltip,
       child: Material(
         color: AppColors.surface,
-        elevation: 1.5,
-        shadowColor: Colors.black.withValues(alpha: .08),
+        elevation: 0,
         shape: const CircleBorder(),
         child: InkWell(
           onTap: onTap,
           customBorder: const CircleBorder(),
           child: Container(
-            width: 64,
-            height: 64,
+            width: 44,
+            height: 44,
             decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: AppColors.border)),
-            child: Icon(icon, color: AppColors.primary, size: 29),
+            child: Icon(icon, color: AppColors.primary, size: 19),
           ),
         ),
       ),
@@ -307,21 +308,21 @@ class _MainScreenState extends State<MainScreen> {
       ),
       bottomNavigationBar: SafeArea(
         top: false,
-        minimum: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+        minimum: const EdgeInsets.fromLTRB(12, 0, 12, 10),
         child: Container(
           decoration: BoxDecoration(
-            color: AppColors.surface.withValues(alpha: .97),
-            borderRadius: BorderRadius.circular(26),
+            color: AppColors.surface.withValues(alpha: .98),
+            borderRadius: BorderRadius.circular(22),
             border: Border.all(color: AppColors.border),
-            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .06), blurRadius: 24, offset: const Offset(0, 8))],
+            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .045), blurRadius: 18, offset: const Offset(0, 6))],
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(26),
+            borderRadius: BorderRadius.circular(22),
             child: NavigationBar(
               selectedIndex: _selectedIndex,
               backgroundColor: Colors.transparent,
               elevation: 0,
-              height: 72,
+              height: 68,
               labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
               indicatorColor: AppColors.primarySoft,
               onDestinationSelected: _selectTab,
@@ -343,15 +344,14 @@ class _MainScreenState extends State<MainScreen> {
   Widget _aiIcon(bool selected) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 180),
-      width: selected ? 43 : 35,
-      height: selected ? 43 : 35,
+      width: selected ? 38 : 32,
+      height: selected ? 38 : 32,
       decoration: BoxDecoration(
         gradient: selected ? AppGradients.primary : null,
         color: selected ? null : AppColors.surfaceMuted,
         shape: BoxShape.circle,
-        boxShadow: selected ? [BoxShadow(color: AppColors.primary.withValues(alpha: .20), blurRadius: 12, offset: const Offset(0, 4))] : null,
       ),
-      child: Icon(Icons.auto_awesome_rounded, size: selected ? 21 : 18, color: selected ? Colors.white : AppColors.primary),
+      child: Icon(Icons.auto_awesome_rounded, size: selected ? 19 : 17, color: selected ? Colors.white : AppColors.primary),
     );
   }
 }

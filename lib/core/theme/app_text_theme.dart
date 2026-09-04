@@ -2,19 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../constants/app_colors.dart';
 
-/// TiB AI Personal Styling typography.
+/// VYEA typography — clean, editorial and quietly premium.
 ///
-/// Built from a brightness-aware [_build], with [light] and [dark] as
-/// the two concrete themes `LightTheme`/`DarkTheme` consume. The type
-/// sizes, weights and letter-spacing (the actual "typography" -- an
-/// editorial feel with subtle negative letter-spacing on headline-level
-/// text, default spacing on body text for readability, deliberately
-/// varied weights) are identical in both -- only the colours change.
-///
-/// [labelLarge] (button/label text drawn on top of the primary accent)
-/// is brightness-aware -- in light theme the primary accent is Dark
-/// Navy, so its label is White; in dark theme the primary accent is
-/// White, so its label is the dark navy background colour.
+/// The hierarchy uses strong charcoal headlines, softer supporting copy and
+/// restrained tracking for labels so the interface feels like a fashion
+/// product rather than a generic AI dashboard.
 class AppTextTheme {
   AppTextTheme._();
 
@@ -29,75 +21,76 @@ class AppTextTheme {
         fontSize: 36,
         fontWeight: FontWeight.w700,
         color: primary,
-        letterSpacing: -0.6,
-        height: 1.15,
+        letterSpacing: -0.8,
+        height: 1.12,
       ),
-
       headlineLarge: TextStyle(
         fontSize: 32,
         fontWeight: FontWeight.w700,
         color: primary,
-        letterSpacing: -0.5,
+        letterSpacing: -0.65,
+        height: 1.15,
       ),
-
       headlineMedium: TextStyle(
         fontSize: 26,
         fontWeight: FontWeight.w700,
         color: primary,
-        letterSpacing: -0.4,
+        letterSpacing: -0.45,
+        height: 1.18,
       ),
-
       titleLarge: TextStyle(
         fontSize: 22,
-        fontWeight: FontWeight.w600,
+        fontWeight: FontWeight.w650,
         color: primary,
-        letterSpacing: -0.2,
+        letterSpacing: -0.25,
+        height: 1.2,
       ),
-
       titleMedium: TextStyle(
         fontSize: 18,
         fontWeight: FontWeight.w600,
         color: primary,
+        letterSpacing: -0.1,
       ),
-
       titleSmall: TextStyle(
         fontSize: 15,
         fontWeight: FontWeight.w600,
         color: primary,
       ),
-
       bodyLarge: TextStyle(
         fontSize: 16,
         fontWeight: FontWeight.w400,
         color: primary,
         height: 1.5,
       ),
-
       bodyMedium: TextStyle(
         fontSize: 14,
         fontWeight: FontWeight.w400,
         color: secondary,
         height: 1.5,
       ),
-
       bodySmall: TextStyle(
         fontSize: 12,
         fontWeight: FontWeight.w400,
         color: muted,
-        height: 1.4,
+        height: 1.45,
       ),
-
       labelLarge: TextStyle(
-        fontSize: 16,
-        fontWeight: FontWeight.w600,
+        fontSize: 14,
+        fontWeight: FontWeight.w700,
         color: onPrimary,
+        letterSpacing: 0.05,
       ),
-
       labelMedium: TextStyle(
-        fontSize: 13,
-        fontWeight: FontWeight.w600,
+        fontSize: 11,
+        fontWeight: FontWeight.w700,
         color: secondary,
-        letterSpacing: 0.2,
+        letterSpacing: 0.55,
+      ),
+      labelSmall: TextStyle(
+        fontSize: 10,
+        fontWeight: FontWeight.w700,
+        color: muted,
+        letterSpacing: 0.7,
       ),
     );
   }

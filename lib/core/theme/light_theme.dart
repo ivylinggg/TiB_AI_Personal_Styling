@@ -14,8 +14,8 @@ class LightTheme {
     ).copyWith(
       primary: AppColors.primary,
       onPrimary: Colors.white,
-      secondary: AppColors.secondary,
-      onSecondary: AppColors.primaryDark,
+      secondary: AppColors.brown,
+      onSecondary: Colors.white,
       surface: AppColors.surface,
       onSurface: AppColors.textPrimary,
       error: AppColors.error,
@@ -28,11 +28,19 @@ class LightTheme {
       colorScheme: scheme,
       textTheme: AppTextTheme.light,
       fontFamily: 'sans-serif',
+      visualDensity: VisualDensity.standard,
       appBarTheme: const AppBarTheme(
         backgroundColor: Colors.transparent,
         foregroundColor: AppColors.textPrimary,
         elevation: 0,
+        scrolledUnderElevation: 0,
         centerTitle: false,
+        titleTextStyle: TextStyle(
+          color: AppColors.textPrimary,
+          fontSize: 22,
+          fontWeight: FontWeight.w700,
+          letterSpacing: -0.35,
+        ),
       ),
       cardTheme: CardThemeData(
         elevation: 0,
@@ -46,14 +54,14 @@ class LightTheme {
       ),
       chipTheme: ChipThemeData(
         backgroundColor: AppColors.surfaceMuted,
-        selectedColor: AppColors.secondary,
+        selectedColor: AppColors.primarySoft,
         labelStyle: const TextStyle(
           color: AppColors.textPrimary,
           fontSize: 12,
           fontWeight: FontWeight.w600,
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-        side: BorderSide.none,
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+        side: const BorderSide(color: AppColors.border),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadius.full),
         ),
@@ -62,36 +70,40 @@ class LightTheme {
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primary,
           foregroundColor: Colors.white,
+          disabledBackgroundColor: AppColors.primarySoft,
+          disabledForegroundColor: AppColors.textMuted,
           elevation: 0,
-          minimumSize: const Size(double.infinity, 52),
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+          minimumSize: const Size(double.infinity, 50),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 0.05),
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           backgroundColor: AppColors.primary,
           foregroundColor: Colors.white,
-          minimumSize: const Size(double.infinity, 52),
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+          disabledBackgroundColor: AppColors.primarySoft,
+          disabledForegroundColor: AppColors.textMuted,
+          minimumSize: const Size(double.infinity, 50),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 0.05),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.primaryDark,
+          foregroundColor: AppColors.primary,
           side: const BorderSide(color: AppColors.border),
-          minimumSize: const Size(double.infinity, 52),
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          minimumSize: const Size(double.infinity, 50),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: AppColors.primaryDark,
+          foregroundColor: AppColors.brown,
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
         ),
@@ -110,7 +122,7 @@ class LightTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+          borderSide: const BorderSide(color: AppColors.brown, width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
@@ -124,9 +136,9 @@ class LightTheme {
       ),
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: AppColors.surface,
-        indicatorColor: AppColors.secondary,
+        indicatorColor: AppColors.primarySoft,
         elevation: 0,
-        height: 72,
+        height: 68,
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           final selected = states.contains(WidgetState.selected);
           return TextStyle(
@@ -138,10 +150,15 @@ class LightTheme {
         iconTheme: WidgetStateProperty.resolveWith((states) {
           final selected = states.contains(WidgetState.selected);
           return IconThemeData(
-            size: 21,
+            size: 20,
             color: selected ? AppColors.primary : AppColors.textMuted,
           );
         }),
+      ),
+      floatingActionButtonTheme: const FloatingActionButtonThemeData(
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        elevation: 2,
       ),
       dialogTheme: DialogThemeData(
         backgroundColor: AppColors.surface,
