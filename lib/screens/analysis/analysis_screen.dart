@@ -295,6 +295,71 @@ class _AnalysisScreenState extends State<AnalysisScreen>
     );
   }
 
+  Widget _buildPhotoQualityGuide(bool hasImage) {
+    final items = [
+      ('LIGHT', 'Natural and even', Icons.wb_sunny_outlined),
+      ('FACE', 'Fully visible', Icons.face_retouching_natural),
+      ('FILTER', 'Keep it natural', Icons.filter_alt_off_outlined),
+    ];
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 13),
+      decoration: BoxDecoration(
+        color: hasImage ? AppColors.surface : AppColors.surfaceMuted,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  hasImage ? 'PHOTO READY' : 'BEFORE YOU START',
+                  style: const TextStyle(
+                    color: _brown,
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.1,
+                  ),
+                ),
+              ),
+              if (hasImage)
+                const Icon(Icons.check_circle_outline_rounded, size: 17, color: AppColors.success),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              for (var index = 0; index < items.length; index++) ...[
+                if (index > 0) const SizedBox(width: 7),
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: AppColors.background,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: Column(
+                      children: [
+                        Icon(items[index].$3, size: 17, color: _brown),
+                        const SizedBox(height: 5),
+                        Text(items[index].$1, style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: .6, color: _muted)),
+                        const SizedBox(height: 2),
+                        Text(items[index].$2, textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 9.2, fontWeight: FontWeight.w700)),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildHowItWorks() {
     const steps = [
       ('01', 'Choose a photo', 'Use Face Scan or pick a clear photo from your gallery.'),
@@ -383,6 +448,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
   Widget build(BuildContext context) {
     return Consumer<AnalysisProvider>(
       builder: (context, provider, _) {
+        final hasImage = provider.selectedImage != null;
         return Scaffold(
           backgroundColor: AppColors.background,
           appBar: AppBar(
@@ -414,13 +480,13 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                     onPressed: provider.isLoading ? null : openSeasonGuide,
                     icon: const Icon(Icons.menu_book_outlined),
                     label: const Text('Explore Season Colour Guide'),
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(44),
-                    ),
+                    style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(44)),
                   ),
                   const SizedBox(height: 18),
                   _reveal(_imageReveal, _buildImagePreview(provider.selectedImage)),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
+                  _buildPhotoQualityGuide(hasImage),
+                  const SizedBox(height: 11),
                   Row(
                     children: [
                       Expanded(
@@ -455,13 +521,9 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                   _reveal(
                     _actionsReveal,
                     PrimaryButton(
-                      text: provider.isLoading
-                          ? 'Analysing your colours…'
-                          : 'Analyse My Colours',
+                      text: provider.isLoading ? 'Analysing your colours…' : 'Analyse My Colours',
                       icon: Icons.auto_awesome_rounded,
-                      onPressed: provider.selectedImage == null || provider.isLoading
-                          ? null
-                          : analyse,
+                      onPressed: provider.selectedImage == null || provider.isLoading ? null : analyse,
                     ),
                   ),
                   const SizedBox(height: 22),
