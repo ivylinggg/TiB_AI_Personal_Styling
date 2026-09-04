@@ -3,11 +3,8 @@ import 'package:flutter/material.dart';
 import '../core/constants/app_colors.dart';
 import '../core/constants/app_radius.dart';
 
-/// A reusable branded gradient surface. Generalises the pattern
-/// dashboard/hero_card.dart already established (gradient container,
-/// white content, optional icon, optional tap) so it can be reused for
-/// AI, Premium and other branded gradient moments without copy-pasting
-/// the same Container/BoxDecoration block again in every screen.
+/// Reusable branded surface. Existing gradient input remains supported so
+/// callers do not lose behaviour; VYEA simply makes the surface quieter.
 class GradientCard extends StatelessWidget {
   final Gradient gradient;
   final Widget child;
@@ -34,11 +31,12 @@ class GradientCard extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: gradient,
         borderRadius: BorderRadius.circular(borderRadius),
+        border: Border.all(color: AppColors.border.withValues(alpha: .75)),
         boxShadow: [
           BoxShadow(
-            color: AppColors.textPrimary.withValues(alpha: 0.10),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
+            color: AppColors.textPrimary.withValues(alpha: .055),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
@@ -46,17 +44,23 @@ class GradientCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (icon != null) ...[
-            Icon(icon, color: AppColors.background, size: 32),
-            const SizedBox(height: 16),
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: AppColors.surface.withValues(alpha: .58),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: AppColors.primary, size: 21),
+            ),
+            const SizedBox(height: 14),
           ],
           child,
         ],
       ),
     );
 
-    if (onTap == null) {
-      return content;
-    }
+    if (onTap == null) return content;
 
     return Material(
       color: Colors.transparent,
