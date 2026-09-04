@@ -2,7 +2,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
-import '../../core/constants/app_gradients.dart';
 import '../admin/admin_main_screen.dart';
 import '../main/main_screen.dart';
 import '../onboarding/flash_profile_flow.dart';
@@ -84,11 +83,19 @@ class _LoginScreenState extends State<LoginScreen> {
     final role = await AuthService.getCurrentUserRole();
     if (!mounted) return;
     if (role == 'admin') {
-      Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const AdminMainScreen()), (_) => false);
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const AdminMainScreen()),
+        (_) => false,
+      );
       return;
     }
     if (role == 'consultant' || role == 'staff') {
-      Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const StaffConsoleScreen()), (_) => false);
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const StaffConsoleScreen()),
+        (_) => false,
+      );
       return;
     }
     final profile = await AuthService.getCurrentUserProfile();
@@ -96,7 +103,11 @@ class _LoginScreenState extends State<LoginScreen> {
     final onboardingComplete = profile['onboardingComplete'] == true;
     Navigator.pushAndRemoveUntil(
       context,
-      MaterialPageRoute(builder: (_) => onboardingComplete ? const MainScreen() : const FlashProfileFlow()),
+      MaterialPageRoute(
+        builder: (_) => onboardingComplete
+            ? const MainScreen()
+            : const FlashProfileFlow(),
+      ),
       (_) => false,
     );
   }
@@ -131,7 +142,9 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message), behavior: SnackBarBehavior.floating));
+      ..showSnackBar(
+        SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+      );
   }
 
   @override
@@ -143,7 +156,12 @@ class _LoginScreenState extends State<LoginScreen> {
           builder: (context, constraints) {
             final wide = constraints.maxWidth >= 760;
             return SingleChildScrollView(
-              padding: EdgeInsets.fromLTRB(wide ? 48 : 22, 18, wide ? 48 : 22, 30),
+              padding: EdgeInsets.fromLTRB(
+                wide ? 48 : 22,
+                18,
+                wide ? 48 : 22,
+                30,
+              ),
               child: Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 1080),
@@ -210,7 +228,7 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Container(
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(30),
-                gradient: LinearGradient(
+                gradient: const LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [Colors.transparent, AppColors.primaryDark],
@@ -236,7 +254,11 @@ class _LoginScreenState extends State<LoginScreen> {
                     SizedBox(height: 10),
                     Text(
                       'Your colours. Your wardrobe.\nYour way of expressing yourself.',
-                      style: TextStyle(color: Colors.white70, fontSize: 12.5, height: 1.5),
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12.5,
+                        height: 1.5,
+                      ),
                     ),
                   ],
                 ),
@@ -264,19 +286,36 @@ class _LoginScreenState extends State<LoginScreen> {
       children: [
         const Text(
           'Welcome Back',
-          style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, letterSpacing: -.7),
+          style: TextStyle(
+            fontSize: 30,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -.7,
+          ),
         ),
         const SizedBox(height: 6),
-        const Text('Continue your personal style journey.', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+        const Text(
+          'Continue your personal style journey.',
+          style: TextStyle(
+            color: AppColors.textSecondary,
+            fontSize: 13,
+          ),
+        ),
         const SizedBox(height: 24),
-        _socialButton('Continue with Google', Icons.g_mobiledata, loginWithGoogle),
+        _socialButton(
+          'Continue with Google',
+          Icons.g_mobiledata,
+          loginWithGoogle,
+        ),
         const SizedBox(height: 18),
         const Row(
           children: [
             Expanded(child: Divider()),
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 12),
-              child: Text('or sign in with email', style: TextStyle(color: AppColors.textMuted, fontSize: 10.5)),
+              child: Text(
+                'or sign in with email',
+                style: TextStyle(color: AppColors.textMuted, fontSize: 10.5),
+              ),
             ),
             Expanded(child: Divider()),
           ],
@@ -288,7 +327,10 @@ class _LoginScreenState extends State<LoginScreen> {
           controller: emailController,
           keyboardType: TextInputType.emailAddress,
           textInputAction: TextInputAction.next,
-          decoration: const InputDecoration(hintText: 'you@example.com', prefixIcon: Icon(Icons.mail_outline_rounded)),
+          decoration: const InputDecoration(
+            hintText: 'you@example.com',
+            prefixIcon: Icon(Icons.mail_outline_rounded),
+          ),
         ),
         const SizedBox(height: 15),
         _fieldLabel('PASSWORD'),
@@ -302,8 +344,13 @@ class _LoginScreenState extends State<LoginScreen> {
             hintText: 'Enter your password',
             prefixIcon: const Icon(Icons.lock_outline_rounded),
             suffixIcon: IconButton(
-              onPressed: () => setState(() => obscurePassword = !obscurePassword),
-              icon: Icon(obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined),
+              onPressed: () =>
+                  setState(() => obscurePassword = !obscurePassword),
+              icon: Icon(
+                obscurePassword
+                    ? Icons.visibility_off_outlined
+                    : Icons.visibility_outlined,
+              ),
             ),
           ),
         ),
@@ -314,7 +361,11 @@ class _LoginScreenState extends State<LoginScreen> {
                 ? null
                 : () => Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => PasswordResetScreen(initialEmail: emailController.text.trim())),
+                      MaterialPageRoute(
+                        builder: (_) => PasswordResetScreen(
+                          initialEmail: emailController.text.trim(),
+                        ),
+                      ),
                     ),
             child: const Text('Forgot Password?'),
           ),
@@ -334,7 +385,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 ? null
                 : () => Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => const RegisterScreen()),
+                      MaterialPageRoute(
+                        builder: (_) => const RegisterScreen(),
+                      ),
                     ),
             child: const Text('New here? Create your style profile'),
           ),
@@ -343,10 +396,26 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Widget _fieldLabel(String label) => Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1.1));
+  Widget _fieldLabel(String label) {
+    return Text(
+      label,
+      style: const TextStyle(
+        color: AppColors.textSecondary,
+        fontSize: 10,
+        fontWeight: FontWeight.w800,
+        letterSpacing: 1.1,
+      ),
+    );
+  }
 
-  Widget _socialButton(String label, IconData icon, VoidCallback onTap) => SizedBox(
-        width: double.infinity,
-        child: OutlinedButton.icon(onPressed: isLoading ? null : onTap, icon: Icon(icon, size: 21), label: Text(label)),
-      );
+  Widget _socialButton(String label, IconData icon, VoidCallback onTap) {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: isLoading ? null : onTap,
+        icon: Icon(icon, size: 21),
+        label: Text(label),
+      ),
+    );
+  }
 }
