@@ -508,69 +508,6 @@ class _ProfileScreenState extends State<ProfileScreen>
     if (updated == true && mounted) await loadUser();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final analysisResult = context.watch<AnalysisProvider>().result;
-
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.background,
-        elevation: 0,
-        titleSpacing: 20,
-        title: const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'VYEA',
-              style: TextStyle(
-                color: AppColors.primary,
-                fontSize: 14,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1.8,
-              ),
-            ),
-            Text(
-              'Profile',
-              style: TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 21,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            tooltip: 'Refresh profile',
-            onPressed: isLoading ? null : loadUser,
-            icon: const Icon(Icons.refresh_rounded),
-          ),
-          PopupMenuButton<String>(
-            tooltip: 'Profile settings',
-            onSelected: (value) {
-              switch (value) {
-                case 'theme':
-                  _showThemeSheet();
-                case 'preferences':
-                  openStylePreferences();
-                case 'password':
-                  changePassword();
-              }
-            },
-            itemBuilder: (context) => const [
-              PopupMenuItem(value: 'theme', child: Text('Appearance')),
-              PopupMenuItem(value: 'preferences', child: Text('Style preferences')),
-              PopupMenuItem(value: 'password', child: Text('Change password')),
-            ],
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      body: _buildBody(analysisResult),
-    );
-  }
-
   Future<void> _showThemeSheet() async {
     final provider = context.read<ThemeProvider>();
     final current = provider.themeMode;
@@ -594,27 +531,33 @@ class _ProfileScreenState extends State<ProfileScreen>
                 style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5),
               ),
               const SizedBox(height: 12),
-              ...[
-                (ThemeMode.system, 'System', Icons.brightness_auto_outlined),
-                (ThemeMode.light, 'Light', Icons.light_mode_outlined),
-                (ThemeMode.dark, 'Dark', Icons.dark_mode_outlined),
-              ].map(
-                (entry) => ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-                  leading: CircleAvatar(
-                    backgroundColor: AppColors.surfaceMuted,
-                    child: Icon(entry.$3, color: AppColors.primary),
-                  ),
-                  title: Text(
-                    entry.$2,
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                  trailing: Radio<ThemeMode>(
-                    value: entry.$1,
-                    groupValue: current,
-                    onChanged: (value) => Navigator.pop(sheetContext, value),
-                  ),
-                  onTap: () => Navigator.pop(sheetContext, entry.$1),
+              RadioGroup<ThemeMode>(
+                groupValue: current,
+                onChanged: (value) {
+                  if (value != null) Navigator.pop(sheetContext, value);
+                },
+                child: Column(
+                  children: [
+                    ...[
+                      (ThemeMode.system, 'System', Icons.brightness_auto_outlined),
+                      (ThemeMode.light, 'Light', Icons.light_mode_outlined),
+                      (ThemeMode.dark, 'Dark', Icons.dark_mode_outlined),
+                    ].map(
+                      (entry) => ListTile(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                        leading: CircleAvatar(
+                          backgroundColor: AppColors.surfaceMuted,
+                          child: Icon(entry.$3, color: AppColors.primary),
+                        ),
+                        title: Text(
+                          entry.$2,
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        trailing: Radio<ThemeMode>(value: entry.$1),
+                        onTap: () => Navigator.pop(sheetContext, entry.$1),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -626,6 +569,43 @@ class _ProfileScreenState extends State<ProfileScreen>
     if (selected != null && selected != current && mounted) {
       await provider.setThemeMode(selected);
     }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final analysisResult = context.watch<AnalysisProvider>().result;
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: AppColors.background,
+        elevation: 0,
+        titleSpacing: 20,
+        title: const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('VYEA', style: TextStyle(color: AppColors.primary, fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 1.8)),
+            Text('Profile', style: TextStyle(color: AppColors.textPrimary, fontSize: 21, fontWeight: FontWeight.w800)),
+          ],
+        ),
+        actions: [
+          IconButton(tooltip: 'Refresh profile', onPressed: isLoading ? null : loadUser, icon: const Icon(Icons.refresh_rounded)),
+          PopupMenuButton<String>(
+            onSelected: (value) {
+              if (value == 'theme') _showThemeSheet();
+              if (value == 'preferences') openStylePreferences();
+              if (value == 'password') changePassword();
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(value: 'theme', child: Text('Appearance')),
+              PopupMenuItem(value: 'preferences', child: Text('Style preferences')),
+              PopupMenuItem(value: 'password', child: Text('Change password')),
+            ],
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
+      body: _buildBody(analysisResult),
+    );
   }
 
   Widget _buildBody(ColourAnalysisResult? analysisResult) {
@@ -656,13 +636,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         children: [
           _reveal(_heroReveal, _buildHero()),
           const SizedBox(height: 28),
-          _reveal(
-            _styleReveal,
-            const SectionHeader(
-              title: 'Your Personal Style',
-              subtitle: 'Your colour season, palette and style direction.',
-            ),
-          ),
+          _reveal(_styleReveal, const SectionHeader(title: 'Your Personal Style', subtitle: 'Your colour season, palette and style direction.')),
           const SizedBox(height: 14),
           _reveal(_styleReveal, _buildStyleSummary(analysisResult)),
           if (analysisResult != null && analysisResult.colours.isNotEmpty) ...[
@@ -670,13 +644,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             _reveal(_styleReveal, _buildPaletteCard(analysisResult)),
           ],
           const SizedBox(height: 28),
-          _reveal(
-            _connectionsReveal,
-            const SectionHeader(
-              title: 'Your Style Tools',
-              subtitle: 'Everything you use to build and refine your look.',
-            ),
-          ),
+          _reveal(_connectionsReveal, const SectionHeader(title: 'Your Style Tools', subtitle: 'Everything you use to build and refine your look.')),
           const SizedBox(height: 14),
           _reveal(_connectionsReveal, _buildWardrobeConnectionCard()),
           const SizedBox(height: 10),
@@ -684,29 +652,11 @@ class _ProfileScreenState extends State<ProfileScreen>
           const SizedBox(height: 10),
           _reveal(_connectionsReveal, _buildSavedLooksConnectionCard()),
           const SizedBox(height: 28),
-          _reveal(
-            _preferencesReveal,
-            SectionHeader(
-              title: 'My Preferences',
-              subtitle: styles.isEmpty && preferences.isEmpty
-                  ? 'Set a direction and make VYEA feel more like you.'
-                  : 'Your saved style direction and personal choices.',
-              trailing: TextButton(
-                onPressed: openStylePreferences,
-                child: const Text('Edit'),
-              ),
-            ),
-          ),
+          _reveal(_preferencesReveal, SectionHeader(title: 'My Preferences', subtitle: styles.isEmpty && preferences.isEmpty ? 'Set a direction and make VYEA feel more like you.' : 'Your saved style direction and personal choices.', trailing: TextButton(onPressed: openStylePreferences, child: const Text('Edit')))),
           const SizedBox(height: 14),
           _reveal(_preferencesReveal, _buildPreferencesCard()),
           const SizedBox(height: 28),
-          _reveal(
-            _preferencesReveal,
-            const SectionHeader(
-              title: 'Account & Security',
-              subtitle: 'Keep your profile and access details up to date.',
-            ),
-          ),
+          _reveal(_preferencesReveal, const SectionHeader(title: 'Account & Security', subtitle: 'Keep your profile and access details up to date.')),
           const SizedBox(height: 14),
           _reveal(_preferencesReveal, _buildAccountSection()),
         ],
@@ -718,19 +668,13 @@ class _ProfileScreenState extends State<ProfileScreen>
     final name = user?.name.trim();
     final email = user?.email.trim();
     final displayName = name?.isNotEmpty == true ? name! : 'VYEA User';
-    final displayEmail = email?.isNotEmpty == true
-        ? email!
-        : (FirebaseAuth.instance.currentUser?.email ?? '');
+    final displayEmail = email?.isNotEmpty == true ? email! : (FirebaseAuth.instance.currentUser?.email ?? '');
     final hasPhoto = user?.photoUrl != null && user!.photoUrl!.isNotEmpty;
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
-      decoration: BoxDecoration(
-        gradient: AppGradients.soft,
-        borderRadius: BorderRadius.circular(AppRadius.xl),
-        border: Border.all(color: AppColors.border),
-      ),
+      decoration: BoxDecoration(gradient: AppGradients.soft, borderRadius: BorderRadius.circular(AppRadius.xl), border: Border.all(color: AppColors.border)),
       child: Column(
         children: [
           GestureDetector(
@@ -741,16 +685,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                 CircleAvatar(
                   radius: 54,
                   backgroundColor: AppColors.secondary,
-                  backgroundImage: hasPhoto
-                      ? CachedNetworkImageProvider(user!.photoUrl!)
-                      : null,
-                  child: hasPhoto
-                      ? null
-                      : const Icon(
-                          Icons.person_outline_rounded,
-                          size: 48,
-                          color: AppColors.primaryDark,
-                        ),
+                  backgroundImage: hasPhoto ? CachedNetworkImageProvider(user!.photoUrl!) : null,
+                  child: hasPhoto ? null : const Icon(Icons.person_outline_rounded, size: 48, color: AppColors.primaryDark),
                 ),
                 Material(
                   color: AppColors.primary,
@@ -760,20 +696,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                     customBorder: const CircleBorder(),
                     child: Padding(
                       padding: const EdgeInsets.all(9),
-                      child: isUploadingPhoto
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: AppColors.background,
-                              ),
-                            )
-                          : const Icon(
-                              Icons.camera_alt_outlined,
-                              size: 16,
-                              color: AppColors.background,
-                            ),
+                      child: isUploadingPhoto ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.background)) : const Icon(Icons.camera_alt_outlined, size: 16, color: AppColors.background),
                     ),
                   ),
                 ),
@@ -781,93 +704,34 @@ class _ProfileScreenState extends State<ProfileScreen>
             ),
           ),
           const SizedBox(height: 15),
-          Text(
-            displayName,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 24,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -.3,
-            ),
-            textAlign: TextAlign.center,
-          ),
+          Text(displayName, style: const TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.w800, letterSpacing: -.3), textAlign: TextAlign.center),
           const SizedBox(height: 4),
-          Text(
-            displayEmail,
-            style: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 12.5,
-            ),
-            textAlign: TextAlign.center,
-          ),
+          Text(displayEmail, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12.5), textAlign: TextAlign.center),
           const SizedBox(height: 14),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(AppRadius.full),
-              border: Border.all(color: AppColors.border),
-            ),
+            decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(AppRadius.full), border: Border.all(color: AppColors.border)),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
-                  isPremium
-                      ? Icons.auto_awesome_rounded
-                      : Icons.person_outline_rounded,
-                  size: 15,
-                  color: isPremium
-                      ? AppColors.premiumAccentDark
-                      : AppColors.textSecondary,
-                ),
+                Icon(isPremium ? Icons.auto_awesome_rounded : Icons.person_outline_rounded, size: 15, color: isPremium ? AppColors.premiumAccentDark : AppColors.textSecondary),
                 const SizedBox(width: 6),
-                Text(
-                  isPremium ? 'Premium Member' : 'Free Member',
-                  style: TextStyle(
-                    color: isPremium
-                        ? AppColors.premiumAccentDark
-                        : AppColors.textSecondary,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
+                Text(isPremium ? 'Premium Member' : 'Free Member', style: TextStyle(color: isPremium ? AppColors.premiumAccentDark : AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w800)),
               ],
             ),
           ),
           const SizedBox(height: 16),
           Row(
             children: [
-              Expanded(
-                child: _heroStat(
-                  value: '$wardrobeCount',
-                  label: 'Wardrobe pieces',
-                ),
-              ),
+              Expanded(child: _heroStat(value: '$wardrobeCount', label: 'Wardrobe pieces')),
               const SizedBox(width: 8),
-              Expanded(
-                child: _heroStat(
-                  value: '$wardrobeFavouriteCount',
-                  label: 'Favourites',
-                ),
-              ),
+              Expanded(child: _heroStat(value: '$wardrobeFavouriteCount', label: 'Favourites')),
               const SizedBox(width: 8),
-              Expanded(
-                child: _heroStat(
-                  value: '${styles.length}',
-                  label: 'Style tags',
-                ),
-              ),
+              Expanded(child: _heroStat(value: '${styles.length}', label: 'Style tags')),
             ],
           ),
           const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: openEditProfile,
-              icon: const Icon(Icons.edit_outlined, size: 17),
-              label: const Text('Edit Profile'),
-            ),
-          ),
+          SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: openEditProfile, icon: const Icon(Icons.edit_outlined, size: 17), label: const Text('Edit Profile'))),
         ],
       ),
     );
@@ -876,32 +740,12 @@ class _ProfileScreenState extends State<ProfileScreen>
   Widget _heroStat({required String value, required String label}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppColors.surface.withValues(alpha: .86),
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: AppColors.border.withValues(alpha: .7)),
-      ),
+      decoration: BoxDecoration(color: AppColors.surface.withValues(alpha: .86), borderRadius: BorderRadius.circular(15), border: Border.all(color: AppColors.border.withValues(alpha: .7))),
       child: Column(
         children: [
-          Text(
-            value,
-            style: const TextStyle(
-              color: AppColors.primary,
-              fontSize: 16,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
+          Text(value, style: const TextStyle(color: AppColors.primary, fontSize: 16, fontWeight: FontWeight.w900)),
           const SizedBox(height: 2),
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 9.5,
-            ),
-          ),
+          Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.textSecondary, fontSize: 9.5)),
         ],
       ),
     );
@@ -916,35 +760,11 @@ class _ProfileScreenState extends State<ProfileScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Build your colour identity',
-              style: TextStyle(
-                color: AppColors.background,
-                fontSize: 19,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
+            const Text('Build your colour identity', style: TextStyle(color: AppColors.background, fontSize: 19, fontWeight: FontWeight.w800)),
             const SizedBox(height: 7),
-            Text(
-              'Find the colours that work with your natural palette and make every outfit decision easier.',
-              style: TextStyle(
-                color: AppColors.background.withValues(alpha: .72),
-                height: 1.5,
-                fontSize: 12.5,
-              ),
-            ),
+            Text('Find the colours that work with your natural palette and make every outfit decision easier.', style: TextStyle(color: AppColors.background.withValues(alpha: .72), height: 1.5, fontSize: 12.5)),
             const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: openColourAnalysis,
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.background,
-                  foregroundColor: AppColors.primaryDark,
-                ),
-                child: const Text('Start Colour Analysis'),
-              ),
-            ),
+            SizedBox(width: double.infinity, child: FilledButton(onPressed: openColourAnalysis, style: FilledButton.styleFrom(backgroundColor: AppColors.background, foregroundColor: AppColors.primaryDark), child: const Text('Start Colour Analysis'))),
           ],
         ),
       );
@@ -953,69 +773,25 @@ class _ProfileScreenState extends State<ProfileScreen>
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(18, 18, 18, 17),
-      decoration: BoxDecoration(
-        gradient: AppGradients.season(result.season),
-        borderRadius: BorderRadius.circular(AppRadius.xl),
-      ),
+      decoration: BoxDecoration(gradient: AppGradients.season(result.season), borderRadius: BorderRadius.circular(AppRadius.xl)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Expanded(
-                child: Text(
-                  'YOUR COLOUR IDENTITY',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.2,
-                    color: Colors.white70,
-                  ),
-                ),
-              ),
-              TextButton(
-                onPressed: () => openAnalysisResult(result),
-                style: TextButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  minimumSize: const Size(0, 0),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                child: const Text('View'),
-              ),
+              const Expanded(child: Text('YOUR COLOUR IDENTITY', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1.2, color: Colors.white70))),
+              TextButton(onPressed: () => openAnalysisResult(result), style: TextButton.styleFrom(foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), minimumSize: const Size(0, 0), tapTargetSize: MaterialTapTargetSize.shrinkWrap), child: const Text('View')),
             ],
           ),
           const SizedBox(height: 3),
-          Text(
-            result.season,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 28,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -.5,
-            ),
-          ),
+          Text(result.season, style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w800, letterSpacing: -.5)),
           const SizedBox(height: 5),
-          Text(
-            '${result.undertone} • ${result.brightness} • ${result.contrast}',
-            style: const TextStyle(color: Colors.white70, fontSize: 12.5),
-          ),
+          Text('${result.undertone} • ${result.brightness} • ${result.contrast}', style: const TextStyle(color: Colors.white70, fontSize: 12.5)),
           if (styles.isNotEmpty) ...[
             const SizedBox(height: 14),
-            Text(
-              'Style direction',
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: .72),
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
+            Text('Style direction', style: TextStyle(color: Colors.white.withValues(alpha: .72), fontSize: 10, fontWeight: FontWeight.w700)),
             const SizedBox(height: 6),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: styles.take(3).map(_lightStyleTag).toList(),
-            ),
+            Wrap(spacing: 6, runSpacing: 6, children: styles.take(3).map(_lightStyleTag).toList()),
           ],
         ],
       ),
@@ -1025,19 +801,8 @@ class _ProfileScreenState extends State<ProfileScreen>
   Widget _lightStyleTag(String label) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: .14),
-        borderRadius: BorderRadius.circular(AppRadius.full),
-        border: Border.all(color: Colors.white.withValues(alpha: .18)),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 10,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
+      decoration: BoxDecoration(color: Colors.white.withValues(alpha: .14), borderRadius: BorderRadius.circular(AppRadius.full), border: Border.all(color: Colors.white.withValues(alpha: .18))),
+      child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700)),
     );
   }
 
@@ -1045,54 +810,19 @@ class _ProfileScreenState extends State<ProfileScreen>
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(color: AppColors.border),
-      ),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(AppRadius.lg), border: Border.all(color: AppColors.border)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Expanded(
-                child: Text(
-                  'YOUR PALETTE',
-                  style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: .7,
-                  ),
-                ),
-              ),
-              TextButton(
-                onPressed: () => openAnalysisResult(result),
-                child: const Text('Details'),
-              ),
-            ],
-          ),
+          Row(children: [const Expanded(child: Text('YOUR PALETTE', style: TextStyle(color: AppColors.textSecondary, fontSize: 10.5, fontWeight: FontWeight.w800, letterSpacing: .7))), TextButton(onPressed: () => openAnalysisResult(result), child: const Text('Details'))]),
           const SizedBox(height: 6),
-          Wrap(
-            spacing: 16,
-            runSpacing: 14,
-            children: result.colours
-                .take(12)
-                .map((c) => ColourSwatch(name: c, size: 46, showLabel: true))
-                .toList(),
-          ),
+          Wrap(spacing: 16, runSpacing: 14, children: result.colours.take(12).map((c) => ColourSwatch(name: c, size: 46, showLabel: true)).toList()),
         ],
       ),
     );
   }
 
-  Widget _connectionCard({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-    Widget? trailingBadge,
-  }) {
+  Widget _connectionCard({required IconData icon, required String title, required String subtitle, required VoidCallback onTap, Widget? trailingBadge}) {
     return Material(
       color: AppColors.surface,
       borderRadius: BorderRadius.circular(AppRadius.lg),
@@ -1101,56 +831,18 @@ class _ProfileScreenState extends State<ProfileScreen>
         onTap: onTap,
         child: Container(
           padding: const EdgeInsets.all(15),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(AppRadius.lg),
-            border: Border.all(color: AppColors.border),
-          ),
+          decoration: BoxDecoration(borderRadius: BorderRadius.circular(AppRadius.lg), border: Border.all(color: AppColors.border)),
           child: Row(
             children: [
-              Container(
-                width: 46,
-                height: 46,
-                decoration: const BoxDecoration(
-                  color: AppColors.secondary,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, color: AppColors.primaryDark),
-              ),
+              Container(width: 46, height: 46, decoration: const BoxDecoration(color: AppColors.secondary, shape: BoxShape.circle), child: Icon(icon, color: AppColors.primaryDark)),
               const SizedBox(width: 13),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: AppColors.textPrimary,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                        if (trailingBadge != null) ...[
-                          const SizedBox(width: 7),
-                          trailingBadge,
-                        ],
-                      ],
-                    ),
+                    Row(children: [Flexible(child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700))), if (trailingBadge != null) ...[const SizedBox(width: 7), trailingBadge]]),
                     const SizedBox(height: 3),
-                    Text(
-                      subtitle,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 12,
-                        height: 1.35,
-                      ),
-                    ),
+                    Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.35)),
                   ],
                 ),
               ),
@@ -1163,106 +855,37 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-  Widget _buildWardrobeConnectionCard() {
-    return _connectionCard(
-      icon: Icons.checkroom_outlined,
-      title: 'My Wardrobe',
-      subtitle: wardrobeCount == 0
-          ? 'Add a few pieces to start building outfits.'
-          : '$wardrobeCount pieces · $wardrobeFavouriteCount favourites',
-      onTap: openWardrobe,
-    );
-  }
+  Widget _buildWardrobeConnectionCard() => _connectionCard(icon: Icons.checkroom_outlined, title: 'My Wardrobe', subtitle: wardrobeCount == 0 ? 'Add a few pieces to start building outfits.' : '$wardrobeCount pieces · $wardrobeFavouriteCount favourites', onTap: openWardrobe);
 
-  Widget _buildAiStylistConnectionCard() {
-    return _connectionCard(
-      icon: Icons.auto_awesome_rounded,
-      title: 'VYEA Personal Stylist',
-      subtitle: 'Turn your wardrobe and personal colours into outfit ideas.',
-      onTap: openAIStylist,
-      trailingBadge: isPremium ? const PremiumBadge(compact: true) : null,
-    );
-  }
+  Widget _buildAiStylistConnectionCard() => _connectionCard(icon: Icons.auto_awesome_rounded, title: 'VYEA Personal Stylist', subtitle: 'Turn your wardrobe and personal colours into outfit ideas.', onTap: openAIStylist, trailingBadge: isPremium ? const PremiumBadge(compact: true) : null);
 
-  Widget _buildSavedLooksConnectionCard() {
-    return _connectionCard(
-      icon: Icons.bookmark_border_rounded,
-      title: 'Saved Looks',
-      subtitle: 'Come back to outfits you loved and saved.',
-      onTap: openSavedLooks,
-    );
-  }
+  Widget _buildSavedLooksConnectionCard() => _connectionCard(icon: Icons.bookmark_border_rounded, title: 'Saved Looks', subtitle: 'Come back to outfits you loved and saved.', onTap: openSavedLooks);
 
   Widget _buildPreferencesCard() {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(color: AppColors.border),
-      ),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(AppRadius.lg), border: Border.all(color: AppColors.border)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _preferenceGroup(
-            'Styles',
-            styles,
-            emptyText: 'No style direction saved yet.',
-          ),
+          _preferenceGroup('Styles', styles, emptyText: 'No style direction saved yet.'),
           const SizedBox(height: 16),
-          _preferenceGroup(
-            'Preferences',
-            preferences,
-            emptyText: 'No preferences saved yet.',
-          ),
+          _preferenceGroup('Preferences', preferences, emptyText: 'No preferences saved yet.'),
           const SizedBox(height: 14),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: openStylePreferences,
-              icon: const Icon(Icons.tune_rounded, size: 17),
-              label: const Text('Refine My Style Profile'),
-            ),
-          ),
+          SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: openStylePreferences, icon: const Icon(Icons.tune_rounded, size: 17), label: const Text('Refine My Style Profile'))),
         ],
       ),
     );
   }
 
-  Widget _preferenceGroup(
-    String label,
-    List<String> values, {
-    required String emptyText,
-  }) {
+  Widget _preferenceGroup(String label, List<String> values, {required String emptyText}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label.toUpperCase(),
-          style: const TextStyle(
-            color: AppColors.textSecondary,
-            fontSize: 10.5,
-            fontWeight: FontWeight.w800,
-            letterSpacing: .6,
-          ),
-        ),
+        Text(label.toUpperCase(), style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.5, fontWeight: FontWeight.w800, letterSpacing: .6)),
         const SizedBox(height: 9),
-        values.isEmpty
-            ? Text(
-                emptyText,
-                style: const TextStyle(
-                  color: AppColors.textMuted,
-                  fontSize: 12,
-                ),
-              )
-            : Wrap(
-                spacing: 7,
-                runSpacing: 7,
-                children: values
-                    .map((value) => StyleChip(label: value, selected: true))
-                    .toList(),
-              ),
+        values.isEmpty ? Text(emptyText, style: const TextStyle(color: AppColors.textMuted, fontSize: 12)) : Wrap(spacing: 7, runSpacing: 7, children: values.map((value) => StyleChip(label: value, selected: true)).toList()),
       ],
     );
   }
@@ -1270,88 +893,30 @@ class _ProfileScreenState extends State<ProfileScreen>
   Widget _buildAccountSection() {
     return Column(
       children: [
-        _connectionCard(
-          icon: Icons.lock_outline_rounded,
-          title: 'Change Password',
-          subtitle: 'Send a secure password reset email.',
-          onTap: changePassword,
-        ),
-        const SizedBox(height: 10),
-        _connectionCard(
-          icon: Icons.dark_mode_outlined,
-          title: 'Appearance',
-          subtitle: _themeLabel(context.watch<ThemeProvider>().themeMode),
-          onTap: _showThemeSheet,
-        ),
+        _connectionCard(icon: Icons.lock_outline_rounded, title: 'Change Password', subtitle: 'Send a secure password reset email.', onTap: changePassword),
         const SizedBox(height: 10),
         Container(
           padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(AppRadius.lg),
-            border: Border.all(color: AppColors.border),
-          ),
+          decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(AppRadius.lg), border: Border.all(color: AppColors.border)),
           child: Row(
             children: [
-              Container(
-                width: 46,
-                height: 46,
-                decoration: const BoxDecoration(
-                  color: AppColors.secondary,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.verified_user_outlined,
-                  color: AppColors.primaryDark,
-                ),
-              ),
+              Container(width: 46, height: 46, decoration: const BoxDecoration(color: AppColors.secondary, shape: BoxShape.circle), child: const Icon(Icons.verified_user_outlined, color: AppColors.primaryDark)),
               const SizedBox(width: 14),
               const Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Account Status',
-                      style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
+                    Text('Account Status', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700)),
                     SizedBox(height: 3),
-                    Text(
-                      'Your account status is shown from your profile record.',
-                      style: TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 12,
-                        height: 1.35,
-                      ),
-                    ),
+                    Text('Your account status is shown from your profile record.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.35)),
                   ],
                 ),
               ),
-              Icon(
-                user?.isActive == true
-                    ? Icons.check_circle_rounded
-                    : Icons.error_outline_rounded,
-                color: user?.isActive == true
-                    ? AppColors.success
-                    : AppColors.error,
-              ),
+              Icon(user?.isActive == true ? Icons.check_circle_rounded : Icons.error_outline_rounded, color: user?.isActive == true ? AppColors.success : AppColors.error),
             ],
           ),
         ),
       ],
     );
-  }
-
-  String _themeLabel(ThemeMode mode) {
-    switch (mode) {
-      case ThemeMode.system:
-        return 'Follow your device appearance';
-      case ThemeMode.light:
-        return 'Light mode';
-      case ThemeMode.dark:
-        return 'Dark mode';
-    }
   }
 }
