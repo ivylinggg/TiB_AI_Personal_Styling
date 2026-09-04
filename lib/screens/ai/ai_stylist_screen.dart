@@ -40,10 +40,10 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
   String? _lastPrompt;
 
   static const _quickPrompts = [
-    'What should I wear for dinner?',
-    'Style me for work',
-    'What colours suit me?',
-    'Make a casual look',
+    'Dinner tonight',
+    'Smart work look',
+    'Casual weekend',
+    'Use my colours',
   ];
 
   @override
@@ -212,7 +212,7 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
             ),
             const SizedBox(width: 8),
             const Text(
-              'TiB AI Stylist',
+              'VYEA Personal Stylist',
               style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
             ),
           ],
@@ -222,7 +222,7 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
           IconButton(
             tooltip: 'My style',
             onPressed: _openPreferences,
-            icon: const Icon(Icons.more_horiz_rounded),
+            icon: const Icon(Icons.tune_rounded),
           ),
         ],
       ),
@@ -239,14 +239,16 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
                       padding: const EdgeInsets.fromLTRB(20, 10, 20, 18),
                       children: [
                         _assistantGreeting(profile),
-                        const SizedBox(height: 18),
+                        const SizedBox(height: 15),
                         if (_error != null) _errorCard(),
                         if (season != null) _profileStrip(profile!),
-                        const SizedBox(height: 17),
+                        if (season != null) const SizedBox(height: 14),
                         if (widget.selectedItem != null) ...[
                           _selectedItemBanner(widget.selectedItem!),
-                          const SizedBox(height: 17),
+                          const SizedBox(height: 15),
                         ],
+                        _stylingBrief(),
+                        const SizedBox(height: 13),
                         _quickPromptSection(),
                         if (_lastPrompt != null) ...[
                           const SizedBox(height: 18),
@@ -278,6 +280,51 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
     );
   }
 
+  Widget _stylingBrief() {
+    final pieces = _wardrobe.length;
+    final styleText = _styles.isEmpty ? 'style preferences' : _styles.take(2).join(' · ');
+    return Container(
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        gradient: AppGradients.soft,
+        borderRadius: BorderRadius.circular(19),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.checkroom_outlined, color: AppColors.primary),
+          ),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'READY TO STYLE',
+                  style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1.1),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  '$pieces wardrobe pieces · $styleText',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.35),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _selectedItemBanner(WardrobeItem item) {
     return Container(
       padding: const EdgeInsets.all(12),
@@ -296,15 +343,9 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
               child: item.imageUrl.isEmpty
                   ? Container(
                       color: AppColors.surfaceMuted,
-                      child: const Icon(
-                        Icons.checkroom_outlined,
-                        color: AppColors.primary,
-                      ),
+                      child: const Icon(Icons.checkroom_outlined, color: AppColors.primary),
                     )
-                  : CachedNetworkImage(
-                      imageUrl: item.imageUrl,
-                      fit: BoxFit.cover,
-                    ),
+                  : CachedNetworkImage(imageUrl: item.imageUrl, fit: BoxFit.cover),
             ),
           ),
           const SizedBox(width: 11),
@@ -312,43 +353,15 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'STYLING AROUND',
-                  style: TextStyle(
-                    fontSize: 9,
-                    letterSpacing: 1,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.textMuted,
-                  ),
-                ),
+                const Text('STYLING AROUND', style: TextStyle(fontSize: 9, letterSpacing: 1, fontWeight: FontWeight.w800, color: AppColors.textMuted)),
                 const SizedBox(height: 3),
-                Text(
-                  item.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
+                Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800)),
                 const SizedBox(height: 2),
-                Text(
-                  '${item.category} · ${item.colour}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 10.5,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
+                Text('${item.category} · ${item.colour}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10.5, color: AppColors.textSecondary)),
               ],
             ),
           ),
-          const Icon(
-            Icons.auto_awesome_rounded,
-            color: AppColors.primary,
-            size: 18,
-          ),
+          const Icon(Icons.auto_awesome_rounded, color: AppColors.primary, size: 18),
         ],
       ),
     );
@@ -359,42 +372,28 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
     final greeting = name == null || name.isEmpty ? 'Hi there' : 'Hi $name';
     final intro = profile == null
         ? 'I’m here to help you feel confident in what you wear.'
-        : 'Your ${profile.season} palette is ready. Tell me what you’re dressing for and we’ll work it out together.';
+        : 'I know your ${profile.season} palette. Tell me what you are dressing for and I’ll build around you.';
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          width: 38,
-          height: 38,
+          width: 42,
+          height: 42,
           decoration: BoxDecoration(
-            color: AppColors.secondary,
-            borderRadius: BorderRadius.circular(14),
+            gradient: AppGradients.primary,
+            borderRadius: BorderRadius.circular(15),
           ),
-          child: const Icon(
-            Icons.auto_awesome_rounded,
-            color: AppColors.primary,
-            size: 20,
-          ),
+          child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 21),
         ),
-        const SizedBox(width: 10),
+        const SizedBox(width: 11),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                greeting,
-                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
-              ),
+              Text(greeting, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17)),
               const SizedBox(height: 4),
-              Text(
-                intro,
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
-                  height: 1.45,
-                  fontSize: 13,
-                ),
-              ),
+              Text(intro, style: const TextStyle(color: AppColors.textSecondary, height: 1.45, fontSize: 13)),
             ],
           ),
         ),
@@ -415,16 +414,7 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
         children: [
           const Icon(Icons.cloud_off_rounded, color: AppColors.error, size: 19),
           const SizedBox(width: 9),
-          Expanded(
-            child: Text(
-              _error!,
-              style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 11.5,
-                height: 1.35,
-              ),
-            ),
-          ),
+          Expanded(child: Text(_error!, style: const TextStyle(fontSize: 11.5, height: 1.35))),
           IconButton(
             onPressed: _load,
             padding: EdgeInsets.zero,
@@ -448,12 +438,7 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
         children: [
           const Icon(Icons.palette_outlined, color: AppColors.primary, size: 18),
           const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              '${profile.season} · ${profile.undertone} · ${_wardrobe.length} wardrobe pieces',
-              style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700),
-            ),
-          ),
+          Expanded(child: Text('${profile.season} · ${profile.undertone} · $_wardrobe wardrobe pieces', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700))),
         ],
       ),
     );
@@ -463,24 +448,22 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Try asking me',
-          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+        const Row(
+          children: [
+            Expanded(child: Text('START WITH A VIBE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 1.05))),
+            Text('or type your own', style: TextStyle(fontSize: 9.5, color: AppColors.textMuted)),
+          ],
         ),
         const SizedBox(height: 9),
         Wrap(
           spacing: 8,
           runSpacing: 8,
-          children: _quickPrompts
-              .map(
-                (prompt) => ActionChip(
-                  label: Text(prompt, style: const TextStyle(fontSize: 10.5)),
-                  onPressed: _styling ? null : () => _send(prompt),
-                  backgroundColor: AppColors.surface,
-                  side: const BorderSide(color: AppColors.border),
-                ),
-              )
-              .toList(),
+          children: _quickPrompts.map((prompt) => ActionChip(
+            label: Text(prompt, style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700)),
+            onPressed: _styling ? null : () => _send(prompt),
+            backgroundColor: AppColors.surface,
+            side: const BorderSide(color: AppColors.border),
+          )).toList(),
         ),
       ],
     );
@@ -490,16 +473,10 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
     return Align(
       alignment: Alignment.centerRight,
       child: Container(
-        margin: const EdgeInsets.only(left: 40),
+        margin: const EdgeInsets.only(left: 55),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-        decoration: BoxDecoration(
-          color: AppColors.primary,
-          borderRadius: BorderRadius.circular(17),
-        ),
-        child: Text(
-          text,
-          style: const TextStyle(color: Colors.white, fontSize: 12.5, height: 1.35),
-        ),
+        decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(17)),
+        child: Text(text, style: const TextStyle(color: Colors.white, fontSize: 12.5, height: 1.35)),
       ),
     );
   }
@@ -509,24 +486,13 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
       alignment: Alignment.centerLeft,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(17),
-          border: Border.all(color: AppColors.border),
-        ),
+        decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(17), border: Border.all(color: AppColors.border)),
         child: const Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            SizedBox(
-              width: 14,
-              height: 14,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
+            SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)),
             SizedBox(width: 8),
-            Text(
-              'Styling your look…',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
-            ),
+            Text('Putting your look together…', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
           ],
         ),
       ),
@@ -535,23 +501,19 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
 
   Widget _assistantReply() {
     return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(17),
-        border: Border.all(color: AppColors.border),
-      ),
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border)),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.auto_awesome_rounded, color: AppColors.primary, size: 19),
-          const SizedBox(width: 9),
-          Expanded(
-            child: Text(
-              _result?.explanation ?? 'I’m ready to build a look from your wardrobe.',
-              style: const TextStyle(fontSize: 12.5, height: 1.45),
-            ),
+          Container(
+            width: 28,
+            height: 28,
+            decoration: const BoxDecoration(color: AppColors.secondary, shape: BoxShape.circle),
+            child: const Icon(Icons.auto_awesome_rounded, color: AppColors.primary, size: 16),
           ),
+          const SizedBox(width: 9),
+          Expanded(child: Text(_result?.explanation ?? 'I’m ready to build a look from your wardrobe.', style: const TextStyle(fontSize: 12.5, height: 1.45))),
         ],
       ),
     );
@@ -561,53 +523,50 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
     final look = _look;
     if (look.isEmpty) {
       return Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(17),
-          border: Border.all(color: AppColors.border),
-        ),
-        child: const Text(
-          'I couldn’t find enough matching pieces in your current wardrobe for this request.',
-          style: TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.4),
-        ),
+        padding: const EdgeInsets.all(15),
+        decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border)),
+        child: const Text('I couldn’t find enough matching pieces in your current wardrobe for this request.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.4)),
       );
     }
 
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(19),
+        borderRadius: BorderRadius.circular(21),
         border: Border.all(color: AppColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'YOUR LOOK',
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w800,
-              letterSpacing: .8,
-              color: AppColors.textMuted,
-            ),
+          Row(
+            children: [
+              const Expanded(child: Text('THE LOOK', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 1.05, color: AppColors.textMuted))),
+              Text(profile.season, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: AppColors.seasonAccent(profile.season))),
+            ],
           ),
           const SizedBox(height: 10),
           SizedBox(
-            height: 150,
+            height: 158,
             child: Row(
-              children: look
-                  .map(
-                    (item) => Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.only(right: 7),
-                        child: _lookItem(item),
-                      ),
+              children: [
+                for (var index = 0; index < look.length; index++)
+                  Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.only(right: index == look.length - 1 ? 0 : 7),
+                      child: _lookItem(look[index]),
                     ),
-                  )
-                  .toList(),
+                  ),
+              ],
             ),
+          ),
+          const SizedBox(height: 12),
+          const Row(
+            children: [
+              Icon(Icons.auto_awesome_rounded, size: 15, color: AppColors.primary),
+              SizedBox(width: 6),
+              Text('Built from what you already own', style: TextStyle(fontSize: 10.5, color: AppColors.textSecondary, fontWeight: FontWeight.w700)),
+            ],
           ),
         ],
       ),
@@ -622,32 +581,13 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
           child: ClipRRect(
             borderRadius: BorderRadius.circular(15),
             child: item.imageUrl.isEmpty
-                ? Container(
-                    color: AppColors.surfaceMuted,
-                    child: const Center(
-                      child: Icon(Icons.checkroom_outlined, color: AppColors.primary),
-                    ),
-                  )
-                : CachedNetworkImage(
-                    imageUrl: item.imageUrl,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                  ),
+                ? Container(color: AppColors.surfaceMuted, child: const Center(child: Icon(Icons.checkroom_outlined, color: AppColors.primary)))
+                : CachedNetworkImage(imageUrl: item.imageUrl, width: double.infinity, fit: BoxFit.cover),
           ),
         ),
         const SizedBox(height: 6),
-        Text(
-          item.name,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800),
-        ),
-        Text(
-          '${item.category} · ${item.colour}',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 9.5, color: AppColors.textMuted),
-        ),
+        Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800)),
+        Text('${item.category} · ${item.colour}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 9.5, color: AppColors.textMuted)),
       ],
     );
   }
@@ -674,10 +614,8 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
             onPressed: _styling
                 ? null
                 : () {
-                    _composer.text = 'Make this look a little more casual';
-                    _composer.selection = TextSelection.fromPosition(
-                      TextPosition(offset: _composer.text.length),
-                    );
+                    _composer.text = 'Make this look a little more relaxed';
+                    _composer.selection = TextSelection.fromPosition(TextPosition(offset: _composer.text.length));
                     _send();
                   },
             icon: const Icon(Icons.tune_rounded, size: 17),
@@ -698,42 +636,15 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Keep your style profile fresh',
-          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
-        ),
+        const Text('KEEP YOUR STYLE PROFILE FRESH', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 1.05)),
         const SizedBox(height: 9),
         Row(
           children: [
-            Expanded(
-              child: _linkCard(
-                Icons.checkroom_outlined,
-                'My Wardrobe',
-                () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const WardrobeScreen()),
-                ),
-              ),
-            ),
+            Expanded(child: _linkCard(Icons.checkroom_outlined, 'Wardrobe', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const WardrobeScreen())))),
             const SizedBox(width: 9),
-            Expanded(
-              child: _linkCard(
-                Icons.tune_rounded,
-                'Style Preferences',
-                _openPreferences,
-              ),
-            ),
+            Expanded(child: _linkCard(Icons.tune_rounded, 'Preferences', _openPreferences)),
             const SizedBox(width: 9),
-            Expanded(
-              child: _linkCard(
-                Icons.palette_outlined,
-                'Colour Profile',
-                () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const AnalysisScreen()),
-                ),
-              ),
-            ),
+            Expanded(child: _linkCard(Icons.palette_outlined, 'Colours', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalysisScreen())))),
           ],
         ),
       ],
@@ -746,20 +657,12 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
       borderRadius: BorderRadius.circular(17),
       child: Ink(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(17),
-          border: Border.all(color: AppColors.border),
-        ),
+        decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(17), border: Border.all(color: AppColors.border)),
         child: Column(
           children: [
             Icon(icon, color: AppColors.primary, size: 19),
             const SizedBox(height: 6),
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800),
-            ),
+            Text(label, textAlign: TextAlign.center, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800)),
           ],
         ),
       ),
@@ -769,8 +672,12 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
   Widget _composerBar() {
     return SafeArea(
       top: false,
-      child: Padding(
+      child: Container(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          border: Border(top: BorderSide(color: AppColors.border.withValues(alpha: .9))),
+        ),
         child: Row(
           children: [
             Expanded(
@@ -781,21 +688,13 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
                 textInputAction: TextInputAction.send,
                 onSubmitted: (_) => _send(),
                 decoration: InputDecoration(
-                  hintText: 'Tell TiB what you’re dressing for…',
+                  hintText: 'Tell VYEA what you’re dressing for…',
                   filled: true,
-                  fillColor: AppColors.surface,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(18),
-                    borderSide: const BorderSide(color: AppColors.border),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(18),
-                    borderSide: const BorderSide(color: AppColors.border),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(18),
-                    borderSide: const BorderSide(color: AppColors.primary),
-                  ),
+                  fillColor: AppColors.background,
+                  prefixIcon: const Icon(Icons.edit_note_rounded, size: 18),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: const BorderSide(color: AppColors.border)),
+                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: const BorderSide(color: AppColors.border)),
+                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: const BorderSide(color: AppColors.primary, width: 1.2)),
                 ),
               ),
             ),
@@ -806,10 +705,10 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
               child: InkWell(
                 onTap: _styling ? null : _send,
                 borderRadius: BorderRadius.circular(18),
-                child: const SizedBox(
+                child: SizedBox(
                   width: 50,
                   height: 52,
-                  child: Icon(Icons.arrow_upward_rounded, color: Colors.white),
+                  child: Icon(Icons.arrow_upward_rounded, color: _styling ? Colors.white54 : Colors.white),
                 ),
               ),
             ),
@@ -820,10 +719,7 @@ class _AIStylistScreenState extends State<AIStylistScreen> {
   }
 
   Future<void> _openPreferences() async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const StylePreferencesScreen()),
-    );
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => const StylePreferencesScreen()));
     if (mounted) await _load();
   }
 }
