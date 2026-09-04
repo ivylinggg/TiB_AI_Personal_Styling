@@ -4,7 +4,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
-import '../../core/constants/app_gradients.dart';
 import '../../models/wardrobe_item.dart';
 import '../../services/firestore_service.dart';
 import '../../services/tib_model_service.dart';
@@ -266,12 +265,7 @@ class _AiGeneratedTryOnScreenState extends State<AiGeneratedTryOnScreen> {
               const Expanded(
                 child: Text(
                   'THE PERSON IN THIS TRY-ON',
-                  style: TextStyle(
-                    fontSize: 9.5,
-                    letterSpacing: 1.15,
-                    fontWeight: FontWeight.w900,
-                    color: AppColors.textMuted,
-                  ),
+                  style: TextStyle(fontSize: 9.5, letterSpacing: 1.15, fontWeight: FontWeight.w900, color: AppColors.textMuted),
                 ),
               ),
               _readyPill(_modelReady),
@@ -290,11 +284,7 @@ class _AiGeneratedTryOnScreenState extends State<AiGeneratedTryOnScreen> {
           const SizedBox(height: 12),
           const Text(
             'The full-body reference controls the silhouette. Measurements provide additional fit context.',
-            style: TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 10.5,
-              height: 1.4,
-            ),
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 10.5, height: 1.4),
           ),
         ],
       ),
@@ -329,16 +319,7 @@ class _AiGeneratedTryOnScreenState extends State<AiGeneratedTryOnScreen> {
                   color: Colors.black.withValues(alpha: .56),
                   borderRadius: BorderRadius.circular(9),
                 ),
-                child: Text(
-                  label,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 7,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: .7,
-                  ),
-                ),
+                child: Text(label, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 7, fontWeight: FontWeight.w900, letterSpacing: .7)),
               ),
             ),
           ],
@@ -349,12 +330,8 @@ class _AiGeneratedTryOnScreenState extends State<AiGeneratedTryOnScreen> {
 
   Widget _modelFacts(TibModelProfile? model) {
     if (model == null) {
-      return const Text(
-        'Create your Personal TiB Model first.',
-        style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
-      );
+      return const Text('Create your Personal TiB Model first.', style: TextStyle(color: AppColors.textSecondary, fontSize: 11));
     }
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -372,22 +349,9 @@ class _AiGeneratedTryOnScreenState extends State<AiGeneratedTryOnScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            label.toUpperCase(),
-            style: const TextStyle(
-              fontSize: 7,
-              letterSpacing: .8,
-              color: AppColors.textMuted,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
+          Text(label.toUpperCase(), style: const TextStyle(fontSize: 7, letterSpacing: .8, color: AppColors.textMuted, fontWeight: FontWeight.w800)),
           const SizedBox(height: 2),
-          Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900),
-          ),
+          Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900)),
         ],
       ),
     );
@@ -396,65 +360,32 @@ class _AiGeneratedTryOnScreenState extends State<AiGeneratedTryOnScreen> {
   Widget _readyPill(bool ready) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-      decoration: BoxDecoration(
-        color: ready ? AppColors.primarySoft : AppColors.surfaceMuted,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        ready ? 'READY' : 'SET UP FIRST',
-        style: TextStyle(
-          fontSize: 7.5,
-          letterSpacing: .7,
-          fontWeight: FontWeight.w900,
-          color: ready ? AppColors.primaryDark : AppColors.textMuted,
-        ),
-      ),
+      decoration: BoxDecoration(color: ready ? AppColors.primarySoft : AppColors.surfaceMuted, borderRadius: BorderRadius.circular(20)),
+      child: Text(ready ? 'READY' : 'SET UP FIRST', style: TextStyle(fontSize: 7.5, letterSpacing: .7, fontWeight: FontWeight.w900, color: ready ? AppColors.primaryDark : AppColors.textMuted)),
     );
   }
 
   Widget _occasionSection() {
     return Container(
       padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(23),
-        border: Border.all(color: AppColors.border),
-      ),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(23), border: Border.all(color: AppColors.border)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'CHOOSE THE MOMENT',
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 1.2,
-              color: AppColors.textMuted,
-            ),
-          ),
+          const Text('CHOOSE THE MOMENT', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.2, color: AppColors.textMuted)),
           const SizedBox(height: 9),
           Wrap(
             spacing: 7,
             runSpacing: 7,
             children: _occasions.map((occasion) {
+              final selected = _occasion == occasion;
               return ChoiceChip(
                 label: Text(occasion),
-                selected: _occasion == occasion,
-                onSelected: _generating
-                    ? null
-                    : (_) => setState(() {
-                        _occasion = occasion;
-                        _generatedImageUrl = null;
-                      }),
+                selected: selected,
+                onSelected: _generating ? null : (_) => setState(() { _occasion = occasion; _generatedImageUrl = null; }),
                 selectedColor: AppColors.primaryDark,
-                labelStyle: TextStyle(
-                  color: _occasion == occasion ? Colors.white : AppColors.textPrimary,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 11,
-                ),
-                side: BorderSide(
-                  color: _occasion == occasion ? AppColors.primaryDark : AppColors.border,
-                ),
+                labelStyle: TextStyle(color: selected ? Colors.white : AppColors.textPrimary, fontWeight: FontWeight.w700, fontSize: 11),
+                side: BorderSide(color: selected ? AppColors.primaryDark : AppColors.border),
               );
             }).toList(),
           ),
@@ -465,43 +396,21 @@ class _AiGeneratedTryOnScreenState extends State<AiGeneratedTryOnScreen> {
 
   Widget _wardrobeCard() {
     if (_wardrobe.isEmpty) {
-      return _section(
-        title: 'YOUR WARDROBE',
-        child: const Padding(
-          padding: EdgeInsets.symmetric(vertical: 12),
-          child: Text(
-            'Add real pieces to My Wardrobe before using Virtual Try-On.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.45),
-          ),
-        ),
-      );
+      return _section(title: 'YOUR WARDROBE', child: const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: Text('Add real pieces to My Wardrobe before using Virtual Try-On.', textAlign: TextAlign.center, style: TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.45))));
     }
-
     return _section(
       title: 'SELECT THE PIECES',
-      trailing: Text(
-        '${_selectedIds.length}/6',
-        style: const TextStyle(color: AppColors.primary, fontSize: 11, fontWeight: FontWeight.w900),
-      ),
+      trailing: Text('${_selectedIds.length}/6', style: const TextStyle(color: AppColors.primary, fontSize: 11, fontWeight: FontWeight.w900)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Choose the actual garments VYEA should dress onto your Personal Model.',
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 10.5, height: 1.4),
-          ),
+          const Text('Choose the actual garments VYEA should dress onto your Personal Model.', style: TextStyle(color: AppColors.textSecondary, fontSize: 10.5, height: 1.4)),
           const SizedBox(height: 12),
           GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: _wardrobe.length,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 9,
-              mainAxisSpacing: 9,
-              childAspectRatio: .74,
-            ),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 9, mainAxisSpacing: 9, childAspectRatio: .74),
             itemBuilder: (context, index) => _wardrobeItem(_wardrobe[index]),
           ),
         ],
@@ -515,80 +424,28 @@ class _AiGeneratedTryOnScreenState extends State<AiGeneratedTryOnScreen> {
       onTap: () => _toggle(item),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        decoration: BoxDecoration(
-          color: selected ? AppColors.lavenderMist : AppColors.surfaceMuted,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: selected ? AppColors.primary : AppColors.border,
-            width: selected ? 2 : 1,
-          ),
-        ),
+        decoration: BoxDecoration(color: selected ? AppColors.lavenderMist : AppColors.surfaceMuted, borderRadius: BorderRadius.circular(18), border: Border.all(color: selected ? AppColors.primary : AppColors.border, width: selected ? 2 : 1)),
         clipBehavior: Clip.antiAlias,
         child: Stack(
           children: [
-            Positioned.fill(
-              child: item.imageUrl.isEmpty
-                  ? const Center(
-                      child: Icon(
-                        Icons.checkroom_outlined,
-                        size: 38,
-                        color: AppColors.primary,
-                      ),
-                    )
-                  : Image.network(
-                      item.imageUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const Center(
-                        child: Icon(
-                          Icons.broken_image_outlined,
-                          color: AppColors.textMuted,
-                        ),
-                      ),
-                    ),
-            ),
+            Positioned.fill(child: item.imageUrl.isEmpty ? const Center(child: Icon(Icons.checkroom_outlined, size: 38, color: AppColors.primary)) : Image.network(item.imageUrl, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Center(child: Icon(Icons.broken_image_outlined, color: AppColors.textMuted)))),
             Positioned(
               left: 8,
               right: 8,
               bottom: 8,
               child: Container(
                 padding: const EdgeInsets.fromLTRB(9, 7, 7, 7),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: .91),
-                  borderRadius: BorderRadius.circular(12),
-                ),
+                decoration: BoxDecoration(color: Colors.white.withValues(alpha: .9), borderRadius: BorderRadius.circular(12)),
                 child: Row(
                   children: [
-                    Expanded(
-                      child: Text(
-                        item.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900),
-                      ),
-                    ),
-                    if (selected)
-                      const Icon(
-                        Icons.check_circle_rounded,
-                        size: 18,
-                        color: AppColors.primary,
-                      ),
+                    Expanded(child: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900))),
+                    if (selected) const Icon(Icons.check_circle_rounded, size: 18, color: AppColors.primary),
                   ],
                 ),
               ),
             ),
             if (selected)
-              Positioned(
-                top: 8,
-                right: 8,
-                child: Container(
-                  padding: const EdgeInsets.all(5),
-                  decoration: const BoxDecoration(
-                    color: AppColors.primary,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.check, color: Colors.white, size: 13),
-                ),
-              ),
+              Positioned(top: 8, right: 8, child: Container(padding: const EdgeInsets.all(5), decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle), child: const Icon(Icons.check, color: Colors.white, size: 13))),
           ],
         ),
       ),
@@ -602,23 +459,8 @@ class _AiGeneratedTryOnScreenState extends State<AiGeneratedTryOnScreen> {
       height: 56,
       child: FilledButton.icon(
         onPressed: enabled ? _generate : null,
-        icon: _generating
-            ? const SizedBox(
-                width: 19,
-                height: 19,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : const Icon(Icons.auto_awesome_rounded),
-        label: Text(
-          _generating
-              ? 'Dressing Your TiB Model…'
-              : 'Generate My Personal Try-On',
-        ),
-        style: FilledButton.styleFrom(
-          backgroundColor: AppColors.primary,
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        ),
+        icon: _generating ? const SizedBox(width: 19, height: 19, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.auto_awesome_rounded),
+        label: Text(_generating ? 'Dressing Your TiB Model…' : 'Generate My Personal Try-On'),
       ),
     );
   }
@@ -626,105 +468,38 @@ class _AiGeneratedTryOnScreenState extends State<AiGeneratedTryOnScreen> {
   Widget _statusCard() {
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(17),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(Icons.info_outline_rounded, size: 17, color: AppColors.primary),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              _status,
-              style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.5, height: 1.4),
-            ),
-          ),
-        ],
-      ),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [const Icon(Icons.info_outline_rounded, size: 17, color: AppColors.primary), const SizedBox(width: 8), Expanded(child: Text(_status, style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.5, height: 1.4)))]),
     );
   }
 
   Widget _resultCard() {
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: AppColors.primarySoft, width: 1.4),
-      ),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(27), border: Border.all(color: AppColors.primarySoft, width: 1.4)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Expanded(
-                child: Text(
-                  'YOUR TRY-ON RESULT',
-                  style: TextStyle(
-                    fontSize: 11,
-                    letterSpacing: 1.1,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-              TextButton(
-                onPressed: _generating ? null : _generate,
-                child: const Text('Regenerate'),
-              ),
-            ],
-          ),
+          Row(children: [const Icon(Icons.auto_awesome_rounded, size: 18, color: AppColors.primary), const SizedBox(width: 7), const Expanded(child: Text('THIS IS YOUR LOOK', style: TextStyle(fontSize: 11, letterSpacing: 1.1, fontWeight: FontWeight.w900))), TextButton(onPressed: _generating ? null : _generate, child: const Text('Regenerate'))]),
           const SizedBox(height: 9),
           ClipRRect(
-            borderRadius: BorderRadius.circular(22),
+            borderRadius: BorderRadius.circular(21),
             child: Image.network(
               _generatedImageUrl!,
               width: double.infinity,
               fit: BoxFit.contain,
-              errorBuilder: (_, __, ___) => Container(
-                height: 360,
-                alignment: Alignment.center,
-                color: AppColors.surfaceMuted,
-                child: const Text('The generated image could not be displayed.'),
-              ),
+              errorBuilder: (_, __, ___) => Container(height: 360, alignment: Alignment.center, color: AppColors.surfaceMuted, child: const Text('The generated image could not be displayed.')),
             ),
           ),
           const SizedBox(height: 11),
           Container(
+            width: double.infinity,
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppColors.primarySoft.withValues(alpha: .4),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: const Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.person_pin_rounded, size: 17, color: AppColors.primaryDark),
-                SizedBox(width: 7),
-                Expanded(
-                  child: Text(
-                    'VYEA generated this from your Personal TiB Model and selected wardrobe references. The intention is to show you in the outfit, not substitute another person.',
-                    style: TextStyle(fontSize: 9.5, height: 1.4, color: AppColors.primaryDark, fontWeight: FontWeight.w600),
-                  ),
-                ),
-              ],
-            ),
+            decoration: BoxDecoration(color: AppColors.primarySoft.withValues(alpha: .4), borderRadius: BorderRadius.circular(16)),
+            child: const Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(Icons.person_pin_rounded, size: 17, color: AppColors.primaryDark), SizedBox(width: 7), Expanded(child: Text('VYEA generated this look from your Personal TiB Model and the selected pieces in My Wardrobe. The goal is to show you — not a replacement model.', style: TextStyle(fontSize: 9.5, height: 1.4, color: AppColors.primaryDark, fontWeight: FontWeight.w600)))]),
           ),
           const SizedBox(height: 10),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: _generating ? null : _clearSelection,
-              icon: const Icon(Icons.checkroom_rounded),
-              label: const Text('Start another try-on'),
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size.fromHeight(49),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              ),
-            ),
-          ),
+          SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: _generating ? null : _clearSelection, icon: const Icon(Icons.checkroom_rounded), label: const Text('Create Another Look'))),
         ],
       ),
     );
@@ -733,41 +508,17 @@ class _AiGeneratedTryOnScreenState extends State<AiGeneratedTryOnScreen> {
   Widget _section({required String title, Widget? trailing, required Widget child}) {
     return Container(
       padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 9.5,
-                    letterSpacing: 1.1,
-                    fontWeight: FontWeight.w900,
-                    color: AppColors.textMuted,
-                  ),
-                ),
-              ),
-              trailing ?? const SizedBox.shrink(),
-            ],
-          ),
-          const SizedBox(height: 10),
-          child,
-        ],
-      ),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(24), border: Border.all(color: AppColors.border)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [Expanded(child: Text(title, style: const TextStyle(fontSize: 9.5, letterSpacing: 1.1, fontWeight: FontWeight.w900, color: AppColors.textMuted))), trailing ?? const SizedBox.shrink()]),
+        const SizedBox(height: 10),
+        child,
+      ]),
     );
   }
 
   String _num(double value) {
     if (value <= 0) return '—';
-    return value == value.roundToDouble()
-        ? value.toInt().toString()
-        : value.toStringAsFixed(1);
+    return value == value.roundToDouble() ? value.toInt().toString() : value.toStringAsFixed(1);
   }
 }
