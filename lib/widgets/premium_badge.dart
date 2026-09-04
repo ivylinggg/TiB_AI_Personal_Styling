@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../core/constants/app_colors.dart';
 
-/// Subtle VYEA premium marker. It is intentionally presentation-only and does
-/// not enforce access; entitlement logic remains with the calling feature.
+/// Subtle VYEA premium marker. Presentation-only; entitlement logic remains
+/// with the calling feature.
 class PremiumBadge extends StatelessWidget {
   final String label;
   final bool compact;
@@ -22,19 +22,25 @@ class PremiumBadge extends StatelessWidget {
         vertical: compact ? 4 : 5,
       ),
       decoration: BoxDecoration(
-        color: AppColors.gold.withValues(alpha: .13),
+        color: AppColors.premiumAccentLight,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: AppColors.gold.withValues(alpha: .32)),
+        border: Border.all(
+          color: AppColors.premiumAccent.withValues(alpha: .28),
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.auto_awesome_rounded, size: compact ? 10 : 11, color: AppColors.goldDark),
+          Icon(
+            Icons.auto_awesome_rounded,
+            size: compact ? 10 : 11,
+            color: AppColors.premiumAccentDark,
+          ),
           const SizedBox(width: 4),
           Text(
             label.toUpperCase(),
             style: TextStyle(
-              color: AppColors.goldDark,
+              color: AppColors.premiumAccentDark,
               fontSize: compact ? 8 : 9,
               fontWeight: FontWeight.w800,
               letterSpacing: .65,
