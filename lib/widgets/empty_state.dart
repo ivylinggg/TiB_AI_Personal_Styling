@@ -3,8 +3,7 @@ import 'package:flutter/material.dart';
 import '../core/constants/app_colors.dart';
 import '../core/constants/app_radius.dart';
 
-/// Reusable TiB empty/error state. The caller owns the copy so this widget
-/// never invents user data or claims that a feature is complete.
+/// Reusable VYEA empty/error state. The caller owns the copy and action.
 class EmptyState extends StatefulWidget {
   final IconData icon;
   final String title;
@@ -39,13 +38,13 @@ class _EmptyStateState extends State<EmptyState>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 550),
+      duration: const Duration(milliseconds: 450),
     );
     _fade = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
-    _scale = Tween<double>(begin: .94, end: 1).animate(
+    _scale = Tween<double>(begin: .96, end: 1).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
     );
-    _slide = Tween<Offset>(begin: const Offset(0, .035), end: Offset.zero).animate(
+    _slide = Tween<Offset>(begin: const Offset(0, .025), end: Offset.zero).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
     );
     _controller.forward();
@@ -63,7 +62,7 @@ class _EmptyStateState extends State<EmptyState>
         LinearGradient(
           colors: [
             AppColors.secondary,
-            AppColors.secondary.withValues(alpha: 0.42),
+            AppColors.secondary.withValues(alpha: .48),
           ],
         );
 
@@ -75,7 +74,7 @@ class _EmptyStateState extends State<EmptyState>
           scale: _scale,
           child: Container(
             width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+            padding: const EdgeInsets.fromLTRB(22, 25, 22, 21),
             decoration: BoxDecoration(
               color: AppColors.surface,
               borderRadius: BorderRadius.circular(AppRadius.xl),
@@ -84,53 +83,38 @@ class _EmptyStateState extends State<EmptyState>
             child: Column(
               children: [
                 Container(
-                  width: 78,
-                  height: 78,
+                  width: 68,
+                  height: 68,
                   decoration: BoxDecoration(
                     gradient: gradient,
                     shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.primary.withValues(alpha: .08),
-                        blurRadius: 22,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
                   ),
-                  child: Icon(
-                    widget.icon,
-                    color: AppColors.background,
-                    size: 33,
-                  ),
+                  child: Icon(widget.icon, color: AppColors.background, size: 29),
                 ),
-                const SizedBox(height: 19),
+                const SizedBox(height: 17),
                 Text(
                   widget.title,
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -.25,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 7),
                 ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 330),
                   child: Text(
                     widget.description,
                     textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppColors.textSecondary,
-                      height: 1.45,
-                    ),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.45),
                   ),
                 ),
                 if (widget.ctaLabel != null && widget.onCta != null) ...[
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 18),
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
                       onPressed: widget.onCta,
-                      icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+                      icon: const Icon(Icons.arrow_forward_rounded, size: 17),
                       label: Text(widget.ctaLabel!),
                     ),
                   ),
