@@ -79,11 +79,14 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
     final provider = context.read<AnalysisProvider>();
     final uid = FirebaseAuth.instance.currentUser?.uid;
     final analysis = provider.result;
-    _recommendationFuture =
-        TodayRecommendationService.getRecommendation(analysis: analysis);
+    _recommendationFuture = TodayRecommendationService.getRecommendation(
+      analysis: analysis,
+    );
     if (uid != null) {
-      _challengeFuture =
-          DailyChallengeService.personalizedToday(uid, analysis: analysis);
+      _challengeFuture = DailyChallengeService.personalizedToday(
+        uid,
+        analysis: analysis,
+      );
       _journeyFuture = TibStyleJourneyService.load(uid);
       _loadCompletion(uid);
     }
@@ -108,9 +111,13 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
     if (uid == null || _challengeCompleted || _completingChallenge) return;
     setState(() => _completingChallenge = true);
     try {
-      final challenge =
-          await (_challengeFuture ?? Future.value(DailyChallengeService.today()));
-      final completed = await DailyChallengeService.complete(uid, challenge: challenge);
+      final challenge = await (
+        _challengeFuture ?? Future.value(DailyChallengeService.today())
+      );
+      final completed = await DailyChallengeService.complete(
+        uid,
+        challenge: challenge,
+      );
       if (!mounted) return;
       setState(() {
         _challengeCompleted = completed || _challengeCompleted;
@@ -138,15 +145,24 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
             children: [
               _reveal(_heroReveal, _buildWelcome(result)),
               const SizedBox(height: 24),
-              _sectionHeading('YOUR STYLE TODAY', 'A quick read on what feels like you.'),
+              _sectionHeading(
+                'YOUR STYLE TODAY',
+                'A quick read on what feels like you.',
+              ),
               const SizedBox(height: 12),
               _reveal(_profileReveal, _colourProfileCard(result)),
               const SizedBox(height: 22),
-              _sectionHeading('YOUR JOURNEY', 'Keep building your personal style.'),
+              _sectionHeading(
+                'YOUR JOURNEY',
+                'Keep building your personal style.',
+              ),
               const SizedBox(height: 12),
               _reveal(_journeyReveal, _styleJourneyCard()),
               const SizedBox(height: 22),
-              _sectionHeading('ONE SMALL STYLE MOVE', 'A simple task for today.'),
+              _sectionHeading(
+                'ONE SMALL STYLE MOVE',
+                'A simple task for today.',
+              ),
               const SizedBox(height: 12),
               _reveal(_taskReveal, _todayTaskCard()),
             ],
@@ -253,7 +269,9 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
             future: _recommendationFuture,
             builder: (context, snapshot) {
               final data = snapshot.data;
-              if (data == null || data.style.isEmpty) return const SizedBox.shrink();
+              if (data == null || data.style.isEmpty) {
+                return const SizedBox.shrink();
+              }
               final colour = data.colour == '—' ? 'Your palette' : data.colour;
               return Container(
                 padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
@@ -287,7 +305,10 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
                       ),
                     ),
                     const SizedBox(width: 8),
-                    ColourSwatch(name: colour == 'Your palette' ? 'Neutral' : colour, size: 24),
+                    ColourSwatch(
+                      name: colour == 'Your palette' ? 'Neutral' : colour,
+                      size: 24,
+                    ),
                   ],
                 ),
               );
@@ -298,7 +319,10 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
     );
   }
 
-  Widget _card({required Widget child, EdgeInsets padding = const EdgeInsets.all(19)}) {
+  Widget _card({
+    required Widget child,
+    EdgeInsets padding = const EdgeInsets.all(19),
+  }) {
     return Container(
       padding: padding,
       decoration: BoxDecoration(
@@ -330,13 +354,23 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Discover your colours', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+                  Text(
+                    'Discover your colours',
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+                  ),
                   SizedBox(height: 4),
-                  Text('Complete your colour analysis to unlock your personal palette.', style: TextStyle(color: AppColors.textSecondary, fontSize: 11.8, height: 1.4)),
+                  Text(
+                    'Complete your colour analysis to unlock your personal palette.',
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 11.8,
+                      height: 1.4,
+                    ),
+                  ),
                 ],
               ),
             ),
-            Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
+            const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
           ],
         ),
       );
@@ -359,17 +393,41 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('COLOUR PROFILE', style: TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: 1.1)),
+                const Text(
+                  'COLOUR PROFILE',
+                  style: TextStyle(
+                    color: AppColors.textMuted,
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.1,
+                  ),
+                ),
                 const SizedBox(height: 5),
-                Text(result.season, style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w800, color: AppColors.primaryDark)),
+                Text(
+                  result.season,
+                  style: const TextStyle(
+                    fontSize: 21,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.primaryDark,
+                  ),
+                ),
                 const SizedBox(height: 5),
-                Text('${result.undertone} · ${result.brightness} · ${result.contrast}', style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5)),
+                Text(
+                  '${result.undertone} · ${result.brightness} · ${result.contrast}',
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 11.5,
+                  ),
+                ),
                 if (result.colours.isNotEmpty) ...[
                   const SizedBox(height: 11),
                   Wrap(
                     spacing: 6,
                     runSpacing: 6,
-                    children: result.colours.take(5).map((name) => ColourSwatch(name: name, size: 25)).toList(),
+                    children: result.colours
+                        .take(5)
+                        .map((name) => ColourSwatch(name: name, size: 25))
+                        .toList(),
                   ),
                 ],
               ],
@@ -394,43 +452,118 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
         final progress = journey.progress.clamp(0.0, 1.0);
         return _card(
           padding: const EdgeInsets.fromLTRB(18, 18, 18, 17),
-          child: InkWell(
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TibStyleJourneyScreen())),
-            borderRadius: BorderRadius.circular(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const TibStyleJourneyScreen(),
+                ),
+              ),
+              borderRadius: BorderRadius.circular(16),
+              child: Padding(
+                padding: const EdgeInsets.all(2),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Expanded(child: Text('STYLE JOURNEY', style: TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: 1.1))),
-                    Text('Level ${journey.level}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.primaryDark)),
+                    Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'STYLE JOURNEY',
+                            style: TextStyle(
+                              color: AppColors.textMuted,
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1.1,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          'Level ${journey.level}',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.primaryDark,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 9),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          '${journey.points}',
+                          style: const TextStyle(
+                            fontSize: 27,
+                            height: 1,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.primaryDark,
+                          ),
+                        ),
+                        const SizedBox(width: 5),
+                        const Padding(
+                          padding: EdgeInsets.only(bottom: 2),
+                          child: Text(
+                            'XP',
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ),
+                        const Spacer(),
+                        Text(
+                          '${journey.completedChallenges} challenges',
+                          style: const TextStyle(
+                            fontSize: 10.5,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(20),
+                      child: LinearProgressIndicator(
+                        value: progress,
+                        minHeight: 7,
+                        backgroundColor: AppColors.surfaceMuted,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            journey.levelTitle,
+                            style: const TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          '${journey.streak}-day streak',
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                        const Icon(
+                          Icons.chevron_right_rounded,
+                          size: 18,
+                          color: AppColors.textMuted,
+                        ),
+                      ],
+                    ),
                   ],
                 ),
-                const SizedBox(height: 9),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text('${journey.points}', style: const TextStyle(fontSize: 27, height: 1, fontWeight: FontWeight.w800, color: AppColors.primaryDark)),
-                    const SizedBox(width: 5),
-                    const Padding(padding: EdgeInsets.only(bottom: 2), child: Text('XP', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: AppColors.textSecondary))),
-                    const Spacer(),
-                    Text('${journey.completedChallenges} challenges', style: const TextStyle(fontSize: 10.5, color: AppColors.textSecondary)),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(20),
-                  child: LinearProgressIndicator(value: progress, minHeight: 7, backgroundColor: AppColors.surfaceMuted),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(child: Text(journey.levelTitle, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: AppColors.textSecondary))),
-                    Text('${journey.streak}-day streak', style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondary)),
-                    const Icon(Icons.chevron_right_rounded, size: 18, color: AppColors.textMuted),
-                  ],
-                ),
-              ],
+              ),
             ),
           ),
         );
@@ -439,7 +572,9 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
   }
 
   Widget _todayTaskCard() {
-    if (_challengeFuture == null) return _loadingCard('TODAY\'S STYLE TASK');
+    if (_challengeFuture == null) {
+      return _loadingCard('TODAY\'S STYLE TASK');
+    }
     return FutureBuilder<DailyChallenge>(
       future: _challengeFuture,
       builder: (context, snapshot) {
@@ -456,12 +591,18 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
-                  color: _challengeCompleted ? AppColors.surfaceMuted : AppColors.secondary,
+                  color: _challengeCompleted
+                      ? AppColors.surfaceMuted
+                      : AppColors.secondary,
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
-                  _challengeCompleted ? Icons.check_rounded : Icons.auto_awesome_rounded,
-                  color: _challengeCompleted ? AppColors.success : AppColors.primary,
+                  _challengeCompleted
+                      ? Icons.check_rounded
+                      : Icons.auto_awesome_rounded,
+                  color: _challengeCompleted
+                      ? AppColors.success
+                      : AppColors.primary,
                 ),
               ),
               const SizedBox(width: 13),
@@ -471,21 +612,62 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
                   children: [
                     Row(
                       children: [
-                        const Expanded(child: Text('TODAY\'S STYLE TASK', style: TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: 1.1))),
-                        if (_challengeCompleted) const Text('DONE', style: TextStyle(color: AppColors.success, fontSize: 9.5, fontWeight: FontWeight.w900)),
+                        const Expanded(
+                          child: Text(
+                            'TODAY\'S STYLE TASK',
+                            style: TextStyle(
+                              color: AppColors.textMuted,
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1.1,
+                            ),
+                          ),
+                        ),
+                        if (_challengeCompleted)
+                          const Text(
+                            'DONE',
+                            style: TextStyle(
+                              color: AppColors.success,
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
                       ],
                     ),
                     const SizedBox(height: 5),
-                    Text(challenge.title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+                    Text(
+                      challenge.title,
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
                     const SizedBox(height: 4),
-                    Text(challenge.description, style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondary, height: 1.4)),
+                    Text(
+                      challenge.description,
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        color: AppColors.textSecondary,
+                        height: 1.4,
+                      ),
+                    ),
                     const SizedBox(height: 12),
                     SizedBox(
                       width: double.infinity,
                       child: OutlinedButton(
-                        onPressed: _challengeCompleted || _completingChallenge ? null : _completeChallenge,
-                        style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(43)),
-                        child: Text(_challengeCompleted ? 'Completed today' : _completingChallenge ? 'Saving…' : 'Mark as completed'),
+                        onPressed: _challengeCompleted || _completingChallenge
+                            ? null
+                            : _completeChallenge,
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(43),
+                        ),
+                        child: Text(
+                          _challengeCompleted
+                              ? 'Completed today'
+                              : _completingChallenge
+                                  ? 'Saving…'
+                                  : 'Mark as completed',
+                        ),
                       ),
                     ),
                   ],
@@ -503,7 +685,15 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: 1.1)),
+          Text(
+            title,
+            style: const TextStyle(
+              color: AppColors.textMuted,
+              fontSize: 9.5,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1.1,
+            ),
+          ),
           const SizedBox(height: 14),
           const LinearProgressIndicator(minHeight: 6),
         ],
