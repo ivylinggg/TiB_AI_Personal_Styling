@@ -14,6 +14,7 @@ import '../../core/constants/app_radius.dart';
 import '../../models/colour_analysis_result.dart';
 import '../../models/user_model.dart';
 import '../../providers/analysis_provider.dart';
+import '../../providers/theme_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../services/storage_service.dart';
 import '../../services/style_preference_service.dart';
@@ -504,18 +505,13 @@ class _ProfileScreenState extends State<ProfileScreen>
       context,
       MaterialPageRoute(builder: (_) => const StylePreferencesScreen()),
     );
-    if (updated == true && mounted) {
-      await loadUser();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Your style profile is up to date.')),
-      );
-    }
+    if (updated == true && mounted) await loadUser();
   }
 
   @override
   Widget build(BuildContext context) {
     final analysisResult = context.watch<AnalysisProvider>().result;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -550,11 +546,86 @@ class _ProfileScreenState extends State<ProfileScreen>
             onPressed: isLoading ? null : loadUser,
             icon: const Icon(Icons.refresh_rounded),
           ),
+          PopupMenuButton<String>(
+            tooltip: 'Profile settings',
+            onSelected: (value) {
+              switch (value) {
+                case 'theme':
+                  _showThemeSheet();
+                case 'preferences':
+                  openStylePreferences();
+                case 'password':
+                  changePassword();
+              }
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(value: 'theme', child: Text('Appearance')),
+              PopupMenuItem(value: 'preferences', child: Text('Style preferences')),
+              PopupMenuItem(value: 'password', child: Text('Change password')),
+            ],
+          ),
           const SizedBox(width: 8),
         ],
       ),
       body: _buildBody(analysisResult),
     );
+  }
+
+  Future<void> _showThemeSheet() async {
+    final provider = context.read<ThemeProvider>();
+    final current = provider.themeMode;
+    final selected = await showModalBottomSheet<ThemeMode>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Appearance',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Choose how VYEA should look on this device.',
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5),
+              ),
+              const SizedBox(height: 12),
+              ...[
+                (ThemeMode.system, 'System', Icons.brightness_auto_outlined),
+                (ThemeMode.light, 'Light', Icons.light_mode_outlined),
+                (ThemeMode.dark, 'Dark', Icons.dark_mode_outlined),
+              ].map(
+                (entry) => ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                  leading: CircleAvatar(
+                    backgroundColor: AppColors.surfaceMuted,
+                    child: Icon(entry.$3, color: AppColors.primary),
+                  ),
+                  title: Text(
+                    entry.$2,
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  trailing: Radio<ThemeMode>(
+                    value: entry.$1,
+                    groupValue: current,
+                    onChanged: (value) => Navigator.pop(sheetContext, value),
+                  ),
+                  onTap: () => Navigator.pop(sheetContext, entry.$1),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (selected != null && selected != current && mounted) {
+      await provider.setThemeMode(selected);
+    }
   }
 
   Widget _buildBody(ColourAnalysisResult? analysisResult) {
@@ -1206,6 +1277,13 @@ class _ProfileScreenState extends State<ProfileScreen>
           onTap: changePassword,
         ),
         const SizedBox(height: 10),
+        _connectionCard(
+          icon: Icons.dark_mode_outlined,
+          title: 'Appearance',
+          subtitle: _themeLabel(context.watch<ThemeProvider>().themeMode),
+          onTap: _showThemeSheet,
+        ),
+        const SizedBox(height: 10),
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -1264,5 +1342,16 @@ class _ProfileScreenState extends State<ProfileScreen>
         ),
       ],
     );
+  }
+
+  String _themeLabel(ThemeMode mode) {
+    switch (mode) {
+      case ThemeMode.system:
+        return 'Follow your device appearance';
+      case ThemeMode.light:
+        return 'Light mode';
+      case ThemeMode.dark:
+        return 'Dark mode';
+    }
   }
 }
