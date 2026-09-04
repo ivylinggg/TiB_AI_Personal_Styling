@@ -8,8 +8,7 @@ import 'ai_outfit_screen.dart';
 import 'style_me_screen.dart';
 import 'talk_to_tib_screen.dart';
 
-/// VYEA Style hub.
-/// Visual hierarchy only: all existing destinations and actions remain intact.
+/// VYEA Style hub. Existing destinations and actions remain intact.
 class AIHubScreen extends StatelessWidget {
   const AIHubScreen({super.key});
 
@@ -19,36 +18,66 @@ class AIHubScreen extends StatelessWidget {
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 22, 20, 32),
+          padding: const EdgeInsets.fromLTRB(20, 22, 20, 34),
           children: [
-            const Text(
-              'VYEA · PERSONAL STYLING',
-              style: TextStyle(fontSize: 9, letterSpacing: 1.7, fontWeight: FontWeight.w800, color: AppColors.brown),
-            ),
-            const SizedBox(height: 7),
-            const Text(
-              'What are we wearing?',
-              style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, letterSpacing: -1.05, height: 1.05),
+            Row(
+              children: [
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'VYEA',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 3.4,
+                          color: AppColors.brown,
+                        ),
+                      ),
+                      SizedBox(height: 6),
+                      Text(
+                        'Your personal stylist.',
+                        style: TextStyle(
+                          fontSize: 30,
+                          height: 1.04,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -1.0,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: const Icon(
+                    Icons.auto_awesome_rounded,
+                    color: AppColors.primary,
+                    size: 20,
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 9),
             const Text(
-              'Personal styling built around your colours, wardrobe and the way you want to express yourself.',
-              style: TextStyle(color: AppColors.textSecondary, height: 1.5, fontSize: 13),
+              'Style around your colours, your wardrobe and the way you want to express yourself.',
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                height: 1.5,
+                fontSize: 13,
+              ),
             ),
             const SizedBox(height: 20),
             _personalModelCard(context),
             const SizedBox(height: 18),
-            _featureCard(
-              context,
-              icon: Icons.view_in_ar_rounded,
-              title: 'Dress My VYEA Model',
-              subtitle: 'Choose clothes from your wardrobe and put them on your Personal Model.',
-              gradient: AppGradients.premium,
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AIVirtualStylingStudioScreen())),
-              primary: false,
-              badge: 'VIRTUAL FITTING ROOM',
-            ),
-            const SizedBox(height: 10),
+            _sectionLabel('STYLE WITH YOUR CLOSET'),
+            const SizedBox(height: 9),
             _featureCard(
               context,
               icon: Icons.auto_awesome_rounded,
@@ -56,7 +85,6 @@ class AIHubScreen extends StatelessWidget {
               subtitle: 'Build a complete look around your real wardrobe, colours and preferences.',
               gradient: AppGradients.soft,
               onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StyleMeScreen())),
-              primary: false,
             ),
             const SizedBox(height: 10),
             _featureCard(
@@ -66,21 +94,43 @@ class AIHubScreen extends StatelessWidget {
               subtitle: 'Create a complete outfit for your occasion and personal styling profile.',
               gradient: AppGradients.blush,
               onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AIOutfitScreen())),
-              primary: false,
+            ),
+            const SizedBox(height: 18),
+            _sectionLabel('STYLE YOUR VYEA MODEL'),
+            const SizedBox(height: 9),
+            _featureCard(
+              context,
+              icon: Icons.view_in_ar_rounded,
+              title: 'Dress My VYEA Model',
+              subtitle: 'Choose clothes from your wardrobe and put them on your Personal Model.',
+              gradient: AppGradients.premium,
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AIVirtualStylingStudioScreen())),
+              badge: 'VIRTUAL FITTING ROOM',
             ),
             const SizedBox(height: 10),
             _featureCard(
               context,
               icon: Icons.chat_bubble_outline_rounded,
-              title: 'Talk to TiB',
-              subtitle: 'Get instant styling answers, then switch to a real consultant when you need human advice.',
+              title: 'Talk to VYEA',
+              subtitle: 'Get a quick styling answer, then move into your personal look when you are ready.',
               gradient: AppGradients.soft,
               onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TalkToTibScreen())),
-              primary: false,
               badge: 'FREE',
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _sectionLabel(String label) {
+    return Text(
+      label,
+      style: const TextStyle(
+        fontSize: 10,
+        fontWeight: FontWeight.w900,
+        letterSpacing: 1.25,
+        color: AppColors.textMuted,
       ),
     );
   }
@@ -93,34 +143,70 @@ class AIHubScreen extends StatelessWidget {
         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PersonalTibModelScreen())),
         borderRadius: BorderRadius.circular(24),
         child: Ink(
-          padding: const EdgeInsets.all(18),
+          padding: const EdgeInsets.all(17),
           decoration: BoxDecoration(
             color: AppColors.surface,
             borderRadius: BorderRadius.circular(24),
             border: Border.all(color: AppColors.border),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: .035),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
+              ),
+            ],
           ),
           child: Row(
             children: [
               Container(
-                width: 64,
-                height: 76,
-                decoration: BoxDecoration(color: AppColors.surfaceMuted, borderRadius: BorderRadius.circular(19)),
-                child: const Icon(Icons.person_rounded, color: AppColors.primary, size: 34),
+                width: 68,
+                height: 78,
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceMuted,
+                  borderRadius: BorderRadius.circular(19),
+                ),
+                child: const Icon(
+                  Icons.person_outline_rounded,
+                  color: AppColors.primary,
+                  size: 34,
+                ),
               ),
               const SizedBox(width: 14),
               const Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('MY VYEA MODEL', style: TextStyle(color: AppColors.brown, fontSize: 9, letterSpacing: 1.3, fontWeight: FontWeight.w900)),
+                    Text(
+                      'MY VYEA MODEL',
+                      style: TextStyle(
+                        color: AppColors.brown,
+                        fontSize: 9,
+                        letterSpacing: 1.35,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
                     SizedBox(height: 5),
-                    Text('Your real self,\nready to be styled.', style: TextStyle(fontSize: 19, height: 1.08, fontWeight: FontWeight.w900)),
+                    Text(
+                      'Your real self,\nready to be styled.',
+                      style: TextStyle(
+                        fontSize: 19,
+                        height: 1.08,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -.3,
+                      ),
+                    ),
                     SizedBox(height: 6),
-                    Text('Face + full-body reference + real measurements.', style: TextStyle(color: AppColors.textSecondary, fontSize: 10.5)),
+                    Text(
+                      'Face + full-body reference + real measurements.',
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 10.5,
+                      ),
+                    ),
                   ],
                 ),
               ),
-              const Icon(Icons.arrow_forward_rounded, color: AppColors.primary, size: 20),
+              const Icon(Icons.arrow_forward_rounded, color: AppColors.primary, size: 19),
             ],
           ),
         ),
@@ -135,7 +221,6 @@ class AIHubScreen extends StatelessWidget {
     required String subtitle,
     required LinearGradient gradient,
     required VoidCallback onTap,
-    required bool primary,
     String? badge,
   }) {
     return Material(
@@ -145,18 +230,21 @@ class AIHubScreen extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(21),
         child: Ink(
-          padding: const EdgeInsets.all(17),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             gradient: gradient,
             borderRadius: BorderRadius.circular(21),
-            border: Border.all(color: AppColors.border.withValues(alpha: .7)),
+            border: Border.all(color: AppColors.border.withValues(alpha: .78)),
           ),
           child: Row(
             children: [
               Container(
                 width: 45,
                 height: 45,
-                decoration: BoxDecoration(color: Colors.white.withValues(alpha: .88), shape: BoxShape.circle),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: .86),
+                  shape: BoxShape.circle,
+                ),
                 child: Icon(icon, color: AppColors.primaryDark, size: 21),
               ),
               const SizedBox(width: 13),
@@ -166,19 +254,47 @@ class AIHubScreen extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        Expanded(child: Text(title, style: const TextStyle(color: AppColors.textPrimary, fontSize: 16.5, fontWeight: FontWeight.w800))),
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -.15,
+                            ),
+                          ),
+                        ),
                         if (badge != null) ...[
                           const SizedBox(width: 6),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-                            decoration: BoxDecoration(color: Colors.white.withValues(alpha: .68), borderRadius: BorderRadius.circular(9)),
-                            child: Text(badge, style: const TextStyle(color: AppColors.primaryDark, fontSize: 7.5, fontWeight: FontWeight.w900, letterSpacing: .55)),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: .72),
+                              borderRadius: BorderRadius.circular(9),
+                            ),
+                            child: Text(
+                              badge,
+                              style: const TextStyle(
+                                color: AppColors.primaryDark,
+                                fontSize: 7.2,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: .55,
+                              ),
+                            ),
                           ),
                         ],
                       ],
                     ),
                     const SizedBox(height: 4),
-                    Text(subtitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.38)),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 11,
+                        height: 1.38,
+                      ),
+                    ),
                   ],
                 ),
               ),
