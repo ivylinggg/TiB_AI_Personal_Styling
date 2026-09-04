@@ -3,85 +3,29 @@ import 'package:flutter/material.dart';
 import '../core/constants/app_colors.dart';
 import '../core/constants/app_radius.dart';
 
-/// The single, shared colour-name -> Color mapping for the whole app.
-///
-/// Before this, the same mapping logic was implemented three times
-/// independently (ai_stylist_screen.dart, profile_screen.dart,
-/// widgets/todays_colour_card.dart), each with slightly different keyword
-/// coverage. This centralises the most complete version of it (the one
-/// from todays_colour_card.dart). Those three screens will be switched
-/// over to call this instead of their own private copy when they are
-/// redesigned -- that is a screen-level change, out of scope for this
-/// design-system-only phase, so their existing private copies are left
-/// untouched for now and still work exactly as before.
+/// Shared colour-name -> Color mapping. Colour Analysis keeps the full
+/// seasonal palette; the surrounding VYEA interface remains neutral.
 class ColourNameMapper {
   ColourNameMapper._();
 
   static Color colourFor(String name) {
     final value = name.toLowerCase();
-
-    if (value.contains('pink') || value.contains('rose')) {
-      return const Color(0xFFE8A7B7);
-    }
-    if (value.contains('red') ||
-        value.contains('coral') ||
-        value.contains('terracotta') ||
-        value.contains('rust') ||
-        value.contains('berry') ||
-        value.contains('ruby')) {
-      return const Color(0xFFD97968);
-    }
-    if (value.contains('orange') || value.contains('peach')) {
-      return const Color(0xFFE7A16F);
-    }
-    if (value.contains('yellow') ||
-        value.contains('gold') ||
-        value.contains('mustard')) {
-      return const Color(0xFFD8B85A);
-    }
-    if (value.contains('green') ||
-        value.contains('olive') ||
-        value.contains('sage') ||
-        value.contains('emerald')) {
-      return const Color(0xFF8A9A68);
-    }
-    if (value.contains('blue') ||
-        value.contains('navy') ||
-        value.contains('cobalt')) {
-      return const Color(0xFF7189A8);
-    }
-    if (value.contains('purple') ||
-        value.contains('violet') ||
-        value.contains('lavender') ||
-        value.contains('mauve')) {
-      return const Color(0xFF9A7AA8);
-    }
-    if (value.contains('brown') ||
-        value.contains('beige') ||
-        value.contains('camel') ||
-        value.contains('neutral') ||
-        value.contains('taupe') ||
-        value.contains('cream')) {
-      return const Color(0xFFB59A83);
-    }
-    if (value.contains('black') || value.contains('charcoal')) {
-      return const Color(0xFF3A3A3A);
-    }
-    if (value.contains('white') ||
-        value.contains('grey') ||
-        value.contains('gray')) {
-      return const Color(0xFFC9C4BE);
-    }
-
-    return const Color(0xFFC9B7AD);
+    if (value.contains('pink') || value.contains('rose')) return const Color(0xFFE1A0AE);
+    if (value.contains('red') || value.contains('coral') || value.contains('terracotta') || value.contains('rust') || value.contains('berry') || value.contains('ruby')) return const Color(0xFFC96F63);
+    if (value.contains('orange') || value.contains('peach')) return const Color(0xFFD99A72);
+    if (value.contains('yellow') || value.contains('gold') || value.contains('mustard')) return const Color(0xFFC9A84E);
+    if (value.contains('green') || value.contains('olive') || value.contains('sage') || value.contains('emerald')) return const Color(0xFF7E8D63);
+    if (value.contains('blue') || value.contains('navy') || value.contains('cobalt')) return const Color(0xFF667F9C);
+    if (value.contains('purple') || value.contains('violet') || value.contains('lavender') || value.contains('mauve')) return const Color(0xFF8F7698);
+    if (value.contains('brown') || value.contains('beige') || value.contains('camel') || value.contains('neutral') || value.contains('taupe') || value.contains('cream')) return const Color(0xFFB09A85);
+    if (value.contains('black') || value.contains('charcoal')) return const Color(0xFF363431);
+    if (value.contains('white') || value.contains('grey') || value.contains('gray')) return const Color(0xFFC7C2BC);
+    return const Color(0xFFC3B2A8);
   }
 }
 
-/// A single recommended/wardrobe colour, shown as a coloured circle with
-/// an optional name label beneath it and an optional selected state.
-/// [name] must always be a real colour string (e.g. a
-/// ColourAnalysisResult.colours entry or a WardrobeItem.colour) -- this
-/// widget never invents a colour, it only visualises real data.
+/// Presentation-only colour swatch. Data and selection remain controlled by
+/// the parent screen, so existing analysis and wardrobe behaviour is intact.
 class ColourSwatch extends StatelessWidget {
   final String name;
   final double size;
@@ -101,7 +45,6 @@ class ColourSwatch extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colour = ColourNameMapper.colourFor(name);
-
     final circle = AnimatedContainer(
       duration: const Duration(milliseconds: 180),
       curve: Curves.easeOut,
@@ -111,20 +54,18 @@ class ColourSwatch extends StatelessWidget {
         color: colour,
         shape: BoxShape.circle,
         border: Border.all(
-          color: selected ? AppColors.primaryDark : AppColors.background,
+          color: selected ? AppColors.primary : AppColors.background,
           width: selected ? 2.5 : 2,
         ),
         boxShadow: [
           BoxShadow(
-            color: colour.withValues(alpha: 0.35),
-            blurRadius: selected ? 10 : 6,
-            offset: const Offset(0, 3),
+            color: colour.withValues(alpha: selected ? .28 : .18),
+            blurRadius: selected ? 9 : 5,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
-      child: selected
-          ? const Icon(Icons.check_rounded, color: AppColors.background, size: 18)
-          : null,
+      child: selected ? const Icon(Icons.check_rounded, color: Colors.white, size: 18) : null,
     );
 
     final content = showLabel
@@ -147,14 +88,7 @@ class ColourSwatch extends StatelessWidget {
           )
         : circle;
 
-    if (onTap == null) {
-      return content;
-    }
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(AppRadius.full),
-      child: content,
-    );
+    if (onTap == null) return content;
+    return InkWell(onTap: onTap, borderRadius: BorderRadius.circular(AppRadius.full), child: content);
   }
 }
