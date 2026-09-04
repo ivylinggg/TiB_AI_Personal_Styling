@@ -27,6 +27,7 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
+  int _previousIndex = 0;
 
   final List<Widget> _pages = const [
     DashboardDesignedScreen(),
@@ -52,7 +53,10 @@ class _MainScreenState extends State<MainScreen> {
   void _selectTab(int index) {
     if (index == _selectedIndex) return;
     HapticFeedback.selectionClick();
-    setState(() => _selectedIndex = index);
+    setState(() {
+      _previousIndex = _selectedIndex;
+      _selectedIndex = index;
+    });
   }
 
   void _returnToAdmin() {
@@ -243,32 +247,46 @@ class _MainScreenState extends State<MainScreen> {
     final greeting = displayName?.isNotEmpty == true ? 'Hi, $displayName' : 'Welcome back';
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('VYEA', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, letterSpacing: 3.2, color: AppColors.brown)),
-                const SizedBox(height: 5),
-                Text(greeting, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 25, height: 1.12, fontWeight: FontWeight.w700, color: AppColors.textPrimary, letterSpacing: -0.5)),
-                const SizedBox(height: 3),
-                Text(widget.adminPreview ? 'Customer dashboard preview' : 'Style, but personal.', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13, height: 1.2, fontWeight: FontWeight.w500, color: AppColors.textSecondary)),
-              ],
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 10),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 13, 10, 13),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: const BoxDecoration(
+                color: AppColors.secondary,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.auto_awesome_rounded, color: AppColors.primary, size: 19),
             ),
-          ),
-          const SizedBox(width: 12),
-          if (widget.adminPreview) ...[
-            _topActionButton(icon: Icons.admin_panel_settings_outlined, tooltip: 'Return to Admin', onTap: _returnToAdmin),
-            const SizedBox(width: 8),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('VYEA', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: 2.6, color: AppColors.brown)),
+                  const SizedBox(height: 2),
+                  Text(greeting, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 19, height: 1.1, fontWeight: FontWeight.w800, color: AppColors.textPrimary, letterSpacing: -0.3)),
+                ],
+              ),
+            ),
+            if (widget.adminPreview) ...[
+              _topActionButton(icon: Icons.admin_panel_settings_outlined, tooltip: 'Return to Admin', onTap: _returnToAdmin),
+              const SizedBox(width: 6),
+            ],
+            _topActionButton(icon: Icons.notifications_none_rounded, tooltip: 'Notifications', onTap: _showNotifications),
+            const SizedBox(width: 6),
+            _topActionButton(icon: Icons.logout_rounded, tooltip: 'Log out', onTap: _logout),
           ],
-          _topActionButton(icon: Icons.notifications_none_rounded, tooltip: 'Notifications', onTap: _showNotifications),
-          const SizedBox(width: 8),
-          _topActionButton(icon: Icons.logout_rounded, tooltip: 'Log out', onTap: _logout),
-        ],
+        ),
       ),
     );
   }
@@ -277,32 +295,71 @@ class _MainScreenState extends State<MainScreen> {
     return Tooltip(
       message: tooltip,
       child: Material(
-        color: AppColors.surface,
-        elevation: 0,
+        color: AppColors.surfaceMuted,
         shape: const CircleBorder(),
         child: InkWell(
           onTap: onTap,
           customBorder: const CircleBorder(),
-          child: Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: AppColors.border)),
-            child: Icon(icon, color: AppColors.primary, size: 19),
+          child: SizedBox(
+            width: 39,
+            height: 39,
+            child: Icon(icon, color: AppColors.primary, size: 18),
           ),
         ),
       ),
     );
   }
 
+  Widget _tabTransition({required Widget child, required bool selected}) {
+    return AnimatedScale(
+      duration: const Duration(milliseconds: 180),
+      scale: selected ? 1.0 : .94,
+      curve: Curves.easeOut,
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 180),
+        opacity: selected ? 1 : .84,
+        child: child,
+      ),
+    );
+  }
+
+  NavigationDestination _destination({required IconData icon, required IconData selectedIcon, required String label, required int index}) {
+    final selected = _selectedIndex == index;
+    return NavigationDestination(
+      icon: _tabTransition(selected: false, child: Icon(icon)),
+      selectedIcon: _tabTransition(selected: selected, child: Icon(selectedIcon)),
+      label: label,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final direction = _selectedIndex >= _previousIndex ? 1 : -1;
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: Column(
           children: [
             if (_selectedIndex == 0) _dashboardHeader(),
-            Expanded(child: IndexedStack(index: _selectedIndex, children: _pages)),
+            Expanded(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 220),
+                reverseDuration: const Duration(milliseconds: 180),
+                switchInCurve: Curves.easeOutCubic,
+                switchOutCurve: Curves.easeInCubic,
+                transitionBuilder: (child, animation) {
+                  final offsetTween = Tween<Offset>(
+                    begin: Offset(direction * .035, .012),
+                    end: Offset.zero,
+                  ).chain(CurveTween(curve: Curves.easeOutCubic));
+                  return FadeTransition(
+                    opacity: animation,
+                    child: SlideTransition(position: animation.drive(offsetTween), child: child),
+                  );
+                },
+                child: KeyedSubtree(key: ValueKey(_selectedIndex), child: _pages[_selectedIndex]),
+              ),
+            ),
           ],
         ),
       ),
@@ -322,17 +379,17 @@ class _MainScreenState extends State<MainScreen> {
               selectedIndex: _selectedIndex,
               backgroundColor: Colors.transparent,
               elevation: 0,
-              height: 68,
+              height: 70,
               labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
               indicatorColor: AppColors.primarySoft,
               onDestinationSelected: _selectTab,
               destinations: [
-                const NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home_rounded), label: 'Home'),
-                const NavigationDestination(icon: Icon(Icons.palette_outlined), selectedIcon: Icon(Icons.palette_rounded), label: 'Colour'),
+                _destination(icon: Icons.home_outlined, selectedIcon: Icons.home_rounded, label: 'Home', index: 0),
+                _destination(icon: Icons.palette_outlined, selectedIcon: Icons.palette_rounded, label: 'Colour', index: 1),
                 NavigationDestination(icon: _aiIcon(false), selectedIcon: _aiIcon(true), label: 'Style'),
-                const NavigationDestination(icon: Icon(Icons.checkroom_outlined), selectedIcon: Icon(Icons.checkroom_rounded), label: 'Wardrobe'),
-                const NavigationDestination(icon: Icon(Icons.forum_outlined), selectedIcon: Icon(Icons.forum_rounded), label: 'Forum'),
-                const NavigationDestination(icon: Icon(Icons.person_outline_rounded), selectedIcon: Icon(Icons.person_rounded), label: 'Profile'),
+                _destination(icon: Icons.checkroom_outlined, selectedIcon: Icons.checkroom_rounded, label: 'Wardrobe', index: 3),
+                _destination(icon: Icons.forum_outlined, selectedIcon: Icons.forum_rounded, label: 'Forum', index: 4),
+                _destination(icon: Icons.person_outline_rounded, selectedIcon: Icons.person_rounded, label: 'Profile', index: 5),
               ],
             ),
           ),
