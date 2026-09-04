@@ -30,7 +30,7 @@ class TibApp extends StatelessWidget {
         builder: (context, theme, _) {
           return MaterialApp(
             debugShowCheckedModeBanner: false,
-            title: 'TiB AI',
+            title: 'VYEA',
             theme: LightTheme.theme,
             darkTheme: DarkTheme.theme,
             themeMode: theme.themeMode,
