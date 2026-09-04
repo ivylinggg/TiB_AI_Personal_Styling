@@ -47,29 +47,25 @@ class _AnalysisScreenState extends State<AnalysisScreen>
     _revealController.forward();
   }
 
-  Animation<double> _stage(double begin, double end) {
-    return CurvedAnimation(
-      parent: _revealController,
-      curve: Interval(begin, end, curve: Curves.easeOutCubic),
-    );
-  }
+  Animation<double> _stage(double begin, double end) => CurvedAnimation(
+        parent: _revealController,
+        curve: Interval(begin, end, curve: Curves.easeOutCubic),
+      );
 
-  Widget _reveal(Animation<double> animation, Widget child) {
-    return AnimatedBuilder(
-      animation: animation,
-      builder: (context, animatedChild) {
-        final value = animation.value.clamp(0.0, 1.0);
-        return Opacity(
-          opacity: value,
-          child: Transform.translate(
-            offset: Offset(0, (1 - value) * 14),
-            child: animatedChild,
-          ),
-        );
-      },
-      child: child,
-    );
-  }
+  Widget _reveal(Animation<double> animation, Widget child) => AnimatedBuilder(
+        animation: animation,
+        builder: (context, animatedChild) {
+          final value = animation.value.clamp(0.0, 1.0);
+          return Opacity(
+            opacity: value,
+            child: Transform.translate(
+              offset: Offset(0, (1 - value) * 14),
+              child: animatedChild,
+            ),
+          );
+        },
+        child: child,
+      );
 
   @override
   void dispose() {
@@ -151,46 +147,36 @@ class _AnalysisScreenState extends State<AnalysisScreen>
   }
 
   Widget _buildHeader() {
-    return Row(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: 52,
-          height: 52,
-          decoration: const BoxDecoration(
-            color: _soft,
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(
-            Icons.face_retouching_natural,
+        const Text(
+          'COLOUR ANALYSIS',
+          style: TextStyle(
             color: _brown,
-            size: 27,
+            fontSize: 10,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1.7,
           ),
         ),
-        const SizedBox(width: 14),
-        const Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Find Your Colours',
-                style: TextStyle(
-                  color: _text,
-                  fontSize: 25,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.4,
-                ),
-              ),
-              SizedBox(height: 5),
-              Text(
-                'Discover the palette that feels most like you.',
-                style: TextStyle(
-                  color: _muted,
-                  fontSize: 14,
-                  height: 1.4,
-                ),
-              ),
-            ],
+        const SizedBox(height: 8),
+        const Text(
+          'Find the colours\nthat feel like you.',
+          style: TextStyle(
+            color: _text,
+            fontSize: 31,
+            height: 1.03,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -1.0,
+          ),
+        ),
+        const SizedBox(height: 9),
+        const Text(
+          'A guided AI analysis to build your personal colour identity.',
+          style: TextStyle(
+            color: _muted,
+            fontSize: 13.5,
+            height: 1.45,
           ),
         ),
       ],
@@ -199,26 +185,30 @@ class _AnalysisScreenState extends State<AnalysisScreen>
 
   Widget _buildAnalysisAccessCard(bool isPremium) {
     return Container(
-      width: double.infinity,
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
-        color: isPremium
-            ? AppColors.premiumAccentLight
-            : AppColors.surfaceMuted,
-        borderRadius: BorderRadius.circular(AppRadius.md),
+        color: isPremium ? AppColors.premiumAccentLight : AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
         border: Border.all(color: AppColors.border),
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            isPremium
-                ? Icons.workspace_premium_outlined
-                : Icons.palette_outlined,
-            color: _brown,
-            size: 22,
+          Container(
+            width: 42,
+            height: 42,
+            decoration: const BoxDecoration(
+              color: _soft,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              isPremium
+                  ? Icons.workspace_premium_outlined
+                  : Icons.palette_outlined,
+              color: _brown,
+              size: 20,
+            ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 11),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -228,27 +218,27 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                     Expanded(
                       child: Text(
                         isPremium
-                            ? 'Premium Colour Analysis'
-                            : 'Personal Colour Analysis',
+                            ? 'Premium colour insights'
+                            : 'Personal colour analysis',
                         style: const TextStyle(
-                          fontWeight: FontWeight.w700,
                           color: _text,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
                     ),
-                    if (isPremium)
-                      const PremiumBadge(compact: true),
+                    if (isPremium) const PremiumBadge(compact: true),
                   ],
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 3),
                 Text(
                   isPremium
-                      ? 'Explore deeper colour insights and a more personalised seasonal profile.'
-                      : 'Start with your personalised colour profile and use it across your wardrobe and styling.',
+                      ? 'More personalised seasonal detail.'
+                      : 'Your result becomes the colour foundation for VYEA styling.',
                   style: const TextStyle(
                     color: _muted,
-                    fontSize: 12.5,
-                    height: 1.4,
+                    fontSize: 11.5,
+                    height: 1.35,
                   ),
                 ),
               ],
@@ -261,12 +251,11 @@ class _AnalysisScreenState extends State<AnalysisScreen>
 
   Widget _buildImagePreview(File? selectedImage) {
     return AspectRatio(
-      aspectRatio: 1,
+      aspectRatio: 0.98,
       child: Container(
-        width: double.infinity,
         decoration: BoxDecoration(
           color: AppColors.surfaceMuted,
-          borderRadius: BorderRadius.circular(AppRadius.xl),
+          borderRadius: BorderRadius.circular(26),
           border: Border.all(color: AppColors.border),
         ),
         child: selectedImage == null
@@ -274,35 +263,32 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   CircleAvatar(
-                    radius: 38,
+                    radius: 34,
                     backgroundColor: _soft,
                     child: Icon(
                       Icons.center_focus_strong_rounded,
-                      size: 36,
+                      size: 32,
                       color: _brown,
                     ),
                   ),
-                  SizedBox(height: 16),
+                  SizedBox(height: 15),
                   Text(
-                    'Add a clear photo',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                    ),
+                    'Start with a clear photo',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
                   ),
                   SizedBox(height: 5),
                   Padding(
                     padding: EdgeInsets.symmetric(horizontal: 30),
                     child: Text(
-                      'Use natural light and keep your face visible.',
+                      'Natural light works best. Keep your face visible and avoid heavy filters.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: _muted, fontSize: 12),
+                      style: TextStyle(color: _muted, fontSize: 11.5, height: 1.4),
                     ),
                   ),
                 ],
               )
             : ClipRRect(
-                borderRadius: BorderRadius.circular(AppRadius.xl),
+                borderRadius: BorderRadius.circular(26),
                 child: Image.file(selectedImage, fit: BoxFit.cover),
               ),
       ),
@@ -312,12 +298,11 @@ class _AnalysisScreenState extends State<AnalysisScreen>
   Widget _buildHowItWorks() {
     const steps = [
       ('01', 'Choose a photo', 'Use Face Scan or pick a clear photo from your gallery.'),
-      ('02', 'Let VYEA analyse', 'Your image is used to build a personal seasonal colour profile.'),
+      ('02', 'Let VYEA analyse', 'Build your personal seasonal colour profile.'),
       ('03', 'Style with it', 'Use your palette across outfits, wardrobe matching and AI styling.'),
     ];
 
     return Container(
-      width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: AppColors.surface,
@@ -328,7 +313,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'HOW VYEA WORKS',
+            'YOUR COLOUR JOURNEY',
             style: TextStyle(
               color: _muted,
               fontSize: 10,
@@ -417,28 +402,25 @@ class _AnalysisScreenState extends State<AnalysisScreen>
           ),
           body: SafeArea(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 34),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _reveal(_headerReveal, _buildHeader()),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 18),
                   _buildAnalysisAccessCard(provider.isPremium),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                   OutlinedButton.icon(
                     onPressed: provider.isLoading ? null : openSeasonGuide,
-                    icon: const Icon(Icons.auto_awesome_rounded),
-                    label: const Text('Explore the 4 Season Colour Guide'),
+                    icon: const Icon(Icons.menu_book_outlined),
+                    label: const Text('Explore Season Colour Guide'),
                     style: OutlinedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(46),
+                      minimumSize: const Size.fromHeight(44),
                     ),
                   ),
                   const SizedBox(height: 18),
-                  _reveal(
-                    _imageReveal,
-                    _buildImagePreview(provider.selectedImage),
-                  ),
-                  const SizedBox(height: 14),
+                  _reveal(_imageReveal, _buildImagePreview(provider.selectedImage)),
+                  const SizedBox(height: 12),
                   Row(
                     children: [
                       Expanded(
@@ -448,7 +430,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                           label: const Text('Face Scan'),
                         ),
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 9),
                       Expanded(
                         child: OutlinedButton.icon(
                           onPressed: provider.isLoading ? null : pickGallery,
@@ -459,25 +441,17 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                     ],
                   ),
                   if (provider.selectedImage != null) ...[
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 6),
                     Align(
                       alignment: Alignment.center,
                       child: TextButton.icon(
-                        onPressed: provider.isLoading
-                            ? null
-                            : removeSelectedPhoto,
-                        icon: const Icon(
-                          Icons.delete_outline_rounded,
-                          size: 18,
-                        ),
-                        label: const Text('Remove Photo & Scan Again'),
-                        style: TextButton.styleFrom(
-                          foregroundColor: AppColors.primaryDark,
-                        ),
+                        onPressed: provider.isLoading ? null : removeSelectedPhoto,
+                        icon: const Icon(Icons.delete_outline_rounded, size: 17),
+                        label: const Text('Choose another photo'),
                       ),
                     ),
                   ],
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 4),
                   _reveal(
                     _actionsReveal,
                     PrimaryButton(
@@ -485,8 +459,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                           ? 'Analysing your colours…'
                           : 'Analyse My Colours',
                       icon: Icons.auto_awesome_rounded,
-                      onPressed: provider.selectedImage == null ||
-                              provider.isLoading
+                      onPressed: provider.selectedImage == null || provider.isLoading
                           ? null
                           : analyse,
                     ),
