@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 
-/// Premium visual identity used when Premium is actually enabled.
-///
-/// During the current pre-launch/testing period, the app does not present
-/// Premium as an access requirement. The badge is intentionally hidden so
-/// Free users are not told that a feature is locked.
+import '../core/constants/app_colors.dart';
+
+/// Subtle VYEA premium marker. It is intentionally presentation-only and does
+/// not enforce access; entitlement logic remains with the calling feature.
 class PremiumBadge extends StatelessWidget {
   final String label;
   final bool compact;
@@ -17,6 +16,32 @@ class PremiumBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const SizedBox.shrink();
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 7 : 9,
+        vertical: compact ? 4 : 5,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.gold.withValues(alpha: .13),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppColors.gold.withValues(alpha: .32)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.auto_awesome_rounded, size: compact ? 10 : 11, color: AppColors.goldDark),
+          const SizedBox(width: 4),
+          Text(
+            label.toUpperCase(),
+            style: TextStyle(
+              color: AppColors.goldDark,
+              fontSize: compact ? 8 : 9,
+              fontWeight: FontWeight.w800,
+              letterSpacing: .65,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
