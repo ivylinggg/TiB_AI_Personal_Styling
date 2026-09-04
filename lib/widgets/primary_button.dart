@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../core/constants/app_colors.dart';
-import '../core/constants/app_gradients.dart';
 import '../core/constants/app_radius.dart';
 
 class PrimaryButton extends StatelessWidget {
@@ -20,42 +19,39 @@ class PrimaryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final enabled = onPressed != null;
     return SizedBox(
       width: double.infinity,
       height: height,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: AppGradients.primary,
-          borderRadius: BorderRadius.circular(AppRadius.lg),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.primaryDark.withValues(alpha: 0.25),
-              blurRadius: 18,
-              offset: const Offset(0, 8),
+      child: ElevatedButton(
+        onPressed: onPressed,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: enabled ? AppColors.primary : AppColors.primarySoft,
+          foregroundColor: enabled ? Colors.white : AppColors.textMuted,
+          disabledBackgroundColor: AppColors.primarySoft,
+          disabledForegroundColor: AppColors.textMuted,
+          shadowColor: enabled ? AppColors.primary.withValues(alpha: .16) : Colors.transparent,
+          elevation: enabled ? 2 : 0,
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (icon != null) ...[
+              Icon(icon, size: 19),
+              const SizedBox(width: 8),
+            ],
+            Flexible(
+              child: Text(
+                text,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelLarge,
+              ),
             ),
           ],
-        ),
-        child: ElevatedButton(
-          onPressed: onPressed,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.transparent,
-            foregroundColor: AppColors.background,
-            shadowColor: Colors.transparent,
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppRadius.lg),
-            ),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (icon != null) ...[
-                Icon(icon, size: 20),
-                const SizedBox(width: 8),
-              ],
-              Text(text, style: Theme.of(context).textTheme.labelLarge),
-            ],
-          ),
         ),
       ),
     );
