@@ -92,7 +92,9 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
   @override
   Widget build(BuildContext context) {
     final uid = _uid;
-    if (uid != null && !_premiumLoaded) _loadPremiumStatus(uid);
+    if (uid != null && !_premiumLoaded) {
+      _loadPremiumStatus(uid);
+    }
     final analysisResult = context.watch<AnalysisProvider>().result;
     final wantedColours = (analysisResult?.colours ?? const <String>[]).map((colour) => colour.toLowerCase()).toList();
 
@@ -124,9 +126,13 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
                   final searchMatches = query.isEmpty || item.name.toLowerCase().contains(query) || item.category.toLowerCase().contains(query) || item.colour.toLowerCase().contains(query) || item.style.toLowerCase().contains(query);
                   return categoryMatches && colourMatches && favouriteMatches && searchMatches;
                 }).toList();
-                if (_sort == 'Name A–Z') filtered.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-                else if (_sort == 'Category') filtered.sort((a, b) => a.category.toLowerCase().compareTo(b.category.toLowerCase()));
-                else if (_sort == 'Favourites first') filtered.sort((a, b) => (b.isFavourite ? 1 : 0).compareTo(a.isFavourite ? 1 : 0));
+                if (_sort == 'Name A–Z') {
+                  filtered.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+                } else if (_sort == 'Category') {
+                  filtered.sort((a, b) => a.category.toLowerCase().compareTo(b.category.toLowerCase()));
+                } else if (_sort == 'Favourites first') {
+                  filtered.sort((a, b) => (b.isFavourite ? 1 : 0).compareTo(a.isFavourite ? 1 : 0));
+                }
                 final hasActiveFilters = _category != 'All' || _colour != 'All' || _showFavouritesOnly || query.isNotEmpty;
                 return RefreshIndicator(
                   onRefresh: () async => setState(() {}),
@@ -190,17 +196,41 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
           const SizedBox(height: 12),
           const Text('SORT BY', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: _muted, letterSpacing: .8)),
           const SizedBox(height: 8),
-          Wrap(spacing: 7, runSpacing: 7, children: ['Recently added', 'Name A–Z', 'Category', 'Favourites first'].map((value) => StyleChip(label: value, icon: Icons.sort_rounded, selected: _sort == value, onTap: () => setState(() => _sort = value))).toList()),
+          Wrap(
+            spacing: 7,
+            runSpacing: 7,
+            children: ['Recently added', 'Name A–Z', 'Category', 'Favourites first']
+                .map((value) => StyleChip(label: value, icon: Icons.sort_rounded, selected: _sort == value, onTap: () => setState(() => _sort = value)))
+                .toList(),
+          ),
           const SizedBox(height: 14),
           const Text('CATEGORY', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: _muted, letterSpacing: .8)),
           const SizedBox(height: 8),
-          Wrap(spacing: 7, runSpacing: 7, children: ['All', ..._categoryOptions].map((value) => StyleChip(label: value, icon: value == 'All' ? Icons.grid_view_rounded : _categoryIcon(value), selected: _category == value, onTap: () => setState(() => _category = value))).toList()),
+          Wrap(
+            spacing: 7,
+            runSpacing: 7,
+            children: ['All', ..._categoryOptions]
+                .map((value) => StyleChip(label: value, icon: value == 'All' ? Icons.grid_view_rounded : _categoryIcon(value), selected: _category == value, onTap: () => setState(() => _category = value)))
+                .toList(),
+          ),
           const SizedBox(height: 14),
           const Text('COLOUR', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: _muted, letterSpacing: .8)),
           const SizedBox(height: 8),
-          Wrap(spacing: 7, runSpacing: 7, children: ['All', ..._colourOptions].map((value) => StyleChip(label: value, icon: Icons.palette_outlined, selected: _colour == value, onTap: () => setState(() => _colour = value))).toList()),
+          Wrap(
+            spacing: 7,
+            runSpacing: 7,
+            children: ['All', ..._colourOptions]
+                .map((value) => StyleChip(label: value, icon: Icons.palette_outlined, selected: _colour == value, onTap: () => setState(() => _colour = value)))
+                .toList(),
+          ),
           const SizedBox(height: 14),
-          Row(children: [Expanded(child: OutlinedButton.icon(onPressed: _clearFilters, icon: const Icon(Icons.clear_rounded, size: 17), label: const Text('Clear'))), const SizedBox(width: 9), Expanded(child: FilledButton.icon(onPressed: () => setState(() => _filtersExpanded = false), icon: const Icon(Icons.check_rounded, size: 17), label: const Text('Done'), style: FilledButton.styleFrom(backgroundColor: _brown)))])
+          Row(
+            children: [
+              Expanded(child: OutlinedButton.icon(onPressed: _clearFilters, icon: const Icon(Icons.clear_rounded, size: 17), label: const Text('Clear'))),
+              const SizedBox(width: 9),
+              Expanded(child: FilledButton.icon(onPressed: () => setState(() => _filtersExpanded = false), icon: const Icon(Icons.check_rounded, size: 17), label: const Text('Done'), style: FilledButton.styleFrom(backgroundColor: _brown))),
+            ],
+          ),
         ]),
       ),
     );
@@ -250,18 +280,26 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
   }
 
   void _showSmartWardrobe(String uid) {
-    if (!_isPremium) { _openPremiumAccess(context); return; }
-    showModalBottomSheet<void>(context: context, showDragHandle: true, backgroundColor: _cream, builder: (sheetContext) => SafeArea(child: Padding(padding: const EdgeInsets.fromLTRB(20, 8, 20, 25), child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-      const Row(children: [PremiumBadge(compact: true), SizedBox(width: 10), Text('Smart Wardrobe', style: TextStyle(color: _text, fontSize: 21, fontWeight: FontWeight.w700))]),
-      const SizedBox(height: 8),
-      const Text('Premium tools help you understand what is already in your wardrobe and turn it into more useful outfit ideas.', style: TextStyle(color: _muted, height: 1.45)),
-      const SizedBox(height: 18),
-      _premiumInsightListTile(Icons.category_outlined, 'Wardrobe overview', 'See your collection by category, favourites and colour.'),
-      _premiumInsightListTile(Icons.palette_outlined, 'Colour insights', 'Find the colours you have saved most often.'),
-      _premiumInsightListTile(Icons.auto_awesome_outlined, 'AI outfit matching', 'Use your wardrobe with the Premium AI Stylist.'),
-      const SizedBox(height: 12),
-      SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: () { Navigator.pop(sheetContext); Navigator.push(context, MaterialPageRoute(builder: (_) => const AIStylistScreen())); }, icon: const Icon(Icons.auto_awesome), label: const Text('Open AI Stylist'), style: FilledButton.styleFrom(backgroundColor: _brown, minimumSize: const Size.fromHeight(52))))
-    ]))));
+    if (!_isPremium) {
+      _openPremiumAccess(context);
+      return;
+    }
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: _cream,
+      builder: (sheetContext) => SafeArea(child: Padding(padding: const EdgeInsets.fromLTRB(20, 8, 20, 25), child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Row(children: [PremiumBadge(compact: true), SizedBox(width: 10), Text('Smart Wardrobe', style: TextStyle(color: _text, fontSize: 21, fontWeight: FontWeight.w700))]),
+        const SizedBox(height: 8),
+        const Text('Premium tools help you understand what is already in your wardrobe and turn it into more useful outfit ideas.', style: TextStyle(color: _muted, height: 1.45)),
+        const SizedBox(height: 18),
+        _premiumInsightListTile(Icons.category_outlined, 'Wardrobe overview', 'See your collection by category, favourites and colour.'),
+        _premiumInsightListTile(Icons.palette_outlined, 'Colour insights', 'Find the colours you have saved most often.'),
+        _premiumInsightListTile(Icons.auto_awesome_outlined, 'AI outfit matching', 'Use your wardrobe with the Premium AI Stylist.'),
+        const SizedBox(height: 12),
+        SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: () { Navigator.pop(sheetContext); Navigator.push(context, MaterialPageRoute(builder: (_) => const AIStylistScreen())); }, icon: const Icon(Icons.auto_awesome), label: const Text('Open AI Stylist'), style: FilledButton.styleFrom(backgroundColor: _brown, minimumSize: const Size.fromHeight(52))))
+      ])),
+    );
   }
 
   Widget _premiumInsightListTile(IconData icon, String title, String subtitle) => Padding(
@@ -285,7 +323,10 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
       var bestKey = values.keys.first;
       var bestValue = values[bestKey] ?? 0;
       for (final entry in values.entries) {
-        if (entry.value > bestValue) { bestKey = entry.key; bestValue = entry.value; }
+        if (entry.value > bestValue) {
+          bestKey = entry.key;
+          bestValue = entry.value;
+        }
       }
       return bestKey;
     }
@@ -306,7 +347,9 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
     final counts = <String, int>{};
     for (final category in _categoryOptions) {
       final count = items.where((item) => item.category == category).length;
-      if (count > 0) counts[category] = count;
+      if (count > 0) {
+        counts[category] = count;
+      }
     }
     if (counts.isEmpty) return const SizedBox.shrink();
     return Padding(padding: const EdgeInsets.fromLTRB(20, 14, 20, 0), child: Wrap(spacing: 8, runSpacing: 8, children: counts.entries.map((entry) => Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(AppRadius.full), border: Border.all(color: AppColors.border)), child: Row(mainAxisSize: MainAxisSize.min, children: [Text('${entry.value}', style: const TextStyle(color: _brown, fontWeight: FontWeight.w800, fontSize: 13)), const SizedBox(width: 5), Text(entry.key, style: const TextStyle(color: _muted, fontSize: 12, fontWeight: FontWeight.w600))]))).toList()));
@@ -320,12 +363,18 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
   IconData _categoryIcon(String category) {
     switch (category) {
       case 'Bottoms':
-      case 'Skirts': return Icons.layers_outlined;
-      case 'Shoes': return Icons.directions_walk_outlined;
-      case 'Accessories': return Icons.diamond_outlined;
-      case 'Suits': return Icons.business_center_outlined;
-      case 'Jackets': return Icons.checkroom_outlined;
-      default: return Icons.checkroom_outlined;
+      case 'Skirts':
+        return Icons.layers_outlined;
+      case 'Shoes':
+        return Icons.directions_walk_outlined;
+      case 'Accessories':
+        return Icons.diamond_outlined;
+      case 'Suits':
+        return Icons.business_center_outlined;
+      case 'Jackets':
+        return Icons.checkroom_outlined;
+      default:
+        return Icons.checkroom_outlined;
     }
   }
 
@@ -404,11 +453,14 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
 
   InputDecoration _fieldDecoration(String label, {String? hint}) => InputDecoration(labelText: label, hintText: hint, filled: true, fillColor: AppColors.surface, border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppRadius.md), borderSide: BorderSide(color: AppColors.border)), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppRadius.md), borderSide: BorderSide(color: AppColors.border)));
 
-  Widget _dropdown(String label, String value, List<String> values, ValueChanged<String> onChanged) => Padding(padding: const EdgeInsets.only(bottom: 12), child: DropdownButtonFormField<String>(initialValue: value, decoration: _fieldDecoration(label), items: values.map((value) => DropdownMenuItem<String>(value: value, child: Text(value))).toList(), onChanged: (value) { if (value != null) onChanged(value); }));
+  Widget _dropdown(String label, String value, List<String> values, ValueChanged<String> onChanged) => Padding(padding: const EdgeInsets.only(bottom: 12), child: DropdownButtonFormField<String>(initialValue: value, decoration: _fieldDecoration(label), items: values.map((value) => DropdownMenuItem<String>(value: value, child: Text(value))).toList(), onChanged: (value) { if (value != null) { onChanged(value); } }));
 
   Future<void> _toggleFavourite(WardrobeItem item, String uid) async {
-    try { await FirestoreService.updateWardrobeItem(uid, item.id, {'isFavourite': !item.isFavourite}); }
-    catch (_) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not update favourite. Please try again.'))); }
+    try {
+      await FirestoreService.updateWardrobeItem(uid, item.id, {'isFavourite': !item.isFavourite});
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not update favourite. Please try again.')));
+    }
   }
 
   Widget _detailRow(String label, String value) => Padding(padding: const EdgeInsets.only(bottom: 10), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [SizedBox(width: 90, child: Text(label, style: const TextStyle(color: _muted, fontSize: 12, fontWeight: FontWeight.w600))), Expanded(child: Text(value, style: const TextStyle(color: _text, fontWeight: FontWeight.w600)))]));
@@ -416,8 +468,12 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
   Future<void> _confirmDelete(WardrobeItem item, String uid) async {
     final confirmed = await showDialog<bool>(context: context, builder: (dialogContext) => AlertDialog(title: const Text('Remove this piece?'), content: Text('“${item.name}” will be removed from your wardrobe.'), actions: [TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Keep it')), FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Remove'))]));
     if (confirmed != true) return;
-    try { await FirestoreService.deleteWardrobeItem(uid, item.id); if (mounted) Navigator.pop(context); }
-    catch (_) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not remove this piece. Please try again.'))); }
+    try {
+      await FirestoreService.deleteWardrobeItem(uid, item.id);
+      if (mounted) Navigator.pop(context);
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not remove this piece. Please try again.')));
+    }
   }
 
   void _showItemDetails(WardrobeItem item, String uid) {
@@ -462,7 +518,7 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
             await FirestoreService.updateWardrobeItem(uid, item.id, {'imageUrl': imageUrl, 'name': nameController.text.trim(), 'category': category, 'colour': colour, 'style': style, 'season': season, 'notes': notesController.text.trim()});
             if (sheetContext.mounted) Navigator.pop(sheetContext);
           } catch (_) {
-            if (sheetContext.mounted) ScaffoldMessenger.of(sheetContext).showSnackBar(const SnackBar(content: Text('Could not save your changes. Please try again.')));
+            if (sheetContext.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not save your changes. Please try again.')));
           } finally {
             if (sheetContext.mounted) setSheetState(() => saving = false);
           }
