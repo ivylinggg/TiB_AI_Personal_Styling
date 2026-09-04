@@ -65,126 +65,133 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
     final bodyController = TextEditingController();
     String category = 'General';
     bool saving = false;
+
     try {
       final result = await showDialog<bool>(
         context: context,
         builder: (dialogContext) => StatefulBuilder(
-          builder: (dialogBuildContext, setDialogState) => AlertDialog(
-            title: const Text('Create a forum post'),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: titleController,
-                    decoration: const InputDecoration(
-                      labelText: 'Title',
-                      hintText: 'What do you want to discuss?',
+          builder: (dialogBuildContext, setDialogState) {
+            return AlertDialog(
+              title: const Text('Create a forum post'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: titleController,
+                      decoration: const InputDecoration(
+                        labelText: 'Title',
+                        hintText: 'What do you want to discuss?',
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    initialValue: category,
-                    decoration: const InputDecoration(labelText: 'Category'),
-                    items: _categories
-                        .where((item) => item != 'All')
-                        .map(
-                          (item) => DropdownMenuItem<String>(
-                            value: item,
-                            child: Text(item),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: saving
-                        ? null
-                        : (value) => setDialogState(
-                              () => category = value ?? 'General',
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      initialValue: category,
+                      decoration:
+                          const InputDecoration(labelText: 'Category'),
+                      items: _categories
+                          .where((item) => item != 'All')
+                          .map(
+                            (item) => DropdownMenuItem<String>(
+                              value: item,
+                              child: Text(item),
                             ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: bodyController,
-                    minLines: 4,
-                    maxLines: 7,
-                    decoration: const InputDecoration(
-                      labelText: 'Post',
-                      hintText:
-                          'Share your styling question, idea or experience.',
+                          )
+                          .toList(),
+                      onChanged: saving
+                          ? null
+                          : (value) => setDialogState(
+                                () => category = value ?? 'General',
+                              ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: bodyController,
+                      minLines: 4,
+                      maxLines: 7,
+                      decoration: const InputDecoration(
+                        labelText: 'Post',
+                        hintText:
+                            'Share your styling question, idea or experience.',
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: saving
-                    ? null
-                    : () => Navigator.pop(dialogContext, false),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: saving
-                    ? null
-                    : () async {
-                        final title = titleController.text.trim();
-                        final body = bodyController.text.trim();
-                        final uid = FirebaseAuth.instance.currentUser?.uid;
-                        if (uid == null || title.isEmpty || body.isEmpty) {
-                          return;
-                        }
-                        setDialogState(() => saving = true);
-                        try {
-                          final user = await FirebaseFirestore.instance
-                              .collection('users')
-                              .doc(uid)
-                              .get();
-                          final userData =
-                              user.data() ?? <String, dynamic>{};
-                          final profileName =
-                              (userData['name'] as String?)?.trim();
-                          final displayName = FirebaseAuth
-                              .instance.currentUser?.displayName
-                              ?.trim();
-                          await _posts.add({
-                            'title': title,
-                            'body': body,
-                            'category': category,
-                            'authorId': uid,
-                            'authorName': profileName?.isNotEmpty == true
-                                ? profileName
-                                : (displayName?.isNotEmpty == true
-                                    ? displayName
-                                    : 'TiB User'),
-                            'likeCount': 0,
-                            'commentCount': 0,
-                            'createdAt': FieldValue.serverTimestamp(),
-                            'lastActivityAt': FieldValue.serverTimestamp(),
-                            'isOfficial': false,
-                            'source': 'customer_forum',
-                          });
-                          if (dialogContext.mounted) {
-                            Navigator.pop(dialogContext, true);
+              actions: [
+                TextButton(
+                  onPressed: saving
+                      ? null
+                      : () => Navigator.pop(dialogContext, false),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: saving
+                      ? null
+                      : () async {
+                          final title = titleController.text.trim();
+                          final body = bodyController.text.trim();
+                          final uid = FirebaseAuth.instance.currentUser?.uid;
+                          if (uid == null || title.isEmpty || body.isEmpty) {
+                            return;
                           }
-                        } catch (error) {
-                          if (!dialogContext.mounted) return;
-                          setDialogState(() => saving = false);
-                          ScaffoldMessenger.of(dialogBuildContext).showSnackBar(
-                            SnackBar(
-                              content: Text('Could not create post: $error'),
-                            ),
-                          );
-                        }
-                      },
-                child: Text(saving ? 'Posting...' : 'Post'),
-              ),
-            ],
-          ),
+                          setDialogState(() => saving = true);
+                          try {
+                            final user = await FirebaseFirestore.instance
+                                .collection('users')
+                                .doc(uid)
+                                .get();
+                            final userData =
+                                user.data() ?? <String, dynamic>{};
+                            final profileName =
+                                (userData['name'] as String?)?.trim();
+                            final displayName = FirebaseAuth
+                                .instance.currentUser?.displayName
+                                ?.trim();
+                            await _posts.add({
+                              'title': title,
+                              'body': body,
+                              'category': category,
+                              'authorId': uid,
+                              'authorName': profileName?.isNotEmpty == true
+                                  ? profileName
+                                  : (displayName?.isNotEmpty == true
+                                      ? displayName
+                                      : 'TiB User'),
+                              'likeCount': 0,
+                              'commentCount': 0,
+                              'createdAt': FieldValue.serverTimestamp(),
+                              'lastActivityAt': FieldValue.serverTimestamp(),
+                              'isOfficial': false,
+                              'source': 'customer_forum',
+                            });
+                            if (dialogContext.mounted) {
+                              Navigator.pop(dialogContext, true);
+                            }
+                          } catch (error) {
+                            if (!dialogContext.mounted) return;
+                            setDialogState(() => saving = false);
+                            ScaffoldMessenger.of(dialogBuildContext)
+                                .showSnackBar(
+                              SnackBar(
+                                content:
+                                    Text('Could not create post: $error'),
+                              ),
+                            );
+                          }
+                        },
+                  child: Text(saving ? 'Posting...' : 'Post'),
+                ),
+              ],
+            );
+          },
         ),
       );
+
       if (result == true && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Your post is now visible to the VYEA community.'),
+            content: Text('Your post is now visible to the TiB community.'),
           ),
         );
       }
@@ -201,6 +208,7 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     final trimmed = text.trim();
     if (uid == null || trimmed.isEmpty) return false;
+
     try {
       final user = await FirebaseFirestore.instance
           .collection('users')
@@ -211,12 +219,13 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
       final displayName = FirebaseAuth.instance.currentUser?.displayName?.trim();
       final commentRef = postRef.collection('comments').doc();
       final batch = FirebaseFirestore.instance.batch();
+
       batch.set(commentRef, {
         'body': trimmed,
         'authorId': uid,
         'authorName': profileName?.isNotEmpty == true
             ? profileName
-            : (displayName?.isNotEmpty == true ? displayName : 'VYEA User'),
+            : (displayName?.isNotEmpty == true ? displayName : 'TiB User'),
         'authorRole': data['role'] as String? ?? 'customer',
         'isOfficial': data['role'] == 'admin',
         'createdAt': FieldValue.serverTimestamp(),
@@ -237,9 +246,12 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
     }
   }
 
-  Future<void> _toggleLike(DocumentReference<Map<String, dynamic>> postRef) async {
+  Future<void> _toggleLike(
+    DocumentReference<Map<String, dynamic>> postRef,
+  ) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
+
     try {
       final likeRef = postRef.collection('likes').doc(uid);
       final existing = await likeRef.get();
@@ -247,13 +259,17 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
       final current =
           (postSnapshot.data()?['likeCount'] as num?)?.toInt() ?? 0;
       final batch = FirebaseFirestore.instance.batch();
+
       if (existing.exists) {
         batch.delete(likeRef);
-        batch.update(postRef, {
-          'likeCount': current > 0 ? current - 1 : 0,
-        });
+        batch.update(
+          postRef,
+          {'likeCount': current > 0 ? current - 1 : 0},
+        );
       } else {
-        batch.set(likeRef, {'createdAt': FieldValue.serverTimestamp()});
+        batch.set(likeRef, {
+          'createdAt': FieldValue.serverTimestamp(),
+        });
         batch.update(postRef, {'likeCount': current + 1});
       }
       await batch.commit();
@@ -281,14 +297,39 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
     );
   }
 
+  Widget _categoryChip(String item) {
+    final selected = _category == item;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: ChoiceChip(
+        label: Text(item),
+        selected: selected,
+        showCheckmark: false,
+        side: BorderSide(
+          color: selected ? AppColors.primary : AppColors.border,
+        ),
+        selectedColor: AppColors.primary,
+        backgroundColor: AppColors.surface,
+        labelStyle: TextStyle(
+          color: selected ? AppColors.background : AppColors.textSecondary,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+        ),
+        onSelected: (_) => setState(() => _category = item),
+      ),
+    );
+  }
+
   Widget _postCard(QueryDocumentSnapshot<Map<String, dynamic>> document) {
     final data = document.data();
     final title = data['title'] as String? ?? 'Untitled post';
     final body = data['body'] as String? ?? '';
     final category = data['category'] as String? ?? 'General';
-    final author = data['authorName'] as String? ?? 'VYEA User';
+    final author = data['authorName'] as String? ?? 'TiB User';
     final official =
         data['isOfficial'] == true || data['source'] == 'admin_content';
+    final likeCount = (data['likeCount'] as num?)?.toInt() ?? 0;
+    final commentCount = (data['commentCount'] as num?)?.toInt() ?? 0;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -323,10 +364,10 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
                     child: Text(
                       official ? 'VYEA TEAM' : category.toUpperCase(),
                       style: const TextStyle(
-                        fontSize: 8.5,
+                        color: AppColors.primaryDark,
+                        fontSize: 9,
                         fontWeight: FontWeight.w900,
                         letterSpacing: .7,
-                        color: AppColors.primaryDark,
                       ),
                     ),
                   ),
@@ -334,16 +375,18 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
                     const SizedBox(width: 6),
                     const Icon(
                       Icons.verified_rounded,
-                      size: 14,
+                      size: 15,
                       color: AppColors.primary,
                     ),
                   ],
                   const Spacer(),
                   Text(
-                    _relativeDate(data['createdAt']),
+                    _relativeDate(
+                      data['lastActivityAt'] ?? data['createdAt'],
+                    ),
                     style: const TextStyle(
-                      fontSize: 10,
                       color: AppColors.textMuted,
+                      fontSize: 10,
                     ),
                   ),
                 ],
@@ -351,35 +394,41 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
               const SizedBox(height: 10),
               Text(
                 title,
-                style: const TextStyle(
-                  fontSize: 17,
-                  height: 1.15,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                body,
-                maxLines: 3,
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  color: AppColors.textSecondary,
-                  height: 1.45,
-                  fontSize: 12.5,
+                  color: AppColors.textPrimary,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w900,
+                  height: 1.15,
                 ),
               ),
-              const SizedBox(height: 13),
+              if (body.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(
+                  body,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12.5,
+                    height: 1.45,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 12),
               Row(
                 children: [
                   CircleAvatar(
                     radius: 15,
-                    backgroundColor: AppColors.secondary,
+                    backgroundColor: official
+                        ? AppColors.primarySoft
+                        : AppColors.secondary,
                     child: Icon(
                       official
                           ? Icons.auto_awesome_outlined
                           : Icons.person_outline_rounded,
-                      size: 16,
+                      size: 17,
                       color: AppColors.primary,
                     ),
                   ),
@@ -387,10 +436,12 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
                   Expanded(
                     child: Text(
                       author,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
+                        color: AppColors.textPrimary,
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary,
                       ),
                     ),
                   ),
@@ -401,10 +452,10 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
                   ),
                   const SizedBox(width: 4),
                   Text(
-                    '${data['likeCount'] ?? 0}',
+                    '$likeCount',
                     style: const TextStyle(
-                      fontSize: 10.5,
                       color: AppColors.textSecondary,
+                      fontSize: 10.5,
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -415,10 +466,10 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
                   ),
                   const SizedBox(width: 4),
                   Text(
-                    '${data['commentCount'] ?? 0}',
+                    '$commentCount',
                     style: const TextStyle(
-                      fontSize: 10.5,
                       color: AppColors.textSecondary,
+                      fontSize: 10.5,
                     ),
                   ),
                 ],
@@ -430,28 +481,42 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
     );
   }
 
-  Widget _categoryChip(String item) {
-    final selected = _category == item;
-    return Padding(
-      padding: const EdgeInsets.only(right: 7),
-      child: FilterChip(
-        selected: selected,
-        showCheckmark: false,
-        label: Text(item),
-        labelStyle: TextStyle(
-          color: selected ? AppColors.background : AppColors.textPrimary,
-          fontWeight: FontWeight.w700,
-          fontSize: 11,
+  Widget _heroCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(18, 20, 18, 18),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [AppColors.surface, AppColors.primarySoft],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        backgroundColor: AppColors.surface,
-        selectedColor: AppColors.primary,
-        side: BorderSide(
-          color: selected ? AppColors.primary : AppColors.border,
-        ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(999),
-        ),
-        onSelected: (_) => setState(() => _category = item),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: const Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'STYLE IS BETTER\nWHEN IT IS SHARED.',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 23,
+              height: 1.05,
+              fontWeight: FontWeight.w900,
+              letterSpacing: -.4,
+            ),
+          ),
+          SizedBox(height: 8),
+          Text(
+            'Ask, share, inspire and learn from people who care about personal style too.',
+            style: TextStyle(
+              color: AppColors.textSecondary,
+              height: 1.45,
+              fontSize: 12.5,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -462,7 +527,6 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: AppColors.background,
-        elevation: 0,
         titleSpacing: 20,
         title: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -470,32 +534,29 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
             Text(
               'VYEA',
               style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1.6,
                 color: AppColors.primary,
+                fontSize: 15,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.8,
               ),
             ),
-            SizedBox(height: 1),
             Text(
               'Community',
               style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w800,
                 color: AppColors.textPrimary,
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
               ),
             ),
           ],
         ),
         actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 10),
-            child: IconButton(
-              tooltip: 'Create post',
-              onPressed: _createPost,
-              icon: const Icon(Icons.add_comment_outlined),
-            ),
+          IconButton(
+            onPressed: _createPost,
+            tooltip: 'Create post',
+            icon: const Icon(Icons.add_comment_outlined),
           ),
+          const SizedBox(width: 8),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
@@ -512,10 +573,7 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
             return Center(
               child: Padding(
                 padding: const EdgeInsets.all(24),
-                child: Text(
-                  'Could not load community.\n${snapshot.error}',
-                  textAlign: TextAlign.center,
-                ),
+                child: Text('Could not load forum: ${snapshot.error}'),
               ),
             );
           }
@@ -535,48 +593,10 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
             onRefresh: () async {},
             child: ListView(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(20, 10, 20, 110),
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 110),
               children: [
-                Container(
-                  padding: const EdgeInsets.all(18),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        AppColors.surface,
-                        AppColors.primarySoft.withValues(alpha: .55),
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: AppColors.border),
-                  ),
-                  child: const Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'STYLE IS BETTER\nWHEN IT'S SHARED.',
-                        style: TextStyle(
-                          fontSize: 23,
-                          height: 1.05,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: -.4,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                      SizedBox(height: 8),
-                      Text(
-                        'Ask, share, inspire and learn from people who care about personal style too.',
-                        style: TextStyle(
-                          color: AppColors.textSecondary,
-                          height: 1.45,
-                          fontSize: 12.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
+                _heroCard(),
+                const SizedBox(height: 14),
                 TextField(
                   controller: _searchController,
                   onChanged: (value) => setState(() => _query = value.trim()),
@@ -596,11 +616,13 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
                     fillColor: AppColors.surface,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(17),
-                      borderSide: const BorderSide(color: AppColors.border),
+                      borderSide:
+                          const BorderSide(color: AppColors.border),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(17),
-                      borderSide: const BorderSide(color: AppColors.border),
+                      borderSide:
+                          const BorderSide(color: AppColors.border),
                     ),
                   ),
                 ),
@@ -619,15 +641,15 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
                       style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w900,
-                        letterSpacing: 1.4,
+                        letterSpacing: 1.3,
                         color: AppColors.textSecondary,
                       ),
                     ),
                     const Spacer(),
                     Text(
-                      '${visible.length} ${visible.length == 1 ? 'post' : 'posts'}',
+                      '${visible.length} posts',
                       style: const TextStyle(
-                        fontSize: 10.5,
+                        fontSize: 11,
                         color: AppColors.textMuted,
                       ),
                     ),
@@ -642,41 +664,36 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
                   )
                 else if (visible.isEmpty)
                   Container(
-                    padding: const EdgeInsets.fromLTRB(18, 28, 18, 30),
+                    padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
                       color: AppColors.surfaceMuted,
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: AppColors.border),
                     ),
-                    child: Column(
+                    child: const Column(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.forum_outlined,
                           size: 30,
                           color: AppColors.primary,
                         ),
-                        const SizedBox(height: 10),
-                        const Text(
-                          'No discussions here yet',
+                        SizedBox(height: 9),
+                        Text(
+                          'No discussions found',
                           style: TextStyle(
+                            fontSize: 14,
                             fontWeight: FontWeight.w800,
-                            fontSize: 15,
                           ),
                         ),
-                        const SizedBox(height: 5),
-                        const Text(
-                          'Start the conversation with a styling question or idea.',
+                        SizedBox(height: 4),
+                        Text(
+                          'Try a different search or start a new conversation.',
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             color: AppColors.textSecondary,
-                            height: 1.4,
                             fontSize: 12,
+                            height: 1.4,
                           ),
-                        ),
-                        const SizedBox(height: 14),
-                        OutlinedButton.icon(
-                          onPressed: _createPost,
-                          icon: const Icon(Icons.add_rounded),
-                          label: const Text('Create a Post'),
                         ),
                       ],
                     ),
@@ -799,7 +816,7 @@ class _ForumPostDetailScreenState extends State<ForumPostDetailScreen> {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  comment['authorName'] as String? ?? 'VYEA User',
+                  comment['authorName'] as String? ?? 'TiB User',
                   style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w800,
@@ -840,9 +857,8 @@ class _ForumPostDetailScreenState extends State<ForumPostDetailScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.background,
-        elevation: 0,
         title: const Text('Discussion'),
+        backgroundColor: AppColors.background,
       ),
       body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
         stream: widget.postReference.snapshots(),
@@ -852,12 +868,13 @@ class _ForumPostDetailScreenState extends State<ForumPostDetailScreen> {
               child: Text('Could not load post: ${postSnapshot.error}'),
             );
           }
+
           final data = postSnapshot.data?.data() ?? widget.initialData;
           final official =
               data['isOfficial'] == true || data['source'] == 'admin_content';
           final title = data['title'] as String? ?? 'Forum post';
           final body = data['body'] as String? ?? '';
-          final author = data['authorName'] as String? ?? 'VYEA User';
+          final author = data['authorName'] as String? ?? 'TiB User';
           final category = data['category'] as String? ?? 'General';
 
           return Column(
@@ -875,27 +892,25 @@ class _ForumPostDetailScreenState extends State<ForumPostDetailScreen> {
                         ),
                       );
                     }
+
                     final comments = [...?commentsSnapshot.data?.docs];
                     comments.sort(
                       (a, b) => _date(a.data()['createdAt'])
                           .compareTo(_date(b.data()['createdAt'])),
                     );
+
                     return ListView(
                       controller: _scrollController,
-                      padding: const EdgeInsets.fromLTRB(20, 15, 20, 20),
+                      padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
                       children: [
                         Container(
-                          padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(18),
                           decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                AppColors.surface,
-                                AppColors.primarySoft.withValues(alpha: .45),
-                              ],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: BorderRadius.circular(24),
+                            color: official
+                                ? AppColors.primarySoft.withValues(alpha: .24)
+                                : AppColors.surface,
+                            borderRadius: BorderRadius.circular(22),
                             border: Border.all(
                               color: official
                                   ? AppColors.primarySoft
@@ -916,16 +931,15 @@ class _ForumPostDetailScreenState extends State<ForumPostDetailScreen> {
                                       color: official
                                           ? AppColors.primarySoft
                                           : AppColors.surfaceMuted,
-                                      borderRadius: BorderRadius.circular(999),
+                                      borderRadius: BorderRadius.circular(10),
                                     ),
                                     child: Text(
                                       official
                                           ? 'VYEA TEAM'
                                           : category.toUpperCase(),
                                       style: const TextStyle(
-                                        fontSize: 8.5,
+                                        fontSize: 9,
                                         fontWeight: FontWeight.w900,
-                                        letterSpacing: .7,
                                         color: AppColors.primaryDark,
                                       ),
                                     ),
@@ -940,14 +954,13 @@ class _ForumPostDetailScreenState extends State<ForumPostDetailScreen> {
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 13),
+                              const SizedBox(height: 12),
                               Text(
                                 title,
                                 style: const TextStyle(
                                   fontSize: 25,
                                   fontWeight: FontWeight.w900,
                                   height: 1.12,
-                                  letterSpacing: -.35,
                                 ),
                               ),
                               const SizedBox(height: 7),
@@ -964,10 +977,9 @@ class _ForumPostDetailScreenState extends State<ForumPostDetailScreen> {
                                 style: const TextStyle(
                                   fontSize: 14,
                                   height: 1.6,
-                                  color: AppColors.textPrimary,
                                 ),
                               ),
-                              const SizedBox(height: 15),
+                              const SizedBox(height: 14),
                               Row(
                                 children: [
                                   TextButton.icon(
@@ -1020,15 +1032,10 @@ class _ForumPostDetailScreenState extends State<ForumPostDetailScreen> {
                             padding: const EdgeInsets.all(18),
                             decoration: BoxDecoration(
                               color: AppColors.surfaceMuted,
-                              borderRadius: BorderRadius.circular(18),
-                              border: Border.all(color: AppColors.border),
+                              borderRadius: BorderRadius.circular(16),
                             ),
                             child: const Text(
                               'No replies yet. Start the conversation below.',
-                              style: TextStyle(
-                                color: AppColors.textSecondary,
-                                height: 1.4,
-                              ),
                             ),
                           )
                         else
@@ -1055,7 +1062,7 @@ class _ForumPostDetailScreenState extends State<ForumPostDetailScreen> {
                           maxLines: 4,
                           textInputAction: TextInputAction.newline,
                           decoration: InputDecoration(
-                            hintText: 'Write a reply to this discussion…',
+                            hintText: 'Write a reply...',
                             filled: true,
                             fillColor: AppColors.surface,
                             border: OutlineInputBorder(
@@ -1075,10 +1082,6 @@ class _ForumPostDetailScreenState extends State<ForumPostDetailScreen> {
                       ),
                       const SizedBox(width: 8),
                       IconButton.filled(
-                        style: IconButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          foregroundColor: AppColors.background,
-                        ),
                         onPressed: _sending ? null : _send,
                         icon: _sending
                             ? const SizedBox(
