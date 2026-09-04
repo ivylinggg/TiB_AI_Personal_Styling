@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/constants/app_colors.dart';
-import '../../core/constants/app_radius.dart';
 import '../../models/colour_analysis_result.dart';
 import '../../models/wardrobe_item.dart';
 import '../../providers/analysis_provider.dart';
@@ -272,10 +271,7 @@ class _StyleMeScreenState extends State<StyleMeScreen> {
   Widget _buildEditorialHero() {
     return Container(
       padding: const EdgeInsets.fromLTRB(21, 20, 21, 22),
-      decoration: BoxDecoration(
-        color: AppColors.primaryDark,
-        borderRadius: BorderRadius.circular(28),
-      ),
+      decoration: BoxDecoration(color: AppColors.primaryDark, borderRadius: BorderRadius.circular(28)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -388,61 +384,60 @@ class _StyleMeScreenState extends State<StyleMeScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(children: [const Expanded(child: Text('YOUR LOOK', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900, letterSpacing: 1.2, color: AppColors.textMuted))), if (_aiResult != null) const Text('AI MATCH', style: TextStyle(color: AppColors.premiumAccentDark, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: .9))]),
-        const SizedBox(height: 9),
+        Row(
+          children: [
+            const Expanded(child: Text('YOUR LOOK', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 1.05, color: AppColors.primary))),
+            if (_aiResult != null) const Text('AI MATCH', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: .8, color: AppColors.premiumAccentDark)),
+          ],
+        ),
+        const SizedBox(height: 10),
         if (_aiResult?.explanation.isNotEmpty == true)
           Container(
             margin: const EdgeInsets.only(bottom: 12),
             padding: const EdgeInsets.all(15),
-            decoration: BoxDecoration(gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [AppColors.blush, AppColors.surface]), borderRadius: BorderRadius.circular(21), border: Border.all(color: AppColors.border)),
-            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [const Icon(Icons.auto_awesome_rounded, color: AppColors.primary, size: 18), const SizedBox(width: 9), Expanded(child: Text(_aiResult!.explanation, style: const TextStyle(color: AppColors.textSecondary, height: 1.45, fontSize: 12.5)))]),
-          ),
-        Container(
-          padding: const EdgeInsets.all(9),
-          decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(23), border: Border.all(color: AppColors.border)),
-          child: SizedBox(
-            height: 205,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: look.length,
-              separatorBuilder: (_, _) => const SizedBox(width: 10),
-              itemBuilder: (_, index) => _resultItemCard(look[index]),
+            decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(19), border: Border.all(color: AppColors.border)),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.auto_awesome_rounded, color: AppColors.primary, size: 18),
+                const SizedBox(width: 9),
+                Expanded(child: Text(_aiResult!.explanation, style: const TextStyle(color: AppColors.textSecondary, height: 1.45, fontSize: 12.5))),
+              ],
             ),
           ),
-        ),
-        const SizedBox(height: 11),
-        Row(
-          children: [
-            const Icon(Icons.check_circle_outline_rounded, color: AppColors.primary, size: 16),
-            const SizedBox(width: 6),
-            const Expanded(child: Text('Built from pieces you already own', style: TextStyle(fontSize: 10.5, color: AppColors.textSecondary, fontWeight: FontWeight.w700))),
-            TextButton(onPressed: _styling ? null : _styleMe, child: const Text('Refresh')),
-          ],
+        Container(
+          height: 215,
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(23), border: Border.all(color: AppColors.border)),
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: look.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 10),
+            itemBuilder: (_, index) => _lookCard(look[index]),
+          ),
         ),
       ],
     );
   }
 
-  Widget _resultItemCard(WardrobeItem item) {
+  Widget _lookCard(WardrobeItem item) {
     return SizedBox(
-      width: 150,
-      child: Container(
-        decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border.withValues(alpha: .75))),
-        padding: const EdgeInsets.all(7),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      width: 148,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
           Expanded(
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(16),
               child: item.imageUrl.isEmpty
-                  ? Container(color: AppColors.surfaceMuted, child: const Center(child: Icon(Icons.checkroom_outlined, color: AppColors.primary, size: 28)))
+                  ? Container(color: AppColors.surfaceMuted, child: const Center(child: Icon(Icons.checkroom_outlined, color: AppColors.primary)))
                   : CachedNetworkImage(imageUrl: item.imageUrl, fit: BoxFit.cover, width: double.infinity),
             ),
           ),
           const SizedBox(height: 7),
           Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 2),
-          Text('${item.category} · ${item.colour}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 9.5, color: AppColors.textMuted)),
-        ]),
+          Text('${item.category} · ${item.colour}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.textMuted, fontSize: 10.5)),
+        ],
       ),
     );
   }
