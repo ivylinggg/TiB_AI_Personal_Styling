@@ -15,7 +15,8 @@ class OutfitBuilderScreen extends StatefulWidget {
 }
 
 class _OutfitBuilderScreenState extends State<OutfitBuilderScreen> {
-  final List<String> _slots = const ['Top', 'Bottom', 'Dress', 'Outerwear', 'Shoes', 'Accessories'];
+  static const _slots = ['Top', 'Bottom', 'Dress', 'Outerwear', 'Shoes', 'Accessories'];
+
   List<WardrobeItem> _wardrobe = const [];
   final Map<String, WardrobeItem?> _selected = {};
   TibModelProfile? _model;
@@ -63,8 +64,12 @@ class _OutfitBuilderScreenState extends State<OutfitBuilderScreen> {
     }
   }
 
-  List<WardrobeItem> get _visibleItems => _wardrobe.where((item) => item.category.toLowerCase() == _categoryForSlot(_activeSlot).toLowerCase()).toList();
+  List<WardrobeItem> get _visibleItems => _wardrobe
+      .where((item) => item.category.toLowerCase() == _categoryForSlot(_activeSlot).toLowerCase())
+      .toList();
+
   List<WardrobeItem> get _selectedItems => _selected.values.whereType<WardrobeItem>().toList();
+
   int get _filledSlots => _selectedItems.length;
 
   void _select(WardrobeItem item) {
@@ -100,6 +105,7 @@ class _OutfitBuilderScreenState extends State<OutfitBuilderScreen> {
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(title: const Text('Build My Look')),
@@ -115,11 +121,14 @@ class _OutfitBuilderScreenState extends State<OutfitBuilderScreen> {
           _buildWardrobePicker(),
           if (_selectedItems.isNotEmpty) ...[
             const SizedBox(height: 18),
-            FilledButton.icon(
-              onPressed: _saving ? null : _saveLook,
-              icon: const Icon(Icons.bookmark_add_outlined),
-              label: Text(_saving ? 'Saving…' : 'Save This Look'),
-              style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(54)),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: _saving ? null : _saveLook,
+                icon: const Icon(Icons.bookmark_add_outlined),
+                label: Text(_saving ? 'Saving…' : 'Save This Look'),
+                style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(54)),
+              ),
             ),
           ],
         ],
@@ -136,10 +145,7 @@ class _OutfitBuilderScreenState extends State<OutfitBuilderScreen> {
         const SizedBox(height: 16),
         const Text('Build the look.\nPiece by piece.', style: TextStyle(color: Colors.white, fontSize: 30, height: 1.02, fontWeight: FontWeight.w800, letterSpacing: -1)),
         const SizedBox(height: 9),
-        Text(
-          _model?.isComplete == true ? 'Choose from your real wardrobe and see your personal combination come together.' : 'Choose your wardrobe pieces first. Your VYEA Model can be used as your visual reference.',
-          style: const TextStyle(color: Colors.white70, fontSize: 12.5, height: 1.45),
-        ),
+        Text(_model?.isComplete == true ? 'Choose from your real wardrobe and see your personal combination come together.' : 'Choose your wardrobe pieces first. Your VYEA Model can be used as your visual reference.', style: const TextStyle(color: Colors.white70, fontSize: 12.5, height: 1.45)),
       ]),
     );
   }
@@ -153,26 +159,86 @@ class _OutfitBuilderScreenState extends State<OutfitBuilderScreen> {
         borderRadius: BorderRadius.circular(28),
         border: Border.all(color: AppColors.border),
       ),
-      child: Stack(alignment: Alignment.center, children: [
-        Positioned(top: 20, child: ClipOval(child: SizedBox(width: 88, height: 88, child: photo != null && photo.existsSync() ? Image.file(photo, fit: BoxFit.cover) : const ColoredBox(color: AppColors.primarySoft, child: Icon(Icons.person_rounded, size: 42, color: AppColors.primary))))),
-        Positioned(top: 118, child: Container(width: 170, height: 188, decoration: BoxDecoration(color: Colors.white.withValues(alpha: .72), borderRadius: const BorderRadius.vertical(top: Radius.circular(82), bottom: Radius.circular(30))), child: _selectedItems.isEmpty ? const Center(child: Icon(Icons.checkroom_outlined, size: 44, color: AppColors.primary)) : Padding(padding: const EdgeInsets.all(13), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: _selectedItems.take(4).map((item) => Padding(padding: const EdgeInsets.symmetric(vertical: 2.5), child: SizedBox(width: 125, height: 36, child: item.imageUrl.isEmpty ? const Icon(Icons.checkroom_outlined, color: AppColors.primary) : ClipRRect(borderRadius: BorderRadius.circular(9), child: CachedNetworkImage(imageUrl: item.imageUrl, fit: BoxFit.cover)))).toList())))),
-        Positioned(left: 16, bottom: 14, child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18)), child: Text('$_filledSlots pieces selected', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800)))),
-        const Positioned(right: 16, bottom: 17, child: Text('LIVE PREVIEW', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 1, color: AppColors.textMuted))),
-      ]),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Positioned(
+            top: 20,
+            child: ClipOval(
+              child: SizedBox(
+                width: 88,
+                height: 88,
+                child: photo != null && photo.existsSync()
+                    ? Image.file(photo, fit: BoxFit.cover)
+                    : const ColoredBox(color: AppColors.primarySoft, child: Icon(Icons.person_rounded, size: 42, color: AppColors.primary)),
+              ),
+            ),
+          ),
+          Positioned(
+            top: 118,
+            child: Container(
+              width: 170,
+              height: 188,
+              decoration: BoxDecoration(color: Colors.white.withValues(alpha: .72), borderRadius: const BorderRadius.vertical(top: Radius.circular(82), bottom: Radius.circular(30))),
+              child: _selectedItems.isEmpty
+                  ? const Center(child: Icon(Icons.checkroom_outlined, size: 44, color: AppColors.primary))
+                  : Padding(
+                      padding: const EdgeInsets.all(13),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: _selectedItems.take(4).map<Widget>((item) {
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 2.5),
+                            child: SizedBox(
+                              width: 125,
+                              height: 36,
+                              child: item.imageUrl.isEmpty
+                                  ? const Icon(Icons.checkroom_outlined, color: AppColors.primary)
+                                  : ClipRRect(borderRadius: BorderRadius.circular(9), child: CachedNetworkImage(imageUrl: item.imageUrl, fit: BoxFit.cover)),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+            ),
+          ),
+          Positioned(
+            left: 16,
+            bottom: 14,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18)),
+              child: Text('$_filledSlots pieces selected', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800)),
+            ),
+          ),
+          const Positioned(right: 16, bottom: 17, child: Text('LIVE PREVIEW', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 1, color: AppColors.textMuted))),
+        ],
+      ),
     );
   }
 
   Widget _buildSlotSelector() {
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      const Text('CHOOSE A LAYER', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.25, color: AppColors.textMuted)),
-      const SizedBox(height: 9),
-      SizedBox(height: 42, child: ListView.separated(scrollDirection: Axis.horizontal, itemCount: _slots.length, separatorBuilder: (_, _) => const SizedBox(width: 7), itemBuilder: (_, index) {
-        final slot = _slots[index];
-        final selected = _activeSlot == slot;
-        final filled = _selected[slot] != null;
-        return ChoiceChip(label: Text(filled ? '✓ $slot' : slot), selected: selected, onSelected: (_) => setState(() => _activeSlot = slot));
-      })),
-    ]);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('CHOOSE A LAYER', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.25, color: AppColors.textMuted)),
+        const SizedBox(height: 9),
+        SizedBox(
+          height: 42,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: _slots.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 7),
+            itemBuilder: (_, index) {
+              final slot = _slots[index];
+              final selected = _activeSlot == slot;
+              final filled = _selected[slot] != null;
+              return ChoiceChip(label: Text(filled ? '✓ $slot' : slot), selected: selected, onSelected: (_) => setState(() => _activeSlot = slot));
+            },
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _buildWardrobePicker() {
@@ -180,16 +246,25 @@ class _OutfitBuilderScreenState extends State<OutfitBuilderScreen> {
     return Container(
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(24), border: Border.all(color: AppColors.border)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [Expanded(child: Text(_activeSlot, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800))), if (_selected[_activeSlot] != null) TextButton(onPressed: _clearSlot, child: const Text('Clear'))]),
-        const SizedBox(height: 4),
-        Text('Select one ${_categoryForSlot(_activeSlot).toLowerCase()} piece from your wardrobe.', style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.5, height: 1.4)),
-        const SizedBox(height: 12),
-        if (items.isEmpty)
-          Container(width: double.infinity, padding: const EdgeInsets.all(24), decoration: BoxDecoration(color: AppColors.surfaceMuted, borderRadius: BorderRadius.circular(18)), child: Text('No ${_categoryForSlot(_activeSlot).toLowerCase()} in your wardrobe yet.', textAlign: TextAlign.center, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)))
-        else
-          GridView.builder(shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), itemCount: items.length, gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: .82), itemBuilder: (_, index) => _wardrobeItem(items[index])),
-      ]),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [Expanded(child: Text(_activeSlot, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800))), if (_selected[_activeSlot] != null) TextButton(onPressed: _clearSlot, child: const Text('Clear'))]),
+          const SizedBox(height: 4),
+          Text('Select one ${_categoryForSlot(_activeSlot).toLowerCase()} piece from your wardrobe.', style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.5, height: 1.4)),
+          const SizedBox(height: 12),
+          if (items.isEmpty)
+            Container(width: double.infinity, padding: const EdgeInsets.all(24), decoration: BoxDecoration(color: AppColors.surfaceMuted, borderRadius: BorderRadius.circular(18)), child: Text('No ${_categoryForSlot(_activeSlot).toLowerCase()} in your wardrobe yet.', textAlign: TextAlign.center, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)))
+          else
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: items.length,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: .82),
+              itemBuilder: (_, index) => _wardrobeItem(items[index]),
+            ),
+        ],
+      ),
     );
   }
 
@@ -202,10 +277,12 @@ class _OutfitBuilderScreenState extends State<OutfitBuilderScreen> {
         duration: const Duration(milliseconds: 180),
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(19), border: Border.all(color: selected ? AppColors.primary : AppColors.border, width: selected ? 2 : 1)),
-        child: Stack(children: [
-          Positioned.fill(child: item.imageUrl.isEmpty ? const ColoredBox(color: AppColors.surfaceMuted, child: Icon(Icons.checkroom_outlined, color: AppColors.primary, size: 36)) : CachedNetworkImage(imageUrl: item.imageUrl, fit: BoxFit.cover)),
-          Positioned(left: 8, right: 8, bottom: 8, child: Container(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8), decoration: BoxDecoration(color: Colors.white.withValues(alpha: .92), borderRadius: BorderRadius.circular(12)), child: Row(children: [Expanded(child: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900))), if (selected) const Icon(Icons.check_circle_rounded, size: 17, color: AppColors.primary)]))),
-        ]),
+        child: Stack(
+          children: [
+            Positioned.fill(child: item.imageUrl.isEmpty ? const ColoredBox(color: AppColors.surfaceMuted, child: Icon(Icons.checkroom_outlined, color: AppColors.primary, size: 36)) : CachedNetworkImage(imageUrl: item.imageUrl, fit: BoxFit.cover)),
+            Positioned(left: 8, right: 8, bottom: 8, child: Container(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8), decoration: BoxDecoration(color: Colors.white.withValues(alpha: .92), borderRadius: BorderRadius.circular(12)), child: Row(children: [Expanded(child: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900))), if (selected) const Icon(Icons.check_circle_rounded, size: 17, color: AppColors.primary)]))),
+          ],
+        ),
       ),
     );
   }
