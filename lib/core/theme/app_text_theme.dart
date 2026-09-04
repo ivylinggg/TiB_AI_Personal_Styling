@@ -40,7 +40,7 @@ class AppTextTheme {
       ),
       titleLarge: TextStyle(
         fontSize: 22,
-        fontWeight: FontWeight.w650,
+        fontWeight: FontWeight.w600,
         color: primary,
         letterSpacing: -0.25,
         height: 1.2,
