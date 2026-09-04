@@ -74,66 +74,35 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
     if (_lovedLookIds.contains(item.id)) score += 16;
     if (_dislikedLookIds.contains(item.id)) score -= 20;
     if (profile.colours.any((c) => text.contains(c.toLowerCase()))) score += 25;
-    if (item.season.toLowerCase().contains(profile.season.toLowerCase())) {
-      score += 12;
-    }
-    if (occasion == 'work' &&
-        (text.contains('smart') || text.contains('elegant'))) {
-      score += 22;
-    }
-    if (occasion == 'date' &&
-        (text.contains('feminine') ||
-            text.contains('elegant') ||
-            text.contains('dress'))) {
-      score += 22;
-    }
-    if (occasion == 'dinner' &&
-        (text.contains('elegant') ||
-            text.contains('dress') ||
-            text.contains('smart'))) {
-      score += 18;
-    }
-    if ((occasion == 'cafe' || occasion == 'weekend') &&
-        (text.contains('casual') || text.contains('everyday'))) {
-      score += 18;
-    }
+    if (item.season.toLowerCase().contains(profile.season.toLowerCase())) score += 12;
+    if (occasion == 'work' && (text.contains('smart') || text.contains('elegant'))) score += 22;
+    if (occasion == 'date' && (text.contains('feminine') || text.contains('elegant') || text.contains('dress'))) score += 22;
+    if (occasion == 'dinner' && (text.contains('elegant') || text.contains('dress') || text.contains('smart'))) score += 18;
+    if ((occasion == 'cafe' || occasion == 'weekend') && (text.contains('casual') || text.contains('everyday'))) score += 18;
     if (item.category == 'Shoes') score += 5;
     if (item.category == 'Accessories') score += 3;
     return score;
   }
 
   List<WardrobeItem> _buildLook(ColourAnalysisResult profile) {
-    final sorted = [..._wardrobe]
-      ..sort((a, b) => _score(b, profile).compareTo(_score(a, profile)));
-
-    final categories = _occasion == 'Dinner' || _occasion == 'Date'
-        ? ['Dresses', 'Shoes', 'Accessories']
-        : ['Tops', 'Bottoms', 'Shoes', 'Accessories'];
-
+    final sorted = [..._wardrobe]..sort((a, b) => _score(b, profile).compareTo(_score(a, profile)));
+    final categories = _occasion == 'Dinner' || _occasion == 'Date' ? ['Dresses', 'Shoes', 'Accessories'] : ['Tops', 'Bottoms', 'Shoes', 'Accessories'];
     final rotated = [...sorted];
     if (rotated.length > 1 && _generation > 1) {
       final offset = (_generation - 1) % rotated.length;
       final head = rotated.sublist(offset);
       head.addAll(rotated.sublist(0, offset));
-      rotated
-        ..clear()
-        ..addAll(head);
+      rotated..clear()..addAll(head);
     }
-
     final result = <WardrobeItem>[];
     final used = <String>{};
-
     for (final category in categories) {
-      final match = rotated.firstWhere(
-        (item) => item.category == category && !used.contains(item.id),
-        orElse: () => _emptyItem,
-      );
+      final match = rotated.firstWhere((item) => item.category == category && !used.contains(item.id), orElse: () => _emptyItem);
       if (match.id.isNotEmpty) {
         result.add(match);
         used.add(match.id);
       }
     }
-
     if (result.length < 2) {
       for (final item in rotated) {
         if (!used.contains(item.id)) {
@@ -143,22 +112,11 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
         if (result.length == 4) break;
       }
     }
-
     return result.take(4).toList();
   }
 
   static WardrobeItem get _emptyItem => const WardrobeItem(
-        id: '',
-        userId: '',
-        name: '',
-        category: '',
-        colour: '',
-        style: '',
-        season: '',
-        imageUrl: '',
-        isFavourite: false,
-        notes: '',
-        createdAt: null,
+        id: '', userId: '', name: '', category: '', colour: '', style: '', season: '', imageUrl: '', isFavourite: false, notes: '', createdAt: null,
       );
 
   WardrobeItem? _findWardrobeItem(String? id) {
@@ -172,7 +130,6 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
   Future<void> _generate(ColourAnalysisResult profile) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null || _styling || _wardrobe.isEmpty) return;
-
     setState(() {
       _generation++;
       _savedLook = false;
@@ -180,40 +137,21 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
       _generated = true;
       _look = const [];
     });
-
     try {
       final prefs = await StylePreferenceService.getStylePreferences(uid);
       final styles = List<String>.from(prefs?['styles'] ?? const []);
       final preferences = List<String>.from(prefs?['preferences'] ?? const []);
-
-      final aiResult = await AiStylingService.getRecommendation(
-        profile: profile,
-        wardrobe: _wardrobe,
-        styles: styles,
-        preferences: preferences,
-        occasion: _occasion,
-      );
-
+      final aiResult = await AiStylingService.getRecommendation(profile: profile, wardrobe: _wardrobe, styles: styles, preferences: preferences, occasion: _occasion);
       if (!mounted) return;
-
       if (aiResult != null) {
-        final aiLook = [
-          _findWardrobeItem(aiResult.topId),
-          _findWardrobeItem(aiResult.bottomId),
-          _findWardrobeItem(aiResult.shoesId),
-          _findWardrobeItem(aiResult.accessoryId),
-        ].whereType<WardrobeItem>().toList();
-
+        final aiLook = [_findWardrobeItem(aiResult.topId), _findWardrobeItem(aiResult.bottomId), _findWardrobeItem(aiResult.shoesId), _findWardrobeItem(aiResult.accessoryId)].whereType<WardrobeItem>().toList();
         setState(() {
           _look = aiLook;
           _styling = false;
         });
         return;
       }
-    } catch (_) {
-      // Fall back to the transparent local matcher below.
-    }
-
+    } catch (_) {}
     if (!mounted) return;
     setState(() {
       _look = _buildLook(profile);
@@ -225,24 +163,14 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
   Future<void> _saveCurrentLook(ColourAnalysisResult profile, List<WardrobeItem> look) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null || look.isEmpty || _savingLook) return;
-
     if (_savedLook) {
       _showFeedback('This look is already saved.');
       return;
     }
-
     setState(() => _savingLook = true);
-
     try {
       final matchScore = _matchScore(profile, look);
-      await FirestoreService.saveOutfitLook(
-        uid: uid,
-        occasion: _occasion,
-        itemIds: look.map((item) => item.id).where((id) => id.isNotEmpty).toList(),
-        matchScore: matchScore,
-        season: profile.season,
-      );
-
+      await FirestoreService.saveOutfitLook(uid: uid, occasion: _occasion, itemIds: look.map((item) => item.id).where((id) => id.isNotEmpty).toList(), matchScore: matchScore, season: profile.season);
       if (!mounted) return;
       setState(() {
         _savedLook = true;
@@ -259,506 +187,144 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
   @override
   Widget build(BuildContext context) {
     final profile = context.watch<AnalysisProvider>().result;
-
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('AI Outfit'),
+        title: const Text('AI Outfit', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
         centerTitle: true,
         backgroundColor: AppColors.background,
-        actions: [
-          IconButton(
-            onPressed: _loadWardrobe,
-            icon: const Icon(Icons.refresh_rounded),
-          ),
-        ],
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        actions: [IconButton(onPressed: _loadWardrobe, icon: const Icon(Icons.refresh_rounded))],
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
-              children: [
-                _hero(profile),
-                const SizedBox(height: 20),
-                const Text(
-                  'What are you dressing for?',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-                ),
-                const SizedBox(height: 10),
-                SizedBox(
-                  height: 45,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: _occasions.length,
-                    separatorBuilder: (_, index) => const SizedBox(width: 8),
-                    itemBuilder: (_, index) {
-                      final item = _occasions[index];
-                      final selected = _occasion == item.$1;
-                      return ChoiceChip(
-                        selected: selected,
-                        label: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(item.$2, size: 16),
-                            const SizedBox(width: 6),
-                            Text(item.$1),
-                          ],
-                        ),
-                        onSelected: (_) => setState(() {
-                          _occasion = item.$1;
-                          _generated = false;
-                          _savedLook = false;
-                          _look = const [];
-                        }),
-                        selectedColor: AppColors.primarySoft,
-                        backgroundColor: AppColors.surface,
-                        side: BorderSide(
-                          color: selected
-                              ? AppColors.primary
-                              : AppColors.border,
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(height: 20),
-                _generateButton(profile),
-                if (_generated) ...[
-                  const SizedBox(height: 27),
-                  _result(profile, _look),
-                ],
-              ],
-            ),
+      body: _loading ? const Center(child: CircularProgressIndicator()) : ListView(padding: const EdgeInsets.fromLTRB(20, 10, 20, 34), children: [
+        _hero(profile),
+        const SizedBox(height: 22),
+        _occasionSection(),
+        const SizedBox(height: 22),
+        _generateButton(profile),
+        if (_generated) ...[const SizedBox(height: 28), _result(profile, _look)],
+      ]),
     );
   }
 
   Widget _hero(ColourAnalysisResult? profile) {
     return Container(
-      padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        gradient: AppGradients.ai,
-        borderRadius: BorderRadius.circular(28),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.auto_awesome_rounded,
-                  color: AppColors.primary,
-                ),
-              ),
-              const SizedBox(width: 10),
-              const Text(
-                'AI OUTFIT',
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.2,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 15),
-          const Text(
-            'Your next look,\nmade personal.',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 29,
-              height: 1.05,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -.8,
-            ),
-          ),
-          const SizedBox(height: 9),
-          Text(
-            profile == null
-                ? 'Complete your colour profile first.'
-                : 'Built around your ${profile.season} palette and the pieces you already own.',
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 12.5,
-              height: 1.45,
-            ),
-          ),
-        ],
-      ),
+      padding: const EdgeInsets.fromLTRB(21, 21, 21, 23),
+      decoration: BoxDecoration(color: AppColors.primaryDark, borderRadius: BorderRadius.circular(28)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Expanded(child: Text('VYEA  /  AI OUTFIT', style: TextStyle(color: AppColors.peach, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: 1.45))),
+          Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5), decoration: BoxDecoration(color: Colors.white.withValues(alpha: .10), borderRadius: BorderRadius.circular(9)), child: const Text('PERSONAL LOOK', style: TextStyle(color: Colors.white70, fontSize: 7.3, fontWeight: FontWeight.w900, letterSpacing: .8))),
+        ]),
+        const SizedBox(height: 18),
+        const Text('Your next look,\nmade personal.', style: TextStyle(color: Colors.white, fontSize: 30, height: 1.02, fontWeight: FontWeight.w800, letterSpacing: -1)),
+        const SizedBox(height: 9),
+        Text(profile == null ? 'Complete your colour profile first.' : 'Built around your ${profile.season} palette and the pieces you already own.', style: const TextStyle(color: Colors.white70, fontSize: 12.5, height: 1.45)),
+        const SizedBox(height: 17),
+        Row(children: [
+          _heroStat(Icons.palette_outlined, profile?.season ?? 'Colour', 'palette'),
+          const SizedBox(width: 8),
+          _heroStat(Icons.checkroom_outlined, '${_wardrobe.length}', 'pieces'),
+          const SizedBox(width: 8),
+          _heroStat(Icons.auto_awesome_outlined, _occasion, 'occasion'),
+        ]),
+      ]),
     );
+  }
+
+  Widget _heroStat(IconData icon, String value, String label) {
+    return Expanded(child: Container(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 10), decoration: BoxDecoration(color: Colors.white.withValues(alpha: .08), borderRadius: BorderRadius.circular(15)), child: Row(children: [Icon(icon, color: Colors.white70, size: 15), const SizedBox(width: 6), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.w800)), Text(label, style: const TextStyle(color: Colors.white54, fontSize: 8.5))]))])));
+  }
+
+  Widget _occasionSection() {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const Text('CHOOSE THE MOMENT', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.25, color: AppColors.textMuted)),
+      const SizedBox(height: 9),
+      SizedBox(height: 88, child: ListView.separated(scrollDirection: Axis.horizontal, itemCount: _occasions.length, separatorBuilder: (_, _) => const SizedBox(width: 9), itemBuilder: (_, index) {
+        final item = _occasions[index];
+        final selected = _occasion == item.$1;
+        return InkWell(onTap: () => setState(() { _occasion = item.$1; _generated = false; _savedLook = false; _look = const []; }), borderRadius: BorderRadius.circular(19), child: AnimatedContainer(duration: const Duration(milliseconds: 180), width: 92, padding: const EdgeInsets.all(11), decoration: BoxDecoration(color: selected ? AppColors.primaryDark : AppColors.surface, borderRadius: BorderRadius.circular(19), border: Border.all(color: selected ? AppColors.primaryDark : AppColors.border)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(item.$2, color: selected ? Colors.white : AppColors.primary, size: 19), const Spacer(), Text(item.$1, style: TextStyle(color: selected ? Colors.white : AppColors.textPrimary, fontSize: 11, fontWeight: FontWeight.w800))])));
+      })));
+    ],);
   }
 
   Widget _generateButton(ColourAnalysisResult? profile) {
-    return SizedBox(
-      width: double.infinity,
-      child: FilledButton.icon(
-        onPressed: profile == null || _wardrobe.isEmpty || _styling
-            ? null
-            : () => _generate(profile),
-        icon: _styling
-            ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : const Icon(Icons.auto_awesome_rounded),
-        label: Text(
-          _styling
-              ? 'Putting your look together…'
-              : _generated
-                  ? 'Try another look'
-                  : 'Create my outfit',
-        ),
-        style: FilledButton.styleFrom(
-          backgroundColor: AppColors.peach,
-          foregroundColor: AppColors.charcoal,
-          minimumSize: const Size.fromHeight(54),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(17),
-          ),
-        ),
-      ),
-    );
+    return SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: profile == null || _wardrobe.isEmpty || _styling ? null : () => _generate(profile), icon: _styling ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.auto_awesome_rounded), label: Text(_styling ? 'Putting your look together…' : _generated ? 'Create another look' : 'Create my outfit'), style: FilledButton.styleFrom(backgroundColor: AppColors.peach, foregroundColor: AppColors.charcoal, minimumSize: const Size.fromHeight(55), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(17))));
   }
 
   Widget _result(ColourAnalysisResult? profile, List<WardrobeItem> look) {
-    if (profile == null) {
-      return _message('Complete Colour Analysis to personalise your outfit.');
-    }
-    if (_styling) {
-      return _message('Looking through your wardrobe and matching your profile…');
-    }
-    if (_wardrobe.isEmpty) {
-      return _message('Add a few pieces to My Wardrobe first.');
-    }
-    if (look.isEmpty) {
-      return _message(
-        'I could not find a complete combination yet. Try adding tops, bottoms and shoes.',
-      );
-    }
-
+    if (profile == null) return _message('Complete Colour Analysis to personalise your outfit.');
+    if (_styling) return _message('Looking through your wardrobe and matching your profile…');
+    if (_wardrobe.isEmpty) return _message('Add a few pieces to My Wardrobe first.');
+    if (look.isEmpty) return _message('I could not find a complete combination yet. Try adding tops, bottoms and shoes.');
     final match = _matchScore(profile, look);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            const Expanded(
-              child: Text(
-                'YOUR PERSONAL LOOK',
-                style: TextStyle(
-                  fontSize: 11,
-                  color: AppColors.primary,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.1,
-                ),
-              ),
-            ),
-            _scorePill(match),
-          ],
-        ),
-        const SizedBox(height: 11),
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: AppColors.border),
-          ),
-          child: Column(
-            children: [
-              SizedBox(
-                height: 225,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: look.length,
-                  separatorBuilder: (_, index) => const SizedBox(width: 10),
-                  itemBuilder: (_, index) => _itemCard(look[index]),
-                ),
-              ),
-              const SizedBox(height: 13),
-              _whyItWorks(profile, look),
-              const SizedBox(height: 12),
-              _feedbackActions(look, profile),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  const Icon(Icons.event_outlined,
-                      color: AppColors.primary, size: 16),
-                  const SizedBox(width: 6),
-                  Text(_occasion,
-                      style: const TextStyle(
-                          fontSize: 11, fontWeight: FontWeight.w700)),
-                  const Spacer(),
-                  const Icon(Icons.checkroom_outlined,
-                      color: AppColors.textMuted, size: 16),
-                  const SizedBox(width: 5),
-                  Text('${look.length} pieces',
-                      style: const TextStyle(
-                          fontSize: 11, color: AppColors.textSecondary)),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  int _matchScore(ColourAnalysisResult profile, List<WardrobeItem> look) {
-    var total = 0;
-    for (final item in look) {
-      total += _score(item, profile);
-    }
-    final maximum = look.length * 75;
-    if (maximum == 0) return 0;
-    return ((total / maximum) * 100).round().clamp(45, 98);
-  }
-
-  Widget _whyItWorks(ColourAnalysisResult profile, List<WardrobeItem> look) {
-    final matchedColours = look
-        .where((item) => profile.colours.any(
-              (c) => item.colour.toLowerCase().contains(c.toLowerCase()),
-            ))
-        .length;
-    final favouriteCount = look.where((item) => item.isFavourite).length;
-    final reason = matchedColours > 0
-        ? 'I chose these pieces because $matchedColours of them connect with your ${profile.season} colour palette. The combination keeps the ${_occasion.toLowerCase()} look intentional without feeling overdone.'
-        : 'I kept the look balanced for a ${_occasion.toLowerCase()} setting and prioritised pieces you already wear and save.';
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.lavenderMist,
-        borderRadius: BorderRadius.circular(17),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Row(
-            children: [
-              Icon(Icons.auto_awesome_rounded,
-                  color: AppColors.primary, size: 18),
-              SizedBox(width: 7),
-              Text('Why this works',
-                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5)),
-            ],
-          ),
-          const SizedBox(height: 7),
-          Text(reason,
-              style: const TextStyle(
-                  fontSize: 11.5,
-                  height: 1.45,
-                  color: AppColors.textSecondary)),
-          if (favouriteCount > 0) ...[
-            const SizedBox(height: 8),
-            Text(
-              '$favouriteCount favourite ${favouriteCount == 1 ? 'piece' : 'pieces'} included',
-              style: const TextStyle(
-                  color: AppColors.primary,
-                  fontSize: 10.5,
-                  fontWeight: FontWeight.w700),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _feedbackActions(List<WardrobeItem> look, ColourAnalysisResult profile) {
-    final loved = look.any((item) => _lovedLookIds.contains(item.id));
-    final disliked = look.any((item) => _dislikedLookIds.contains(item.id));
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: _feedbackButton(
-                icon: loved ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                label: loved ? 'Loved' : 'Love this',
-                selected: loved,
-                onPressed: () {
-                  setState(() {
-                    for (final item in look) {
-                      _lovedLookIds.add(item.id);
-                      _dislikedLookIds.remove(item.id);
-                    }
-                  });
-                  _showFeedback('Got it — I’ll lean into this style.');
-                },
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _feedbackButton(
-                icon: disliked ? Icons.thumb_down_rounded : Icons.thumb_down_outlined,
-                label: disliked ? 'Noted' : 'Not my style',
-                selected: disliked,
-                onPressed: () {
-                  setState(() {
-                    for (final item in look) {
-                      _dislikedLookIds.add(item.id);
-                      _lovedLookIds.remove(item.id);
-                    }
-                  });
-                  _showFeedback('Okay — I’ll move away from these pieces.');
-                },
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        SizedBox(
-          width: double.infinity,
-          child: OutlinedButton.icon(
-            onPressed: _savingLook ? null : () => _saveCurrentLook(profile, look),
-            icon: _savingLook
-                ? const SizedBox(
-                    width: 17,
-                    height: 17,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : Icon(
-                    _savedLook ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
-                    size: 18,
-                  ),
-            label: Text(
-              _savingLook
-                  ? 'Saving…'
-                  : _savedLook
-                      ? 'Saved look'
-                      : 'Save this look',
-            ),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.primary,
-              side: BorderSide(color: AppColors.border),
-              minimumSize: const Size.fromHeight(44),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _feedbackButton({
-    required IconData icon,
-    required String label,
-    required bool selected,
-    required VoidCallback onPressed,
-  }) {
-    return OutlinedButton.icon(
-      onPressed: onPressed,
-      icon: Icon(icon, size: 17),
-      label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
-      style: OutlinedButton.styleFrom(
-        foregroundColor: selected ? AppColors.primary : AppColors.textSecondary,
-        backgroundColor: selected ? AppColors.primarySoft : AppColors.surface,
-        side: BorderSide(
-          color: selected ? AppColors.primary : AppColors.border,
-        ),
-        minimumSize: const Size.fromHeight(44),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-        ),
-      ),
-    );
-  }
-
-  void _showFeedback(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-        ),
-      ),
-    );
-  }
-
-  Widget _scorePill(int score) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-      decoration: BoxDecoration(
-        color: AppColors.sage.withValues(alpha: .25),
-        borderRadius: BorderRadius.circular(AppRadius.full),
-      ),
-      child: Text('$score% match',
-          style: const TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w800,
-              color: AppColors.success)),
-    );
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [const Expanded(child: Text('YOUR PERSONAL LOOK', style: TextStyle(fontSize: 11, color: AppColors.primary, fontWeight: FontWeight.w800, letterSpacing: 1.1))), _scorePill(match)]),
+      const SizedBox(height: 11),
+      Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(24), border: Border.all(color: AppColors.border)), child: Column(children: [
+        SizedBox(height: 225, child: ListView.separated(scrollDirection: Axis.horizontal, itemCount: look.length, separatorBuilder: (_, _) => const SizedBox(width: 10), itemBuilder: (_, index) => _itemCard(look[index]))),
+        const SizedBox(height: 13),
+        _whyItWorks(profile, look),
+        const SizedBox(height: 12),
+        _feedbackActions(look, profile),
+        const SizedBox(height: 10),
+        Row(children: [const Icon(Icons.event_outlined, color: AppColors.primary, size: 16), const SizedBox(width: 6), Text(_occasion, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700)), const Spacer(), const Icon(Icons.checkroom_outlined, color: AppColors.textMuted, size: 16), const SizedBox(width: 6), Text('${look.length} pieces', style: const TextStyle(fontSize: 10.5, color: AppColors.textMuted))]),
+      ])),
+      const SizedBox(height: 10),
+      SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: _savingLook ? null : () => _saveCurrentLook(profile, look), icon: _savingLook ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : Icon(_savedLook ? Icons.bookmark_rounded : Icons.bookmark_border_rounded), label: Text(_savedLook ? 'Saved to My Looks' : 'Save this look'), style: OutlinedButton.styleFrom(foregroundColor: AppColors.primary, side: const BorderSide(color: AppColors.border), minimumSize: const Size.fromHeight(49), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))))),
+    ]);
   }
 
   Widget _itemCard(WardrobeItem item) {
-    return SizedBox(
-      width: 150,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(17),
-              child: item.imageUrl.isEmpty
-                  ? Container(
-                      color: AppColors.surfaceMuted,
-                      width: double.infinity,
-                      child: const Center(
-                        child: Icon(Icons.checkroom_outlined,
-                            color: AppColors.primary),
-                      ),
-                    )
-                  : CachedNetworkImage(
-                      imageUrl: item.imageUrl,
-                      fit: BoxFit.cover,
-                      width: double.infinity,
-                    ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(item.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
-          const SizedBox(height: 2),
-          Text('${item.category} · ${item.colour}',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: AppColors.textMuted, fontSize: 10.5)),
-        ],
-      ),
-    );
+    final loved = _lovedLookIds.contains(item.id);
+    final disliked = _dislikedLookIds.contains(item.id);
+    return SizedBox(width: 145, child: Stack(children: [Container(width: 145, padding: const EdgeInsets.all(7), decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(child: ClipRRect(borderRadius: BorderRadius.circular(14), child: item.imageUrl.isEmpty ? Container(color: AppColors.surfaceMuted, child: const Center(child: Icon(Icons.checkroom_outlined, color: AppColors.primary))) : CachedNetworkImage(imageUrl: item.imageUrl, width: double.infinity, fit: BoxFit.cover))), const SizedBox(height: 7), Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)), Text('${item.category} · ${item.colour}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.textMuted, fontSize: 10))])), Positioned(right: 11, top: 11, child: Row(children: [_feedbackIcon(Icons.favorite_rounded, loved, () => _toggleFeedback(item.id, true)), const SizedBox(width: 5), _feedbackIcon(Icons.close_rounded, disliked, () => _toggleFeedback(item.id, false))]))]));
+  }
+
+  Widget _feedbackIcon(IconData icon, bool active, VoidCallback onTap) {
+    return Material(color: Colors.white.withValues(alpha: .92), shape: const CircleBorder(), child: InkWell(onTap: onTap, customBorder: const CircleBorder(), child: Padding(padding: const EdgeInsets.all(6), child: Icon(icon, size: 13, color: active ? AppColors.primary : AppColors.textMuted))));
+  }
+
+  Widget _feedbackActions(List<WardrobeItem> look, ColourAnalysisResult profile) {
+    return Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: AppColors.surfaceMuted, borderRadius: BorderRadius.circular(17)), child: Row(children: [const Expanded(child: Text('Tell VYEA what feels right. Your feedback shapes future matches.', style: TextStyle(fontSize: 10.5, color: AppColors.textSecondary, height: 1.35))), const SizedBox(width: 8), Icon(Icons.favorite_outline_rounded, color: AppColors.primary, size: 18), const SizedBox(width: 8), Icon(Icons.tune_rounded, color: AppColors.textMuted, size: 18)]));
+  }
+
+  void _toggleFeedback(String id, bool love) {
+    setState(() {
+      if (love) {
+        _dislikedLookIds.remove(id);
+        _lovedLookIds.contains(id) ? _lovedLookIds.remove(id) : _lovedLookIds.add(id);
+      } else {
+        _lovedLookIds.remove(id);
+        _dislikedLookIds.contains(id) ? _dislikedLookIds.remove(id) : _dislikedLookIds.add(id);
+      }
+    });
+  }
+
+  Widget _whyItWorks(ColourAnalysisResult profile, List<WardrobeItem> look) {
+    final matching = look.where((item) => profile.colours.any((c) => '${item.colour} ${item.style}'.toLowerCase().contains(c.toLowerCase()))).length;
+    return Container(padding: const EdgeInsets.all(13), decoration: BoxDecoration(gradient: AppGradients.soft, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border)), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [const Icon(Icons.auto_awesome_rounded, color: AppColors.primary, size: 18), const SizedBox(width: 8), Expanded(child: Text(matching > 0 ? '$matching pieces align with your ${profile.season} colour direction. The balance keeps the look personal without feeling overdone.' : 'The silhouette and occasion match your wardrobe profile. Try pairing the look with one of your strongest seasonal colours.', style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondary, height: 1.4)))]) );
+  }
+
+  Widget _scorePill(int score) {
+    return Container(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6), decoration: BoxDecoration(color: AppColors.secondary, borderRadius: BorderRadius.circular(10)), child: Text('$score% match', style: const TextStyle(color: AppColors.primaryDark, fontSize: 9.5, fontWeight: FontWeight.w900)));
+  }
+
+  int _matchScore(ColourAnalysisResult profile, List<WardrobeItem> look) {
+    if (look.isEmpty) return 0;
+    var score = 0;
+    for (final item in look) {
+      score += _score(item, profile);
+    }
+    return (score / look.length).round().clamp(0, 99);
   }
 
   Widget _message(String text) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Text(text,
-          style: const TextStyle(
-              color: AppColors.textSecondary,
-              height: 1.45,
-              fontSize: 12.5)),
-    );
+    return Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(19), border: Border.all(color: AppColors.border)), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [const Icon(Icons.info_outline_rounded, color: AppColors.primary, size: 18), const SizedBox(width: 9), Expanded(child: Text(text, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.4)))]));
+  }
+
+  void _showFeedback(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message), behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))));
   }
 }
