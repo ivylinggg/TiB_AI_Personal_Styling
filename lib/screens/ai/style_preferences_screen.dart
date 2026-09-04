@@ -14,9 +14,6 @@ class StylePreferencesScreen extends StatefulWidget {
 }
 
 class _StylePreferencesScreenState extends State<StylePreferencesScreen> {
-  static const Color _brown = AppColors.primary;
-  static const Color _softPink = AppColors.secondary;
-  static const Color _cream = AppColors.background;
   static const Color _text = AppColors.textPrimary;
   static const Color _muted = AppColors.textSecondary;
 
@@ -51,112 +48,60 @@ class _StylePreferencesScreenState extends State<StylePreferencesScreen> {
 
   Future<void> _loadPreferences() async {
     final user = AuthService.currentUser;
-
     if (user == null) {
-      if (mounted) {
-        setState(() => _loading = false);
-      }
+      if (mounted) setState(() => _loading = false);
       return;
     }
-
     try {
       final results = await Future.wait([
         StylePreferenceService.getStylePreferences(user.uid),
-        FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .get(),
+        FirebaseFirestore.instance.collection('users').doc(user.uid).get(),
       ]);
-
       final data = results[0] as Map<String, dynamic>?;
-      final userSnapshot = results[1] as DocumentSnapshot<Map<String, dynamic>>;
-
-      if (!mounted) {
-        return;
-      }
-
+      final snapshot = results[1] as DocumentSnapshot<Map<String, dynamic>>;
+      if (!mounted) return;
       setState(() {
-        _styles
-          ..clear()
-          ..addAll(List<String>.from(data?['styles'] ?? const []));
-        _preferences
-          ..clear()
-          ..addAll(List<String>.from(data?['preferences'] ?? const []));
-        _isPremium = userSnapshot.data()?['isPremium'] == true;
+        _styles..clear()..addAll(List<String>.from(data?['styles'] ?? const []));
+        _preferences..clear()..addAll(List<String>.from(data?['preferences'] ?? const []));
+        _isPremium = snapshot.data()?['isPremium'] == true;
         _premiumLoaded = true;
         _loading = false;
       });
     } catch (_) {
-      if (mounted) {
-        setState(() {
-          _premiumLoaded = true;
-          _loading = false;
-        });
-      }
+      if (mounted) setState(() { _premiumLoaded = true; _loading = false; });
     }
   }
 
   Future<void> _save() async {
     final user = AuthService.currentUser;
-
-    if (user == null) {
-      return;
-    }
-
+    if (user == null) return;
     if (_styles.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Choose at least one style you like.')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Choose at least one style you like.')));
       return;
     }
-
     setState(() => _saving = true);
-
     try {
-      await StylePreferenceService.saveStylePreferences(
-        uid: user.uid,
-        styles: _styles.toList(),
-        preferences: _preferences.toList(),
-      );
-
-      if (!mounted) {
-        return;
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Your style preferences have been saved.'),
-        ),
-      );
+      await StylePreferenceService.saveStylePreferences(uid: user.uid, styles: _styles.toList(), preferences: _preferences.toList());
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Your style preferences have been saved.')));
       Navigator.pop(context, true);
     } catch (_) {
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not save your preferences. Please try again.'),
-        ),
-      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not save your preferences. Please try again.')));
     } finally {
-      if (mounted) {
-        setState(() => _saving = false);
-      }
+      if (mounted) setState(() => _saving = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _cream,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: _cream,
+        backgroundColor: AppColors.background,
         elevation: 0,
         iconTheme: const IconThemeData(color: _text),
-        title: const Text(
-          'My Style',
-          style: TextStyle(color: _text, fontWeight: FontWeight.w700),
-        ),
+        title: const Text('My Style', style: TextStyle(color: _text, fontWeight: FontWeight.w700)),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -167,99 +112,24 @@ class _StylePreferencesScreenState extends State<StylePreferencesScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _intro(),
-                    const SizedBox(height: 14),
-                    _buildPremiumStatus(),
-                    const SizedBox(height: 16),
-                    _selectionSummary(),
-                    const SizedBox(height: 26),
-                    _sectionTitle(
-                      'What feels most like you?',
-                      'Choose as many as you like.',
-                    ),
-                    const SizedBox(height: 12),
-                    ..._styleOptions.map(
-                      (item) => _optionCard(
-                        title: item.$1,
-                        subtitle: item.$2,
-                        selected: _styles.contains(item.$1),
-                        onTap: () => setState(() {
-                          if (_styles.contains(item.$1)) {
-                            _styles.remove(item.$1);
-                          } else {
-                            _styles.add(item.$1);
-                          }
-                        }),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    _sectionTitle(
-                      'What matters when you get dressed?',
-                      'A little more detail helps your recommendations feel personal.',
-                    ),
-                    const SizedBox(height: 12),
-                    ..._preferenceOptions.map(
-                      (item) => _optionCard(
-                        title: item.$1,
-                        subtitle: item.$2,
-                        selected: _preferences.contains(item.$1),
-                        onTap: () => setState(() {
-                          if (_preferences.contains(item.$1)) {
-                            _preferences.remove(item.$1);
-                          } else {
-                            _preferences.add(item.$1);
-                          }
-                        }),
-                      ),
-                    ),
+                    const SizedBox(height: 15),
+                    _profileStatus(),
                     const SizedBox(height: 18),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: _softPink,
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                      child: const Text(
-                        'There is no right style. These choices simply help your stylist understand you better.',
-                        style: TextStyle(
-                          color: _muted,
-                          height: 1.45,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    if (_premiumLoaded && _isPremium)
-                      _buildPremiumProfileCard(),
-
+                    _selectionSummary(),
+                    const SizedBox(height: 27),
+                    _sectionTitle('What feels most like you?', 'Choose the styles you naturally reach for.'),
+                    const SizedBox(height: 12),
+                    ..._styleOptions.map((item) => _optionCard(title: item.$1, subtitle: item.$2, selected: _styles.contains(item.$1), onTap: () => setState(() { _styles.contains(item.$1) ? _styles.remove(item.$1) : _styles.add(item.$1); }))),
+                    const SizedBox(height: 18),
+                    _sectionTitle('What matters when you get dressed?', 'These small details help VYEA style for your real life.'),
+                    const SizedBox(height: 12),
+                    ..._preferenceOptions.map((item) => _optionCard(title: item.$1, subtitle: item.$2, selected: _preferences.contains(item.$1), onTap: () => setState(() { _preferences.contains(item.$1) ? _preferences.remove(item.$1) : _preferences.add(item.$1); }))),
+                    const SizedBox(height: 14),
+                    _guidanceCard(),
+                    const SizedBox(height: 18),
+                    if (_premiumLoaded && _isPremium) _buildPremiumProfileCard(),
                     const SizedBox(height: 22),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: _saving ? null : _save,
-                        icon: _saving
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: _cream,
-                                ),
-                              )
-                            : const Icon(Icons.favorite_border_rounded),
-                        label: Text(
-                          _saving ? 'Saving your style...' : 'Save My Style',
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _brown,
-                          foregroundColor: _cream,
-                          minimumSize: const Size.fromHeight(52),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                        ),
-                      ),
-                    ),
+                    SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: _saving ? null : _save, icon: _saving ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.check_rounded), label: Text(_saving ? 'Saving your style...' : 'Save My Style'), style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(54), backgroundColor: AppColors.primaryDark, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(17))))),
                   ],
                 ),
               ),
@@ -267,321 +137,105 @@ class _StylePreferencesScreenState extends State<StylePreferencesScreen> {
     );
   }
 
+  Widget _intro() => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 22),
+        decoration: BoxDecoration(color: AppColors.primaryDark, borderRadius: BorderRadius.circular(28)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('VYEA  /  STYLE PROFILE', style: TextStyle(color: AppColors.peach, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: 1.45)),
+          const SizedBox(height: 15),
+          const Text('Make it feel\nlike you.', style: TextStyle(color: Colors.white, fontSize: 31, height: 1.0, fontWeight: FontWeight.w800, letterSpacing: -1)),
+          const SizedBox(height: 9),
+          const Text('Tell VYEA what you love, what matters and how you want your clothes to feel.', style: TextStyle(color: Colors.white70, fontSize: 12.5, height: 1.45)),
+        ]),
+      );
 
-  Widget _buildPremiumStatus() {
-    final isPremium = _premiumLoaded && _isPremium;
-
+  Widget _profileStatus() {
+    final premium = _premiumLoaded && _isPremium;
     return Container(
-      width: double.infinity,
       padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(
-        color: isPremium ? AppColors.secondary : AppColors.surfaceMuted,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppColors.border,
-        ),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            isPremium
-                ? Icons.workspace_premium_outlined
-                : Icons.tune_rounded,
-            color: _brown,
-            size: 22,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              isPremium
-                  ? 'Premium Style Profile is active. Your preferences can be used for more personalised styling.'
-                  : 'Basic Style Profile. Premium members get additional personalised styling guidance.',
-              style: const TextStyle(
-                color: _text,
-                fontSize: 12.5,
-                height: 1.4,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPremiumProfileCard() {
-    final selectedStyles = _styles.toList()..sort();
-    final selectedPreferences = _preferences.toList()..sort();
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceMuted,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: AppColors.secondary,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Row(
-            children: [
-              Icon(
-                Icons.workspace_premium_outlined,
-                color: _brown,
-                size: 22,
-              ),
-              SizedBox(width: 8),
-              Text(
-                'Premium Style Profile',
-                style: TextStyle(
-                  color: _text,
-                  fontSize: 17,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            'Your selected preferences will guide Premium AI Stylist recommendations.',
-            style: TextStyle(
-              color: _muted,
-              fontSize: 12.5,
-              height: 1.4,
-            ),
-          ),
-          const SizedBox(height: 14),
-          _buildProfileInsight(
-            Icons.checkroom_outlined,
-            'Preferred styles',
-            selectedStyles.isEmpty
-                ? 'Choose at least one style.'
-                : selectedStyles.join(' • '),
-          ),
-          _buildProfileInsight(
-            Icons.favorite_border_rounded,
-            'What matters to you',
-            selectedPreferences.isEmpty
-                ? 'Add preferences for more personalised results.'
-                : selectedPreferences.join(' • '),
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            'Tip: keep your selections updated so your AI Stylist recommendations stay relevant.',
-            style: TextStyle(
-              color: _muted,
-              fontSize: 11.5,
-              height: 1.4,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildProfileInsight(
-    IconData icon,
-    String title,
-    String value,
-  ) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 11),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 34,
-            height: 34,
-            decoration: const BoxDecoration(
-              color: _softPink,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              icon,
-              size: 18,
-              color: _brown,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: _text,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    color: _muted,
-                    fontSize: 12,
-                    height: 1.35,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _intro() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: AppGradients.premium,
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: const Row(
-        children: [
-          Icon(Icons.auto_awesome_rounded, color: _brown, size: 32),
-          SizedBox(width: 14),
-          Expanded(
-            child: Text(
-              'Tell me a little about your style. I will use it to make future suggestions feel more like you.',
-              style: TextStyle(
-                color: _text,
-                fontSize: 15,
-                height: 1.45,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.border)),
+      child: Row(children: [
+        Container(width: 42, height: 42, decoration: const BoxDecoration(color: AppColors.secondary, shape: BoxShape.circle), child: Icon(premium ? Icons.workspace_premium_outlined : Icons.tune_rounded, color: AppColors.primary, size: 20)),
+        const SizedBox(width: 11),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(premium ? 'Premium style profile' : 'Personal style profile', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 3),
+          Text(premium ? 'Your preferences can guide your premium styling experiences.' : 'Your choices help VYEA personalise future styling suggestions.', style: const TextStyle(color: _muted, fontSize: 10.5, height: 1.35)),
+        ])),
+      ]),
     );
   }
 
   Widget _selectionSummary() {
-    final styleCount = _styles.length;
-    final preferenceCount = _preferences.length;
-
+    final total = _styles.length + _preferences.length;
+    final text = total == 0 ? 'Start with what feels most like you.' : '$total personal choices selected';
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: _cream,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Row(
-        children: [
-          const CircleAvatar(
-            radius: 20,
-            backgroundColor: _softPink,
-            child: Icon(Icons.tune_rounded, color: _brown),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              styleCount == 0 && preferenceCount == 0
-                  ? 'Start with what feels most like you.'
-                  : '$styleCount style ${styleCount == 1 ? 'choice' : 'choices'} · $preferenceCount ${preferenceCount == 1 ? 'preference' : 'preferences'} selected',
-              style: const TextStyle(
-                color: _text,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 14),
+      decoration: BoxDecoration(color: AppColors.surfaceMuted, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border)),
+      child: Row(children: [
+        Container(width: 40, height: 40, decoration: const BoxDecoration(color: AppColors.secondary, shape: BoxShape.circle), child: const Icon(Icons.tune_rounded, color: AppColors.primary, size: 20)),
+        const SizedBox(width: 11),
+        Expanded(child: Text(text, style: const TextStyle(color: _text, fontSize: 12.5, fontWeight: FontWeight.w700))),
+      ]),
     );
   }
 
-  Widget _sectionTitle(String title, String subtitle) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: const TextStyle(
-            color: _text,
-            fontSize: 19,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
+  Widget _sectionTitle(String title, String subtitle) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(title, style: const TextStyle(color: _text, fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: -.3)),
         const SizedBox(height: 4),
-        Text(
-          subtitle,
-          style: const TextStyle(color: _muted, fontSize: 13, height: 1.4),
-        ),
-      ],
-    );
-  }
+        Text(subtitle, style: const TextStyle(color: _muted, fontSize: 12.5, height: 1.4)),
+      ]);
 
-  Widget _optionCard({
-    required String title,
-    required String subtitle,
-    required bool selected,
-    required VoidCallback onTap,
-  }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      child: Material(
-        color: _cream,
-        borderRadius: BorderRadius.circular(18),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(18),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            child: Row(
-              children: [
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: selected ? _brown : _softPink,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    selected ? Icons.check_rounded : Icons.add_rounded,
-                    color: selected ? _cream : _brown,
-                  ),
-                ),
-                const SizedBox(width: 13),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          color: _text,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        subtitle,
-                        style: const TextStyle(
-                          color: _muted,
-                          fontSize: 12.5,
-                          height: 1.35,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (selected)
-                  const Icon(Icons.favorite_rounded, color: _brown, size: 20),
-              ],
+  Widget _optionCard({required String title, required String subtitle, required bool selected, required VoidCallback onTap}) => Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(20),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              padding: const EdgeInsets.fromLTRB(15, 14, 15, 14),
+              decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(20), border: Border.all(color: selected ? AppColors.primary : AppColors.border, width: selected ? 1.5 : 1)),
+              child: Row(children: [
+                AnimatedContainer(duration: const Duration(milliseconds: 180), width: 43, height: 43, decoration: BoxDecoration(color: selected ? AppColors.primary : AppColors.secondary, shape: BoxShape.circle), child: Icon(selected ? Icons.check_rounded : Icons.add_rounded, color: selected ? Colors.white : AppColors.primary, size: 21)),
+                const SizedBox(width: 12),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(color: _text, fontSize: 14, fontWeight: FontWeight.w800)), const SizedBox(height: 3), Text(subtitle, style: const TextStyle(color: _muted, fontSize: 10.5, height: 1.35))])),
+                const SizedBox(width: 8),
+                Icon(selected ? Icons.radio_button_checked_rounded : Icons.radio_button_unchecked_rounded, color: selected ? AppColors.primary : AppColors.textMuted, size: 20),
+              ]),
             ),
           ),
         ),
-      ),
+      );
+
+  Widget _guidanceCard() => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(color: AppColors.secondary.withValues(alpha: .55), borderRadius: BorderRadius.circular(19)),
+        child: const Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Icon(Icons.auto_awesome_rounded, color: AppColors.primary, size: 18),
+          SizedBox(width: 9),
+          Expanded(child: Text('There is no right style. Your choices simply help VYEA understand what feels like you.', style: TextStyle(color: _muted, height: 1.45, fontSize: 12.5))),
+        ]),
+      );
+
+  Widget _buildPremiumProfileCard() {
+    final selectedStyles = _styles.toList()..sort();
+    final selectedPreferences = _preferences.toList()..sort();
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(17),
+      decoration: BoxDecoration(gradient: AppGradients.soft, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.primarySoft)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Row(children: [Icon(Icons.auto_awesome_rounded, color: AppColors.primary, size: 20), SizedBox(width: 8), Text('YOUR VYEA STYLE PROFILE', style: TextStyle(fontSize: 10, letterSpacing: 1, fontWeight: FontWeight.w900))]),
+        const SizedBox(height: 9),
+        Text(selectedStyles.isEmpty ? 'Choose at least one preferred style.' : selectedStyles.join(' · '), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, height: 1.35)),
+        if (selectedPreferences.isNotEmpty) ...[const SizedBox(height: 6), Text(selectedPreferences.join(' · '), style: const TextStyle(color: _muted, fontSize: 10.5, height: 1.4))],
+      ]),
     );
   }
 }
