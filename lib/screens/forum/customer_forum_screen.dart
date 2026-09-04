@@ -15,6 +15,7 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
   final _searchController = TextEditingController();
   String _category = 'All';
   String _query = '';
+
   static const _categories = <String>[
     'All',
     'Outfit',
@@ -72,13 +73,14 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
         builder: (dialogContext) => StatefulBuilder(
           builder: (dialogBuildContext, setDialogState) {
             return AlertDialog(
-              title: const Text('Create a forum post'),
+              title: const Text('Start a discussion'),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     TextField(
                       controller: titleController,
+                      textCapitalization: TextCapitalization.sentences,
                       decoration: const InputDecoration(
                         labelText: 'Title',
                         hintText: 'What do you want to discuss?',
@@ -87,8 +89,7 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
                       initialValue: category,
-                      decoration:
-                          const InputDecoration(labelText: 'Category'),
+                      decoration: const InputDecoration(labelText: 'Category'),
                       items: _categories
                           .where((item) => item != 'All')
                           .map(
@@ -109,6 +110,7 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
                       controller: bodyController,
                       minLines: 4,
                       maxLines: 7,
+                      textCapitalization: TextCapitalization.sentences,
                       decoration: const InputDecoration(
                         labelText: 'Post',
                         hintText:
@@ -135,6 +137,7 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
                           if (uid == null || title.isEmpty || body.isEmpty) {
                             return;
                           }
+
                           setDialogState(() => saving = true);
                           try {
                             final user = await FirebaseFirestore.instance
@@ -148,6 +151,7 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
                             final displayName = FirebaseAuth
                                 .instance.currentUser?.displayName
                                 ?.trim();
+
                             await _posts.add({
                               'title': title,
                               'body': body,
@@ -165,6 +169,7 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
                               'isOfficial': false,
                               'source': 'customer_forum',
                             });
+
                             if (dialogContext.mounted) {
                               Navigator.pop(dialogContext, true);
                             }
@@ -191,7 +196,7 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
       if (result == true && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Your post is now visible to the TiB community.'),
+            content: Text('Your discussion is now visible to the community.'),
           ),
         );
       }
@@ -856,10 +861,7 @@ class _ForumPostDetailScreenState extends State<ForumPostDetailScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text('Discussion'),
-        backgroundColor: AppColors.background,
-      ),
+      appBar: AppBar(title: const Text('Discussion')),
       body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
         stream: widget.postReference.snapshots(),
         builder: (context, postSnapshot) {
