@@ -5,7 +5,6 @@ import 'package:provider/provider.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_gradients.dart';
-import '../../core/constants/app_radius.dart';
 import '../../models/colour_analysis_result.dart';
 import '../../models/wardrobe_item.dart';
 import '../../providers/analysis_provider.dart';
@@ -115,9 +114,7 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
     return result.take(4).toList();
   }
 
-  static WardrobeItem get _emptyItem => const WardrobeItem(
-        id: '', userId: '', name: '', category: '', colour: '', style: '', season: '', imageUrl: '', isFavourite: false, notes: '', createdAt: null,
-      );
+  static WardrobeItem get _emptyItem => const WardrobeItem(id: '', userId: '', name: '', category: '', colour: '', style: '', season: '', imageUrl: '', isFavourite: false, notes: '', createdAt: null);
 
   WardrobeItem? _findWardrobeItem(String? id) {
     if (id == null || id.isEmpty) return null;
@@ -189,14 +186,7 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
     final profile = context.watch<AnalysisProvider>().result;
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text('AI Outfit', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-        centerTitle: true,
-        backgroundColor: AppColors.background,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        actions: [IconButton(onPressed: _loadWardrobe, icon: const Icon(Icons.refresh_rounded))],
-      ),
+      appBar: AppBar(title: const Text('AI Outfit', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)), centerTitle: true, backgroundColor: AppColors.background, elevation: 0, scrolledUnderElevation: 0, actions: [IconButton(onPressed: _loadWardrobe, icon: const Icon(Icons.refresh_rounded))]),
       body: _loading ? const Center(child: CircularProgressIndicator()) : ListView(padding: const EdgeInsets.fromLTRB(20, 10, 20, 34), children: [
         _hero(profile),
         const SizedBox(height: 22),
@@ -267,7 +257,7 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
         const SizedBox(height: 13),
         _whyItWorks(profile, look),
         const SizedBox(height: 12),
-        _feedbackActions(look, profile),
+        _feedbackActions(),
         const SizedBox(height: 10),
         Row(children: [const Icon(Icons.event_outlined, color: AppColors.primary, size: 16), const SizedBox(width: 6), Text(_occasion, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700)), const Spacer(), const Icon(Icons.checkroom_outlined, color: AppColors.textMuted, size: 16), const SizedBox(width: 6), Text('${look.length} pieces', style: const TextStyle(fontSize: 10.5, color: AppColors.textMuted))]),
       ])),
@@ -286,8 +276,8 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
     return Material(color: Colors.white.withValues(alpha: .92), shape: const CircleBorder(), child: InkWell(onTap: onTap, customBorder: const CircleBorder(), child: Padding(padding: const EdgeInsets.all(6), child: Icon(icon, size: 13, color: active ? AppColors.primary : AppColors.textMuted))));
   }
 
-  Widget _feedbackActions(List<WardrobeItem> look, ColourAnalysisResult profile) {
-    return Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: AppColors.surfaceMuted, borderRadius: BorderRadius.circular(17)), child: Row(children: [const Expanded(child: Text('Tell VYEA what feels right. Your feedback shapes future matches.', style: TextStyle(fontSize: 10.5, color: AppColors.textSecondary, height: 1.35))), const SizedBox(width: 8), Icon(Icons.favorite_outline_rounded, color: AppColors.primary, size: 18), const SizedBox(width: 8), Icon(Icons.tune_rounded, color: AppColors.textMuted, size: 18)]));
+  Widget _feedbackActions() {
+    return Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: AppColors.surfaceMuted, borderRadius: BorderRadius.circular(17)), child: const Row(children: [Expanded(child: Text('Tell VYEA what feels right. Your feedback shapes future matches.', style: TextStyle(fontSize: 10.5, color: AppColors.textSecondary, height: 1.35))), SizedBox(width: 8), Icon(Icons.favorite_outline_rounded, color: AppColors.primary, size: 18), SizedBox(width: 8), Icon(Icons.tune_rounded, color: AppColors.textMuted, size: 18)]));
   }
 
   void _toggleFeedback(String id, bool love) {
