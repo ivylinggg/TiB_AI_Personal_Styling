@@ -27,6 +27,13 @@ class _ConsultationManagementScreenState extends State<ConsultationManagementScr
     super.dispose();
   }
 
+  DateTime _timestampOf(Map<String, dynamic> data) {
+    final value = data['updatedAt'] ?? data['createdAt'];
+    if (value is Timestamp) return value.toDate();
+    if (value is DateTime) return value;
+    return DateTime.fromMillisecondsSinceEpoch(0);
+  }
+
   @override
   Widget build(BuildContext context) {
     const filters = <String, String>{
@@ -76,6 +83,7 @@ class _ConsultationManagementScreenState extends State<ConsultationManagementScr
               builder: (context, snapshot) {
                 if (snapshot.hasError) return Center(child: Text('Unable to load consultations: ${snapshot.error}'));
                 if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+
                 final docs = snapshot.data!.docs.where((doc) {
                   if (_query.isEmpty) return true;
                   final data = doc.data();
@@ -89,7 +97,9 @@ class _ConsultationManagementScreenState extends State<ConsultationManagementScr
                     data['name'] as String? ?? '',
                   ];
                   return values.any((value) => value.toLowerCase().contains(_query));
-                }).toList();
+                }).toList()
+                  ..sort((a, b) => _timestampOf(b.data()).compareTo(_timestampOf(a.data())));
+
                 if (docs.isEmpty) return const Center(child: Text('No consultations found.'));
                 return ListView.separated(
                   padding: const EdgeInsets.all(16),
