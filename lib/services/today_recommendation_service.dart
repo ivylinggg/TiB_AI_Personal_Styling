@@ -56,7 +56,7 @@ class TodayRecommendation {
       ),
       reason: read(
         'whyItWorks',
-        'This recommendation is tailored to your TiB profile.',
+        'This recommendation is tailored to your VYEA profile.',
       ),
       stylingTip: read('stylingTip', ''),
       isAiGenerated: true,
@@ -83,25 +83,36 @@ class TodayRecommendationService {
     List<Map<String, dynamic>> wardrobe = const [],
     String? occasion,
   }) async {
-    final fallback = build(analysis: analysis);
+    final fallback = build(
+      analysis: analysis,
+      personalStyle: personalStyle,
+    );
 
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return fallback;
 
       final token = await user.getIdToken();
+      if (token == null || token.isEmpty) return fallback;
+
       final profile = await _loadProfile(user.uid);
       final colour = _todayColour(analysis);
 
       final profilePayload = <String, dynamic>{...profile};
-      if (bodyShape != null) profilePayload['bodyShape'] = bodyShape;
-      if (faceShape != null) profilePayload['faceShape'] = faceShape;
+      if (bodyShape != null && bodyShape.trim().isNotEmpty) {
+        profilePayload['bodyShape'] = bodyShape.trim();
+      }
+      if (faceShape != null && faceShape.trim().isNotEmpty) {
+        profilePayload['faceShape'] = faceShape.trim();
+      }
       if (weight != null) profilePayload['weight'] = weight;
       if (height != null) profilePayload['height'] = height;
       if (bust != null) profilePayload['bust'] = bust;
       if (waist != null) profilePayload['waist'] = waist;
       if (hips != null) profilePayload['hips'] = hips;
-      if (personalStyle != null) profilePayload['personalStyle'] = personalStyle;
+      if (personalStyle != null && personalStyle.trim().isNotEmpty) {
+        profilePayload['personalStyle'] = personalStyle.trim();
+      }
 
       final response = await http
           .post(
@@ -111,11 +122,19 @@ class TodayRecommendationService {
               'action': 'todayRecommendation',
               'idToken': token,
               'todayColour': colour,
-              'occasion': occasion ?? 'Everyday',
+              'occasion': occasion?.trim().isNotEmpty == true
+                  ? occasion!.trim()
+                  : 'Everyday',
               'profile': profilePayload,
               'colourAnalysis': analysis == null
                   ? null
-                  : {'colours': analysis.colours},
+                  : {
+                      'season': analysis.season,
+                      'undertone': analysis.undertone,
+                      'brightness': analysis.brightness,
+                      'contrast': analysis.contrast,
+                      'colours': analysis.colours,
+                    },
               'wardrobe': wardrobe,
             }),
           )
@@ -130,15 +149,19 @@ class TodayRecommendationService {
 
       final data = decoded['data'];
       if (data is Map<String, dynamic>) {
-        return _forceDailyColour(
+        return _sanitiseAiResponse(
           TodayRecommendation.fromJson(data, fallbackColour: colour),
+          fallback,
           colour,
         );
       }
 
-      if (decoded['styleDirection'] != null) {
-        return _forceDailyColour(
+      if (decoded['styleDirection'] != null ||
+          decoded['recommendedColour'] != null ||
+          decoded['outfitFormula'] != null) {
+        return _sanitiseAiResponse(
           TodayRecommendation.fromJson(decoded, fallbackColour: colour),
+          fallback,
           colour,
         );
       }
@@ -149,20 +172,27 @@ class TodayRecommendationService {
     }
   }
 
-  static TodayRecommendation _forceDailyColour(
+  static TodayRecommendation _sanitiseAiResponse(
     TodayRecommendation recommendation,
+    TodayRecommendation fallback,
     String colour,
   ) {
-    if (colour == '—' || colour.isEmpty) return recommendation;
+    final style = recommendation.style.trim();
+    final outfit = recommendation.outfit.trim();
+    final reason = recommendation.reason.trim();
+
+    if (style.isEmpty || outfit.isEmpty || reason.isEmpty) {
+      return fallback;
+    }
 
     return TodayRecommendation(
-      style: recommendation.style,
+      style: style,
       tags: recommendation.tags,
-      colour: colour,
-      outfit: recommendation.outfit,
-      reason: recommendation.reason,
-      stylingTip: recommendation.stylingTip,
-      isAiGenerated: recommendation.isAiGenerated,
+      colour: colour == '—' ? recommendation.colour : colour,
+      outfit: outfit,
+      reason: reason,
+      stylingTip: recommendation.stylingTip.trim(),
+      isAiGenerated: true,
     );
   }
 
@@ -178,13 +208,17 @@ class TodayRecommendationService {
     }
   }
 
-  static TodayRecommendation build({ColourAnalysisResult? analysis}) {
+  static TodayRecommendation build({
+    ColourAnalysisResult? analysis,
+    String? personalStyle,
+  }) {
     final colour = _todayColour(analysis);
     final key = colour.toLowerCase();
+    final styleHint = personalStyle?.trim() ?? '';
 
     if (_contains(key, ['pink', 'rose', 'red', 'burgundy'])) {
       return TodayRecommendation(
-        style: 'Soft & Romantic',
+        style: styleHint.isEmpty ? 'Soft & Romantic' : styleHint,
         tags: const ['Feminine', 'Sweet', 'Elegant'],
         colour: colour,
         outfit: 'A soft blouse with a flattering skirt and simple heels.',
@@ -195,7 +229,7 @@ class TodayRecommendationService {
 
     if (_contains(key, ['blue', 'navy', 'cobalt', 'teal', 'turquoise'])) {
       return TodayRecommendation(
-        style: 'Smart Casual',
+        style: styleHint.isEmpty ? 'Smart Casual' : styleHint,
         tags: const ['Relaxed', 'Refined', 'Confident'],
         colour: colour,
         outfit:
@@ -207,7 +241,7 @@ class TodayRecommendationService {
 
     if (_contains(key, ['black', 'grey', 'gray', 'white', 'charcoal'])) {
       return TodayRecommendation(
-        style: 'Minimal Chic',
+        style: styleHint.isEmpty ? 'Minimal Chic' : styleHint,
         tags: const ['Simple', 'Clean', 'Polished'],
         colour: colour,
         outfit:
@@ -219,7 +253,7 @@ class TodayRecommendationService {
 
     if (_contains(key, ['orange', 'yellow', 'coral', 'peach'])) {
       return TodayRecommendation(
-        style: 'Bright & Playful',
+        style: styleHint.isEmpty ? 'Bright & Playful' : styleHint,
         tags: const ['Sunny', 'Fresh', 'Energetic'],
         colour: colour,
         outfit:
@@ -231,7 +265,7 @@ class TodayRecommendationService {
 
     if (_contains(key, ['purple', 'lavender', 'mauve'])) {
       return TodayRecommendation(
-        style: 'Soft Creative',
+        style: styleHint.isEmpty ? 'Soft Creative' : styleHint,
         tags: const ['Gentle', 'Creative', 'Unique'],
         colour: colour,
         outfit:
@@ -243,54 +277,68 @@ class TodayRecommendationService {
 
     final weekday = DateTime.now().weekday;
     final styles = <TodayRecommendation>[
-      const TodayRecommendation(
-        style: 'Clean Start',
-        tags: ['Simple', 'Fresh', 'Put-together'],
+      TodayRecommendation(
+        style: styleHint.isEmpty ? 'Clean Start' : styleHint,
+        tags: const ['Simple', 'Fresh', 'Put-together'],
         colour: '—',
-        outfit: 'A fresh everyday outfit built around one clean, versatile piece.',
-        reason: 'Simple foundations make it easier to look polished with less effort.',
+        outfit:
+            'A fresh everyday outfit built around one clean, versatile piece.',
+        reason:
+            'Simple foundations make it easier to look polished with less effort.',
       ),
-      const TodayRecommendation(
-        style: 'Easy Smart',
-        tags: ['Casual', 'Neat', 'Versatile'],
+      TodayRecommendation(
+        style: styleHint.isEmpty ? 'Easy Smart' : styleHint,
+        tags: const ['Casual', 'Neat', 'Versatile'],
         colour: '—',
-        outfit: 'A neat top with comfortable tailored bottoms and simple shoes.',
-        reason: 'A balanced casual-smart formula works across most everyday plans.',
+        outfit:
+            'A neat top with comfortable tailored bottoms and simple shoes.',
+        reason:
+            'A balanced casual-smart formula works across most everyday plans.',
       ),
-      const TodayRecommendation(
-        style: 'Balanced Chic',
-        tags: ['Simple', 'Elegant', 'Comfortable'],
+      TodayRecommendation(
+        style: styleHint.isEmpty ? 'Balanced Chic' : styleHint,
+        tags: const ['Simple', 'Elegant', 'Comfortable'],
         colour: '—',
-        outfit: 'A comfortable base with one elegant finishing detail.',
-        reason: 'Keeping the base easy lets one polished detail elevate the whole look.',
+        outfit:
+            'A comfortable base with one elegant finishing detail.',
+        reason:
+            'Keeping the base easy lets one polished detail elevate the whole look.',
       ),
-      const TodayRecommendation(
-        style: 'Modern Feminine',
-        tags: ['Soft', 'Stylish', 'Polished'],
+      TodayRecommendation(
+        style: styleHint.isEmpty ? 'Modern Feminine' : styleHint,
+        tags: const ['Soft', 'Stylish', 'Polished'],
         colour: '—',
-        outfit: 'A softly fitted top with a clean skirt or tailored trousers.',
-        reason: 'A soft silhouette with structure creates an easy modern feminine balance.',
+        outfit:
+            'A softly fitted top with a clean skirt or tailored trousers.',
+        reason:
+            'A soft silhouette with structure creates an easy modern feminine balance.',
       ),
-      const TodayRecommendation(
-        style: 'Casual Glow',
-        tags: ['Relaxed', 'Bright', 'Fun'],
+      TodayRecommendation(
+        style: styleHint.isEmpty ? 'Casual Glow' : styleHint,
+        tags: const ['Relaxed', 'Bright', 'Fun'],
         colour: '—',
-        outfit: 'A relaxed outfit with one brighter accent or accessory.',
-        reason: 'One playful detail keeps a casual look intentional and fresh.',
+        outfit:
+            'A relaxed outfit with one brighter accent or accessory.',
+        reason:
+            'One playful detail keeps a casual look intentional and fresh.',
       ),
-      const TodayRecommendation(
-        style: 'Effortless Weekend',
-        tags: ['Casual', 'Easy', 'Cool'],
+      TodayRecommendation(
+        style: styleHint.isEmpty ? 'Effortless Weekend' : styleHint,
+        tags: const ['Casual', 'Easy', 'Cool'],
         colour: '—',
-        outfit: 'An easy top, relaxed bottoms and comfortable statement shoes.',
-        reason: 'Comfort-first styling can still look considered when proportions stay clean.',
+        outfit:
+            'An easy top, relaxed bottoms and comfortable statement shoes.',
+        reason:
+            'Comfort-first styling can still look considered when proportions stay clean.',
       ),
-      const TodayRecommendation(
-        style: 'Soft Sunday',
-        tags: ['Comfortable', 'Calm', 'Clean'],
+      TodayRecommendation(
+        style: styleHint.isEmpty ? 'Soft Sunday' : styleHint,
+        tags: const ['Comfortable', 'Calm', 'Clean'],
         colour: '—',
-        outfit: 'A soft, comfortable outfit in a calm neutral or muted tone.',
-        reason: 'A relaxed palette and comfortable silhouette create an effortless finish.',
+        outfit:
+            'A soft, comfortable outfit in a calm neutral or muted tone.',
+        reason:
+            'A relaxed palette and comfortable silhouette create an effortless finish.',
       ),
     ];
 
@@ -313,9 +361,6 @@ class TodayRecommendationService {
         .toList();
     if (colours.isEmpty) return '—';
 
-    // One colour per day, cycling through the user's own palette. This keeps
-    // the recommendation stable for the whole day and avoids repeats until
-    // every colour in the palette has had its turn.
     final start = DateTime(DateTime.now().year, 1, 1);
     final day = DateTime.now().difference(start).inDays;
     return colours[day % colours.length];
