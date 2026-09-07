@@ -308,6 +308,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final email = user?.email.trim();
     final displayName = name?.isNotEmpty == true ? name! : 'VYEA User';
     final displayEmail = email?.isNotEmpty == true ? email! : (FirebaseAuth.instance.currentUser?.email ?? '');
+    final styleCount = styles.length;
+    final preferenceCount = preferences.length;
+
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
       decoration: BoxDecoration(gradient: AppGradients.soft, borderRadius: BorderRadius.circular(AppRadius.xl), border: Border.all(color: AppColors.border)),
@@ -340,6 +343,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Expanded(child: _heroMetric('$savedLookCount', 'Saved looks')),
             _metricDivider(),
             Expanded(child: _heroMetric('$wardrobeFavouriteCount', 'Favourites')),
+          ]),
+        ),
+        const SizedBox(height: 10),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+          decoration: BoxDecoration(color: AppColors.primaryDark, borderRadius: BorderRadius.circular(17)),
+          child: Row(children: [
+            const Icon(Icons.auto_awesome_rounded, size: 17, color: AppColors.peach),
+            const SizedBox(width: 8),
+            Expanded(child: Text('$styleCount styles · $preferenceCount preferences saved', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700))),
+            const SizedBox(width: 8),
+            Text(isPremium ? 'PERSONAL+' : 'PERSONAL', style: const TextStyle(color: Colors.white70, fontSize: 8.5, fontWeight: FontWeight.w900, letterSpacing: .9)),
           ]),
         ),
         const SizedBox(height: 13),
