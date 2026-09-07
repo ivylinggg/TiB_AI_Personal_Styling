@@ -1,5 +1,4 @@
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -14,9 +13,6 @@ import '../../services/style_preference_service.dart';
 import '../../widgets/empty_state.dart';
 import 'ai_stylist_screen.dart';
 
-/// Human-first outfit planner using the user's real wardrobe.
-/// Premium users get the existing AI service; everyone else gets a
-/// transparent local wardrobe match.
 class StyleMeScreen extends StatefulWidget {
   const StyleMeScreen({super.key});
 
@@ -275,16 +271,10 @@ class _StyleMeScreenState extends State<StyleMeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Expanded(child: Text('VYEA  /  STYLE ME', style: TextStyle(color: AppColors.peach, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: 1.45))),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                decoration: BoxDecoration(color: Colors.white.withValues(alpha: .10), borderRadius: BorderRadius.circular(9)),
-                child: Text(_isPremium ? 'AI STYLIST' : 'PERSONAL MATCH', style: const TextStyle(color: Colors.white70, fontSize: 7.5, fontWeight: FontWeight.w900, letterSpacing: .8)),
-              ),
-            ],
-          ),
+          Row(children: [
+            const Expanded(child: Text('VYEA  /  STYLE ME', style: TextStyle(color: AppColors.peach, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: 1.45))),
+            Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5), decoration: BoxDecoration(color: Colors.white.withValues(alpha: .10), borderRadius: BorderRadius.circular(9)), child: Text(_isPremium ? 'AI STYLIST' : 'PERSONAL MATCH', style: const TextStyle(color: Colors.white70, fontSize: 7.5, fontWeight: FontWeight.w900, letterSpacing: .8))),
+          ]),
           const SizedBox(height: 18),
           const Text('Dress for the moment.\nUse what you own.', style: TextStyle(color: Colors.white, fontSize: 30, height: 1.02, fontWeight: FontWeight.w800, letterSpacing: -1)),
           const SizedBox(height: 9),
@@ -318,15 +308,7 @@ class _StyleMeScreenState extends State<StyleMeScreen> {
                 ),
               ),
               const SizedBox(width: 6),
-              Material(
-                color: AppColors.primary,
-                borderRadius: BorderRadius.circular(16),
-                child: InkWell(
-                  onTap: _styling ? null : _styleMe,
-                  borderRadius: BorderRadius.circular(16),
-                  child: SizedBox(width: 48, height: 48, child: Icon(_styling ? Icons.hourglass_top_rounded : Icons.arrow_upward_rounded, color: Colors.white, size: 20)),
-                ),
-              ),
+              Material(color: AppColors.primary, borderRadius: BorderRadius.circular(16), child: InkWell(onTap: _styling ? null : _styleMe, borderRadius: BorderRadius.circular(16), child: SizedBox(width: 48, height: 48, child: Icon(_styling ? Icons.hourglass_top_rounded : Icons.arrow_upward_rounded, color: Colors.white, size: 20))),
             ],
           ),
         ),
@@ -359,13 +341,7 @@ class _StyleMeScreenState extends State<StyleMeScreen> {
         children: [
           Container(width: 40, height: 40, decoration: const BoxDecoration(color: AppColors.secondary, shape: BoxShape.circle), child: const Icon(Icons.checkroom_outlined, color: AppColors.primary, size: 20)),
           const SizedBox(width: 11),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('YOUR STYLE CONTEXT', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1.1)),
-              const SizedBox(height: 4),
-              Text('${_wardrobe.length} pieces · $styleText', style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.35)),
-            ]),
-          ),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('YOUR STYLE CONTEXT', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1.1)), const SizedBox(height: 4), Text('${_wardrobe.length} pieces · $styleText', style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.35))])),
           IconButton(icon: const Icon(Icons.chat_bubble_outline_rounded, size: 19), color: AppColors.primary, tooltip: 'Talk to VYEA', onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AIStylistScreen()))),
         ],
       ),
@@ -374,71 +350,35 @@ class _StyleMeScreenState extends State<StyleMeScreen> {
 
   Widget _buildResult(List<WardrobeItem> look) {
     if (look.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(17),
-        decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(21), border: Border.all(color: AppColors.border)),
-        child: const Text('I could not build a complete look from the pieces currently in your wardrobe. Add more basics or accessories and try again.', style: TextStyle(color: AppColors.textSecondary, height: 1.4, fontSize: 12)),
-      );
+      return Container(padding: const EdgeInsets.all(17), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(21), border: Border.all(color: AppColors.border)), child: const Text('I could not build a complete look from the pieces currently in your wardrobe. Add more basics or accessories and try again.', style: TextStyle(color: AppColors.textSecondary, height: 1.4, fontSize: 12)));
     }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            const Expanded(child: Text('YOUR LOOK', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 1.05, color: AppColors.primary))),
-            if (_aiResult != null) const Text('AI MATCH', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: .8, color: AppColors.premiumAccentDark)),
-          ],
-        ),
+        Row(children: [
+          const Expanded(child: Text('YOUR LOOK', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 1.05, color: AppColors.primary))),
+          if (_aiResult != null) const Text('AI MATCH', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: .8, color: AppColors.premiumAccentDark)),
+        ]),
         const SizedBox(height: 10),
         if (_aiResult?.explanation.isNotEmpty == true)
-          Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            padding: const EdgeInsets.all(15),
-            decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(19), border: Border.all(color: AppColors.border)),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Icon(Icons.auto_awesome_rounded, color: AppColors.primary, size: 18),
-                const SizedBox(width: 9),
-                Expanded(child: Text(_aiResult!.explanation, style: const TextStyle(color: AppColors.textSecondary, height: 1.45, fontSize: 12.5))),
-              ],
-            ),
-          ),
+          Container(margin: const EdgeInsets.only(bottom: 12), padding: const EdgeInsets.all(15), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(19), border: Border.all(color: AppColors.border)), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [const Icon(Icons.auto_awesome_rounded, color: AppColors.primary, size: 18), const SizedBox(width: 9), Expanded(child: Text(_aiResult!.explanation, style: const TextStyle(color: AppColors.textSecondary, height: 1.45, fontSize: 12.5)))])),
         Container(
           height: 215,
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(23), border: Border.all(color: AppColors.border)),
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: look.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 10),
-            itemBuilder: (_, index) => _lookCard(look[index]),
-          ),
+          child: ListView.separated(scrollDirection: Axis.horizontal, itemCount: look.length, separatorBuilder: (_, _) => const SizedBox(width: 10), itemBuilder: (_, index) => _lookCard(look[index])),
         ),
       ],
     );
   }
 
   Widget _lookCard(WardrobeItem item) {
-    return SizedBox(
-      width: 148,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: item.imageUrl.isEmpty
-                  ? Container(color: AppColors.surfaceMuted, child: const Center(child: Icon(Icons.checkroom_outlined, color: AppColors.primary)))
-                  : CachedNetworkImage(imageUrl: item.imageUrl, fit: BoxFit.cover, width: double.infinity),
-            ),
-          ),
-          const SizedBox(height: 7),
-          Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
-          Text('${item.category} · ${item.colour}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.textMuted, fontSize: 10.5)),
-        ],
-      ),
-    );
+    return SizedBox(width: 148, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Expanded(child: ClipRRect(borderRadius: BorderRadius.circular(16), child: item.imageUrl.isEmpty ? Container(color: AppColors.surfaceMuted, child: const Center(child: Icon(Icons.checkroom_outlined, color: AppColors.primary))) : CachedNetworkImage(imageUrl: item.imageUrl, fit: BoxFit.cover, width: double.infinity))),
+      const SizedBox(height: 7),
+      Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+      Text('${item.category} · ${item.colour}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.textMuted, fontSize: 10.5)),
+    ]));
   }
 }
