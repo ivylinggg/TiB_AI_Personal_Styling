@@ -15,8 +15,10 @@ class SavedLooksScreen extends StatefulWidget {
 
 enum _SavedLookSort { recent, highestMatch }
 
-class _SavedLooksScreenState extends State<SavedLooksScreen> {
+class _SavedLooksScreenState extends State<SavedLooksScreen>
+    with WidgetsBindingObserver {
   bool _loading = true;
+  bool _refreshingFromLifecycle = false;
   String? _error;
   List<Map<String, dynamic>> _looks = const [];
   List<Map<String, dynamic>> _wardrobe = const [];
@@ -28,7 +30,31 @@ class _SavedLooksScreenState extends State<SavedLooksScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _load();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _refreshWhenResumed();
+    }
+  }
+
+  Future<void> _refreshWhenResumed() async {
+    if (!mounted || _refreshingFromLifecycle) return;
+    _refreshingFromLifecycle = true;
+    try {
+      await _load();
+    } finally {
+      _refreshingFromLifecycle = false;
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -481,7 +507,7 @@ class _SavedLooksScreenState extends State<SavedLooksScreen> {
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    '${item['category'] ?? ''}${item['colour'] == null ? '' : ' · ${item['colour']}'}',
+                    '${item['category'] ?? ''}${item['colour'] == null ? '' : ' · ${item['colour']}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
