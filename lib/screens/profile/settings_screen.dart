@@ -39,17 +39,17 @@ class SettingsScreen extends StatelessWidget {
   }
 
   Widget _themeTile(BuildContext context, ThemeMode mode, String label, IconData icon, ThemeMode current) {
+    final selected = current == mode;
     return ListTile(
       contentPadding: EdgeInsets.zero,
-      leading: CircleAvatar(backgroundColor: AppColors.surfaceMuted, child: Icon(icon, color: AppColors.primary)),
-      title: Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
-      trailing: Radio<ThemeMode>(
-        value: mode,
-        groupValue: current,
-        onChanged: (value) {
-          if (value != null) Navigator.pop(context, value);
-        },
+      leading: CircleAvatar(
+        backgroundColor: AppColors.surfaceMuted,
+        child: Icon(icon, color: AppColors.primary),
       ),
+      title: Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
+      trailing: selected
+          ? const Icon(Icons.radio_button_checked_rounded, color: AppColors.primary)
+          : const Icon(Icons.radio_button_unchecked_rounded, color: AppColors.textMuted),
       onTap: () => Navigator.pop(context, mode),
     );
   }
