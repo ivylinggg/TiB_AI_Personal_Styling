@@ -13,6 +13,7 @@ import '../../providers/analysis_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../services/style_preference_service.dart';
+import '../../services/tib_style_journey_service.dart';
 import '../../widgets/colour_swatch.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/premium_badge.dart';
@@ -41,6 +42,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   int wardrobeCount = 0;
   int wardrobeFavouriteCount = 0;
   int savedLookCount = 0;
+  TibStyleJourney? _styleJourney;
 
   @override
   void initState() {
@@ -66,6 +68,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final stylePreferences = await StylePreferenceService.getStylePreferences(firebaseUser.uid);
       final wardrobeItems = await FirestoreService.getWardrobeItems(firebaseUser.uid);
       final savedLooks = await FirestoreService.getSavedOutfitLooks(firebaseUser.uid);
+      final journey = await TibStyleJourneyService.load(firebaseUser.uid);
 
       if (!mounted) return;
       setState(() {
@@ -76,6 +79,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         wardrobeCount = wardrobeItems.length;
         wardrobeFavouriteCount = wardrobeItems.where((item) => item.isFavourite).length;
         savedLookCount = savedLooks.length;
+        _styleJourney = journey;
         isLoading = false;
       });
     } catch (e) {
@@ -278,6 +282,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(height: 12),
           _buildIdentityPanel(analysisResult),
           const SizedBox(height: 26),
+          _sectionLabel('YOUR STYLE JOURNEY', 'Turn your styling activity into visible progress.'),
+          const SizedBox(height: 12),
+          _buildStyleJourneyCard(),
+          const SizedBox(height: 26),
           _sectionLabel('YOUR STYLE SPACE', 'The VYEA tools you use to build your looks.'),
           const SizedBox(height: 12),
           _buildToolGrid(),
@@ -365,6 +373,98 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _heroMetric(String value, String label) => Column(children: [Text(value, style: const TextStyle(color: AppColors.primary, fontSize: 17, fontWeight: FontWeight.w900)), const SizedBox(height: 2), Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 9.5))]);
   Widget _metricDivider() => Container(width: 1, height: 30, color: AppColors.border);
+
+  Widget _buildStyleJourneyCard() {
+    final journey = _styleJourney;
+    if (journey == null) {
+      return const SizedBox.shrink();
+    }
+    final unlocked = journey.badges.where((badge) => badge.unlocked).length;
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.xl),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: const BoxDecoration(
+                  gradient: AppGradients.primary,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.auto_awesome_rounded, color: Colors.white),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Level ${journey.level} · ${journey.levelTitle}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
+                    const SizedBox(height: 3),
+                    Text('${journey.points} XP · ${journey.streak} day streak · ${journey.completedChallenges} challenges', style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.5)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              const Text('NEXT LEVEL', style: TextStyle(color: AppColors.textMuted, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: .9)),
+              const Spacer(),
+              Text(journey.nextLevelPoints > journey.currentLevelPoints ? '${journey.points} / ${journey.nextLevelPoints} XP' : 'MAX LEVEL', style: const TextStyle(color: AppColors.primary, fontSize: 9.5, fontWeight: FontWeight.w900)),
+            ],
+          ),
+          const SizedBox(height: 7),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(99),
+            child: LinearProgressIndicator(
+              value: journey.progress,
+              minHeight: 8,
+              backgroundColor: AppColors.secondary,
+              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
+            ),
+          ),
+          const SizedBox(height: 15),
+          Row(
+            children: [
+              const Text('BADGES', style: TextStyle(color: AppColors.textMuted, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: .9)),
+              const Spacer(),
+              Text('$unlocked / ${journey.badges.length} unlocked', style: const TextStyle(color: AppColors.textSecondary, fontSize: 9.5, fontWeight: FontWeight.w700)),
+            ],
+          ),
+          const SizedBox(height: 9),
+          Wrap(
+            spacing: 7,
+            runSpacing: 7,
+            children: journey.badges.map((badge) => Container(
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+              decoration: BoxDecoration(
+                color: badge.unlocked ? AppColors.secondary : AppColors.surfaceMuted,
+                borderRadius: BorderRadius.circular(13),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(badge.icon, style: const TextStyle(fontSize: 13)),
+                  const SizedBox(width: 5),
+                  Text(badge.title, style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, color: badge.unlocked ? AppColors.textPrimary : AppColors.textMuted)),
+                ],
+              ),
+            )).toList(),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildIdentityPanel(ColourAnalysisResult? result) {
     if (result == null) {
