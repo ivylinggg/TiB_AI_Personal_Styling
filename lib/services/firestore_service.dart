@@ -24,15 +24,9 @@ class PersonalStyleContext {
     required this.savedLooks,
   });
 
-  String get styleDirection {
-    if (styles.isEmpty) return '';
-    return styles.take(3).join(' · ');
-  }
-
+  String get styleDirection => styles.isEmpty ? '' : styles.take(3).join(' · ');
   bool get hasColourProfile => colourAnalysis != null;
-
-  int get favouriteWardrobeCount =>
-      wardrobe.where((item) => item.isFavourite).length;
+  int get favouriteWardrobeCount => wardrobe.where((item) => item.isFavourite).length;
 }
 
 class CustomerDeletionResult {
@@ -66,48 +60,25 @@ class FirestoreService {
 
   static Future<PersonalStyleContext> getPersonalStyleContext(String uid) async {
     if (uid.trim().isEmpty) {
-      return const PersonalStyleContext(
-        user: null,
-        colourAnalysis: null,
-        styles: [],
-        preferences: [],
-        wardrobe: [],
-        savedLooks: [],
-      );
+      return const PersonalStyleContext(user: null, colourAnalysis: null, styles: [], preferences: [], wardrobe: [], savedLooks: []);
     }
-
     final userFuture = getUser(uid);
     final analysisFuture = getLatestColourAnalysis(uid);
-    final preferencesFuture = _db
-        .collection('users')
-        .doc(uid)
-        .collection('preferences')
-        .doc('style')
-        .get();
+    final preferencesFuture = _db.collection('users').doc(uid).collection('preferences').doc('style').get();
     final wardrobeFuture = getWardrobeItems(uid);
     final savedLooksFuture = getSavedOutfitLooks(uid);
 
     try {
-      final results = await Future.wait<dynamic>([
-        userFuture,
-        analysisFuture,
-        preferencesFuture,
-        wardrobeFuture,
-        savedLooksFuture,
-      ]);
-
-      final preferenceDoc =
-          results[2] as DocumentSnapshot<Map<String, dynamic>>;
+      final results = await Future.wait<dynamic>([userFuture, analysisFuture, preferencesFuture, wardrobeFuture, savedLooksFuture]);
+      final preferenceDoc = results[2] as DocumentSnapshot<Map<String, dynamic>>;
       final preferenceData = preferenceDoc.data();
       final wardrobe = results[3] as List<WardrobeItem>;
       final savedLooks = results[4] as List<Map<String, dynamic>>;
-
       return PersonalStyleContext(
         user: results[0] as UserModel?,
         colourAnalysis: results[1] as ColourAnalysisResult?,
         styles: List<String>.from(preferenceData?['styles'] ?? const []),
-        preferences:
-            List<String>.from(preferenceData?['preferences'] ?? const []),
+        preferences: List<String>.from(preferenceData?['preferences'] ?? const []),
         wardrobe: wardrobe,
         savedLooks: savedLooks,
       );
@@ -115,25 +86,16 @@ class FirestoreService {
       return PersonalStyleContext(
         user: await userFuture.catchError((_) => null),
         colourAnalysis: await analysisFuture.catchError((_) => null),
-        styles: const [],
-        preferences: const [],
-        wardrobe: const [],
-        savedLooks: const [],
+        styles: const [], preferences: const [], wardrobe: const [], savedLooks: const [],
       );
     }
   }
 
   static Future<void> createUser(UserModel user) async {
-    await _db
-        .collection('users')
-        .doc(user.uid)
-        .set(user.toMap())
-        .timeout(
-          const Duration(seconds: 15),
-          onTimeout: () => throw TimeoutException(
-            'Creating your profile timed out. Please check your connection and try again.',
-          ),
-        );
+    await _db.collection('users').doc(user.uid).set(user.toMap()).timeout(
+      const Duration(seconds: 15),
+      onTimeout: () => throw TimeoutException('Creating your profile timed out. Please check your connection and try again.'),
+    );
   }
 
   static Future<UserModel?> getUser(String uid) async {
@@ -151,45 +113,23 @@ class FirestoreService {
   }
 
   static Future<void> updateUser(String uid, Map<String, dynamic> data) async {
-    await _db.collection('users').doc(uid).update({
-      ...data,
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
+    await _db.collection('users').doc(uid).update({...data, 'updatedAt': FieldValue.serverTimestamp()});
   }
 
-  static Future<void> updateColourProfile({
-    required String uid,
-    required String colourSeason,
-    required String skinTone,
-  }) async {
+  static Future<void> updateColourProfile({required String uid, required String colourSeason, required String skinTone}) async {
     await updateUser(uid, {'colourSeason': colourSeason, 'skinTone': skinTone});
   }
 
-  static Future<void> saveAnalysis({
-    required String uid,
-    required AnalysisModel analysis,
-  }) async {
-    await _db
-        .collection('users')
-        .doc(uid)
-        .collection('analysis')
-        .add(analysis.toMap());
+  static Future<void> saveAnalysis({required String uid, required AnalysisModel analysis}) async {
+    await _db.collection('users').doc(uid).collection('analysis').add(analysis.toMap());
   }
 
   static Future<List<AnalysisModel>> getAnalysisHistory(String uid) async {
-    final snapshot = await _db
-        .collection('users')
-        .doc(uid)
-        .collection('analysis')
-        .orderBy('createdAt', descending: true)
-        .get();
+    final snapshot = await _db.collection('users').doc(uid).collection('analysis').orderBy('createdAt', descending: true).get();
     return snapshot.docs.map(AnalysisModel.fromFirestore).toList();
   }
 
-  static Future<void> saveAnalysisResult({
-    required String uid,
-    required ColourAnalysisResult result,
-  }) async {
+  static Future<void> saveAnalysisResult({required String uid, required ColourAnalysisResult result}) async {
     await _db.collection('users').doc(uid).collection('analysis').add({
       'season': result.season,
       'undertone': result.undertone,
@@ -201,15 +141,8 @@ class FirestoreService {
     });
   }
 
-  static Future<List<ColourAnalysisResult>> getColourAnalysisHistory(
-    String uid,
-  ) async {
-    final snapshot = await _db
-        .collection('users')
-        .doc(uid)
-        .collection('analysis')
-        .orderBy('createdAt', descending: true)
-        .get();
+  static Future<List<ColourAnalysisResult>> getColourAnalysisHistory(String uid) async {
+    final snapshot = await _db.collection('users').doc(uid).collection('analysis').orderBy('createdAt', descending: true).get();
     return snapshot.docs.map((doc) {
       final data = doc.data();
       final colours = data['colours'];
@@ -219,23 +152,13 @@ class FirestoreService {
         brightness: data['brightness'] as String? ?? 'Unknown',
         contrast: data['contrast'] as String? ?? 'Unknown',
         imageUrl: data['imageUrl'] as String? ?? '',
-        colours: colours is List
-            ? colours.map((item) => item.toString()).toList()
-            : const [],
+        colours: colours is List ? colours.map((item) => item.toString()).toList() : const [],
       );
     }).toList();
   }
 
-  static Future<ColourAnalysisResult?> getLatestColourAnalysis(
-    String uid,
-  ) async {
-    final snapshot = await _db
-        .collection('users')
-        .doc(uid)
-        .collection('analysis')
-        .orderBy('createdAt', descending: true)
-        .limit(1)
-        .get();
+  static Future<ColourAnalysisResult?> getLatestColourAnalysis(String uid) async {
+    final snapshot = await _db.collection('users').doc(uid).collection('analysis').orderBy('createdAt', descending: true).limit(1).get();
     if (snapshot.docs.isEmpty) return null;
     final data = snapshot.docs.first.data();
     final colours = data['colours'];
@@ -245,14 +168,11 @@ class FirestoreService {
       brightness: data['brightness'] as String? ?? 'Unknown',
       contrast: data['contrast'] as String? ?? 'Unknown',
       imageUrl: data['imageUrl'] as String? ?? '',
-      colours: colours is List
-          ? colours.map((item) => item.toString()).toList()
-          : const [],
+      colours: colours is List ? colours.map((item) => item.toString()).toList() : const [],
     );
   }
 
-  static CollectionReference<Map<String, dynamic>> _wardrobe(String uid) =>
-      _db.collection('users').doc(uid).collection('wardrobe');
+  static CollectionReference<Map<String, dynamic>> _wardrobe(String uid) => _db.collection('users').doc(uid).collection('wardrobe');
 
   static Future<String> addWardrobeItem(WardrobeItem item) async {
     final ref = await _wardrobe(item.userId).add(item.toMap());
@@ -260,27 +180,15 @@ class FirestoreService {
   }
 
   static Future<List<WardrobeItem>> getWardrobeItems(String uid) async {
-    final snapshot = await _wardrobe(
-      uid,
-    ).orderBy('createdAt', descending: true).get();
+    final snapshot = await _wardrobe(uid).orderBy('createdAt', descending: true).get();
     return snapshot.docs.map(WardrobeItem.fromFirestore).toList();
   }
 
   static Stream<List<WardrobeItem>> watchWardrobeItems(String uid) {
-    return _wardrobe(uid)
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .map(
-          (snapshot) =>
-              snapshot.docs.map(WardrobeItem.fromFirestore).toList(),
-        );
+    return _wardrobe(uid).orderBy('createdAt', descending: true).snapshots().map((snapshot) => snapshot.docs.map(WardrobeItem.fromFirestore).toList());
   }
 
-  static Future<void> updateWardrobeItem(
-    String uid,
-    String itemId,
-    Map<String, dynamic> data,
-  ) async {
+  static Future<void> updateWardrobeItem(String uid, String itemId, Map<String, dynamic> data) async {
     await _wardrobe(uid).doc(itemId).update(data);
   }
 
@@ -297,20 +205,10 @@ class FirestoreService {
     String? title,
     String? notes,
   }) async {
-    final sanitizedItemIds = itemIds
-        .map((id) => id.trim())
-        .where((id) => id.isNotEmpty)
-        .toSet()
-        .toList();
-    if (sanitizedItemIds.isEmpty) {
-      throw ArgumentError(
-        'A saved look must contain at least one wardrobe item.',
-      );
-    }
-    final normalizedOccasion =
-        occasion.trim().isEmpty ? 'Everyday' : occasion.trim();
-    final normalizedSeason =
-        season.trim().isEmpty ? 'Unknown' : season.trim();
+    final sanitizedItemIds = itemIds.map((id) => id.trim()).where((id) => id.isNotEmpty).toSet().toList();
+    if (sanitizedItemIds.isEmpty) throw ArgumentError('A saved look must contain at least one wardrobe item.');
+    final normalizedOccasion = occasion.trim().isEmpty ? 'Everyday' : occasion.trim();
+    final normalizedSeason = season.trim().isEmpty ? 'Unknown' : season.trim();
     final normalizedScore = matchScore.clamp(0, 100);
     final payload = <String, dynamic>{
       'occasion': normalizedOccasion,
@@ -322,38 +220,16 @@ class FirestoreService {
       if (title != null && title.trim().isNotEmpty) 'title': title.trim(),
       if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
     };
-    final ref = await _db
-        .collection('users')
-        .doc(uid)
-        .collection('savedLooks')
-        .add(payload);
-    return ref.id;
+    return (await _db.collection('users').doc(uid).collection('savedLooks').add(payload)).id;
   }
 
-  static Future<List<Map<String, dynamic>>> getSavedOutfitLooks(
-    String uid,
-  ) async {
-    final snapshot = await _db
-        .collection('users')
-        .doc(uid)
-        .collection('savedLooks')
-        .orderBy('createdAt', descending: true)
-        .get();
-    return snapshot.docs
-        .map((doc) => {'id': doc.id, ...doc.data()})
-        .toList();
+  static Future<List<Map<String, dynamic>>> getSavedOutfitLooks(String uid) async {
+    final snapshot = await _db.collection('users').doc(uid).collection('savedLooks').orderBy('createdAt', descending: true).get();
+    return snapshot.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList();
   }
 
-  static Future<void> deleteSavedOutfitLook(
-    String uid,
-    String lookId,
-  ) async {
-    await _db
-        .collection('users')
-        .doc(uid)
-        .collection('savedLooks')
-        .doc(lookId)
-        .delete();
+  static Future<void> deleteSavedOutfitLook(String uid, String lookId) async {
+    await _db.collection('users').doc(uid).collection('savedLooks').doc(lookId).delete();
   }
 
   static Future<CustomerDeletionResult> deleteCustomerData(String uid) async {
@@ -370,9 +246,7 @@ class FirestoreService {
 
     final imageUrls = <String>[];
     final profilePhotoUrl = userDoc.data()?['photoUrl'];
-    if (profilePhotoUrl is String && profilePhotoUrl.isNotEmpty) {
-      imageUrls.add(profilePhotoUrl);
-    }
+    if (profilePhotoUrl is String && profilePhotoUrl.isNotEmpty) imageUrls.add(profilePhotoUrl);
     for (final doc in wardrobeSnapshot.docs) {
       final url = doc.data()['imageUrl'];
       if (url is String && url.isNotEmpty) imageUrls.add(url);
@@ -392,19 +266,15 @@ class FirestoreService {
       if (consultationDoc.exists) consultationRef,
       userRef,
     ];
-
     const chunkSize = 450;
     for (var start = 0; start < references.length; start += chunkSize) {
-      final end = (start + chunkSize < references.length)
-          ? start + chunkSize
-          : references.length;
+      final end = (start + chunkSize < references.length) ? start + chunkSize : references.length;
       final batch = _db.batch();
       for (final ref in references.sublist(start, end)) {
         batch.delete(ref);
       }
       await batch.commit();
     }
-
     return CustomerDeletionResult(
       wardrobeItemsDeleted: wardrobeSnapshot.docs.length,
       preferencesDeleted: preferencesSnapshot.docs.length,
