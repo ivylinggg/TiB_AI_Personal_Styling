@@ -85,13 +85,25 @@ class _TibStyleJourneyScreenState extends State<TibStyleJourneyScreen> {
         backgroundColor: AppColors.background,
         elevation: 0,
         scrolledUnderElevation: 0,
+        actions: [
+          IconButton(
+            tooltip: 'Refresh journey',
+            onPressed: _loading ? null : _load,
+            icon: const Icon(Icons.refresh_rounded),
+          ),
+        ],
       ),
       body: RefreshIndicator(
         onRefresh: _load,
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
-            SliverToBoxAdapter(child: Padding(padding: const EdgeInsets.fromLTRB(20, 8, 20, 0), child: _hero(journey))),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                child: _hero(journey),
+              ),
+            ),
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
@@ -108,7 +120,13 @@ class _TibStyleJourneyScreenState extends State<TibStyleJourneyScreen> {
             ),
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 28, 20, 12),
+                padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
+                child: _progressSummary(journey, unlocked),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
@@ -232,6 +250,48 @@ class _TibStyleJourneyScreenState extends State<TibStyleJourneyScreen> {
     );
   }
 
+  Widget _progressSummary(TibStyleJourney journey, int unlocked) {
+    final next = journey.nextLevelPoints;
+    final label = journey.level >= 5 ? 'Highest level reached' : '${next - journey.points} XP remaining';
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: const BoxDecoration(color: AppColors.secondary, shape: BoxShape.circle),
+            child: const Icon(Icons.auto_awesome_rounded, color: AppColors.primary),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(unlocked == 0 ? 'Start your style journey' : '$unlocked badges unlocked', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900)),
+                const SizedBox(height: 3),
+                Text(label, style: const TextStyle(fontSize: 10.5, color: AppColors.textSecondary)),
+              ],
+            ),
+          ),
+          if (journey.streak > 0)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text('${journey.streak}', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: AppColors.primary)),
+                const Text('day streak', style: TextStyle(fontSize: 8.5, color: AppColors.textMuted)),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _stat(IconData icon, String value, String label) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 13),
@@ -244,17 +304,65 @@ class _TibStyleJourneyScreenState extends State<TibStyleJourneyScreen> {
     return Material(
       color: AppColors.surface,
       borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.all(15),
-        decoration: BoxDecoration(borderRadius: BorderRadius.circular(20), border: Border.all(color: badge.unlocked ? AppColors.primarySoft : AppColors.border)),
-        child: Row(children: [
-          Container(width: 50, height: 50, decoration: BoxDecoration(color: badge.unlocked ? AppColors.primarySoft : AppColors.background, shape: BoxShape.circle), child: Center(child: Text(badge.icon, style: TextStyle(fontSize: 22, color: badge.unlocked ? null : AppColors.textMuted)))),
-          const SizedBox(width: 13),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(badge.title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: badge.unlocked ? AppColors.textPrimary : AppColors.textMuted)), const SizedBox(height: 4), Text(badge.description, style: const TextStyle(fontSize: 10.5, height: 1.35, color: AppColors.textSecondary))])),
-          const SizedBox(width: 8),
-          Icon(badge.unlocked ? Icons.check_circle_rounded : Icons.lock_outline_rounded, color: badge.unlocked ? AppColors.primary : AppColors.textMuted, size: 20),
-        ]),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () => _showBadgeDetails(badge),
+        child: Container(
+          padding: const EdgeInsets.all(15),
+          decoration: BoxDecoration(borderRadius: BorderRadius.circular(20), border: Border.all(color: badge.unlocked ? AppColors.primarySoft : AppColors.border)),
+          child: Row(children: [
+            Container(width: 50, height: 50, decoration: BoxDecoration(color: badge.unlocked ? AppColors.primarySoft : AppColors.background, shape: BoxShape.circle), child: Center(child: Opacity(opacity: badge.unlocked ? 1 : .45, child: Text(badge.icon, style: const TextStyle(fontSize: 22))))),
+            const SizedBox(width: 13),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(badge.title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: badge.unlocked ? AppColors.textPrimary : AppColors.textMuted)), const SizedBox(height: 4), Text(badge.description, style: const TextStyle(fontSize: 10.5, height: 1.35, color: AppColors.textSecondary))])),
+            const SizedBox(width: 8),
+            Icon(badge.unlocked ? Icons.check_circle_rounded : Icons.lock_outline_rounded, color: badge.unlocked ? AppColors.primary : AppColors.textMuted, size: 20),
+          ]),
+        ),
       ),
+    );
+  }
+
+  Future<void> _showBadgeDetails(TibBadge badge) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: AppColors.background,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 8, 24, 26),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 76,
+                  height: 76,
+                  decoration: BoxDecoration(
+                    color: badge.unlocked ? AppColors.primarySoft : AppColors.surface,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Center(child: Opacity(opacity: badge.unlocked ? 1 : .45, child: Text(badge.icon, style: const TextStyle(fontSize: 34)))),
+                ),
+                const SizedBox(height: 14),
+                Text(badge.title, textAlign: TextAlign.center, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+                const SizedBox(height: 7),
+                Text(badge.unlocked ? 'Unlocked' : 'Locked', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: badge.unlocked ? AppColors.primary : AppColors.textMuted)),
+                const SizedBox(height: 10),
+                Text(badge.description, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.45)),
+                const SizedBox(height: 18),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () => Navigator.pop(sheetContext),
+                    child: const Text('Done'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
