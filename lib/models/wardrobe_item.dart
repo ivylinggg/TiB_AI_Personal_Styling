@@ -12,6 +12,7 @@ class WardrobeItem {
   final bool isFavourite;
   final String notes;
   final DateTime? createdAt;
+  final DateTime? updatedAt;
 
   const WardrobeItem({
     required this.id,
@@ -25,12 +26,11 @@ class WardrobeItem {
     required this.isFavourite,
     required this.notes,
     required this.createdAt,
+    this.updatedAt,
   });
 
   factory WardrobeItem.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data() ?? <String, dynamic>{};
-    final timestamp = data['createdAt'];
-
     return WardrobeItem(
       id: doc.id,
       userId: data['userId'] as String? ?? '',
@@ -42,7 +42,8 @@ class WardrobeItem {
       season: data['season'] as String? ?? 'All seasons',
       isFavourite: data['isFavourite'] as bool? ?? false,
       notes: data['notes'] as String? ?? '',
-      createdAt: timestamp is Timestamp ? timestamp.toDate() : null,
+      createdAt: _dateTimeFromValue(data['createdAt']),
+      updatedAt: _dateTimeFromValue(data['updatedAt']),
     );
   }
 
@@ -58,6 +59,20 @@ class WardrobeItem {
       'isFavourite': isFavourite,
       'notes': notes,
       'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+  }
+
+  Map<String, dynamic> toUpdateMap() {
+    return {
+      'name': name,
+      'category': category,
+      'colour': colour,
+      'style': style,
+      'season': season,
+      'isFavourite': isFavourite,
+      'notes': notes,
+      'updatedAt': FieldValue.serverTimestamp(),
     };
   }
 
@@ -70,6 +85,7 @@ class WardrobeItem {
     String? season,
     bool? isFavourite,
     String? notes,
+    DateTime? updatedAt,
   }) {
     return WardrobeItem(
       id: id,
@@ -83,6 +99,13 @@ class WardrobeItem {
       isFavourite: isFavourite ?? this.isFavourite,
       notes: notes ?? this.notes,
       createdAt: createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
     );
+  }
+
+  static DateTime? _dateTimeFromValue(dynamic value) {
+    if (value is Timestamp) return value.toDate();
+    if (value is DateTime) return value;
+    return null;
   }
 }
