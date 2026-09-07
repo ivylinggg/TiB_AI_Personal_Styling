@@ -20,12 +20,13 @@ class DashboardDesignedScreen extends StatefulWidget {
 }
 
 class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   Future<TodayRecommendation>? _recommendationFuture;
   Future<DailyChallenge>? _challengeFuture;
   Future<TibStyleJourney>? _journeyFuture;
   bool _challengeCompleted = false;
   bool _completingChallenge = false;
+  bool _refreshingFromLifecycle = false;
 
   late final AnimationController _revealController;
   late final Animation<double> _heroReveal;
@@ -36,6 +37,7 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _revealController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 850),
@@ -69,7 +71,31 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
       );
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _refreshWhenResumed();
+    }
+  }
+
+  Future<void> _refreshWhenResumed() async {
+    if (!mounted || _refreshingFromLifecycle) return;
+    _refreshingFromLifecycle = true;
+    try {
+      final provider = context.read<AnalysisProvider>();
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid != null) {
+        await provider.loadLatestResult(uid);
+      }
+      if (!mounted) return;
+      _loadDashboard();
+    } finally {
+      _refreshingFromLifecycle = false;
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _revealController.dispose();
     super.dispose();
   }
@@ -89,6 +115,9 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
       );
       _journeyFuture = TibStyleJourneyService.load(uid);
       _loadCompletion(uid);
+    } else {
+      _challengeFuture = null;
+      _journeyFuture = null;
     }
     setState(() {});
   }
