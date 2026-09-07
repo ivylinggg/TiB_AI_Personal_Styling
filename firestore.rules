@@ -2,49 +2,96 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    function isSignedIn() { return request.auth != null; }
-    function isOwner(uid) { return isSignedIn() && request.auth.uid == uid; }
-    function currentUserData() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    function isSignedIn() {
+      return request.auth != null;
     }
-    function isAdmin() { return isSignedIn() && currentUserData().get('role', 'customer') == 'admin'; }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function userData(uid) {
+      return get(/databases/$(database)/documents/users/$(uid)).data;
+    }
+
+    function currentUserData() {
+      return userData(request.auth.uid);
+    }
+
+    function isAdmin() {
+      return isSignedIn() && currentUserData().get('role', 'customer') == 'admin';
+    }
+
     function isConsultant() {
       return isSignedIn() && (currentUserData().get('role', 'customer') == 'consultant' || isAdmin());
     }
-    function isPremiumUser() { return isSignedIn() && currentUserData().get('isPremium', false) == true; }
+
+    function isPremiumUser() {
+      return isSignedIn() && currentUserData().get('isPremium', false) == true;
+    }
+
     function isContentPremium(data) {
       return data.get('isPremium', false) == true || data.get('premiumOnly', false) == true;
+    }
+
+    function isValidCustomerCreate(uid) {
+      return isOwner(uid)
+        && request.resource.data.get('role', 'customer') == 'customer'
+        && request.resource.data.get('isActive', true) == true
+        && request.resource.data.get('isPremium', false) == false
+        && request.resource.data.get('email', '') == request.auth.token.email;
+    }
+
+    function protectedUserFieldsUnchanged() {
+      return request.resource.data.get('role', resource.data.get('role', 'customer')) == resource.data.get('role', 'customer')
+        && request.resource.data.get('isActive', resource.data.get('isActive', true)) == resource.data.get('isActive', true)
+        && request.resource.data.get('isPremium', resource.data.get('isPremium', false)) == resource.data.get('isPremium', false)
+        && request.resource.data.get('email', resource.data.get('email', '')) == resource.data.get('email', '');
     }
 
     match /users/{userId} {
       allow get: if isOwner(userId) || isAdmin();
       allow list: if isAdmin();
-      allow create: if isAdmin() || (isOwner(userId) && request.resource.data.role == 'customer' && request.resource.data.isActive == true && request.resource.data.isPremium == false);
-      allow update: if isAdmin() || (isOwner(userId) && request.resource.data.get('role', 'customer') == resource.data.get('role', 'customer') && request.resource.data.get('isActive', true) == resource.data.get('isActive', true) && request.resource.data.get('isPremium', false) == resource.data.get('isPremium', false) && request.resource.data.get('email', '') == resource.data.get('email', ''));
+      allow create: if isValidCustomerCreate(userId) || isAdmin();
+      allow update: if isAdmin() || (isOwner(userId) && protectedUserFieldsUnchanged());
       allow delete: if isAdmin();
+
       match /analysis/{analysisId} {
         allow read: if isOwner(userId) || isAdmin();
-        allow create: if isOwner(userId);
+        allow create: if isOwner(userId) && request.resource.data.get('userId', userId) == userId;
         allow update, delete: if isAdmin();
       }
+
       match /wardrobe/{itemId} {
         allow read: if isOwner(userId) || isAdmin();
         allow create: if isOwner(userId) && request.resource.data.userId == userId;
         allow update, delete: if isOwner(userId) || isAdmin();
       }
-      match /preferences/{prefId} { allow read, write: if isOwner(userId) || isAdmin(); }
+
+      match /preferences/{prefId} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+
       match /notifications/{notificationId} {
-        allow read, create, update: if isOwner(userId) || isAdmin();
-        allow delete: if isAdmin() || isOwner(userId);
+        allow read: if isOwner(userId) || isAdmin();
+        allow create: if isAdmin();
+        allow update: if isOwner(userId) || isAdmin();
+        allow delete: if isOwner(userId) || isAdmin();
       }
     }
 
-    match /{path=**}/analysis/{analysisId} { allow read: if isAdmin(); }
-
     match /content/{contentId} {
       allow create, update, delete: if isAdmin();
-      allow get: if isAdmin() || (isSignedIn() && resource.data.isPublished == true && (!isContentPremium(resource.data) || isPremiumUser()));
-      allow list: if isAdmin() || (isSignedIn() && resource.data.isPublished == true && (!isContentPremium(resource.data) || isPremiumUser()));
+      allow get: if isAdmin() || (
+        isSignedIn()
+        && resource.data.get('isPublished', false) == true
+        && (!isContentPremium(resource.data) || isPremiumUser())
+      );
+      allow list: if isAdmin() || (
+        isSignedIn()
+        && resource.data.get('isPublished', false) == true
+        && (!isContentPremium(resource.data) || isPremiumUser())
+      );
     }
 
     match /forum_posts/{postId} {
@@ -53,14 +100,23 @@ service cloud.firestore {
         && request.resource.data.authorId == request.auth.uid
         && request.resource.data.title is string
         && request.resource.data.body is string
-        && request.resource.data.category is string;
-      allow update: if isSignedIn() && (resource.data.authorId == request.auth.uid || isAdmin());
-      allow delete: if isSignedIn() && (resource.data.authorId == request.auth.uid || isAdmin());
+        && request.resource.data.category is string
+        && request.resource.data.get('isOfficial', false) == false;
+      allow update: if isSignedIn() && (
+        resource.data.authorId == request.auth.uid || isAdmin()
+      );
+      allow delete: if isSignedIn() && (
+        resource.data.authorId == request.auth.uid || isAdmin()
+      );
 
       match /comments/{commentId} {
         allow get, list: if isSignedIn();
-        allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid && request.resource.data.body is string;
-        allow update, delete: if isSignedIn() && (resource.data.authorId == request.auth.uid || isAdmin());
+        allow create: if isSignedIn()
+          && request.resource.data.authorId == request.auth.uid
+          && request.resource.data.body is string;
+        allow update, delete: if isSignedIn() && (
+          resource.data.authorId == request.auth.uid || isAdmin()
+        );
       }
 
       match /likes/{userId} {
@@ -74,8 +130,10 @@ service cloud.firestore {
       allow get, create, update: if isOwner(userId) || isConsultant();
       allow list: if isConsultant();
       allow delete: if isAdmin();
+
       match /messages/{messageId} {
-        allow read, create: if isOwner(userId) || isConsultant();
+        allow read: if isOwner(userId) || isConsultant();
+        allow create: if isOwner(userId) || isConsultant();
         allow update, delete: if isAdmin();
       }
     }
@@ -85,6 +143,8 @@ service cloud.firestore {
       allow create, update, delete: if isConsultant() && request.auth.uid == consultantId;
     }
 
-    match /{document=**} { allow read, write: if false; }
+    match /{path=**} {
+      allow read, write: if false;
+    }
   }
 }
