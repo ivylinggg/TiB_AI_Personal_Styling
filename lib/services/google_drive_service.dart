@@ -13,74 +13,41 @@ class GoogleDriveUploadResult {
 }
 
 class GoogleDriveService {
+  static const _redirectStatuses = <int>{301, 302, 303, 307, 308};
+  static const _requestTimeout = Duration(seconds: 30);
+
   Future<GoogleDriveUploadResult?> uploadImage({
     required File imageFile,
     required String fileName,
     required String type,
   }) async {
     try {
+      if (!await imageFile.exists()) return null;
       final bytes = await imageFile.readAsBytes();
+      if (bytes.isEmpty) return null;
 
-      final response = await http.post(
-        Uri.parse(GoogleDriveConfig.uploadUrl),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'type': type,
-          'image': base64Encode(bytes),
-          'fileName': fileName,
-          'mimeType': 'image/jpeg',
-        }),
-      );
+      final response = await http
+          .post(
+            Uri.parse(GoogleDriveConfig.uploadUrl),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'type': type,
+              'image': base64Encode(bytes),
+              'fileName': fileName,
+              'mimeType': 'image/jpeg',
+            }),
+          )
+          .timeout(_requestTimeout);
 
-      String responseBody = response.body;
+      final responseBody = await _resolveResponseBody(response);
+      if (responseBody == null) return null;
 
-      if (response.statusCode == 301 ||
-          response.statusCode == 302 ||
-          response.statusCode == 303 ||
-          response.statusCode == 307 ||
-          response.statusCode == 308) {
-        final location = response.headers['location'];
-
-        if (location == null || location.isEmpty) {
-          return null;
-        }
-
-        final redirectedResponse = await http.get(Uri.parse(location));
-
-        if (redirectedResponse.statusCode != 200) {
-          return null;
-        }
-
-        responseBody = redirectedResponse.body;
-      }
-
-      if (response.statusCode != 200 &&
-          response.statusCode != 301 &&
-          response.statusCode != 302 &&
-          response.statusCode != 303 &&
-          response.statusCode != 307 &&
-          response.statusCode != 308) {
-        return null;
-      }
-
-      final data = jsonDecode(responseBody);
-
-      if (data is! Map<String, dynamic>) {
-        return null;
-      }
-
-      if (data['success'] != true) {
-        return null;
-      }
+      final data = _decodeMap(responseBody);
+      if (data == null || data['success'] != true) return null;
 
       final fileId = data['fileId'] as String?;
       final imageUrl = data['imageUrl'] as String?;
-
-      if (fileId == null || fileId.isEmpty) {
-        return null;
-      }
-
-      if (imageUrl == null || imageUrl.isEmpty) {
+      if (fileId == null || fileId.isEmpty || imageUrl == null || imageUrl.isEmpty) {
         return null;
       }
 
@@ -94,83 +61,67 @@ class GoogleDriveService {
     required File imageFile,
     required String fileName,
   }) {
-    return uploadImage(
-      imageFile: imageFile,
-      fileName: fileName,
-      type: 'analysis',
-    );
+    return uploadImage(imageFile: imageFile, fileName: fileName, type: 'analysis');
   }
 
   Future<GoogleDriveUploadResult?> uploadWardrobeImage({
     required File imageFile,
     required String fileName,
   }) {
-    return uploadImage(
-      imageFile: imageFile,
-      fileName: fileName,
-      type: 'wardrobe',
-    );
+    return uploadImage(imageFile: imageFile, fileName: fileName, type: 'wardrobe');
   }
 
   Future<GoogleDriveUploadResult?> uploadProfileImage({
     required File imageFile,
     required String fileName,
   }) {
-    return uploadImage(
-      imageFile: imageFile,
-      fileName: fileName,
-      type: 'profile',
-    );
+    return uploadImage(imageFile: imageFile, fileName: fileName, type: 'profile');
   }
 
   Future<bool> deleteFile({required String fileId}) async {
     try {
-      final response = await http.post(
-        Uri.parse(GoogleDriveConfig.uploadUrl),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'action': 'delete', 'fileId': fileId}),
-      );
+      final response = await http
+          .post(
+            Uri.parse(GoogleDriveConfig.uploadUrl),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'action': 'delete', 'fileId': fileId}),
+          )
+          .timeout(_requestTimeout);
 
-      String responseBody = response.body;
+      final responseBody = await _resolveResponseBody(response);
+      if (responseBody == null) return false;
 
-      if (response.statusCode == 301 ||
-          response.statusCode == 302 ||
-          response.statusCode == 303 ||
-          response.statusCode == 307 ||
-          response.statusCode == 308) {
-        final location = response.headers['location'];
-
-        if (location == null || location.isEmpty) {
-          return false;
-        }
-
-        final redirectedResponse = await http.get(Uri.parse(location));
-
-        if (redirectedResponse.statusCode != 200) {
-          return false;
-        }
-
-        responseBody = redirectedResponse.body;
-      }
-
-      if (response.statusCode != 200 &&
-          response.statusCode != 301 &&
-          response.statusCode != 302 &&
-          response.statusCode != 303 &&
-          response.statusCode != 307 &&
-          response.statusCode != 308) {
-        return false;
-      }
-
-      final data = jsonDecode(responseBody);
-
-      if (data is! Map<String, dynamic>) {
-        return false;
-      }
-
-      return data['success'] == true;
+      final data = _decodeMap(responseBody);
+      return data?['success'] == true;
     } catch (_) {
       return false;
+    }
+  }
+
+  Future<String?> _resolveResponseBody(http.Response response) async {
+    if (!_redirectStatuses.contains(response.statusCode)) {
+      return response.statusCode == 200 ? response.body : null;
+    }
+
+    final location = response.headers['location'];
+    if (location == null || location.isEmpty) return null;
+
+    try {
+      final redirectedResponse = await http
+          .get(Uri.parse(location))
+          .timeout(_requestTimeout);
+      return redirectedResponse.statusCode == 200 ? redirectedResponse.body : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Map<String, dynamic>? _decodeMap(String body) {
+    try {
+      final decoded = jsonDecode(body);
+      return decoded is Map<String, dynamic> ? decoded : null;
+    } catch (_) {
+      return null;
     }
   }
 }
