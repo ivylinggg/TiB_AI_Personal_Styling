@@ -74,11 +74,12 @@ class LiveConsultancyService {
         : _messages(uid).orderBy('createdAt').snapshots();
   }
 
+  /// Uses only an equality filter so no composite Firestore index is required.
+  /// Sorting is intentionally done client-side in the admin screen/service consumer.
   static Stream<QuerySnapshot<Map<String, dynamic>>> consultationsStream({
     String? status,
   }) {
-    Query<Map<String, dynamic>> query =
-        _consultations.orderBy('updatedAt', descending: true);
+    Query<Map<String, dynamic>> query = _consultations;
     if (status != null) {
       query = query.where('status', isEqualTo: status);
     }
