@@ -7,9 +7,13 @@ import '../../core/constants/app_gradients.dart';
 import '../../models/colour_analysis_result.dart';
 import '../../providers/analysis_provider.dart';
 import '../../services/daily_challenge_service.dart';
+import '../../services/firestore_service.dart';
+import '../../services/style_preference_service.dart';
 import '../../services/tib_style_journey_service.dart';
 import '../../services/today_recommendation_service.dart';
 import '../../widgets/colour_swatch.dart';
+import '../ai/ai_stylist_screen.dart';
+import '../wardrobe/wardrobe_screen.dart';
 import 'tib_style_journey_screen.dart';
 
 class DashboardDesignedScreen extends StatefulWidget {
@@ -27,6 +31,9 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
   bool _challengeCompleted = false;
   bool _completingChallenge = false;
   bool _refreshingFromLifecycle = false;
+  List<String> _stylePreferences = const [];
+  int _wardrobeCount = 0;
+  int _savedLookCount = 0;
 
   late final AnimationController _revealController;
   late final Animation<double> _heroReveal;
@@ -85,6 +92,7 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
       final uid = FirebaseAuth.instance.currentUser?.uid;
       if (uid != null) {
         await provider.loadLatestResult(uid);
+        await _loadPersonalContext(uid);
       }
       if (!mounted) return;
       _loadDashboard();
@@ -100,6 +108,27 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
     super.dispose();
   }
 
+  Future<void> _loadPersonalContext(String uid) async {
+    try {
+      final results = await Future.wait<dynamic>([
+        StylePreferenceService.getStylePreferences(uid),
+        FirestoreService.getWardrobeItems(uid),
+        FirestoreService.getSavedOutfitLooks(uid),
+      ]);
+      if (!mounted) return;
+      final preferences = results[0] as Map<String, dynamic>?;
+      final wardrobe = results[1] as List;
+      final savedLooks = results[2] as List;
+      setState(() {
+        _stylePreferences = List<String>.from(preferences?['styles'] ?? const []);
+        _wardrobeCount = wardrobe.length;
+        _savedLookCount = savedLooks.length;
+      });
+    } catch (_) {
+      // Keep the dashboard usable even when secondary context is unavailable.
+    }
+  }
+
   void _loadDashboard() {
     if (!mounted) return;
     final provider = context.read<AnalysisProvider>();
@@ -107,6 +136,7 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
     final analysis = provider.result;
     _recommendationFuture = TodayRecommendationService.getRecommendation(
       analysis: analysis,
+      personalStyle: _stylePreferences.isEmpty ? null : _stylePreferences.take(3).join(', '),
     );
     if (uid != null) {
       _challengeFuture = DailyChallengeService.personalizedToday(
@@ -115,9 +145,13 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
       );
       _journeyFuture = TibStyleJourneyService.load(uid);
       _loadCompletion(uid);
+      _loadPersonalContext(uid);
     } else {
       _challengeFuture = null;
       _journeyFuture = null;
+      _stylePreferences = const [];
+      _wardrobeCount = 0;
+      _savedLookCount = 0;
     }
     setState(() {});
   }
@@ -130,7 +164,10 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
 
   Future<void> _refresh(AnalysisProvider provider) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid != null) await provider.loadLatestResult(uid);
+    if (uid != null) {
+      await provider.loadLatestResult(uid);
+      await _loadPersonalContext(uid);
+    }
     if (!mounted) return;
     _loadDashboard();
   }
@@ -293,6 +330,26 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
               height: 1.5,
             ),
           ),
+          if (_stylePreferences.isNotEmpty || _wardrobeCount > 0 || _savedLookCount > 0) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(11),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceMuted,
+                borderRadius: BorderRadius.circular(17),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Row(
+                children: [
+                  Expanded(child: _contextMetric('${_stylePreferences.length}', 'style choices')),
+                  _contextDivider(),
+                  Expanded(child: _contextMetric('$_wardrobeCount', 'wardrobe pieces')),
+                  _contextDivider(),
+                  Expanded(child: _contextMetric('$_savedLookCount', 'saved looks')),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 18),
           FutureBuilder<TodayRecommendation>(
             future: _recommendationFuture,
@@ -347,6 +404,33 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
       ),
     );
   }
+
+  Widget _contextMetric(String value, String label) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: const TextStyle(
+            color: AppColors.primary,
+            fontSize: 15,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: AppColors.textSecondary,
+            fontSize: 8.5,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _contextDivider() => Container(width: 1, height: 27, color: AppColors.border);
 
   Widget _card({
     required Widget child,
@@ -448,6 +532,19 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
                     fontSize: 11.5,
                   ),
                 ),
+                if (_stylePreferences.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Style direction: ${_stylePreferences.take(2).join(' · ')}',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.primary,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
                 if (result.colours.isNotEmpty) ...[
                   const SizedBox(height: 11),
                   Wrap(
@@ -523,72 +620,49 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        Text(
-                          '${journey.points}',
-                          style: const TextStyle(
-                            fontSize: 27,
-                            height: 1,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.primaryDark,
-                          ),
-                        ),
-                        const SizedBox(width: 5),
-                        const Padding(
-                          padding: EdgeInsets.only(bottom: 2),
+                        Expanded(
                           child: Text(
-                            'XP',
-                            style: TextStyle(
-                              fontSize: 10.5,
+                            journey.levelTitle,
+                            style: const TextStyle(
+                              fontSize: 20,
                               fontWeight: FontWeight.w800,
-                              color: AppColors.textSecondary,
+                              color: AppColors.primaryDark,
                             ),
                           ),
                         ),
-                        const Spacer(),
                         Text(
-                          '${journey.completedChallenges} challenges',
+                          '${journey.points} XP',
                           style: const TextStyle(
-                            fontSize: 10.5,
-                            color: AppColors.textSecondary,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.brown,
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 12),
                     ClipRRect(
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(99),
                       child: LinearProgressIndicator(
                         value: progress,
                         minHeight: 7,
                         backgroundColor: AppColors.surfaceMuted,
+                        valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
                       ),
                     ),
                     const SizedBox(height: 8),
                     Row(
                       children: [
-                        Expanded(
-                          child: Text(
-                            journey.levelTitle,
-                            style: const TextStyle(
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                        ),
-                        Text(
-                          '${journey.streak}-day streak',
-                          style: const TextStyle(
-                            fontSize: 11.5,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                        const Icon(
-                          Icons.chevron_right_rounded,
-                          size: 18,
-                          color: AppColors.textMuted,
-                        ),
+                        Text('${journey.completedChallenges} completed', style: const TextStyle(color: AppColors.textSecondary, fontSize: 10)),
+                        const Spacer(),
+                        Text('${journey.streak} day streak', style: const TextStyle(color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.w700)),
                       ],
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 7,
+                      runSpacing: 7,
+                      children: journey.badges.take(3).map((badge) => _badgeChip(badge)).toList(),
                     ),
                   ],
                 ),
@@ -600,106 +674,95 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
     );
   }
 
+  Widget _badgeChip(TibBadge badge) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+      decoration: BoxDecoration(
+        color: badge.unlocked ? AppColors.secondary : AppColors.surfaceMuted,
+        borderRadius: BorderRadius.circular(99),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Text(
+        '${badge.icon} ${badge.title}',
+        style: TextStyle(
+          color: badge.unlocked ? AppColors.primaryDark : AppColors.textMuted,
+          fontSize: 9.5,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+
   Widget _todayTaskCard() {
-    if (_challengeFuture == null) {
-      return _loadingCard('TODAY\'S STYLE TASK');
-    }
+    if (_challengeFuture == null) return _loadingCard('TODAY');
     return FutureBuilder<DailyChallenge>(
       future: _challengeFuture,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return _loadingCard('TODAY\'S STYLE TASK');
-        }
-        final challenge = snapshot.data ?? DailyChallengeService.today();
+        if (snapshot.connectionState == ConnectionState.waiting) return _loadingCard('TODAY');
+        final challenge = snapshot.data;
+        if (challenge == null) return _loadingCard('TODAY');
         return _card(
           padding: const EdgeInsets.fromLTRB(18, 18, 18, 17),
-          child: Row(
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: _challengeCompleted
-                      ? AppColors.surfaceMuted
-                      : AppColors.secondary,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  _challengeCompleted
-                      ? Icons.check_rounded
-                      : Icons.auto_awesome_rounded,
-                  color: _challengeCompleted
-                      ? AppColors.success
-                      : AppColors.primary,
-                ),
-              ),
-              const SizedBox(width: 13),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+              Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: const BoxDecoration(color: AppColors.secondary, shape: BoxShape.circle),
+                    child: const Icon(Icons.auto_awesome_rounded, color: AppColors.primary),
+                  ),
+                  const SizedBox(width: 11),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Expanded(
-                          child: Text(
-                            'TODAY\'S STYLE TASK',
-                            style: TextStyle(
-                              color: AppColors.textMuted,
-                              fontSize: 9.5,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 1.1,
-                            ),
-                          ),
-                        ),
-                        if (_challengeCompleted)
-                          const Text(
-                            'DONE',
-                            style: TextStyle(
-                              color: AppColors.success,
-                              fontSize: 9.5,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
+                        Text(challenge.title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                        const SizedBox(height: 3),
+                        Text('${challenge.points} XP · ${challenge.description}', style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.35)),
                       ],
                     ),
-                    const SizedBox(height: 5),
-                    Text(
-                      challenge.title,
-                      style: const TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      challenge.description,
-                      style: const TextStyle(
-                        fontSize: 11.5,
-                        color: AppColors.textSecondary,
-                        height: 1.4,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton(
-                        onPressed: _challengeCompleted || _completingChallenge
-                            ? null
-                            : _completeChallenge,
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size.fromHeight(43),
-                        ),
-                        child: Text(
-                          _challengeCompleted
-                              ? 'Completed today'
-                              : _completingChallenge
-                                  ? 'Saving…'
-                                  : 'Mark as completed',
-                        ),
-                      ),
-                    ),
-                  ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 13),
+              Text(
+                _challengeCompleted ? 'Completed for today. Your progress has been updated.' : 'A small styling move can make tomorrow feel easier too.',
+                style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.45),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _challengeCompleted || _completingChallenge ? null : _completeChallenge,
+                  icon: Icon(_challengeCompleted ? Icons.check_rounded : Icons.done_outline_rounded, size: 17),
+                  label: Text(_challengeCompleted ? 'Completed Today' : _completingChallenge ? 'Saving progress…' : 'Complete Today’s Move'),
+                ),
+              ),
+              const SizedBox(height: 9),
+              Row(
+                children: [
+                  Text('$_wardrobeCount wardrobe pieces', style: const TextStyle(color: AppColors.textMuted, fontSize: 9.5)),
+                  const SizedBox(width: 8),
+                  Text('·', style: const TextStyle(color: AppColors.textMuted, fontSize: 10)),
+                  const SizedBox(width: 8),
+                  Text('$_savedLookCount saved looks', style: const TextStyle(color: AppColors.textMuted, fontSize: 9.5)),
+                  const Spacer(),
+                  TextButton(
+                    onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AIStylistScreen())),
+                    child: const Text('Style with VYEA'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 2),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const WardrobeScreen())),
+                  icon: const Icon(Icons.checkroom_outlined, size: 16),
+                  label: const Text('Open Wardrobe'),
                 ),
               ),
             ],
@@ -709,22 +772,13 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
     );
   }
 
-  Widget _loadingCard(String title) {
+  Widget _loadingCard(String label) {
     return _card(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Text(
-            title,
-            style: const TextStyle(
-              color: AppColors.textMuted,
-              fontSize: 9.5,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 1.1,
-            ),
-          ),
-          const SizedBox(height: 14),
-          const LinearProgressIndicator(minHeight: 6),
+          const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+          const SizedBox(width: 11),
+          Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.1, color: AppColors.textMuted)),
         ],
       ),
     );
