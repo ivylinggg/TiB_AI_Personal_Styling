@@ -21,11 +21,18 @@ class _LiveConsultancyScreenState extends State<LiveConsultancyScreen> {
   @override
   void initState() {
     super.initState();
-    LiveConsultancyService.ensureConversation();
-    LiveConsultancyService.markMessagesRead(
-      LiveConsultancyService.currentUid ?? '',
-      by: 'customer',
-    );
+    _prepareConversation();
+  }
+
+  Future<void> _prepareConversation() async {
+    final uid = LiveConsultancyService.currentUid;
+    if (uid == null) return;
+    try {
+      await LiveConsultancyService.ensureConversation();
+      await LiveConsultancyService.markMessagesRead(uid, by: 'customer');
+    } catch (_) {
+      // The live stream will surface the error state when the connection fails.
+    }
   }
 
   @override
@@ -38,20 +45,25 @@ class _LiveConsultancyScreenState extends State<LiveConsultancyScreen> {
 
   Future<void> _send() async {
     final text = _composer.text.trim();
-    if (text.isEmpty || _sending) return;
+    if (text.isEmpty || text.length > 1500 || _sending) return;
     setState(() => _sending = true);
     _composer.clear();
     try {
       await LiveConsultancyService.sendUserMessage(text);
-      await LiveConsultancyService.markMessagesRead(
-        LiveConsultancyService.currentUid ?? '',
-        by: 'customer',
+      final uid = LiveConsultancyService.currentUid;
+      if (uid != null) {
+        await LiveConsultancyService.markMessagesRead(uid, by: 'customer');
+      }
+      if (!mounted || !_scroll.hasClients) return;
+      await _scroll.animateTo(
+        _scroll.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
       );
-      if (mounted && _scroll.hasClients) {
-        _scroll.animateTo(
-          _scroll.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.easeOut,
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not send message: $error')),
         );
       }
     } finally {
@@ -94,6 +106,12 @@ class _LiveConsultancyScreenState extends State<LiveConsultancyScreen> {
           const SnackBar(content: Text('Thank you for rating your consultation.')),
         );
       }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not save rating: $error')),
+        );
+      }
     } finally {
       if (mounted) setState(() => _ratingSending = false);
     }
@@ -111,14 +129,24 @@ class _LiveConsultancyScreenState extends State<LiveConsultancyScreen> {
             CircleAvatar(
               radius: 18,
               backgroundColor: AppColors.secondary,
-              child: Icon(Icons.support_agent_rounded, color: AppColors.primary, size: 21),
+              child: Icon(
+                Icons.support_agent_rounded,
+                color: AppColors.primary,
+                size: 21,
+              ),
             ),
             SizedBox(width: 10),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Live Consultancy', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-                Text('Real TiB consultant', style: TextStyle(fontSize: 10, color: AppColors.textMuted)),
+                Text(
+                  'Live Consultancy',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                ),
+                Text(
+                  'Real TiB consultant',
+                  style: TextStyle(fontSize: 10, color: AppColors.textMuted),
+                ),
               ],
             ),
           ],
@@ -131,49 +159,97 @@ class _LiveConsultancyScreenState extends State<LiveConsultancyScreen> {
           final status = data?['status'] as String?;
           final consultantName = data?['assignedConsultantName'] as String?;
           final unread = (data?['unreadForUser'] as num?)?.toInt() ?? 0;
-          final responseSeconds = (data?['responseTimeSeconds'] as num?)?.toInt();
+          final responseSeconds =
+              (data?['responseTimeSeconds'] as num?)?.toInt();
           final rating = (data?['rating'] as num?)?.toInt();
+          final waiting = status == 'waiting_for_consultant' || status == 'open';
 
           return Column(
             children: [
+              if (conversationSnapshot.hasError)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: const Text(
+                      'We could not sync your consultation right now. You can try again shortly.',
+                      style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                    ),
+                  ),
+                ),
               StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                stream: LiveConsultancyService.consultantPresenceStream(),
+                stream: LiveConsultancyService.onlineConsultantsStream(),
                 builder: (context, presenceSnapshot) {
-                  final onlineCount = presenceSnapshot.data?.docs.where((doc) {
-                    return doc.data()['online'] == true;
-                  }).length ?? 0;
+                  final onlineCount = presenceSnapshot.data?.docs.length ?? 0;
+                  final label = consultantName ?? _statusLabel(status);
                   return Container(
                     margin: const EdgeInsets.fromLTRB(16, 4, 16, 10),
                     padding: const EdgeInsets.all(13),
                     decoration: BoxDecoration(
                       color: AppColors.secondary.withValues(alpha: .5),
                       borderRadius: BorderRadius.circular(17),
-                      border: Border.all(color: AppColors.primary.withValues(alpha: .12)),
+                      border: Border.all(
+                        color: AppColors.primary.withValues(alpha: .12),
+                      ),
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.circle, size: 9, color: onlineCount > 0 ? Colors.green : AppColors.textMuted),
+                        Icon(
+                          Icons.circle,
+                          size: 9,
+                          color: onlineCount > 0
+                              ? Colors.green
+                              : AppColors.textMuted,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(consultantName ?? _statusLabel(status), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+                              Text(
+                                label,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
                               const SizedBox(height: 3),
                               Text(
                                 onlineCount > 0
                                     ? '$onlineCount consultant${onlineCount == 1 ? '' : 's'} online · ${_statusLabel(status)}'
                                     : 'No consultant is online right now · ${_statusLabel(status)}',
-                                style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.textSecondary,
+                                ),
                               ),
                             ],
                           ),
                         ),
                         if (unread > 0)
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                            decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(10)),
-                            child: Text('$unread new', style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800)),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              '$unread new',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 9,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
                           ),
                       ],
                     ),
@@ -185,27 +261,63 @@ class _LiveConsultancyScreenState extends State<LiveConsultancyScreen> {
                   padding: const EdgeInsets.fromLTRB(18, 0, 18, 8),
                   child: Align(
                     alignment: Alignment.centerLeft,
-                    child: Text(_responseLabel(responseSeconds), style: const TextStyle(fontSize: 10.5, color: AppColors.textMuted)),
+                    child: Text(
+                      _responseLabel(responseSeconds),
+                      style: const TextStyle(
+                        fontSize: 10.5,
+                        color: AppColors.textMuted,
+                      ),
+                    ),
+                  ),
+                ),
+              if (waiting)
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(18, 0, 18, 7),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Send one clear question and a consultant can pick it up from here.',
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        color: AppColors.textMuted,
+                      ),
+                    ),
                   ),
                 ),
               Expanded(
                 child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                   stream: LiveConsultancyService.messagesStream(),
                   builder: (context, snapshot) {
-                    if (snapshot.hasError) return const Center(child: Text('Unable to load your consultation.'));
-                    if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+                    if (snapshot.hasError) {
+                      return Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Text(
+                            'Unable to load your consultation.\n${snapshot.error}',
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      );
+                    }
+                    if (!snapshot.hasData) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
                     final messages = snapshot.data!.docs;
                     if (messages.isEmpty) {
                       return const Center(
                         child: Padding(
                           padding: EdgeInsets.all(35),
-                          child: Text('Your consultation is ready.\nSend your question and our TiB consultancy team will take it from there.', textAlign: TextAlign.center, style: TextStyle(color: AppColors.textSecondary, height: 1.5)),
+                          child: Text(
+                            'Your consultation is ready.\nSend your question and our TiB consultancy team will take it from there.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: AppColors.textSecondary,
+                              height: 1.5,
+                            ),
+                          ),
                         ),
                       );
                     }
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      if (_scroll.hasClients) _scroll.jumpTo(_scroll.position.maxScrollExtent);
-                    });
                     return ListView.builder(
                       controller: _scroll,
                       padding: const EdgeInsets.fromLTRB(18, 8, 18, 18),
@@ -214,24 +326,50 @@ class _LiveConsultancyScreenState extends State<LiveConsultancyScreen> {
                         final message = messages[index].data();
                         final consultant = message['senderType'] == 'consultant';
                         return Align(
-                          alignment: consultant ? Alignment.centerLeft : Alignment.centerRight,
+                          alignment: consultant
+                              ? Alignment.centerLeft
+                              : Alignment.centerRight,
                           child: Container(
                             constraints: const BoxConstraints(maxWidth: 310),
                             margin: const EdgeInsets.only(bottom: 10),
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 11,
+                            ),
                             decoration: BoxDecoration(
-                              color: consultant ? AppColors.surface : AppColors.primary,
+                              color: consultant
+                                  ? AppColors.surface
+                                  : AppColors.primary,
                               borderRadius: BorderRadius.circular(17),
-                              border: consultant ? Border.all(color: AppColors.border) : null,
+                              border: consultant
+                                  ? Border.all(color: AppColors.border)
+                                  : null,
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 if (consultant) ...[
-                                  Text(message['senderName'] as String? ?? 'TiB Consultant', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: AppColors.primary)),
+                                  Text(
+                                    message['senderName'] as String? ??
+                                        'TiB Consultant',
+                                    style: const TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w800,
+                                      color: AppColors.primary,
+                                    ),
+                                  ),
                                   const SizedBox(height: 3),
                                 ],
-                                Text(message['text'] as String? ?? '', style: TextStyle(fontSize: 12.5, height: 1.4, color: consultant ? AppColors.textPrimary : Colors.white)),
+                                Text(
+                                  message['text'] as String? ?? '',
+                                  style: TextStyle(
+                                    fontSize: 12.5,
+                                    height: 1.4,
+                                    color: consultant
+                                        ? AppColors.textPrimary
+                                        : Colors.white,
+                                  ),
+                                ),
                               ],
                             ),
                           ),
@@ -246,16 +384,44 @@ class _LiveConsultancyScreenState extends State<LiveConsultancyScreen> {
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
                   child: Container(
                     padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppColors.border),
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('How was your consultation?', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
+                        const Text(
+                          'How was your consultation?',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 12,
+                          ),
+                        ),
                         const SizedBox(height: 5),
-                        TextField(controller: _ratingComment, maxLines: 2, decoration: const InputDecoration(hintText: 'Optional feedback', isDense: true)),
+                        TextField(
+                          controller: _ratingComment,
+                          maxLines: 2,
+                          maxLength: 500,
+                          decoration: const InputDecoration(
+                            hintText: 'Optional feedback',
+                            isDense: true,
+                            counterText: '',
+                          ),
+                        ),
                         const SizedBox(height: 7),
                         Row(
-                          children: List.generate(5, (index) => IconButton(onPressed: _ratingSending ? null : () => _rate(index + 1), icon: const Icon(Icons.star_border_rounded), color: AppColors.primary)),
+                          children: List.generate(
+                            5,
+                            (index) => IconButton(
+                              onPressed: _ratingSending
+                                  ? null
+                                  : () => _rate(index + 1),
+                              icon: const Icon(Icons.star_border_rounded),
+                              color: AppColors.primary,
+                            ),
+                          ),
                         ),
                       ],
                     ),
@@ -272,13 +438,54 @@ class _LiveConsultancyScreenState extends State<LiveConsultancyScreen> {
                           controller: _composer,
                           minLines: 1,
                           maxLines: 4,
+                          maxLength: 1500,
                           textInputAction: TextInputAction.send,
                           onSubmitted: (_) => _send(),
-                          decoration: InputDecoration(hintText: 'Message your consultant…', filled: true, fillColor: AppColors.surface, border: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: const BorderSide(color: AppColors.border)), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: const BorderSide(color: AppColors.border))),
+                          decoration: InputDecoration(
+                            hintText: 'Message your consultant…',
+                            counterText: '',
+                            filled: true,
+                            fillColor: AppColors.surface,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(18),
+                              borderSide: const BorderSide(
+                                color: AppColors.border,
+                              ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(18),
+                              borderSide: const BorderSide(
+                                color: AppColors.border,
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                       const SizedBox(width: 8),
-                      Material(color: AppColors.primary, borderRadius: BorderRadius.circular(18), child: InkWell(onTap: _sending ? null : _send, borderRadius: BorderRadius.circular(18), child: const SizedBox(width: 50, height: 52, child: Icon(Icons.send_rounded, color: Colors.white)))),
+                      Material(
+                        color: AppColors.primary,
+                        borderRadius: BorderRadius.circular(18),
+                        child: InkWell(
+                          onTap: _sending ? null : _send,
+                          borderRadius: BorderRadius.circular(18),
+                          child: SizedBox(
+                            width: 50,
+                            height: 52,
+                            child: _sending
+                                ? const Padding(
+                                    padding: EdgeInsets.all(17),
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Icon(
+                                    Icons.send_rounded,
+                                    color: Colors.white,
+                                  ),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
