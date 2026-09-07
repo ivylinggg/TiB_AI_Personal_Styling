@@ -57,10 +57,10 @@ class ColourAnalysisService {
 
     final width = image.width;
     final height = image.height;
-    final left = (width * 0.14).round().clamp(0, math.max(0, width - 1));
-    final right = (width * 0.86).round().clamp(left + 1, width);
-    final top = (height * 0.08).round().clamp(0, math.max(0, height - 1));
-    final bottom = (height * 0.82).round().clamp(top + 1, height);
+    final left = (width * 0.14).round().clamp(0, math.max(0, width - 1)).toInt();
+    final right = (width * 0.86).round().clamp(left + 1, width).toInt();
+    final top = (height * 0.08).round().clamp(0, math.max(0, height - 1)).toInt();
+    final bottom = (height * 0.82).round().clamp(top + 1, height).toInt();
 
     for (var y = top; y < bottom; y += 3) {
       for (var x = left; x < right; x += 3) {
