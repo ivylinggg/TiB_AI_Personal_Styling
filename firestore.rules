@@ -102,21 +102,13 @@ service cloud.firestore {
         && request.resource.data.body is string
         && request.resource.data.category is string
         && request.resource.data.get('isOfficial', false) == false;
-      allow update: if isSignedIn() && (
-        resource.data.authorId == request.auth.uid || isAdmin()
-      );
-      allow delete: if isSignedIn() && (
-        resource.data.authorId == request.auth.uid || isAdmin()
-      );
+      allow update: if isSignedIn() && (resource.data.authorId == request.auth.uid || isAdmin());
+      allow delete: if isSignedIn() && (resource.data.authorId == request.auth.uid || isAdmin());
 
       match /comments/{commentId} {
         allow get, list: if isSignedIn();
-        allow create: if isSignedIn()
-          && request.resource.data.authorId == request.auth.uid
-          && request.resource.data.body is string;
-        allow update, delete: if isSignedIn() && (
-          resource.data.authorId == request.auth.uid || isAdmin()
-        );
+        allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid && request.resource.data.body is string;
+        allow update, delete: if isSignedIn() && (resource.data.authorId == request.auth.uid || isAdmin());
       }
 
       match /likes/{userId} {
@@ -130,10 +122,8 @@ service cloud.firestore {
       allow get, create, update: if isOwner(userId) || isConsultant();
       allow list: if isConsultant();
       allow delete: if isAdmin();
-
       match /messages/{messageId} {
-        allow read: if isOwner(userId) || isConsultant();
-        allow create: if isOwner(userId) || isConsultant();
+        allow read, create: if isOwner(userId) || isConsultant();
         allow update, delete: if isAdmin();
       }
     }
