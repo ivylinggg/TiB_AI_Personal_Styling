@@ -90,7 +90,7 @@ class _ContentForumHubScreenState extends State<ContentForumHubScreen> {
                     onChanged: saving ? null : (value) => setDialogState(() => category = value ?? 'General'),
                   ),
                   const SizedBox(height: 12),
-                  TextField(controller: bodyController, enabled: !saving, minLines: 4, maxLines: 7, decoration: const InputDecoration(labelText: 'Post', hintText: 'Write a post for the TiB community.')),
+                  TextField(controller: bodyController, enabled: !saving, minLines: 4, maxLines: 7, decoration: const InputDecoration(labelText: 'Post', hintText: 'Write a post for the VYEA community.')),
                 ],
               ),
             ),
@@ -143,7 +143,7 @@ class _ContentForumHubScreenState extends State<ContentForumHubScreen> {
   }
 
   Future<void> _deletePost(QueryDocumentSnapshot<Map<String, dynamic>> doc) async {
-    final confirmed = await showDialog<bool>(context: context, builder: (c) => AlertDialog(title: const Text('Delete forum post?'), content: const Text('This removes the post and its discussion from the shared TiB Forum.'), actions: [TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')), FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Delete'))]));
+    final confirmed = await showDialog<bool>(context: context, builder: (c) => AlertDialog(title: const Text('Delete forum post?'), content: const Text('This removes the post and its discussion from the shared VYEA Forum.'), actions: [TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')), FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Delete'))]));
     if (confirmed != true) return;
     try {
       final comments = await doc.reference.collection('comments').get();
@@ -205,28 +205,33 @@ class _ContentForumHubScreenState extends State<ContentForumHubScreen> {
   }
 
   Future<void> _syncExistingContentForums() async {
-    final contentSnapshot = await FirebaseFirestore.instance.collection('content').where('isPublished', isEqualTo: true).get();
-    for (final content in contentSnapshot.docs) {
-      final data = content.data();
-      final existing = await _posts.where('contentId', isEqualTo: content.id).limit(1).get();
-      if (existing.docs.isEmpty) {
-        await FirebaseFirestore.instance.collection('forum_posts').add({
-          'title': data['title'] as String? ?? 'TiB Content',
-          'body': data['body'] as String? ?? data['description'] as String? ?? '',
-          'category': data['type'] as String? ?? 'Learning',
-          'authorId': FirebaseAuth.instance.currentUser?.uid ?? 'tib_admin',
-          'authorName': 'TiB Team',
-          'authorRole': 'admin',
-          'source': 'admin_content',
-          'contentId': content.id,
-          'contentTitle': data['title'] as String? ?? 'TiB Content',
-          'isOfficial': true,
-          'likeCount': 0,
-          'commentCount': 0,
-          'createdAt': FieldValue.serverTimestamp(),
-          'lastActivityAt': FieldValue.serverTimestamp(),
-        });
+    try {
+      final contentSnapshot = await FirebaseFirestore.instance.collection('content').where('isPublished', isEqualTo: true).get();
+      for (final content in contentSnapshot.docs) {
+        final data = content.data();
+        final existing = await _posts.where('contentId', isEqualTo: content.id).limit(1).get();
+        if (existing.docs.isEmpty) {
+          await _posts.add({
+            'title': data['title'] as String? ?? 'VYEA Content',
+            'body': data['body'] as String? ?? data['description'] as String? ?? '',
+            'category': data['type'] as String? ?? 'Learning',
+            'authorId': FirebaseAuth.instance.currentUser?.uid ?? 'vyea_admin',
+            'authorName': 'VYEA Team',
+            'authorRole': 'admin',
+            'source': 'admin_content',
+            'contentId': content.id,
+            'contentTitle': data['title'] as String? ?? 'VYEA Content',
+            'isOfficial': true,
+            'likeCount': 0,
+            'commentCount': 0,
+            'createdAt': FieldValue.serverTimestamp(),
+            'lastActivityAt': FieldValue.serverTimestamp(),
+          });
+        }
       }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Published content has been synced to Forum.')));
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not sync content: $error')));
     }
   }
 
@@ -236,7 +241,7 @@ class _ContentForumHubScreenState extends State<ContentForumHubScreen> {
       appBar: AppBar(
         title: const Text('Forum'),
         actions: [
-          IconButton(tooltip: 'Refresh', onPressed: _syncExistingContentForums, icon: const Icon(Icons.refresh_rounded)),
+          IconButton(tooltip: 'Sync published content', onPressed: _syncExistingContentForums, icon: const Icon(Icons.sync_rounded)),
           IconButton(tooltip: 'Create forum post', onPressed: _createAdminPost, icon: const Icon(Icons.add_comment_outlined)),
         ],
       ),
