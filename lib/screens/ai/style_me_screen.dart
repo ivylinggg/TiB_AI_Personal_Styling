@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -15,23 +16,19 @@ import 'ai_stylist_screen.dart';
 
 class StyleMeScreen extends StatefulWidget {
   const StyleMeScreen({super.key});
-
   @override
   State<StyleMeScreen> createState() => _StyleMeScreenState();
 }
 
 class _StyleMeScreenState extends State<StyleMeScreen> {
   final TextEditingController _occasionController = TextEditingController();
-
   bool _loading = true;
   bool _styling = false;
   bool _isPremium = false;
   String _status = '';
-
   List<WardrobeItem> _wardrobe = const [];
   List<String> _styles = const [];
   List<String> _preferences = const [];
-
   AiStylingResult? _aiResult;
   List<WardrobeItem> _localLook = const [];
 
@@ -62,24 +59,20 @@ class _StyleMeScreenState extends State<StyleMeScreen> {
       if (mounted) setState(() => _loading = false);
       return;
     }
-
     try {
-      final results = await Future.wait<dynamic>([
+      final values = await Future.wait<dynamic>([
         FirestoreService.getWardrobeItems(uid),
         StylePreferenceService.getStylePreferences(uid),
         FirebaseFirestore.instance.collection('users').doc(uid).get(),
       ]);
-
       if (!mounted) return;
-
-      final prefs = results[1] as Map<String, dynamic>?;
-      final user = (results[2] as DocumentSnapshot<Map<String, dynamic>>).data();
-
+      final prefs = values[1] as Map<String, dynamic>?;
+      final userDoc = values[2] as DocumentSnapshot<Map<String, dynamic>>;
       setState(() {
-        _wardrobe = results[0] as List<WardrobeItem>;
+        _wardrobe = values[0] as List<WardrobeItem>;
         _styles = List<String>.from(prefs?['styles'] ?? const []);
         _preferences = List<String>.from(prefs?['preferences'] ?? const []);
-        _isPremium = user?['isPremium'] == true;
+        _isPremium = userDoc.data()?['isPremium'] == true;
         _loading = false;
       });
     } catch (_) {
@@ -90,7 +83,6 @@ class _StyleMeScreenState extends State<StyleMeScreen> {
   Future<void> _styleMe() async {
     final prompt = _occasionController.text.trim();
     if (prompt.isEmpty || _styling || _wardrobe.isEmpty) return;
-
     final profile = context.read<AnalysisProvider>().result;
     if (profile == null) {
       setState(() {
@@ -100,42 +92,46 @@ class _StyleMeScreenState extends State<StyleMeScreen> {
       });
       return;
     }
-
     setState(() {
       _styling = true;
       _status = 'Checking your wardrobe, palette and preferences…';
       _aiResult = null;
       _localLook = const [];
     });
-
-    final result = _isPremium
-        ? await AiStylingService.getRecommendation(
-            profile: profile,
-            wardrobe: _wardrobe,
-            styles: _styles,
-            preferences: _preferences,
-            occasion: prompt,
-          )
-        : null;
-
-    if (!mounted) return;
-
-    if (result != null) {
+    try {
+      final result = _isPremium
+          ? await AiStylingService.getRecommendation(
+              profile: profile,
+              wardrobe: _wardrobe,
+              styles: _styles,
+              preferences: _preferences,
+              occasion: prompt,
+            )
+          : null;
+      if (!mounted) return;
+      if (result != null) {
+        setState(() {
+          _aiResult = result;
+          _styling = false;
+          _status = 'AI look built from pieces you already own.';
+        });
+        return;
+      }
       setState(() {
-        _aiResult = result;
+        _localLook = _buildLocalLook(prompt, profile);
         _styling = false;
-        _status = 'AI look built from pieces you already own.';
+        _status = _isPremium
+            ? 'AI is unavailable right now, so here is a transparent wardrobe fallback.'
+            : 'Here is a wardrobe match based on your saved palette and preferences.';
       });
-      return;
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _localLook = _buildLocalLook(prompt, profile);
+        _styling = false;
+        _status = 'I could not reach the AI stylist, so I used your wardrobe match instead.';
+      });
     }
-
-    setState(() {
-      _localLook = _buildLocalLook(prompt, profile);
-      _styling = false;
-      _status = _isPremium
-          ? 'AI is unavailable right now, so here is a transparent wardrobe fallback.'
-          : 'Here is a wardrobe match based on your saved palette and preferences.';
-    });
   }
 
   List<WardrobeItem> _buildLocalLook(String prompt, ColourAnalysisResult profile) {
@@ -149,7 +145,6 @@ class _StyleMeScreenState extends State<StyleMeScreen> {
       final colour = item.colour.toLowerCase();
       final style = item.style.toLowerCase();
       final category = item.category.toLowerCase();
-
       if (item.isFavourite) value += 8;
       if (_styles.any((s) => style.contains(s.toLowerCase()))) value += 9;
       if (_preferences.any((p) => style.contains(p.toLowerCase()))) value += 4;
@@ -166,7 +161,6 @@ class _StyleMeScreenState extends State<StyleMeScreen> {
 
     final sorted = [..._wardrobe]..sort((a, b) => score(b).compareTo(score(a)));
     final look = <WardrobeItem>[];
-
     if (wantsDress) {
       for (final item in sorted) {
         if (item.category == 'Dresses') {
@@ -185,7 +179,6 @@ class _StyleMeScreenState extends State<StyleMeScreen> {
       if (top != null) look.add(top);
       if (bottom != null && bottom.id != top?.id) look.add(bottom);
     }
-
     WardrobeItem? shoes;
     WardrobeItem? accessory;
     for (final item in sorted) {
@@ -193,23 +186,9 @@ class _StyleMeScreenState extends State<StyleMeScreen> {
       if (accessory == null && item.category == 'Accessories') accessory = item;
       if (shoes != null && accessory != null) break;
     }
-
     if (shoes != null && !look.any((i) => i.id == shoes!.id)) look.add(shoes);
     if (accessory != null && !look.any((i) => i.id == accessory!.id)) look.add(accessory);
     return look.take(4).toList();
-  }
-
-  WardrobeItem? _find(String? id) {
-    if (id == null) return null;
-    for (final item in _wardrobe) {
-      if (item.id == id) return item;
-    }
-    return null;
-  }
-
-  List<WardrobeItem> get _aiLook {
-    final ids = [_aiResult?.topId, _aiResult?.bottomId, _aiResult?.shoesId, _aiResult?.accessoryId];
-    return ids.map(_find).whereType<WardrobeItem>().toList();
   }
 
   @override
@@ -264,13 +243,10 @@ class _StyleMeScreenState extends State<StyleMeScreen> {
     );
   }
 
-  Widget _buildEditorialHero() {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(21, 20, 21, 22),
-      decoration: BoxDecoration(color: AppColors.primaryDark, borderRadius: BorderRadius.circular(28)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+  Widget _buildEditorialHero() => Container(
+        padding: const EdgeInsets.fromLTRB(21, 20, 21, 22),
+        decoration: BoxDecoration(color: AppColors.primaryDark, borderRadius: BorderRadius.circular(28)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             const Expanded(child: Text('VYEA  /  STYLE ME', style: TextStyle(color: AppColors.peach, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: 1.45))),
             Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5), decoration: BoxDecoration(color: Colors.white.withValues(alpha: .10), borderRadius: BorderRadius.circular(9)), child: Text(_isPremium ? 'AI STYLIST' : 'PERSONAL MATCH', style: const TextStyle(color: Colors.white70, fontSize: 7.5, fontWeight: FontWeight.w900, letterSpacing: .8))),
@@ -279,106 +255,68 @@ class _StyleMeScreenState extends State<StyleMeScreen> {
           const Text('Dress for the moment.\nUse what you own.', style: TextStyle(color: Colors.white, fontSize: 30, height: 1.02, fontWeight: FontWeight.w800, letterSpacing: -1)),
           const SizedBox(height: 9),
           const Text('Tell VYEA where you are going and the feeling you want. Your wardrobe, palette and preferences do the rest.', style: TextStyle(color: Colors.white70, fontSize: 12.5, height: 1.45)),
-        ],
-      ),
-    );
-  }
+        ]),
+      );
 
-  Widget _buildPlanSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('WHAT ARE YOU DRESSING FOR?', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.25, color: AppColors.textMuted)),
-        const SizedBox(height: 9),
-        Container(
-          padding: const EdgeInsets.fromLTRB(15, 4, 10, 4),
-          decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)),
-          child: Row(
-            children: [
+  Widget _buildPlanSection() => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('WHAT ARE YOU DRESSING FOR?', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.25, color: AppColors.textMuted)),
+          const SizedBox(height: 9),
+          Container(
+            padding: const EdgeInsets.fromLTRB(15, 4, 10, 4),
+            decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)),
+            child: Row(children: [
               const Icon(Icons.edit_note_rounded, color: AppColors.primary, size: 22),
               const SizedBox(width: 7),
-              Expanded(
-                child: TextField(
-                  controller: _occasionController,
-                  minLines: 1,
-                  maxLines: 3,
-                  textInputAction: TextInputAction.done,
-                  onSubmitted: (_) => _styleMe(),
-                  decoration: const InputDecoration(hintText: 'Dinner, work, holiday, date night…', border: InputBorder.none, isDense: true),
-                ),
-              ),
+              Expanded(child: TextField(controller: _occasionController, minLines: 1, maxLines: 3, textInputAction: TextInputAction.done, onSubmitted: (_) => _styleMe(), decoration: const InputDecoration(hintText: 'Dinner, work, holiday, date night…', border: InputBorder.none, isDense: true))),
               const SizedBox(width: 6),
-              Material(color: AppColors.primary, borderRadius: BorderRadius.circular(16), child: InkWell(onTap: _styling ? null : _styleMe, borderRadius: BorderRadius.circular(16), child: SizedBox(width: 48, height: 48, child: Icon(_styling ? Icons.hourglass_top_rounded : Icons.arrow_upward_rounded, color: Colors.white, size: 20))),
-            ],
+              Material(color: AppColors.primary, borderRadius: BorderRadius.circular(16), child: InkWell(onTap: _styling ? null : _styleMe, borderRadius: BorderRadius.circular(16), child: SizedBox(width: 48, height: 48, child: Icon(_styling ? Icons.hourglass_top_rounded : Icons.arrow_upward_rounded, color: Colors.white, size: 20)))),
+            ]),
           ),
-        ),
-        const SizedBox(height: 10),
-        SizedBox(
-          height: 35,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: _ideas.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 7),
-            itemBuilder: (_, index) => ActionChip(
-              label: Text(_ideas[index]),
-              onPressed: _styling ? null : () => setState(() => _occasionController.text = _ideas[index]),
-              backgroundColor: AppColors.surface,
-              side: const BorderSide(color: AppColors.border),
-              visualDensity: VisualDensity.compact,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
+          const SizedBox(height: 10),
+          SizedBox(height: 35, child: ListView.separated(scrollDirection: Axis.horizontal, itemCount: _ideas.length, separatorBuilder: (_, __) => const SizedBox(width: 7), itemBuilder: (_, index) => ActionChip(label: Text(_ideas[index]), onPressed: _styling ? null : () => setState(() => _occasionController.text = _ideas[index]), backgroundColor: AppColors.surface, side: const BorderSide(color: AppColors.border), visualDensity: VisualDensity.compact))),
+        ],
+      );
 
   Widget _buildWardrobeContext() {
     final styleText = _styles.isEmpty ? 'preferences' : _styles.take(2).join(' · ');
     return Container(
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.border)),
-      child: Row(
-        children: [
-          Container(width: 40, height: 40, decoration: const BoxDecoration(color: AppColors.secondary, shape: BoxShape.circle), child: const Icon(Icons.checkroom_outlined, color: AppColors.primary, size: 20)),
-          const SizedBox(width: 11),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('YOUR STYLE CONTEXT', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1.1)), const SizedBox(height: 4), Text('${_wardrobe.length} pieces · $styleText', style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.35))])),
-          IconButton(icon: const Icon(Icons.chat_bubble_outline_rounded, size: 19), color: AppColors.primary, tooltip: 'Talk to VYEA', onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AIStylistScreen()))),
-        ],
-      ),
+      child: Row(children: [
+        Container(width: 40, height: 40, decoration: const BoxDecoration(color: AppColors.secondary, shape: BoxShape.circle), child: const Icon(Icons.checkroom_outlined, color: AppColors.primary, size: 20)),
+        const SizedBox(width: 11),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('YOUR STYLE CONTEXT', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1.1)), const SizedBox(height: 4), Text('${_wardrobe.length} pieces · $styleText', style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.35))])),
+        IconButton(icon: const Icon(Icons.chat_bubble_outline_rounded, size: 19), color: AppColors.primary, tooltip: 'Talk to VYEA', onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AIStylistScreen()))),
+      ]),
     );
+  }
+
+  WardrobeItem? _find(String? id) => _wardrobe.cast<WardrobeItem?>().firstWhere((item) => item?.id == id, orElse: () => null);
+
+  List<WardrobeItem> get _aiLook {
+    final ids = [_aiResult?.topId, _aiResult?.bottomId, _aiResult?.shoesId, _aiResult?.accessoryId];
+    return ids.map(_find).whereType<WardrobeItem>().toList();
   }
 
   Widget _buildResult(List<WardrobeItem> look) {
     if (look.isEmpty) {
       return Container(padding: const EdgeInsets.all(17), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(21), border: Border.all(color: AppColors.border)), child: const Text('I could not build a complete look from the pieces currently in your wardrobe. Add more basics or accessories and try again.', style: TextStyle(color: AppColors.textSecondary, height: 1.4, fontSize: 12)));
     }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(children: [
-          const Expanded(child: Text('YOUR LOOK', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 1.05, color: AppColors.primary))),
-          if (_aiResult != null) const Text('AI MATCH', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: .8, color: AppColors.premiumAccentDark)),
-        ]),
-        const SizedBox(height: 10),
-        if (_aiResult?.explanation.isNotEmpty == true)
-          Container(margin: const EdgeInsets.only(bottom: 12), padding: const EdgeInsets.all(15), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(19), border: Border.all(color: AppColors.border)), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [const Icon(Icons.auto_awesome_rounded, color: AppColors.primary, size: 18), const SizedBox(width: 9), Expanded(child: Text(_aiResult!.explanation, style: const TextStyle(color: AppColors.textSecondary, height: 1.45, fontSize: 12.5)))])),
-        Container(
-          height: 215,
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(23), border: Border.all(color: AppColors.border)),
-          child: ListView.separated(scrollDirection: Axis.horizontal, itemCount: look.length, separatorBuilder: (_, _) => const SizedBox(width: 10), itemBuilder: (_, index) => _lookCard(look[index])),
-        ),
-      ],
-    );
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [const Expanded(child: Text('YOUR LOOK', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 1.05, color: AppColors.primary))), if (_aiResult != null) const Text('AI MATCH', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: .8, color: AppColors.premiumAccentDark))]),
+      const SizedBox(height: 10),
+      if (_aiResult?.explanation.isNotEmpty == true)
+        Container(margin: const EdgeInsets.only(bottom: 12), padding: const EdgeInsets.all(15), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(19), border: Border.all(color: AppColors.border)), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [const Icon(Icons.auto_awesome_rounded, color: AppColors.primary, size: 18), const SizedBox(width: 9), Expanded(child: Text(_aiResult!.explanation, style: const TextStyle(color: AppColors.textSecondary, height: 1.45, fontSize: 12.5)))])),
+      Container(height: 215, padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(23), border: Border.all(color: AppColors.border)), child: ListView.separated(scrollDirection: Axis.horizontal, itemCount: look.length, separatorBuilder: (_, __) => const SizedBox(width: 10), itemBuilder: (_, index) => _lookCard(look[index]))),
+    ]);
   }
 
-  Widget _lookCard(WardrobeItem item) {
-    return SizedBox(width: 148, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Expanded(child: ClipRRect(borderRadius: BorderRadius.circular(16), child: item.imageUrl.isEmpty ? Container(color: AppColors.surfaceMuted, child: const Center(child: Icon(Icons.checkroom_outlined, color: AppColors.primary))) : CachedNetworkImage(imageUrl: item.imageUrl, fit: BoxFit.cover, width: double.infinity))),
-      const SizedBox(height: 7),
-      Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
-      Text('${item.category} · ${item.colour}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.textMuted, fontSize: 10.5)),
-    ]));
-  }
+  Widget _lookCard(WardrobeItem item) => SizedBox(width: 148, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    Expanded(child: ClipRRect(borderRadius: BorderRadius.circular(16), child: item.imageUrl.isEmpty ? Container(color: AppColors.surfaceMuted, child: const Center(child: Icon(Icons.checkroom_outlined, color: AppColors.primary))) : CachedNetworkImage(imageUrl: item.imageUrl, fit: BoxFit.cover, width: double.infinity))),
+    const SizedBox(height: 7),
+    Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+    Text('${item.category} · ${item.colour}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.textMuted, fontSize: 10.5)),
+  ]));
 }
