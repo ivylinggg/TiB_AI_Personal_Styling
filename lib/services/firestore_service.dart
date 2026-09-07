@@ -289,18 +289,35 @@ class FirestoreService {
     required List<String> itemIds,
     required int matchScore,
     required String season,
+    String? title,
+    String? notes,
   }) async {
+    final sanitizedItemIds = itemIds
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty)
+        .toSet()
+        .toList();
+    if (sanitizedItemIds.isEmpty) {
+      throw ArgumentError('A saved look must contain at least one wardrobe item.');
+    }
+    final normalizedOccasion = occasion.trim().isEmpty ? 'Everyday' : occasion.trim();
+    final normalizedSeason = season.trim().isEmpty ? 'Unknown' : season.trim();
+    final normalizedScore = matchScore.clamp(0, 100);
+    final payload = <String, dynamic>{
+      'occasion': normalizedOccasion,
+      'itemIds': sanitizedItemIds,
+      'matchScore': normalizedScore,
+      'season': normalizedSeason,
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+      if (title != null && title.trim().isNotEmpty) 'title': title.trim(),
+      if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
+    };
     final ref = await _db
         .collection('users')
         .doc(uid)
         .collection('savedLooks')
-        .add({
-          'occasion': occasion,
-          'itemIds': itemIds,
-          'matchScore': matchScore,
-          'season': season,
-          'createdAt': FieldValue.serverTimestamp(),
-        });
+        .add(payload);
     return ref.id;
   }
 
