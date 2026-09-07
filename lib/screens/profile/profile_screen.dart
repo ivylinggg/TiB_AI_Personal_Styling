@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -33,6 +34,7 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   UserModel? user;
   bool isLoading = true;
+  bool isPremium = false;
   String? loadError;
   List<String> styles = const [];
   List<String> preferences = const [];
@@ -43,9 +45,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   String? get activeUid {
     final previewUid = context.read<PreviewContext>().customerUid;
-    return (previewUid != null && previewUid.isNotEmpty)
-        ? previewUid
-        : FirebaseAuth.instance.currentUser?.uid;
+    return previewUid?.isNotEmpty == true ? previewUid : FirebaseAuth.instance.currentUser?.uid;
   }
 
   bool get isPreview => context.read<PreviewContext>().isCustomerPreview;
@@ -72,6 +72,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (!mounted) return;
       setState(() {
         user = data.user;
+        isPremium = data.user?.isPremium ?? false;
         styles = data.styles;
         preferences = data.preferences;
         wardrobeCount = data.wardrobe.length;
@@ -83,8 +84,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        loadError = 'Unable to load your profile: $error';
         isLoading = false;
+        loadError = 'Unable to load your profile: $error';
       });
     }
   }
@@ -103,10 +104,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           key: formKey,
           child: TextFormField(
             controller: controller,
-            decoration: const InputDecoration(labelText: 'Full Name'),
-            validator: (value) => value == null || value.trim().isEmpty
-                ? 'Please enter your name.'
-                : null,
+            decoration: const InputDecoration(labelText: 'Full Name', prefixIcon: Icon(Icons.person_outline)),
+            validator: (value) => value == null || value.trim().isEmpty ? 'Please enter your name.' : null,
           ),
         ),
         actions: [
@@ -114,8 +113,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
           FilledButton(
             onPressed: () async {
               if (!formKey.currentState!.validate()) return;
-              await FirestoreService.updateUser(uid, {'name': controller.text.trim()});
-              if (dialogContext.mounted) Navigator.pop(dialogContext, true);
+              try {
+                await FirestoreService.updateUser(uid, {'name': controller.text.trim()});
+                if (dialogContext.mounted) Navigator.pop(dialogContext, true);
+              } catch (error) {
+                if (dialogContext.mounted) {
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(SnackBar(content: Text('Unable to update profile: $error')));
+                }
+              }
             },
             child: const Text('Save'),
           ),
@@ -130,11 +135,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (isPreview) return;
     final email = FirebaseAuth.instance.currentUser?.email;
     if (email == null) return;
-    await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Password reset email sent.')),
-      );
+    try {
+      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password reset email sent.')));
+    } on FirebaseAuthException catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message ?? 'Unable to send password reset email.')));
     }
   }
 
@@ -172,16 +177,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
       ),
     );
-    if (selected != null && selected != current && mounted) {
-      await provider.setThemeMode(selected);
-    }
+    if (selected != null && selected != current && mounted) await provider.setThemeMode(selected);
   }
 
-  Widget _themeTile(BuildContext context, ThemeMode mode, String label, IconData icon) => ListTile(
+  Widget _themeTile(BuildContext sheetContext, ThemeMode mode, String label, IconData icon) => ListTile(
         leading: CircleAvatar(backgroundColor: AppColors.surfaceMuted, child: Icon(icon, color: AppColors.primary)),
         title: Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
         trailing: Radio<ThemeMode>(value: mode),
-        onTap: () => Navigator.pop(context, mode),
+        onTap: () => Navigator.pop(sheetContext, mode),
       );
 
   @override
@@ -193,10 +196,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
         backgroundColor: AppColors.background,
         elevation: 0,
         titleSpacing: 20,
-        title: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('VYEA', style: TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 2.8)),
-          Text('Your profile', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800)),
-        ]),
+        title: const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('VYEA', style: TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 2.8)),
+            Text('Your profile', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800)),
+          ],
+        ),
         actions: [
           IconButton(onPressed: isLoading ? null : loadUser, icon: const Icon(Icons.refresh_rounded)),
           if (!isPreview)
@@ -266,11 +272,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget sectionLabel(String title, String subtitle) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(title, style: const TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: 1.35)),
-        const SizedBox(height: 5),
-        Text(subtitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.4)),
-      ]);
+  Widget sectionLabel(String title, String subtitle) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: 1.35)),
+          const SizedBox(height: 5),
+          Text(subtitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.4)),
+        ],
+      );
 
   Widget identityHero() {
     final name = user?.name.trim().isNotEmpty == true ? user!.name.trim() : 'VYEA User';
@@ -278,22 +287,53 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
       decoration: BoxDecoration(gradient: AppGradients.soft, borderRadius: BorderRadius.circular(AppRadius.xl), border: Border.all(color: AppColors.border)),
-      child: Column(children: [
-        Row(children: [
-          CircleAvatar(radius: 39, backgroundColor: AppColors.secondary, child: const Icon(Icons.person_outline_rounded, size: 36, color: AppColors.primaryDark)),
-          const SizedBox(width: 14),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [Expanded(child: Text(name, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w900))), if (!isPreview) IconButton(onPressed: openEditProfile, icon: const Icon(Icons.edit_outlined, size: 19))]),
-            Text(email, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5)),
-            const SizedBox(height: 8),
-            Text(isPremium ? 'Premium member' : 'Free member', style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.5, fontWeight: FontWeight.w800)),
-          ])),
-        ]),
-        const SizedBox(height: 16),
-        Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border)), child: Row(children: [Expanded(child: metric('$wardrobeCount', 'Wardrobe')), metricDivider(), Expanded(child: metric('$savedLookCount', 'Saved looks')), metricDivider(), Expanded(child: metric('$wardrobeFavouriteCount', 'Favourites'))])),
-        const SizedBox(height: 10),
-        Container(padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11), decoration: BoxDecoration(color: AppColors.primaryDark, borderRadius: BorderRadius.circular(17)), child: Text('${styles.length} styles · ${preferences.length} preferences saved', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
-      ]),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 39,
+                backgroundColor: AppColors.secondary,
+                backgroundImage: user?.photoUrl?.isNotEmpty == true ? CachedNetworkImageProvider(user!.photoUrl!) : null,
+                child: user?.photoUrl?.isNotEmpty == true ? null : const Icon(Icons.person_outline_rounded, size: 36, color: AppColors.primaryDark),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [Expanded(child: Text(name, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w900))), if (!isPreview) IconButton(onPressed: openEditProfile, icon: const Icon(Icons.edit_outlined, size: 19))]),
+                  Text(email, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5)),
+                  const SizedBox(height: 8),
+                  Row(children: [Icon(isPremium ? Icons.auto_awesome_rounded : Icons.person_outline_rounded, size: 14, color: isPremium ? AppColors.premiumAccentDark : AppColors.textSecondary), const SizedBox(width: 5), Text(isPremium ? 'Premium member' : 'Free member', style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.5, fontWeight: FontWeight.w800))]),
+                ]),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border)),
+            child: Row(children: [Expanded(child: metric('$wardrobeCount', 'Wardrobe')), metricDivider(), Expanded(child: metric('$savedLookCount', 'Saved looks')), metricDivider(), Expanded(child: metric('$wardrobeFavouriteCount', 'Favourites'))]),
+          ),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+            decoration: BoxDecoration(color: AppColors.primaryDark, borderRadius: BorderRadius.circular(17)),
+            child: Row(
+              children: [
+                const Icon(Icons.auto_awesome_rounded, size: 17, color: AppColors.peach),
+                const SizedBox(width: 8),
+                Expanded(child: Text('${styles.length} styles · ${preferences.length} preferences saved', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700))),
+                const SizedBox(width: 8),
+                Text(isPremium ? 'PERSONAL+' : 'PERSONAL', style: const TextStyle(color: Colors.white70, fontSize: 8.5, fontWeight: FontWeight.w900, letterSpacing: .9)),
+              ],
+            ),
+          ),
+          if (!isPreview) ...[
+            const SizedBox(height: 13),
+            SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: openEditProfile, icon: const Icon(Icons.edit_outlined, size: 16), label: const Text('Edit Profile'))),
+          ],
+        ],
+      ),
     );
   }
 
@@ -303,18 +343,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget styleJourneyCard() {
     final journey = styleJourney;
     if (journey == null) return const SizedBox.shrink();
+    final unlocked = journey.badges.where((badge) => badge.unlocked).length;
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(AppRadius.xl), border: Border.all(color: AppColors.border)),
-      child: Row(children: [
-        const Icon(Icons.auto_awesome_rounded, color: AppColors.primary, size: 34),
-        const SizedBox(width: 12),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Level ${journey.level} · ${journey.levelTitle}', style: const TextStyle(fontWeight: FontWeight.w900)),
-          const SizedBox(height: 4),
-          Text('${journey.points} XP · ${journey.streak} day streak · ${journey.completedChallenges} challenges', style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.5)),
-        ])),
-      ]),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Container(width: 46, height: 46, decoration: const BoxDecoration(gradient: AppGradients.primary, shape: BoxShape.circle), child: const Icon(Icons.auto_awesome_rounded, color: Colors.white)),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Level ${journey.level} · ${journey.levelTitle}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
+              const SizedBox(height: 3),
+              Text('${journey.points} XP · ${journey.streak} day streak · ${journey.completedChallenges} challenges', style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.5)),
+            ])),
+          ]),
+          const SizedBox(height: 16),
+          Row(children: [const Text('NEXT LEVEL', style: TextStyle(color: AppColors.textMuted, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: .9)), const Spacer(), Text(journey.nextLevelPoints > journey.currentLevelPoints ? '${journey.points} / ${journey.nextLevelPoints} XP' : 'MAX LEVEL', style: const TextStyle(color: AppColors.primary, fontSize: 9.5, fontWeight: FontWeight.w900))]),
+          const SizedBox(height: 7),
+          ClipRRect(borderRadius: BorderRadius.circular(99), child: LinearProgressIndicator(value: journey.progress, minHeight: 8, backgroundColor: AppColors.secondary, valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary))),
+          const SizedBox(height: 15),
+          Row(children: [const Text('BADGES', style: TextStyle(color: AppColors.textMuted, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: .9)), const Spacer(), Text('$unlocked / ${journey.badges.length} unlocked', style: const TextStyle(color: AppColors.textSecondary, fontSize: 9.5, fontWeight: FontWeight.w700))]),
+          const SizedBox(height: 9),
+          Wrap(spacing: 7, runSpacing: 7, children: journey.badges.map((badge) => Container(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7), decoration: BoxDecoration(color: badge.unlocked ? AppColors.secondary : AppColors.surfaceMuted, borderRadius: BorderRadius.circular(13), border: Border.all(color: AppColors.border)), child: Row(mainAxisSize: MainAxisSize.min, children: [Text(badge.icon, style: const TextStyle(fontSize: 13)), const SizedBox(width: 5), Text(badge.title, style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, color: badge.unlocked ? AppColors.textPrimary : AppColors.textMuted))]))).toList()),
+        ],
+      ),
     );
   }
 
@@ -331,16 +385,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
     }
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(gradient: AppGradients.season(result.season), borderRadius: BorderRadius.circular(AppRadius.xl)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(result.season, style: const TextStyle(color: Colors.white, fontSize: 29, fontWeight: FontWeight.w900)),
         const SizedBox(height: 5),
         Text('${result.undertone} • ${result.brightness} • ${result.contrast}', style: const TextStyle(color: Colors.white70)),
-        if (styles.isNotEmpty) ...[const SizedBox(height: 12), Wrap(spacing: 6, children: styles.take(3).map((style) => Container(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6), decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(20)), child: Text(style, style: const TextStyle(color: Colors.white, fontSize: 10)))).toList())],
+        if (styles.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Wrap(spacing: 6, runSpacing: 6, children: styles.take(3).map(_lightStyleTag).toList()),
+        ],
       ]),
     );
   }
+
+  Widget _lightStyleTag(String style) => Container(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6), decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(20)), child: Text(style, style: const TextStyle(color: Colors.white, fontSize: 10)));
 
   Widget toolGrid() => Column(children: [
         toolTile(Icons.checkroom_outlined, 'My Wardrobe', wardrobeCount == 0 ? 'Add pieces and start building your wardrobe.' : '$wardrobeCount pieces · $wardrobeFavouriteCount favourites', openWardrobe),
@@ -350,11 +410,67 @@ class _ProfileScreenState extends State<ProfileScreen> {
         toolTile(Icons.bookmark_border_rounded, 'Saved Looks', savedLookCount == 0 ? 'Save outfits you want to come back to.' : '$savedLookCount saved outfits · revisit your favourites', openSavedLooks),
       ]);
 
-  Widget toolTile(IconData icon, String title, String subtitle, VoidCallback onTap, [bool badge = false]) => Material(color: AppColors.surface, borderRadius: BorderRadius.circular(AppRadius.lg), child: InkWell(borderRadius: BorderRadius.circular(AppRadius.lg), onTap: onTap, child: Container(padding: const EdgeInsets.all(15), decoration: BoxDecoration(borderRadius: BorderRadius.circular(AppRadius.lg), border: Border.all(color: AppColors.border)), child: Row(children: [Container(width: 46, height: 46, decoration: const BoxDecoration(color: AppColors.secondary, shape: BoxShape.circle), child: Icon(icon, color: AppColors.primaryDark)), const SizedBox(width: 13), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [Flexible(child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800))), if (badge) ...[const SizedBox(width: 7), const PremiumBadge(compact: true)]]), const SizedBox(height: 3), Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5))])), const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted)]))));
+  Widget toolTile(IconData icon, String title, String subtitle, VoidCallback onTap, [bool badge = false]) => Material(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.all(15),
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(AppRadius.lg), border: Border.all(color: AppColors.border)),
+            child: Row(children: [
+              Container(width: 46, height: 46, decoration: const BoxDecoration(color: AppColors.secondary, shape: BoxShape.circle), child: Icon(icon, color: AppColors.primaryDark)),
+              const SizedBox(width: 13),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [Flexible(child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800))), if (badge) ...[const SizedBox(width: 7), const PremiumBadge(compact: true)]]),
+                const SizedBox(height: 3),
+                Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5)),
+              ])),
+              const SizedBox(width: 8),
+              const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
+            ]),
+          ),
+        ),
+      );
 
-  Widget preferencesCard() => Container(width: double.infinity, padding: const EdgeInsets.all(17), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(AppRadius.lg), border: Border.all(color: AppColors.border)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [_preferenceGroup('Styles', styles), const SizedBox(height: 17), _preferenceGroup('Preferences', preferences), if (!isPreview) ...[const SizedBox(height: 14), SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: openStylePreferences, icon: const Icon(Icons.tune_rounded), label: const Text('Refine My Style Profile'))]]));
+  Widget preferencesCard() => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(17),
+        decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(AppRadius.lg), border: Border.all(color: AppColors.border)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          _preferenceGroup('Styles', styles),
+          const SizedBox(height: 17),
+          _preferenceGroup('Preferences', preferences),
+          if (!isPreview) ...[
+            const SizedBox(height: 14),
+            SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: openStylePreferences, icon: const Icon(Icons.tune_rounded, size: 17), label: const Text('Refine My Style Profile'))),
+          ],
+        ]),
+      );
 
-  Widget _preferenceGroup(String title, List<String> values) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title.toUpperCase(), style: const TextStyle(color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.w900)), const SizedBox(height: 8), values.isEmpty ? const Text('Nothing saved yet.', style: TextStyle(color: AppColors.textMuted, fontSize: 12)) : Wrap(spacing: 7, runSpacing: 7, children: values.map((value) => StyleChip(label: value, selected: true)).toList())]);
+  Widget _preferenceGroup(String title, List<String> values) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title.toUpperCase(), style: const TextStyle(color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: .6)),
+          const SizedBox(height: 8),
+          values.isEmpty ? const Text('Nothing saved yet.', style: TextStyle(color: AppColors.textMuted, fontSize: 12)) : Wrap(spacing: 7, runSpacing: 7, children: values.map((value) => StyleChip(label: value, selected: true)).toList()),
+        ],
+      );
 
-  Widget accountSection() => Column(children: [_toolTile(Icons.lock_outline_rounded, 'Change Password', 'Send a secure password reset email.', changePassword), const SizedBox(height: 10), Container(padding: const EdgeInsets.all(15), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(AppRadius.lg), border: Border.all(color: AppColors.border)), child: Row(children: [const Icon(Icons.verified_user_outlined, color: AppColors.primaryDark), const SizedBox(width: 13), const Expanded(child: Text('Your account status is shown from your profile record.', style: TextStyle(color: AppColors.textSecondary, fontSize: 11.5)))]))]);
+  Widget accountSection() => Column(children: [
+        toolTile(Icons.lock_outline_rounded, 'Change Password', 'Send a secure password reset email.', changePassword),
+        const SizedBox(height: 10),
+        Container(
+          padding: const EdgeInsets.all(15),
+          decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(AppRadius.lg), border: Border.all(color: AppColors.border)),
+          child: Row(children: [
+            Container(width: 46, height: 46, decoration: const BoxDecoration(color: AppColors.secondary, shape: BoxShape.circle), child: const Icon(Icons.verified_user_outlined, color: AppColors.primaryDark)),
+            const SizedBox(width: 13),
+            const Expanded(child: Text('Your account status is shown from your profile record.', style: TextStyle(color: AppColors.textSecondary, fontSize: 11.5))),
+            const SizedBox(width: 8),
+            Icon(user?.isActive == true ? Icons.check_circle_rounded : Icons.error_outline_rounded, color: user?.isActive == true ? AppColors.success : AppColors.error),
+          ]),
+        ),
+      ]);
 }
