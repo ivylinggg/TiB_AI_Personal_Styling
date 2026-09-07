@@ -507,7 +507,7 @@ class _SavedLooksScreenState extends State<SavedLooksScreen>
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    '${item['category'] ?? ''}${item['colour'] == null ? '' : ' · ${item['colour']}',
+                    '${item['category'] ?? ''}${item['colour'] == null ? '' : ' · ${item['colour']}'}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -1002,8 +1002,7 @@ class _SavedLooksScreenState extends State<SavedLooksScreen>
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         scrollDirection: Axis.horizontal,
                         itemCount: pieces.length,
-                        separatorBuilder: (_, __) =>
-                            const SizedBox(width: 9),
+                        separatorBuilder: (_, __) => const SizedBox(width: 9),
                         itemBuilder: (_, index) {
                           final url =
                               pieces[index]['imageUrl'] as String? ?? '';
