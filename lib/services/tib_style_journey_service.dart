@@ -62,66 +62,79 @@ class TibStyleJourneyService {
 
     try {
       final snapshot = await _db.collection('users').doc(uid).get();
-      final value = snapshot.data()?['dailyChallengeHistory'];
-      final history = value is List
-          ? value
-              .whereType<Map>()
-              .map((item) => Map<String, dynamic>.from(item))
-              .toList()
-          : <Map<String, dynamic>>[];
-      return _fromHistory(history);
+      return _fromHistory(_readHistory(snapshot.data()));
     } catch (_) {
       return _fromHistory(const []);
     }
   }
 
-  static Future<void> recordChallenge({
+  static Future<bool> recordChallenge({
     required String uid,
     required String challengeId,
     required String title,
     int points = 10,
   }) async {
-    if (uid.trim().isEmpty) return;
+    if (uid.trim().isEmpty || challengeId.trim().isEmpty) return false;
 
+    final safePoints = points.clamp(0, 100);
     final userRef = _db.collection('users').doc(uid);
     final snapshot = await userRef.get();
-    final data = snapshot.data() ?? <String, dynamic>{};
-    final raw = data['dailyChallengeHistory'];
-    final history = raw is List
-        ? raw
-            .whereType<Map>()
-            .map((item) => Map<String, dynamic>.from(item))
-            .toList()
-        : <Map<String, dynamic>>[];
+    final history = _readHistory(snapshot.data());
+    final dateKey = _dateKey(DateTime.now());
 
-    final today = DateTime.now();
-    final dateKey = _dateKey(today);
     final alreadyCompleted = history.any(
-      (entry) => entry['date']?.toString() == dateKey && entry['challengeId']?.toString() == challengeId,
+      (entry) =>
+          entry['date']?.toString() == dateKey &&
+          entry['challengeId']?.toString() == challengeId,
     );
-    if (alreadyCompleted) return;
-
-    history.add({
-      'challengeId': challengeId,
-      'title': title,
-      'points': points,
-      'date': dateKey,
-      'completedAt': FieldValue.serverTimestamp(),
-    });
+    if (alreadyCompleted) return false;
 
     await userRef.set({
-      'dailyChallengeHistory': history,
+      'dailyChallengeHistory': FieldValue.arrayUnion([
+        {
+          'challengeId': challengeId.trim(),
+          'title': title.trim(),
+          'points': safePoints,
+          'date': dateKey,
+          'completedAt': Timestamp.now(),
+        },
+      ]),
+      'challengePoints': FieldValue.increment(safePoints),
       'styleJourneyUpdatedAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
+
+    return true;
+  }
+
+  static List<Map<String, dynamic>> _readHistory(
+    Map<String, dynamic>? data,
+  ) {
+    final raw = data?['dailyChallengeHistory'];
+    if (raw is! List) return <Map<String, dynamic>>[];
+
+    return raw
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .where((item) => item['date']?.toString().trim().isNotEmpty == true)
+        .toList();
   }
 
   static TibStyleJourney _fromHistory(List<Map<String, dynamic>> history) {
-    final points = history.fold<int>(0, (total, entry) {
+    final uniqueHistory = <String, Map<String, dynamic>>{};
+    for (final entry in history) {
+      final date = entry['date']?.toString() ?? '';
+      final challengeId = entry['challengeId']?.toString() ?? '';
+      uniqueHistory['$date|$challengeId'] = entry;
+    }
+
+    final cleanedHistory = uniqueHistory.values.toList();
+    final points = cleanedHistory.fold<int>(0, (total, entry) {
       final value = entry['points'];
-      return total + (value is num ? value.toInt() : 0);
+      return total + (value is num ? value.toInt().clamp(0, 100) : 0);
     });
 
-    final dates = history
+    final dates = cleanedHistory
         .map((entry) => DateTime.tryParse(entry['date']?.toString() ?? ''))
         .whereType<DateTime>()
         .map((date) => DateTime(date.year, date.month, date.day))
@@ -130,17 +143,16 @@ class TibStyleJourneyService {
     var streak = 0;
     var cursor = DateTime.now();
     cursor = DateTime(cursor.year, cursor.month, cursor.day);
-    if (dates.contains(cursor)) {
-      while (dates.contains(cursor)) {
-        streak++;
-        cursor = cursor.subtract(const Duration(days: 1));
-      }
+    while (dates.contains(cursor)) {
+      streak++;
+      cursor = cursor.subtract(const Duration(days: 1));
     }
 
     var level = 1;
     var title = _levels.first.$2;
     var current = 0;
     var next = 50;
+
     for (var index = 0; index < _levels.length; index++) {
       final entry = _levels[index];
       if (points >= entry.$1) {
@@ -157,7 +169,7 @@ class TibStyleJourneyService {
         title: 'First Step',
         description: 'Complete your first Daily Challenge.',
         icon: '🌱',
-        unlocked: history.isNotEmpty,
+        unlocked: cleanedHistory.isNotEmpty,
       ),
       TibBadge(
         id: 'getting_started',
@@ -185,7 +197,7 @@ class TibStyleJourneyService {
         title: 'Style Explorer',
         description: 'Complete 10 Daily Challenges.',
         icon: '👗',
-        unlocked: history.length >= 10,
+        unlocked: cleanedHistory.length >= 10,
       ),
       TibBadge(
         id: 'vyea_regular',
@@ -199,7 +211,7 @@ class TibStyleJourneyService {
     return TibStyleJourney(
       points: points,
       streak: streak,
-      completedChallenges: history.length,
+      completedChallenges: cleanedHistory.length,
       level: level,
       levelTitle: title,
       currentLevelPoints: current,
