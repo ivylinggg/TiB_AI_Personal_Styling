@@ -7,6 +7,34 @@ import '../models/colour_analysis_result.dart';
 import '../models/user_model.dart';
 import '../models/wardrobe_item.dart';
 
+class PersonalStyleContext {
+  final UserModel? user;
+  final ColourAnalysisResult? colourAnalysis;
+  final List<String> styles;
+  final List<String> preferences;
+  final List<WardrobeItem> wardrobe;
+  final List<Map<String, dynamic>> savedLooks;
+
+  const PersonalStyleContext({
+    required this.user,
+    required this.colourAnalysis,
+    required this.styles,
+    required this.preferences,
+    required this.wardrobe,
+    required this.savedLooks,
+  });
+
+  String get styleDirection {
+    if (styles.isEmpty) return '';
+    return styles.take(3).join(' · ');
+  }
+
+  bool get hasColourProfile => colourAnalysis != null;
+
+  int get favouriteWardrobeCount =>
+      wardrobe.where((item) => item.isFavourite).length;
+}
+
 class CustomerDeletionResult {
   final int wardrobeItemsDeleted;
   final int preferencesDeleted;
@@ -35,6 +63,63 @@ class FirestoreService {
   FirestoreService._();
 
   static final FirebaseFirestore _db = FirebaseFirestore.instance;
+
+  static Future<PersonalStyleContext> getPersonalStyleContext(String uid) async {
+    if (uid.trim().isEmpty) {
+      return const PersonalStyleContext(
+        user: null,
+        colourAnalysis: null,
+        styles: [],
+        preferences: [],
+        wardrobe: [],
+        savedLooks: [],
+      );
+    }
+
+    final userFuture = getUser(uid);
+    final analysisFuture = getLatestColourAnalysis(uid);
+    final preferencesFuture = _db
+        .collection('users')
+        .doc(uid)
+        .collection('preferences')
+        .doc('style')
+        .get();
+    final wardrobeFuture = getWardrobeItems(uid);
+    final savedLooksFuture = getSavedOutfitLooks(uid);
+
+    try {
+      final results = await Future.wait<dynamic>([
+        userFuture,
+        analysisFuture,
+        preferencesFuture,
+        wardrobeFuture,
+        savedLooksFuture,
+      ]);
+
+      final preferenceDoc = results[2] as DocumentSnapshot<Map<String, dynamic>>;
+      final preferenceData = preferenceDoc.data();
+      final wardrobe = results[3] as List<WardrobeItem>;
+      final savedLooks = results[4] as List<Map<String, dynamic>>;
+
+      return PersonalStyleContext(
+        user: results[0] as UserModel?,
+        colourAnalysis: results[1] as ColourAnalysisResult?,
+        styles: List<String>.from(preferenceData?['styles'] ?? const []),
+        preferences: List<String>.from(preferenceData?['preferences'] ?? const []),
+        wardrobe: wardrobe,
+        savedLooks: savedLooks,
+      );
+    } catch (_) {
+      return PersonalStyleContext(
+        user: await userFuture.catchError((_) => null),
+        colourAnalysis: await analysisFuture.catchError((_) => null),
+        styles: const [],
+        preferences: const [],
+        wardrobe: const [],
+        savedLooks: const [],
+      );
+    }
+  }
 
   static Future<void> createUser(UserModel user) async {
     await _db
