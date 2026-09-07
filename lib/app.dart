@@ -9,9 +9,6 @@ import 'providers/theme_provider.dart';
 import 'screens/splash/splash_screen.dart';
 
 class TibApp extends StatelessWidget {
-  /// Loaded once in `main()` (before `runApp`) so the correct persisted
-  /// theme applies on the very first frame -- no flash of the wrong
-  /// theme while SharedPreferences loads.
   final ThemeProvider themeProvider;
 
   const TibApp({super.key, required this.themeProvider});
@@ -34,6 +31,8 @@ class TibApp extends StatelessWidget {
             theme: LightTheme.theme,
             darkTheme: DarkTheme.theme,
             themeMode: theme.themeMode,
+            themeAnimationDuration: const Duration(milliseconds: 280),
+            themeAnimationCurve: Curves.easeOutCubic,
             home: const SplashScreen(),
           );
         },
