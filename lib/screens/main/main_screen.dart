@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -384,10 +383,10 @@ class _MainScreenState extends State<MainScreen> {
         child: InkWell(
           onTap: onTap,
           customBorder: const CircleBorder(),
-          child: const SizedBox(
+          child: SizedBox(
             width: 39,
             height: 39,
-            child: Icon(Icons.notifications_none_rounded, color: AppColors.primary, size: 18),
+            child: Icon(icon, color: AppColors.primary, size: 18),
           ),
         ),
       ),
