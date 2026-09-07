@@ -234,7 +234,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
         elevation: 0,
         scrolledUnderElevation: 0,
         titleSpacing: 20,
-        title: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('VYEA', style: TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 2.8)), Text('Your profile', style: TextStyle(color: AppColors.textPrimary, fontSize: 21, fontWeight: FontWeight.w800))]),
+        title: const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('VYEA', style: TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 2.8)),
+            Text('Your profile', style: TextStyle(color: AppColors.textPrimary, fontSize: 21, fontWeight: FontWeight.w800)),
+          ],
+        ),
         actions: [
           IconButton(tooltip: 'Refresh profile', onPressed: isLoading ? null : loadUser, icon: const Icon(Icons.refresh_rounded)),
           if (!_isPreview)
@@ -263,7 +269,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (user == null) {
       return Padding(
         padding: const EdgeInsets.all(24),
-        child: Center(child: EmptyState(icon: Icons.cloud_off_rounded, title: 'Could not load your profile', description: loadError ?? 'Please try again.', ctaLabel: 'Try Again', onCta: loadUser)),
+        child: Center(
+          child: EmptyState(
+            icon: Icons.cloud_off_rounded,
+            title: 'Could not load your profile',
+            description: loadError ?? 'Please try again.',
+            ctaLabel: 'Try Again',
+            onCta: loadUser,
+          ),
+        ),
       );
     }
 
@@ -299,7 +313,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _sectionLabel(String title, String subtitle) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: 1.35)), const SizedBox(height: 5), Text(subtitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.4))]);
+  Widget _sectionLabel(String title, String subtitle) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: 1.35)),
+          const SizedBox(height: 5),
+          Text(subtitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.4)),
+        ],
+      );
 
   Widget _buildIdentityHero() {
     final displayName = user?.name.trim().isNotEmpty == true ? user!.name.trim() : 'VYEA User';
@@ -310,7 +331,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
       decoration: BoxDecoration(gradient: AppGradients.soft, borderRadius: BorderRadius.circular(AppRadius.xl), border: Border.all(color: AppColors.border)),
       child: Column(children: [
-        Row(children: [CircleAvatar(radius: 39, backgroundColor: AppColors.secondary, backgroundImage: user?.photoUrl?.isNotEmpty == true ? CachedNetworkImageProvider(user!.photoUrl!) : null, child: user?.photoUrl?.isNotEmpty == true ? null : const Icon(Icons.person_outline_rounded, size: 36, color: AppColors.primaryDark)), const SizedBox(width: 14), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [Expanded(child: Text(displayName, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w900, letterSpacing: -.4))), if (!_isPreview) IconButton(onPressed: openEditProfile, tooltip: 'Edit profile', icon: const Icon(Icons.edit_outlined, size: 19))]), Text(displayEmail, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5)), const SizedBox(height: 9), Row(children: [Icon(isPremium ? Icons.auto_awesome_rounded : Icons.person_outline_rounded, size: 14, color: isPremium ? AppColors.premiumAccentDark : AppColors.textSecondary), const SizedBox(width: 5), Text(isPremium ? 'Premium member' : 'Free member', style: TextStyle(color: isPremium ? AppColors.premiumAccentDark : AppColors.textSecondary, fontSize: 10.5, fontWeight: FontWeight.w800))])]))]),
+        Row(children: [
+          CircleAvatar(radius: 39, backgroundColor: AppColors.secondary, backgroundImage: user?.photoUrl?.isNotEmpty == true ? CachedNetworkImageProvider(user!.photoUrl!) : null, child: user?.photoUrl?.isNotEmpty == true ? null : const Icon(Icons.person_outline_rounded, size: 36, color: AppColors.primaryDark)),
+          const SizedBox(width: 14),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [Expanded(child: Text(displayName, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w900, letterSpacing: -.4))), if (!_isPreview) IconButton(onPressed: openEditProfile, tooltip: 'Edit profile', icon: const Icon(Icons.edit_outlined, size: 19))]),
+            Text(displayEmail, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5)),
+            const SizedBox(height: 9),
+            Row(children: [Icon(isPremium ? Icons.auto_awesome_rounded : Icons.person_outline_rounded, size: 14, color: isPremium ? AppColors.premiumAccentDark : AppColors.textSecondary), const SizedBox(width: 5), Text(isPremium ? 'Premium member' : 'Free member', style: TextStyle(color: isPremium ? AppColors.premiumAccentDark : AppColors.textSecondary, fontSize: 10.5, fontWeight: FontWeight.w800))]),
+          ])),
+        ]),
         const SizedBox(height: 16),
         Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: AppColors.surface.withValues(alpha: .78), borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border)), child: Row(children: [Expanded(child: _heroMetric('$wardrobeCount', 'Wardrobe')), _metricDivider(), Expanded(child: _heroMetric('$savedLookCount', 'Saved looks')), _metricDivider(), Expanded(child: _heroMetric('$wardrobeFavouriteCount', 'Favourites'))])),
         const SizedBox(height: 10),
@@ -345,19 +375,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildIdentityPanel(ColourAnalysisResult? result) {
-    if (result == null) return Container(padding: const EdgeInsets.all(18), decoration: BoxDecoration(gradient: AppGradients.primary, borderRadius: BorderRadius.circular(AppRadius.xl)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('Build your colour identity', style: TextStyle(color: AppColors.background, fontSize: 20, fontWeight: FontWeight.w900)), const SizedBox(height: 7), Text('Discover the colours that feel natural on you and make styling decisions easier.', style: TextStyle(color: AppColors.background.withValues(alpha: .74), fontSize: 12.5, height: 1.45)), const SizedBox(height: 15), SizedBox(width: double.infinity, child: FilledButton(onPressed: openColourAnalysis, style: FilledButton.styleFrom(backgroundColor: AppColors.background, foregroundColor: AppColors.primaryDark), child: const Text('Start Colour Analysis')))]));
+    if (result == null) return Container(padding: const EdgeInsets.all(18), decoration: BoxDecoration(gradient: AppGradients.primary, borderRadius: BorderRadius.circular(AppRadius.xl)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('Build your colour identity', style: TextStyle(color: AppColors.background, fontSize: 20, fontWeight: FontWeight.w900)), const SizedBox(height: 7), Text('Discover the colours that feel natural on you and make styling decisions easier.', style: TextStyle(color: AppColors.background.withValues(alpha: .74), fontSize: 12.5, height: 1.45)), const SizedBox(height: 15), SizedBox(width: double.infinity, child: FilledButton(onPressed: _isPreview ? null : openColourAnalysis, style: FilledButton.styleFrom(backgroundColor: AppColors.background, foregroundColor: AppColors.primaryDark), child: Text(_isPreview ? 'Preview only' : 'Start Colour Analysis')))]));
     return Column(children: [Container(width: double.infinity, padding: const EdgeInsets.fromLTRB(18, 18, 18, 16), decoration: BoxDecoration(gradient: AppGradients.season(result.season), borderRadius: BorderRadius.circular(AppRadius.xl)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [const Expanded(child: Text('COLOUR IDENTITY', style: TextStyle(color: Colors.white70, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: 1.3))), TextButton(onPressed: () => openAnalysisResult(result), style: TextButton.styleFrom(foregroundColor: Colors.white), child: const Text('View'))]), Text(result.season, style: const TextStyle(color: Colors.white, fontSize: 29, fontWeight: FontWeight.w900, letterSpacing: -.6)), const SizedBox(height: 5), Text('${result.undertone} • ${result.brightness} • ${result.contrast}', style: const TextStyle(color: Colors.white70, fontSize: 12)), if (styles.isNotEmpty) ...[const SizedBox(height: 14), const Text('STYLE DIRECTION', style: TextStyle(color: Colors.white70, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1)), const SizedBox(height: 7), Wrap(spacing: 6, runSpacing: 6, children: styles.take(3).map(_lightStyleTag).toList())]]), const SizedBox(height: 10), Container(width: double.infinity, padding: const EdgeInsets.all(17), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(AppRadius.lg), border: Border.all(color: AppColors.border)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [const Expanded(child: Text('YOUR PALETTE', style: TextStyle(color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: .8))), TextButton(onPressed: () => openAnalysisResult(result), child: const Text('Details'))]), const SizedBox(height: 6), Wrap(spacing: 15, runSpacing: 13, children: result.colours.take(10).map((colour) => ColourSwatch(name: colour, size: 43, showLabel: true)).toList())]))]);
   }
 
   Widget _lightStyleTag(String label) => Container(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6), decoration: BoxDecoration(color: Colors.white.withValues(alpha: .14), borderRadius: BorderRadius.circular(AppRadius.full), border: Border.all(color: Colors.white.withValues(alpha: .18))), child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800)));
 
-  Widget _buildToolGrid() => Column(children: [
-        _toolTile(icon: Icons.checkroom_outlined, title: 'My Wardrobe', subtitle: wardrobeCount == 0 ? 'Add pieces and start building your wardrobe.' : '$wardrobeCount pieces · $wardrobeFavouriteCount favourites', onTap: openWardrobe),
-        const SizedBox(height: 10),
-        _toolTile(icon: Icons.auto_awesome_rounded, title: 'VYEA Personal Stylist', subtitle: 'Turn your wardrobe and colours into outfit ideas.', onTap: openAIStylist, badge: isPremium),
-        const SizedBox(height: 10),
-        _toolTile(icon: Icons.bookmark_border_rounded, title: 'Saved Looks', subtitle: savedLookCount == 0 ? 'Save outfits you want to come back to.' : '$savedLookCount saved outfits · revisit your favourites', onTap: openSavedLooks),
-      ]);
+  Widget _buildToolGrid() => Column(children: [_toolTile(icon: Icons.checkroom_outlined, title: 'My Wardrobe', subtitle: wardrobeCount == 0 ? 'Add pieces and start building your wardrobe.' : '$wardrobeCount pieces · $wardrobeFavouriteCount favourites', onTap: openWardrobe), const SizedBox(height: 10), _toolTile(icon: Icons.auto_awesome_rounded, title: 'VYEA Personal Stylist', subtitle: 'Turn your wardrobe and colours into outfit ideas.', onTap: openAIStylist, badge: isPremium), const SizedBox(height: 10), _toolTile(icon: Icons.bookmark_border_rounded, title: 'Saved Looks', subtitle: savedLookCount == 0 ? 'Save outfits you want to come back to.' : '$savedLookCount saved outfits · revisit your favourites', onTap: openSavedLooks)]);
 
   Widget _toolTile({required IconData icon, required String title, required String subtitle, required VoidCallback onTap, bool badge = false}) => Material(color: AppColors.surface, borderRadius: BorderRadius.circular(AppRadius.lg), child: InkWell(borderRadius: BorderRadius.circular(AppRadius.lg), onTap: onTap, child: Container(padding: const EdgeInsets.all(15), decoration: BoxDecoration(borderRadius: BorderRadius.circular(AppRadius.lg), border: Border.all(color: AppColors.border)), child: Row(children: [Container(width: 46, height: 46, decoration: const BoxDecoration(color: AppColors.secondary, shape: BoxShape.circle), child: Icon(icon, color: AppColors.primaryDark)), const SizedBox(width: 13), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [Flexible(child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800))), if (badge) ...[const SizedBox(width: 7), const PremiumBadge(compact: true)]]), const SizedBox(height: 3), Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.35))])), const SizedBox(width: 8), const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted)]))));
 
