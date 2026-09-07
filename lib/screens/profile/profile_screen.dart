@@ -13,7 +13,6 @@ import '../../providers/theme_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../services/preview_context.dart';
 import '../../services/tib_style_journey_service.dart';
-import '../../widgets/colour_swatch.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/premium_badge.dart';
 import '../../widgets/style_chip.dart';

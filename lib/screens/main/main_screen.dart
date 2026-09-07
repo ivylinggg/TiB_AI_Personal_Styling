@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/constants/app_colors.dart';
-import '../../core/constants/app_gradients.dart';
 import '../../services/notification_service.dart';
 import '../../services/preview_context.dart';
 import '../admin/admin_main_screen.dart';
@@ -91,45 +90,6 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  Widget _header() {
-    final user = FirebaseAuth.instance.currentUser;
-    final name = user?.displayName?.trim();
-    final greeting = name?.isNotEmpty == true ? 'Hi, $name' : 'Welcome back';
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 10),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(16, 13, 10, 13),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: AppColors.border),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 42,
-              height: 42,
-              decoration: const BoxDecoration(color: AppColors.secondary, shape: BoxShape.circle),
-              child: const Icon(Icons.auto_awesome_rounded, color: AppColors.primary),
-            ),
-            const SizedBox(width: 12),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('VYEA', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: 2.6, color: AppColors.brown)),
-              const SizedBox(height: 2),
-              Text(greeting, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800)),
-            ])),
-            if (widget.adminPreview)
-              IconButton(onPressed: _returnToAdmin, tooltip: 'Return to Admin', icon: const Icon(Icons.admin_panel_settings_outlined)),
-            if (!widget.adminPreview) ...[
-              IconButton(onPressed: _showNotifications, tooltip: 'Notifications', icon: const Icon(Icons.notifications_none_rounded)),
-              IconButton(onPressed: _logout, tooltip: 'Log out', icon: const Icon(Icons.logout_rounded)),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
   Future<void> _showNotifications() async {
     final uid = _authUid;
     if (uid == null || widget.adminPreview) return;
@@ -162,6 +122,50 @@ class _MainScreenState extends State<MainScreen> {
                     ),
             );
           },
+        ),
+      ),
+    );
+  }
+
+  Widget _header() {
+    final user = FirebaseAuth.instance.currentUser;
+    final name = user?.displayName?.trim();
+    final greeting = name?.isNotEmpty == true ? 'Hi, $name' : 'Welcome back';
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 10),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 13, 10, 13),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: const BoxDecoration(color: AppColors.secondary, shape: BoxShape.circle),
+              child: const Icon(Icons.auto_awesome_rounded, color: AppColors.primary),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('VYEA', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: 2.6, color: AppColors.brown)),
+                  const SizedBox(height: 2),
+                  Text(greeting, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800)),
+                ],
+              ),
+            ),
+            if (widget.adminPreview)
+              IconButton(onPressed: _returnToAdmin, tooltip: 'Return to Admin', icon: const Icon(Icons.admin_panel_settings_outlined)),
+            if (!widget.adminPreview) ...[
+              IconButton(onPressed: _showNotifications, tooltip: 'Notifications', icon: const Icon(Icons.notifications_none_rounded)),
+              IconButton(onPressed: _logout, tooltip: 'Log out', icon: const Icon(Icons.logout_rounded)),
+            ],
+          ],
         ),
       ),
     );
