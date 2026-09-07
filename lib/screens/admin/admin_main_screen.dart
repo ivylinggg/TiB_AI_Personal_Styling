@@ -1,8 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../main/main_screen.dart';
+import '../../services/preview_context.dart';
 import 'admin_dashboard_screen.dart';
 import 'admin_profile_screen.dart';
 import 'analysis_management_screen.dart';
@@ -56,9 +58,7 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
       setState(() {
         _isCheckingAccess = false;
         _hasAdminAccess = isAdmin && isActive;
-        _accessError = !isAdmin
-            ? 'Administrator access is required for this dashboard.'
-            : (!isActive ? 'This administrator account is inactive.' : null);
+        _accessError = !isAdmin ? 'Administrator access is required for this dashboard.' : (!isActive ? 'This administrator account is inactive.' : null);
       });
     } catch (_) {
       if (!mounted) return;
@@ -79,7 +79,7 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
   String get _modeDescription => switch (_mode) {
         AdminMode.administrator => 'Full administration access',
         AdminMode.consultantPreview => 'Respond to live customer consultations',
-        AdminMode.customerPreview => 'Preview the complete customer dashboard',
+        AdminMode.customerPreview => 'Preview a real customer account without changing your admin session',
       };
 
   IconData get _modeIcon => switch (_mode) {
@@ -90,6 +90,9 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
 
   void _setMode(AdminMode mode) {
     if (_mode == mode) return;
+    if (mode != AdminMode.customerPreview) {
+      context.read<PreviewContext>().clear();
+    }
     setState(() {
       _mode = mode;
       _selectedIndex = 0;
@@ -97,11 +100,70 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
   }
 
   void _resetAdministratorMode() {
+    context.read<PreviewContext>().clear();
     if (_mode == AdminMode.administrator && _selectedIndex == 0) return;
     setState(() {
       _mode = AdminMode.administrator;
       _selectedIndex = 0;
     });
+  }
+
+  Future<void> _selectCustomerPreview() async {
+    final snapshot = await FirebaseFirestore.instance.collection('users').where('role', isEqualTo: 'customer').get();
+    if (!mounted) return;
+    final customers = [...snapshot.docs]..sort((a, b) => ((a.data()['name'] ?? '').toString()).toLowerCase().compareTo(((b.data()['name'] ?? '').toString()).toLowerCase()));
+    if (customers.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No customer accounts are available to preview.')));
+      return;
+    }
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text('Choose a Customer'),
+                subtitle: Text('Preview this customer using their real saved style data. Your admin session stays unchanged.'),
+              ),
+              Flexible(
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: customers.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 8),
+                  itemBuilder: (_, index) {
+                    final document = customers[index];
+                    final data = document.data();
+                    final name = (data['name'] ?? 'Customer').toString();
+                    final email = (data['email'] ?? '').toString();
+                    final selected = context.read<PreviewContext>().customerUid == document.id;
+                    return Card(
+                      margin: EdgeInsets.zero,
+                      color: selected ? Theme.of(context).colorScheme.secondaryContainer : null,
+                      child: ListTile(
+                        leading: CircleAvatar(child: Text(name.trim().isEmpty ? '?' : name.trim()[0].toUpperCase())),
+                        title: Text(name, style: const TextStyle(fontWeight: FontWeight.w800)),
+                        subtitle: Text(email.isEmpty ? document.id : email),
+                        trailing: selected ? const Icon(Icons.check_circle_rounded) : const Icon(Icons.chevron_right_rounded),
+                        onTap: () {
+                          context.read<PreviewContext>().setCustomerUid(document.id);
+                          Navigator.pop(sheetContext);
+                          _setMode(AdminMode.customerPreview);
+                        },
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   void _showModeSelector() {
@@ -114,41 +176,10 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text('Switch Role Dashboard'),
-                subtitle: Text('Preview another role without changing your real Firebase role.'),
-              ),
-              _ModeTile(
-                title: 'Administrator',
-                subtitle: 'Manage users, content, forum, premium, staff and analytics',
-                icon: Icons.admin_panel_settings_outlined,
-                selected: _mode == AdminMode.administrator,
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  _setMode(AdminMode.administrator);
-                },
-              ),
-              _ModeTile(
-                title: 'Consultant',
-                subtitle: 'Accept and answer live customer requests',
-                icon: Icons.support_agent_outlined,
-                selected: _mode == AdminMode.consultantPreview,
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  _setMode(AdminMode.consultantPreview);
-                },
-              ),
-              _ModeTile(
-                title: 'Customer Dashboard',
-                subtitle: 'Open the complete customer dashboard and features',
-                icon: Icons.person_outline_rounded,
-                selected: _mode == AdminMode.customerPreview,
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  _setMode(AdminMode.customerPreview);
-                },
-              ),
+              const ListTile(contentPadding: EdgeInsets.zero, title: Text('Switch Role Dashboard'), subtitle: Text('Preview another role without changing your real Firebase role.')),
+              _ModeTile(title: 'Administrator', subtitle: 'Manage users, content, forum, premium, staff and analytics', icon: Icons.admin_panel_settings_outlined, selected: _mode == AdminMode.administrator, onTap: () { Navigator.pop(sheetContext); _setMode(AdminMode.administrator); }),
+              _ModeTile(title: 'Consultant', subtitle: 'Accept and answer live customer requests', icon: Icons.support_agent_outlined, selected: _mode == AdminMode.consultantPreview, onTap: () { Navigator.pop(sheetContext); _setMode(AdminMode.consultantPreview); }),
+              _ModeTile(title: 'Customer Dashboard', subtitle: 'Choose a customer and open their complete dashboard', icon: Icons.person_outline_rounded, selected: _mode == AdminMode.customerPreview, onTap: () { Navigator.pop(sheetContext); _selectCustomerPreview(); }),
             ],
           ),
         ),
@@ -208,72 +239,22 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
     setState(() => _selectedIndex = index);
   }
 
-  Widget _buildAccessDenied() {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Administrator Access')),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(28),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.lock_outline_rounded, size: 64),
-              const SizedBox(height: 18),
-              const Text('Access Restricted', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800), textAlign: TextAlign.center),
-              const SizedBox(height: 8),
-              Text(_accessError ?? 'Administrator access is required.', textAlign: TextAlign.center),
-              const SizedBox(height: 18),
-              FilledButton.icon(onPressed: _isCheckingAccess ? null : _verifyAdministratorAccess, icon: const Icon(Icons.refresh_rounded), label: const Text('Check Again')),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  Widget _buildAccessDenied() => Scaffold(
+        appBar: AppBar(title: const Text('Administrator Access')),
+        body: Center(child: Padding(padding: const EdgeInsets.all(28), child: Column(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.lock_outline_rounded, size: 64), const SizedBox(height: 18), const Text('Access Restricted', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800), textAlign: TextAlign.center), const SizedBox(height: 8), Text(_accessError ?? 'Administrator access is required.', textAlign: TextAlign.center), const SizedBox(height: 18), FilledButton.icon(onPressed: _isCheckingAccess ? null : _verifyAdministratorAccess, icon: const Icon(Icons.refresh_rounded), label: const Text('Check Again'))])));
 
   @override
   Widget build(BuildContext context) {
     if (_isCheckingAccess) return const Scaffold(body: Center(child: CircularProgressIndicator()));
     if (!_hasAdminAccess) return _buildAccessDenied();
-
     final pages = _pages;
     final destinations = _destinations;
     final safeIndex = _selectedIndex < pages.length ? _selectedIndex : 0;
-
     return Scaffold(
       appBar: AppBar(
         titleSpacing: 16,
-        title: Row(
-          children: [
-            CircleAvatar(radius: 16, backgroundColor: Theme.of(context).colorScheme.secondaryContainer, child: Icon(_modeIcon, size: 18)),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Flexible(child: Text(_modeLabel, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800))),
-                      if (_mode != AdminMode.administrator) ...[
-                        const SizedBox(width: 7),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                          decoration: BoxDecoration(color: Theme.of(context).colorScheme.secondaryContainer, borderRadius: BorderRadius.circular(8)),
-                          child: const Text('PREVIEW', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w800)),
-                        ),
-                      ],
-                    ],
-                  ),
-                  Text(_modeDescription, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodySmall),
-                ],
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          IconButton(tooltip: 'Refresh administrator access', onPressed: _isCheckingAccess ? null : _verifyAdministratorAccess, icon: const Icon(Icons.refresh_rounded)),
-          IconButton(tooltip: 'Switch Role Dashboard', onPressed: _showModeSelector, icon: const Icon(Icons.swap_horiz_rounded)),
-        ],
+        title: Row(children: [CircleAvatar(radius: 16, backgroundColor: Theme.of(context).colorScheme.secondaryContainer, child: Icon(_modeIcon, size: 18)), const SizedBox(width: 10), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [Flexible(child: Text(_modeLabel, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800))), if (_mode != AdminMode.administrator) ...[const SizedBox(width: 7), Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3), decoration: BoxDecoration(color: Theme.of(context).colorScheme.secondaryContainer, borderRadius: BorderRadius.circular(8)), child: const Text('PREVIEW', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w800)))]]), Text(_modeDescription, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodySmall)]))]),
+        actions: [IconButton(tooltip: 'Refresh administrator access', onPressed: _isCheckingAccess ? null : _verifyAdministratorAccess, icon: const Icon(Icons.refresh_rounded)), IconButton(tooltip: 'Switch Role Dashboard', onPressed: _showModeSelector, icon: const Icon(Icons.swap_horiz_rounded))],
       ),
       body: IndexedStack(index: safeIndex, children: pages),
       bottomNavigationBar: NavigationBar(selectedIndex: safeIndex, onDestinationSelected: _navigateTo, destinations: destinations),
@@ -287,23 +268,10 @@ class _ModeTile extends StatelessWidget {
   final IconData icon;
   final bool selected;
   final VoidCallback onTap;
-
   const _ModeTile({required this.title, required this.subtitle, required this.icon, required this.selected, required this.onTap});
-
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      elevation: selected ? 1 : 0,
-      color: selected ? colorScheme.secondaryContainer : null,
-      child: ListTile(
-        leading: CircleAvatar(child: Icon(icon)),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
-        subtitle: Text(subtitle),
-        trailing: selected ? const Icon(Icons.check_circle_rounded) : const Icon(Icons.chevron_right_rounded),
-        onTap: onTap,
-      ),
-    );
+    return Card(margin: const EdgeInsets.only(bottom: 8), elevation: selected ? 1 : 0, color: selected ? colorScheme.secondaryContainer : null, child: ListTile(leading: CircleAvatar(child: Icon(icon)), title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)), subtitle: Text(subtitle), trailing: selected ? const Icon(Icons.check_circle_rounded) : const Icon(Icons.chevron_right_rounded), onTap: onTap));
   }
 }
