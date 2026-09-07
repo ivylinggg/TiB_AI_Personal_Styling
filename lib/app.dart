@@ -6,6 +6,7 @@ import 'core/theme/light_theme.dart';
 import 'providers/analysis_provider.dart';
 import 'providers/auth_provider.dart';
 import 'providers/theme_provider.dart';
+import 'services/preview_context.dart';
 import 'screens/splash/splash_screen.dart';
 
 class TibApp extends StatelessWidget {
@@ -18,10 +19,9 @@ class TibApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider<AuthProvider>(create: (_) => AuthProvider()),
-        ChangeNotifierProvider<AnalysisProvider>(
-          create: (_) => AnalysisProvider(),
-        ),
+        ChangeNotifierProvider<AnalysisProvider>(create: (_) => AnalysisProvider()),
         ChangeNotifierProvider<ThemeProvider>.value(value: themeProvider),
+        ChangeNotifierProvider<PreviewContext>(create: (_) => PreviewContext()),
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, theme, _) {
