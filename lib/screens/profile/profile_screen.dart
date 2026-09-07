@@ -9,7 +9,6 @@ import '../../core/constants/app_radius.dart';
 import '../../models/colour_analysis_result.dart';
 import '../../models/user_model.dart';
 import '../../providers/analysis_provider.dart';
-import '../../providers/theme_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../services/preview_context.dart';
 import '../../services/tib_style_journey_service.dart';

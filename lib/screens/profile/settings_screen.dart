@@ -43,7 +43,13 @@ class SettingsScreen extends StatelessWidget {
       contentPadding: EdgeInsets.zero,
       leading: CircleAvatar(backgroundColor: AppColors.surfaceMuted, child: Icon(icon, color: AppColors.primary)),
       title: Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
-      trailing: Radio<ThemeMode>(value: mode, groupValue: current, onChanged: (value) => Navigator.pop(context, value)),
+      trailing: Radio<ThemeMode>(
+        value: mode,
+        groupValue: current,
+        onChanged: (value) {
+          if (value != null) Navigator.pop(context, value);
+        },
+      ),
       onTap: () => Navigator.pop(context, mode),
     );
   }
