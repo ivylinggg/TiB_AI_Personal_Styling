@@ -22,6 +22,7 @@ import '../analysis/analysis_result_screen.dart';
 import '../analysis/analysis_screen.dart';
 import '../wardrobe/wardrobe_screen.dart';
 import 'saved_looks_screen.dart';
+import 'settings_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -130,17 +131,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (updated == true) await loadUser();
   }
 
-  Future<void> changePassword() async {
-    if (isPreview) return;
-    final email = FirebaseAuth.instance.currentUser?.email;
-    if (email == null) return;
-    try {
-      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password reset email sent.')));
-    } on FirebaseAuthException catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message ?? 'Unable to send password reset email.')));
-    }
-  }
+  void openSettings() => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
 
   void openWardrobe() => Navigator.push(context, MaterialPageRoute(builder: (_) => const WardrobeScreen()));
   void openAIStylist() => Navigator.push(context, MaterialPageRoute(builder: (_) => const AIStylistScreen()));
@@ -153,38 +144,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final updated = await Navigator.push<bool>(context, MaterialPageRoute(builder: (_) => const StylePreferencesScreen()));
     if (updated == true) await loadUser();
   }
-
-  Future<void> showThemeSheet() async {
-    final provider = context.read<ThemeProvider>();
-    final current = provider.themeMode;
-    final selected = await showModalBottomSheet<ThemeMode>(
-      context: context,
-      showDragHandle: true,
-      builder: (sheetContext) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Align(alignment: Alignment.centerLeft, child: Text('Appearance', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800))),
-              const SizedBox(height: 12),
-              _themeTile(sheetContext, ThemeMode.system, 'System', Icons.brightness_auto_outlined),
-              _themeTile(sheetContext, ThemeMode.light, 'Light', Icons.light_mode_outlined),
-              _themeTile(sheetContext, ThemeMode.dark, 'Dark', Icons.dark_mode_outlined),
-            ],
-          ),
-        ),
-      ),
-    );
-    if (selected != null && selected != current && mounted) await provider.setThemeMode(selected);
-  }
-
-  Widget _themeTile(BuildContext sheetContext, ThemeMode mode, String label, IconData icon) => ListTile(
-        leading: CircleAvatar(backgroundColor: AppColors.surfaceMuted, child: Icon(icon, color: AppColors.primary)),
-        title: Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
-        trailing: Radio<ThemeMode>(value: mode),
-        onTap: () => Navigator.pop(sheetContext, mode),
-      );
 
   @override
   Widget build(BuildContext context) {
@@ -204,19 +163,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
         actions: [
           IconButton(onPressed: isLoading ? null : loadUser, icon: const Icon(Icons.refresh_rounded)),
-          if (!isPreview)
-            PopupMenuButton<String>(
-              onSelected: (value) {
-                if (value == 'theme') showThemeSheet();
-                if (value == 'preferences') openStylePreferences();
-                if (value == 'password') changePassword();
-              },
-              itemBuilder: (_) => const [
-                PopupMenuItem(value: 'theme', child: Text('Appearance')),
-                PopupMenuItem(value: 'preferences', child: Text('Style preferences')),
-                PopupMenuItem(value: 'password', child: Text('Change password')),
-              ],
-            ),
+          if (!isPreview) IconButton(onPressed: openSettings, tooltip: 'Settings', icon: const Icon(Icons.settings_outlined)),
           const SizedBox(width: 8),
         ],
       ),
@@ -458,18 +405,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
 
   Widget accountSection() => Column(children: [
-        toolTile(Icons.lock_outline_rounded, 'Change Password', 'Send a secure password reset email.', changePassword),
-        const SizedBox(height: 10),
-        Container(
-          padding: const EdgeInsets.all(15),
-          decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(AppRadius.lg), border: Border.all(color: AppColors.border)),
-          child: Row(children: [
-            Container(width: 46, height: 46, decoration: const BoxDecoration(color: AppColors.secondary, shape: BoxShape.circle), child: const Icon(Icons.verified_user_outlined, color: AppColors.primaryDark)),
-            const SizedBox(width: 13),
-            const Expanded(child: Text('Your account status is shown from your profile record.', style: TextStyle(color: AppColors.textSecondary, fontSize: 11.5))),
-            const SizedBox(width: 8),
-            Icon(user?.isActive == true ? Icons.check_circle_rounded : Icons.error_outline_rounded, color: user?.isActive == true ? AppColors.success : AppColors.error),
-          ]),
-        ),
+        toolTile(Icons.settings_outlined, 'Settings', 'Appearance, notifications, security and account controls.', openSettings),
       ]);
 }
