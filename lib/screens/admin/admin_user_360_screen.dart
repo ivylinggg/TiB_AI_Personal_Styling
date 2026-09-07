@@ -35,6 +35,9 @@ class AdminUser360Screen extends StatelessWidget {
   }
 
   Future<void> _refresh(BuildContext context) async {
+    // This widget is intentionally stateless because its child collections
+    // already stream live updates. Refreshing the route simply gives users a
+    // lightweight feedback action without introducing duplicate listeners.
     await Future<void>.delayed(const Duration(milliseconds: 250));
   }
 
