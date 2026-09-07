@@ -41,31 +41,17 @@ class FirestoreService {
         );
   }
 
-  /// Reads the profile from the server when possible and falls back to the
-  /// local Firestore cache when the device is temporarily offline.
-  ///
-  /// The cached profile is especially important for the Profile tab: being
-  /// offline should not turn an already-created profile into a blank error
-  /// screen.
   static Future<UserModel?> getUser(String uid) async {
     final ref = _db.collection('users').doc(uid);
-
     try {
       final doc = await ref.get();
       if (!doc.exists) return null;
       return UserModel.fromFirestore(doc);
     } on FirebaseException catch (error) {
       if (error.code != 'unavailable') rethrow;
-
-      try {
-        final cachedDoc = await ref.get(
-          const GetOptions(source: Source.cache),
-        );
-        if (!cachedDoc.exists) return null;
-        return UserModel.fromFirestore(cachedDoc);
-      } on FirebaseException {
-        rethrow;
-      }
+      final cachedDoc = await ref.get(const GetOptions(source: Source.cache));
+      if (!cachedDoc.exists) return null;
+      return UserModel.fromFirestore(cachedDoc);
     }
   }
 
@@ -102,9 +88,7 @@ class FirestoreService {
         .collection('analysis')
         .orderBy('createdAt', descending: true)
         .get();
-    return snapshot.docs
-        .map((doc) => AnalysisModel.fromFirestore(doc))
-        .toList();
+    return snapshot.docs.map(AnalysisModel.fromFirestore).toList();
   }
 
   static Future<void> saveAnalysisResult({
@@ -191,9 +175,7 @@ class FirestoreService {
     return _wardrobe(uid)
         .orderBy('createdAt', descending: true)
         .snapshots()
-        .map(
-          (snapshot) => snapshot.docs.map(WardrobeItem.fromFirestore).toList(),
-        );
+        .map((snapshot) => snapshot.docs.map(WardrobeItem.fromFirestore).toList());
   }
 
   static Future<void> updateWardrobeItem(
@@ -258,9 +240,6 @@ class FirestoreService {
   static Future<CustomerDeletionResult> deleteCustomerData(String uid) async {
     final userRef = _db.collection('users').doc(uid);
     final consultationRef = _db.collection('consultations').doc(uid);
-
-    // Read every customer-owned collection that is currently stored under
-    // the user document, plus the top-level consultation document/messages.
     final userDoc = await userRef.get();
     final analysisSnapshot = await userRef.collection('analysis').get();
     final wardrobeSnapshot = await userRef.collection('wardrobe').get();
@@ -270,17 +249,12 @@ class FirestoreService {
     final messagesSnapshot = await consultationRef.collection('messages').get();
 
     final imageUrls = <String>[];
-
     final profilePhotoUrl = userDoc.data()?['photoUrl'];
-    if (profilePhotoUrl is String && profilePhotoUrl.isNotEmpty) {
-      imageUrls.add(profilePhotoUrl);
-    }
-
+    if (profilePhotoUrl is String && profilePhotoUrl.isNotEmpty) imageUrls.add(profilePhotoUrl);
     for (final doc in wardrobeSnapshot.docs) {
       final url = doc.data()['imageUrl'];
       if (url is String && url.isNotEmpty) imageUrls.add(url);
     }
-
     for (final doc in analysisSnapshot.docs) {
       final url = doc.data()['imageUrl'];
       if (url is String && url.isNotEmpty) imageUrls.add(url);
@@ -297,7 +271,6 @@ class FirestoreService {
     ];
 
     const chunkSize = 450;
-
     for (var start = 0; start < references.length; start += chunkSize) {
       final end = (start + chunkSize < references.length)
           ? start + chunkSize
