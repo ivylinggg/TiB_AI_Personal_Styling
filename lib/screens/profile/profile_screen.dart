@@ -40,6 +40,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   List<String> preferences = const [];
   int wardrobeCount = 0;
   int wardrobeFavouriteCount = 0;
+  int savedLookCount = 0;
 
   @override
   void initState() {
@@ -64,6 +65,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final userDoc = await FirebaseFirestore.instance.collection('users').doc(firebaseUser.uid).get();
       final stylePreferences = await StylePreferenceService.getStylePreferences(firebaseUser.uid);
       final wardrobeItems = await FirestoreService.getWardrobeItems(firebaseUser.uid);
+      final savedLooks = await FirestoreService.getSavedOutfitLooks(firebaseUser.uid);
 
       if (!mounted) return;
       setState(() {
@@ -73,6 +75,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         preferences = List<String>.from(stylePreferences?['preferences'] ?? const []);
         wardrobeCount = wardrobeItems.length;
         wardrobeFavouriteCount = wardrobeItems.where((item) => item.isFavourite).length;
+        savedLookCount = savedLooks.length;
         isLoading = false;
       });
     } catch (e) {
@@ -307,143 +310,102 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final displayEmail = email?.isNotEmpty == true ? email! : (FirebaseAuth.instance.currentUser?.email ?? '');
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
-      decoration: BoxDecoration(
-        gradient: AppGradients.soft,
-        borderRadius: BorderRadius.circular(AppRadius.xl),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 39,
-                backgroundColor: AppColors.secondary,
-                backgroundImage: user?.photoUrl?.isNotEmpty == true ? CachedNetworkImageProvider(user!.photoUrl!) : null,
-                child: user?.photoUrl?.isNotEmpty == true ? null : const Icon(Icons.person_outline_rounded, size: 36, color: AppColors.primaryDark),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(child: Text(displayName, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w900, letterSpacing: -.4))),
-                        IconButton(onPressed: openEditProfile, tooltip: 'Edit profile', icon: const Icon(Icons.edit_outlined, size: 19)),
-                      ],
-                    ),
-                    Text(displayEmail, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5)),
-                    const SizedBox(height: 9),
-                    Row(children: [
-                      Icon(isPremium ? Icons.auto_awesome_rounded : Icons.person_outline_rounded, size: 14, color: isPremium ? AppColors.premiumAccentDark : AppColors.textSecondary),
-                      const SizedBox(width: 5),
-                      Text(isPremium ? 'Premium member' : 'Free member', style: TextStyle(color: isPremium ? AppColors.premiumAccentDark : AppColors.textSecondary, fontSize: 10.5, fontWeight: FontWeight.w800)),
-                    ]),
-                  ],
-                ),
-              ),
-            ],
+      decoration: BoxDecoration(gradient: AppGradients.soft, borderRadius: BorderRadius.circular(AppRadius.xl), border: Border.all(color: AppColors.border)),
+      child: Column(children: [
+        Row(children: [
+          CircleAvatar(
+            radius: 39,
+            backgroundColor: AppColors.secondary,
+            backgroundImage: user?.photoUrl?.isNotEmpty == true ? CachedNetworkImageProvider(user!.photoUrl!) : null,
+            child: user?.photoUrl?.isNotEmpty == true ? null : const Icon(Icons.person_outline_rounded, size: 36, color: AppColors.primaryDark),
           ),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: AppColors.surface.withValues(alpha: .78), borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border)),
-            child: Row(children: [
-              Expanded(child: _heroMetric('$wardrobeCount', 'Wardrobe')),
-              _metricDivider(),
-              Expanded(child: _heroMetric('$wardrobeFavouriteCount', 'Favourites')),
-              _metricDivider(),
-              Expanded(child: _heroMetric('${styles.length}', 'Style tags')),
+          const SizedBox(width: 14),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Expanded(child: Text(displayName, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w900, letterSpacing: -.4))),
+              IconButton(onPressed: openEditProfile, tooltip: 'Edit profile', icon: const Icon(Icons.edit_outlined, size: 19)),
             ]),
-          ),
-          const SizedBox(height: 13),
-          SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: openEditProfile, icon: const Icon(Icons.edit_outlined, size: 16), label: const Text('Edit Profile'))),
-        ],
-      ),
+            Text(displayEmail, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5)),
+            const SizedBox(height: 9),
+            Row(children: [Icon(isPremium ? Icons.auto_awesome_rounded : Icons.person_outline_rounded, size: 14, color: isPremium ? AppColors.premiumAccentDark : AppColors.textSecondary), const SizedBox(width: 5), Text(isPremium ? 'Premium member' : 'Free member', style: TextStyle(color: isPremium ? AppColors.premiumAccentDark : AppColors.textSecondary, fontSize: 10.5, fontWeight: FontWeight.w800))]),
+          ])),
+        ]),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(color: AppColors.surface.withValues(alpha: .78), borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border)),
+          child: Row(children: [
+            Expanded(child: _heroMetric('$wardrobeCount', 'Wardrobe')),
+            _metricDivider(),
+            Expanded(child: _heroMetric('$savedLookCount', 'Saved looks')),
+            _metricDivider(),
+            Expanded(child: _heroMetric('$wardrobeFavouriteCount', 'Favourites')),
+          ]),
+        ),
+        const SizedBox(height: 13),
+        SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: openEditProfile, icon: const Icon(Icons.edit_outlined, size: 16), label: const Text('Edit Profile'))),
+      ]),
     );
   }
 
-  Widget _heroMetric(String value, String label) => Column(
-        children: [
-          Text(value, style: const TextStyle(color: AppColors.primary, fontSize: 17, fontWeight: FontWeight.w900)),
-          const SizedBox(height: 2),
-          Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 9.5)),
-        ],
-      );
-
+  Widget _heroMetric(String value, String label) => Column(children: [Text(value, style: const TextStyle(color: AppColors.primary, fontSize: 17, fontWeight: FontWeight.w900)), const SizedBox(height: 2), Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 9.5))]);
   Widget _metricDivider() => Container(width: 1, height: 30, color: AppColors.border);
 
   Widget _buildIdentityPanel(ColourAnalysisResult? result) {
     if (result == null) {
       return Container(
         padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          gradient: AppGradients.primary,
-          borderRadius: BorderRadius.circular(AppRadius.xl),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Build your colour identity', style: TextStyle(color: AppColors.background, fontSize: 20, fontWeight: FontWeight.w900)),
-            const SizedBox(height: 7),
-            Text('Discover the colours that feel natural on you and make styling decisions easier.', style: TextStyle(color: AppColors.background.withValues(alpha: .74), fontSize: 12.5, height: 1.45)),
-            const SizedBox(height: 15),
-            SizedBox(width: double.infinity, child: FilledButton(onPressed: openColourAnalysis, style: FilledButton.styleFrom(backgroundColor: AppColors.background, foregroundColor: AppColors.primaryDark), child: const Text('Start Colour Analysis'))),
-          ],
-        ),
+        decoration: BoxDecoration(gradient: AppGradients.primary, borderRadius: BorderRadius.circular(AppRadius.xl)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('Build your colour identity', style: TextStyle(color: AppColors.background, fontSize: 20, fontWeight: FontWeight.w900)),
+          const SizedBox(height: 7),
+          Text('Discover the colours that feel natural on you and make styling decisions easier.', style: TextStyle(color: AppColors.background.withValues(alpha: .74), fontSize: 12.5, height: 1.45)),
+          const SizedBox(height: 15),
+          SizedBox(width: double.infinity, child: FilledButton(onPressed: openColourAnalysis, style: FilledButton.styleFrom(backgroundColor: AppColors.background, foregroundColor: AppColors.primaryDark), child: const Text('Start Colour Analysis'))),
+        ]),
       );
     }
 
-    return Column(
-      children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
-          decoration: BoxDecoration(gradient: AppGradients.season(result.season), borderRadius: BorderRadius.circular(AppRadius.xl)),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              const Expanded(child: Text('COLOUR IDENTITY', style: TextStyle(color: Colors.white70, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: 1.3))),
-              TextButton(onPressed: () => openAnalysisResult(result), style: TextButton.styleFrom(foregroundColor: Colors.white), child: const Text('View')),
-            ]),
-            Text(result.season, style: const TextStyle(color: Colors.white, fontSize: 29, fontWeight: FontWeight.w900, letterSpacing: -.6)),
-            const SizedBox(height: 5),
-            Text('${result.undertone} • ${result.brightness} • ${result.contrast}', style: const TextStyle(color: Colors.white70, fontSize: 12)),
-            if (styles.isNotEmpty) ...[
-              const SizedBox(height: 14),
-              const Text('STYLE DIRECTION', style: TextStyle(color: Colors.white70, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1)),
-              const SizedBox(height: 7),
-              Wrap(spacing: 6, runSpacing: 6, children: styles.take(3).map(_lightStyleTag).toList()),
-            ],
-          ]),
-        ),
-        const SizedBox(height: 10),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(17),
-          decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(AppRadius.lg), border: Border.all(color: AppColors.border)),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [const Expanded(child: Text('YOUR PALETTE', style: TextStyle(color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: .8))), TextButton(onPressed: () => openAnalysisResult(result), child: const Text('Details'))]),
-            const SizedBox(height: 6),
-            Wrap(spacing: 15, runSpacing: 13, children: result.colours.take(10).map((colour) => ColourSwatch(name: colour, size: 43, showLabel: true)).toList()),
-          ]),
-        ),
-      ],
-    );
+    return Column(children: [
+      Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+        decoration: BoxDecoration(gradient: AppGradients.season(result.season), borderRadius: BorderRadius.circular(AppRadius.xl)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [const Expanded(child: Text('COLOUR IDENTITY', style: TextStyle(color: Colors.white70, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: 1.3))), TextButton(onPressed: () => openAnalysisResult(result), style: TextButton.styleFrom(foregroundColor: Colors.white), child: const Text('View'))]),
+          Text(result.season, style: const TextStyle(color: Colors.white, fontSize: 29, fontWeight: FontWeight.w900, letterSpacing: -.6)),
+          const SizedBox(height: 5),
+          Text('${result.undertone} • ${result.brightness} • ${result.contrast}', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+          if (styles.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            const Text('STYLE DIRECTION', style: TextStyle(color: Colors.white70, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1)),
+            const SizedBox(height: 7),
+            Wrap(spacing: 6, runSpacing: 6, children: styles.take(3).map(_lightStyleTag).toList()),
+          ],
+        ]),
+      ),
+      const SizedBox(height: 10),
+      Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(17),
+        decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(AppRadius.lg), border: Border.all(color: AppColors.border)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [const Expanded(child: Text('YOUR PALETTE', style: TextStyle(color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: .8))), TextButton(onPressed: () => openAnalysisResult(result), child: const Text('Details'))]),
+          const SizedBox(height: 6),
+          Wrap(spacing: 15, runSpacing: 13, children: result.colours.take(10).map((colour) => ColourSwatch(name: colour, size: 43, showLabel: true)).toList()),
+        ]),
+      ),
+    ]);
   }
 
-  Widget _lightStyleTag(String label) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-        decoration: BoxDecoration(color: Colors.white.withValues(alpha: .14), borderRadius: BorderRadius.circular(AppRadius.full), border: Border.all(color: Colors.white.withValues(alpha: .18))),
-        child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800)),
-      );
+  Widget _lightStyleTag(String label) => Container(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6), decoration: BoxDecoration(color: Colors.white.withValues(alpha: .14), borderRadius: BorderRadius.circular(AppRadius.full), border: Border.all(color: Colors.white.withValues(alpha: .18))), child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800)));
 
   Widget _buildToolGrid() => Column(children: [
         _toolTile(icon: Icons.checkroom_outlined, title: 'My Wardrobe', subtitle: wardrobeCount == 0 ? 'Add pieces and start building your wardrobe.' : '$wardrobeCount pieces · $wardrobeFavouriteCount favourites', onTap: openWardrobe),
         const SizedBox(height: 10),
         _toolTile(icon: Icons.auto_awesome_rounded, title: 'VYEA Personal Stylist', subtitle: 'Turn your wardrobe and colours into outfit ideas.', onTap: openAIStylist, badge: isPremium),
         const SizedBox(height: 10),
-        _toolTile(icon: Icons.bookmark_border_rounded, title: 'Saved Looks', subtitle: 'Return to outfits that already feel like you.', onTap: openSavedLooks),
+        _toolTile(icon: Icons.bookmark_border_rounded, title: 'Saved Looks', subtitle: savedLookCount == 0 ? 'Save outfits you want to come back to.' : '$savedLookCount saved outfits · revisit your favourites', onTap: openSavedLooks),
       ]);
 
   Widget _toolTile({required IconData icon, required String title, required String subtitle, required VoidCallback onTap, bool badge = false}) => Material(
@@ -483,11 +445,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ]),
       );
 
-  Widget _preferenceGroup(String label, List<String> values, {required String emptyText}) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(label.toUpperCase(), style: const TextStyle(color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: .6)),
-        const SizedBox(height: 9),
-        values.isEmpty ? Text(emptyText, style: const TextStyle(color: AppColors.textMuted, fontSize: 12)) : Wrap(spacing: 7, runSpacing: 7, children: values.map((value) => StyleChip(label: value, selected: true)).toList()),
-      ]);
+  Widget _preferenceGroup(String label, List<String> values, {required String emptyText}) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label.toUpperCase(), style: const TextStyle(color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: .6)), const SizedBox(height: 9), values.isEmpty ? Text(emptyText, style: const TextStyle(color: AppColors.textMuted, fontSize: 12)) : Wrap(spacing: 7, runSpacing: 7, children: values.map((value) => StyleChip(label: value, selected: true)).toList())]);
 
   Widget _buildAccountSection() => Column(children: [
         _toolTile(icon: Icons.lock_outline_rounded, title: 'Change Password', subtitle: 'Send a secure password reset email.', onTap: changePassword),
