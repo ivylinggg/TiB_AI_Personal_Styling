@@ -11,6 +11,10 @@ class CustomerDeletionResult {
   final int wardrobeItemsDeleted;
   final int preferencesDeleted;
   final int analysisRecordsDeleted;
+  final int savedLooksDeleted;
+  final int notificationRecordsDeleted;
+  final int consultationMessagesDeleted;
+  final bool consultationDeleted;
   final bool userDocDeleted;
   final List<String> imageUrls;
 
@@ -18,6 +22,10 @@ class CustomerDeletionResult {
     required this.wardrobeItemsDeleted,
     required this.preferencesDeleted,
     required this.analysisRecordsDeleted,
+    required this.savedLooksDeleted,
+    required this.notificationRecordsDeleted,
+    required this.consultationMessagesDeleted,
+    required this.consultationDeleted,
     required this.userDocDeleted,
     required this.imageUrls,
   });
@@ -245,12 +253,15 @@ class FirestoreService {
     final wardrobeSnapshot = await userRef.collection('wardrobe').get();
     final preferencesSnapshot = await userRef.collection('preferences').get();
     final savedLooksSnapshot = await userRef.collection('savedLooks').get();
+    final notificationsSnapshot = await userRef.collection('notifications').get();
     final consultationDoc = await consultationRef.get();
     final messagesSnapshot = await consultationRef.collection('messages').get();
 
     final imageUrls = <String>[];
     final profilePhotoUrl = userDoc.data()?['photoUrl'];
-    if (profilePhotoUrl is String && profilePhotoUrl.isNotEmpty) imageUrls.add(profilePhotoUrl);
+    if (profilePhotoUrl is String && profilePhotoUrl.isNotEmpty) {
+      imageUrls.add(profilePhotoUrl);
+    }
     for (final doc in wardrobeSnapshot.docs) {
       final url = doc.data()['imageUrl'];
       if (url is String && url.isNotEmpty) imageUrls.add(url);
@@ -265,6 +276,7 @@ class FirestoreService {
       ...preferencesSnapshot.docs.map((doc) => doc.reference),
       ...analysisSnapshot.docs.map((doc) => doc.reference),
       ...savedLooksSnapshot.docs.map((doc) => doc.reference),
+      ...notificationsSnapshot.docs.map((doc) => doc.reference),
       ...messagesSnapshot.docs.map((doc) => doc.reference),
       if (consultationDoc.exists) consultationRef,
       userRef,
@@ -286,6 +298,10 @@ class FirestoreService {
       wardrobeItemsDeleted: wardrobeSnapshot.docs.length,
       preferencesDeleted: preferencesSnapshot.docs.length,
       analysisRecordsDeleted: analysisSnapshot.docs.length,
+      savedLooksDeleted: savedLooksSnapshot.docs.length,
+      notificationRecordsDeleted: notificationsSnapshot.docs.length,
+      consultationMessagesDeleted: messagesSnapshot.docs.length,
+      consultationDeleted: consultationDoc.exists,
       userDocDeleted: true,
       imageUrls: imageUrls,
     );
