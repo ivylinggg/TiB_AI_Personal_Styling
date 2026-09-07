@@ -128,6 +128,7 @@ class AiStylingService {
                       'category': item.category,
                       'colour': item.colour,
                       'style': item.style,
+                      'season': item.season,
                       'isFavourite': item.isFavourite,
                     },
                   )
@@ -143,6 +144,7 @@ class AiStylingService {
                   'category': selectedItem.category,
                   'colour': selectedItem.colour,
                   'style': selectedItem.style,
+                  'season': selectedItem.season,
                 },
             }),
           )
@@ -150,28 +152,36 @@ class AiStylingService {
 
       if (response.statusCode != 200) return null;
 
-      final data = jsonDecode(response.body);
-      if (data is! Map<String, dynamic> || data['success'] != true) return null;
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map<String, dynamic> || decoded['success'] != true) {
+        return null;
+      }
 
-      final explanation = data['explanation'] is String
-          ? (data['explanation'] as String).trim()
+      final explanation = decoded['explanation'] is String
+          ? (decoded['explanation'] as String).trim()
           : '';
 
       String? asId(dynamic value) =>
-          value is String && value.isNotEmpty ? value : null;
+          value is String && value.trim().isNotEmpty ? value.trim() : null;
 
-      final topId = asId(data['topId']);
-      final bottomId = asId(data['bottomId']);
-      final shoesId = asId(data['shoesId']);
-      final accessoryId = asId(data['accessoryId']);
-
-      if (explanation.isEmpty &&
-          topId == null &&
-          bottomId == null &&
-          shoesId == null &&
-          accessoryId == null) {
-        return null;
+      final wardrobeIds = wardrobe.map((item) => item.id).toSet();
+      String? validId(dynamic value) {
+        final id = asId(value);
+        if (id == null || !wardrobeIds.contains(id)) return null;
+        return id;
       }
+
+      final topId = validId(decoded['topId']);
+      final bottomId = validId(decoded['bottomId']);
+      final shoesId = validId(decoded['shoesId']);
+      final accessoryId = validId(decoded['accessoryId']);
+
+      final hasRecommendation = explanation.isNotEmpty ||
+          topId != null ||
+          bottomId != null ||
+          shoesId != null ||
+          accessoryId != null;
+      if (!hasRecommendation) return null;
 
       return AiStylingResult(
         explanation: explanation,
