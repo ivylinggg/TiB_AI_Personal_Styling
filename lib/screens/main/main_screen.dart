@@ -5,7 +5,6 @@ import 'package:provider/provider.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_gradients.dart';
-import '../../providers/analysis_provider.dart';
 import '../../services/notification_service.dart';
 import '../../services/preview_context.dart';
 import '../admin/admin_main_screen.dart';
@@ -30,24 +29,25 @@ class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
   int _previousIndex = 0;
 
-  final List<Widget> _pages = const [
-    DashboardDesignedScreen(),
-    AnalysisScreen(),
-    AIHubScreen(),
-    WardrobeScreen(),
-    CustomerForumScreen(),
-    ProfileScreen(),
+  late final List<Widget> _pages = [
+    const DashboardDesignedScreen(),
+    const AnalysisScreen(),
+    const AIHubScreen(),
+    const WardrobeScreen(),
+    const CustomerForumScreen(),
+    const ProfileScreen(),
   ];
 
-  String? get _uid => FirebaseAuth.instance.currentUser?.uid;
-  String? get _previewUid => context.read<PreviewContext>().customerUid;
-  String? get _dataUid => widget.adminPreview ? _previewUid : _uid;
+  String? get _authUid => FirebaseAuth.instance.currentUser?.uid;
+  String? get _dataUid => widget.adminPreview
+      ? context.watch<PreviewContext>().customerUid
+      : _authUid;
 
   @override
   void initState() {
     super.initState();
-    final uid = _uid;
-    if (uid != null) {
+    final uid = _authUid;
+    if (uid != null && !widget.adminPreview) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         NotificationService.ensureWelcomeNotification(uid);
@@ -67,13 +67,16 @@ class _MainScreenState extends State<MainScreen> {
   void _returnToAdmin() {
     if (!widget.adminPreview || !mounted) return;
     context.read<PreviewContext>().clear();
-    Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder: (_) => const AdminMainScreen()), (_) => false);
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const AdminMainScreen()),
+      (_) => false,
+    );
   }
 
   Future<void> _showNotifications() async {
-    final uid = _uid;
+    final uid = _authUid;
     HapticFeedback.lightImpact();
-    if (uid == null) return;
+    if (uid == null || widget.adminPreview) return;
     try {
       await NotificationService.ensureWelcomeNotification(uid);
     } catch (_) {}
@@ -93,33 +96,48 @@ class _MainScreenState extends State<MainScreen> {
               final unreadCount = notifications.where((item) => !item.read).length;
               return Padding(
                 padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Row(children: [const Expanded(child: Text('Notifications', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900))), if (unreadCount > 0) TextButton(onPressed: () => NotificationService.markAllRead(uid), child: Text('Mark all read ($unreadCount)'))]),
-                  const SizedBox(height: 12),
-                  if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData)
-                    const Expanded(child: Center(child: CircularProgressIndicator()))
-                  else if (snapshot.hasError)
-                    const Expanded(child: Center(child: Text('Unable to load notifications right now.')))
-                  else if (notifications.isEmpty)
-                    const Expanded(child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.notifications_none_rounded, size: 52, color: AppColors.primary), SizedBox(height: 12), Text('No notifications yet', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)), SizedBox(height: 6), Text('Important styling updates will appear here.', textAlign: TextAlign.center)])))
-                  else
-                    Expanded(child: ListView.separated(itemCount: notifications.length, separatorBuilder: (_, _) => const SizedBox(height: 8), itemBuilder: (context, index) {
-                      final item = notifications[index];
-                      return Card(
-                        elevation: 0,
-                        color: item.read ? AppColors.surface : AppColors.secondary.withValues(alpha: .42),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(17), side: const BorderSide(color: AppColors.border)),
-                        child: ListTile(
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
-                          leading: CircleAvatar(backgroundColor: AppColors.surfaceMuted, child: Icon(item.read ? Icons.notifications_none_rounded : Icons.notifications_active_rounded, color: AppColors.primary)),
-                          title: Text(item.title, style: const TextStyle(fontWeight: FontWeight.w800)),
-                          subtitle: Padding(padding: const EdgeInsets.only(top: 4), child: Text('${item.body}\n${_formatNotificationDate(item.createdAt)}')),
-                          isThreeLine: true,
-                          onTap: item.read ? null : () => NotificationService.markRead(uid, item.id),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Expanded(child: Text('Notifications', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900))),
+                        if (unreadCount > 0)
+                          TextButton(onPressed: () => NotificationService.markAllRead(uid), child: Text('Mark all read ($unreadCount)')),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData)
+                      const Expanded(child: Center(child: CircularProgressIndicator()))
+                    else if (snapshot.hasError)
+                      const Expanded(child: Center(child: Text('Unable to load notifications right now.')))
+                    else if (notifications.isEmpty)
+                      const Expanded(child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.notifications_none_rounded, size: 52, color: AppColors.primary), SizedBox(height: 12), Text('No notifications yet', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)), SizedBox(height: 6), Text('Important styling updates will appear here.', textAlign: TextAlign.center)])))
+                    else
+                      Expanded(
+                        child: ListView.separated(
+                          itemCount: notifications.length,
+                          separatorBuilder: (_, _) => const SizedBox(height: 8),
+                          itemBuilder: (context, index) {
+                            final item = notifications[index];
+                            return Card(
+                              elevation: 0,
+                              color: item.read ? AppColors.surface : AppColors.secondary.withValues(alpha: .42),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(17), side: const BorderSide(color: AppColors.border)),
+                              child: ListTile(
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
+                                leading: CircleAvatar(backgroundColor: AppColors.surfaceMuted, child: Icon(item.read ? Icons.notifications_none_rounded : Icons.notifications_active_rounded, color: AppColors.primary)),
+                                title: Text(item.title, style: const TextStyle(fontWeight: FontWeight.w800)),
+                                subtitle: Padding(padding: const EdgeInsets.only(top: 4), child: Text('${item.body}\n${_formatNotificationDate(item.createdAt)}')),
+                                isThreeLine: true,
+                                onTap: item.read ? null : () => NotificationService.markRead(uid, item.id),
+                              ),
+                            );
+                          },
                         ),
-                      );
-                    })),
-                ]),
+                      ),
+                  ],
+                ),
               );
             },
           ),
@@ -138,24 +156,39 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Widget _notificationBell() {
-    final uid = _uid;
-    if (uid == null) return _topActionButton(icon: Icons.notifications_none_rounded, tooltip: 'Notifications', onTap: _showNotifications);
+    final uid = _authUid;
+    if (uid == null || widget.adminPreview) {
+      return _topActionButton(icon: Icons.notifications_none_rounded, tooltip: 'Notifications', onTap: _showNotifications);
+    }
     return StreamBuilder<int>(
       stream: NotificationService.unreadCountStream(uid),
       builder: (context, snapshot) {
         final unread = snapshot.data ?? 0;
-        return Stack(clipBehavior: Clip.none, children: [
-          _topActionButton(icon: unread > 0 ? Icons.notifications_active_rounded : Icons.notifications_none_rounded, tooltip: unread > 0 ? '$unread unread notifications' : 'Notifications', onTap: _showNotifications),
-          if (unread > 0)
-            Positioned(right: -1, top: -1, child: Container(constraints: const BoxConstraints(minWidth: 16, minHeight: 16), padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1), decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle), alignment: Alignment.center, child: Text(unread > 9 ? '9+' : '$unread', style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.w900)))),
-        ]);
+        return Stack(
+          clipBehavior: Clip.none,
+          children: [
+            _topActionButton(icon: unread > 0 ? Icons.notifications_active_rounded : Icons.notifications_none_rounded, tooltip: unread > 0 ? '$unread unread notifications' : 'Notifications', onTap: _showNotifications),
+            if (unread > 0)
+              Positioned(right: -1, top: -1, child: Container(constraints: const BoxConstraints(minWidth: 16, minHeight: 16), padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1), decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle), alignment: Alignment.center, child: Text(unread > 9 ? '9+' : '$unread', style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.w900)))),
+          ],
+        );
       },
     );
   }
 
   Future<void> _logout() async {
     HapticFeedback.mediumImpact();
-    final confirmed = await showDialog<bool>(context: context, builder: (dialogContext) => AlertDialog(title: const Text('Log out?'), content: const Text('You can sign back in anytime to continue your styling journey.'), actions: [TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')), FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Log out'))]));
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Log out?'),
+        content: const Text('You can sign back in anytime to continue your styling journey.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Log out')),
+        ],
+      ),
+    );
     if (confirmed != true || !mounted) return;
     try {
       await FirebaseAuth.instance.signOut();
@@ -176,18 +209,26 @@ class _MainScreenState extends State<MainScreen> {
       child: Container(
         padding: const EdgeInsets.fromLTRB(16, 13, 10, 13),
         decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(24), border: Border.all(color: AppColors.border)),
-        child: Row(children: [
-          Container(width: 42, height: 42, decoration: const BoxDecoration(color: AppColors.secondary, shape: BoxShape.circle), child: const Icon(Icons.auto_awesome_rounded, color: AppColors.primary, size: 19)),
-          const SizedBox(width: 12),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [const Text('VYEA', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: 2.6, color: AppColors.brown)), const SizedBox(height: 2), Text(greeting, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 19, height: 1.1, fontWeight: FontWeight.w800, color: AppColors.textPrimary, letterSpacing: -0.3))])),
-          if (widget.adminPreview) ...[_topActionButton(icon: Icons.admin_panel_settings_outlined, tooltip: 'Return to Admin', onTap: _returnToAdmin), const SizedBox(width: 6)],
-          _notificationBell(), const SizedBox(width: 6), _topActionButton(icon: Icons.logout_rounded, tooltip: 'Log out', onTap: _logout),
-        ]),
+        child: Row(
+          children: [
+            Container(width: 42, height: 42, decoration: const BoxDecoration(color: AppColors.secondary, shape: BoxShape.circle), child: const Icon(Icons.auto_awesome_rounded, color: AppColors.primary, size: 19)),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [const Text('VYEA', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: 2.6, color: AppColors.brown)), const SizedBox(height: 2), Text(greeting, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 19, height: 1.1, fontWeight: FontWeight.w800, color: AppColors.textPrimary, letterSpacing: -0.3))])),
+            if (widget.adminPreview) ...[
+              _topActionButton(icon: Icons.admin_panel_settings_outlined, tooltip: 'Return to Admin', onTap: _returnToAdmin),
+              const SizedBox(width: 6),
+            ],
+            if (!widget.adminPreview) ...[_notificationBell(), const SizedBox(width: 6), _topActionButton(icon: Icons.logout_rounded, tooltip: 'Log out', onTap: _logout)],
+          ],
+        ),
       ),
     );
   }
 
-  Widget _topActionButton({required IconData icon, required String tooltip, required VoidCallback onTap}) => Tooltip(message: tooltip, child: Material(color: AppColors.surfaceMuted, shape: const CircleBorder(), child: InkWell(onTap: onTap, customBorder: const CircleBorder(), child: SizedBox(width: 39, height: 39, child: Icon(icon, color: AppColors.primary, size: 18)))));
+  Widget _topActionButton({required IconData icon, required String tooltip, required VoidCallback onTap}) => Tooltip(
+        message: tooltip,
+        child: Material(color: AppColors.surfaceMuted, shape: const CircleBorder(), child: InkWell(onTap: onTap, customBorder: const CircleBorder(), child: SizedBox(width: 39, height: 39, child: Icon(icon, color: AppColors.primary, size: 18))),),
+      );
 
   Widget _tabTransition({required Widget child, required bool selected}) => AnimatedScale(duration: const Duration(milliseconds: 180), scale: selected ? 1.0 : .94, curve: Curves.easeOut, child: AnimatedOpacity(duration: const Duration(milliseconds: 180), opacity: selected ? 1 : .84, child: child));
 
@@ -201,23 +242,43 @@ class _MainScreenState extends State<MainScreen> {
     final direction = _selectedIndex >= _previousIndex ? 1 : -1;
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(child: Column(children: [
-        if (_selectedIndex == 0) _dashboardHeader(),
-        Expanded(child: AnimatedSwitcher(duration: const Duration(milliseconds: 220), reverseDuration: const Duration(milliseconds: 180), switchInCurve: Curves.easeOutCubic, switchOutCurve: Curves.easeInCubic, transitionBuilder: (child, animation) {
-          final offsetTween = Tween<Offset>(begin: Offset(direction * .035, .012), end: Offset.zero).chain(CurveTween(curve: Curves.easeOutCubic));
-          return FadeTransition(opacity: animation, child: SlideTransition(position: animation.drive(offsetTween), child: child));
-        }, child: KeyedSubtree(key: ValueKey(_selectedIndex), child: _pages[_selectedIndex]))),
-      ])),
-      bottomNavigationBar: SafeArea(top: false, minimum: const EdgeInsets.fromLTRB(12, 0, 12, 10), child: Container(
-        decoration: BoxDecoration(color: AppColors.surface.withValues(alpha: .98), borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .045), blurRadius: 18, offset: const Offset(0, 6))]),
-        child: ClipRRect(borderRadius: BorderRadius.circular(22), child: NavigationBar(selectedIndex: _selectedIndex, backgroundColor: Colors.transparent, elevation: 0, height: 70, labelBehavior: NavigationDestinationLabelBehavior.alwaysShow, indicatorColor: AppColors.primarySoft, onDestinationSelected: _selectTab, destinations: [
-          _destination(icon: Icons.home_outlined, selectedIcon: Icons.home_rounded, label: 'Home', index: 0),
-          _destination(icon: Icons.palette_outlined, selectedIcon: Icons.palette_rounded, label: 'Colour', index: 1),
-          NavigationDestination(icon: _aiIcon(false), selectedIcon: _aiIcon(true), label: 'Style'),
-          _destination(icon: Icons.checkroom_outlined, selectedIcon: Icons.checkroom_rounded, label: 'Wardrobe', index: 3),
-          _destination(icon: Icons.forum_outlined, selectedIcon: Icons.forum_rounded, label: 'Forum', index: 4),
-          _destination(icon: Icons.person_outline_rounded, selectedIcon: Icons.person_rounded, label: 'Profile', index: 5),
-        ])))));
+      body: SafeArea(
+        child: Column(children: [
+          if (_selectedIndex == 0) _dashboardHeader(),
+          Expanded(child: AnimatedSwitcher(duration: const Duration(milliseconds: 220), reverseDuration: const Duration(milliseconds: 180), switchInCurve: Curves.easeOutCubic, switchOutCurve: Curves.easeInCubic, transitionBuilder: (child, animation) {
+            final offsetTween = Tween<Offset>(begin: Offset(direction * .035, .012), end: Offset.zero).chain(CurveTween(curve: Curves.easeOutCubic));
+            return FadeTransition(opacity: animation, child: SlideTransition(position: animation.drive(offsetTween), child: child));
+          }, child: KeyedSubtree(key: ValueKey(_selectedIndex), child: _pages[_selectedIndex]))),
+        ]),
+      ),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        minimum: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+        child: Container(
+          decoration: BoxDecoration(color: AppColors.surface.withValues(alpha: .98), borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .045), blurRadius: 18, offset: const Offset(0, 6))]),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(22),
+            child: NavigationBar(
+              selectedIndex: _selectedIndex,
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              height: 70,
+              labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+              indicatorColor: AppColors.primarySoft,
+              onDestinationSelected: _selectTab,
+              destinations: [
+                _destination(icon: Icons.home_outlined, selectedIcon: Icons.home_rounded, label: 'Home', index: 0),
+                _destination(icon: Icons.palette_outlined, selectedIcon: Icons.palette_rounded, label: 'Colour', index: 1),
+                NavigationDestination(icon: _aiIcon(false), selectedIcon: _aiIcon(true), label: 'Style'),
+                _destination(icon: Icons.checkroom_outlined, selectedIcon: Icons.checkroom_rounded, label: 'Wardrobe', index: 3),
+                _destination(icon: Icons.forum_outlined, selectedIcon: Icons.forum_rounded, label: 'Forum', index: 4),
+                _destination(icon: Icons.person_outline_rounded, selectedIcon: Icons.person_rounded, label: 'Profile', index: 5),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _aiIcon(bool selected) => AnimatedContainer(duration: const Duration(milliseconds: 180), width: selected ? 38 : 32, height: selected ? 38 : 32, decoration: BoxDecoration(gradient: selected ? AppGradients.primary : null, color: selected ? null : AppColors.surfaceMuted, shape: BoxShape.circle), child: Icon(Icons.auto_awesome_rounded, size: selected ? 19 : 17, color: selected ? Colors.white : AppColors.primary));
