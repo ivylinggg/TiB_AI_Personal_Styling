@@ -73,7 +73,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     try {
       final result = await FirestoreService.getUser(uid);
-      final userDoc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
       final stylePreferences = await StylePreferenceService.getStylePreferences(uid);
       final wardrobeItems = await FirestoreService.getWardrobeItems(uid);
       final savedLooks = await FirestoreService.getSavedOutfitLooks(uid);
@@ -82,7 +81,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (!mounted) return;
       setState(() {
         user = result;
-        isPremium = userDoc.data()?['isPremium'] as bool? ?? false;
+        isPremium = result?.isPremium ?? false;
         styles = List<String>.from(stylePreferences?['styles'] ?? const []);
         preferences = List<String>.from(stylePreferences?['preferences'] ?? const []);
         wardrobeCount = wardrobeItems.length;
@@ -214,15 +213,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (selected != null && selected != current && mounted) await provider.setThemeMode(selected);
   }
 
-  Widget _themeTile(BuildContext sheetContext, ThemeMode mode, String label, IconData icon) {
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-      leading: CircleAvatar(backgroundColor: AppColors.surfaceMuted, child: Icon(icon, color: AppColors.primary)),
-      title: Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
-      trailing: Radio<ThemeMode>(value: mode),
-      onTap: () => Navigator.pop(sheetContext, mode),
-    );
-  }
+  Widget _themeTile(BuildContext sheetContext, ThemeMode mode, String label, IconData icon) => ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+        leading: CircleAvatar(backgroundColor: AppColors.surfaceMuted, child: Icon(icon, color: AppColors.primary)),
+        title: Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
+        trailing: Radio<ThemeMode>(value: mode),
+        onTap: () => Navigator.pop(sheetContext, mode),
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -332,7 +329,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
       decoration: BoxDecoration(gradient: AppGradients.soft, borderRadius: BorderRadius.circular(AppRadius.xl), border: Border.all(color: AppColors.border)),
       child: Column(children: [
         Row(children: [
-          CircleAvatar(radius: 39, backgroundColor: AppColors.secondary, backgroundImage: user?.photoUrl?.isNotEmpty == true ? CachedNetworkImageProvider(user!.photoUrl!) : null, child: user?.photoUrl?.isNotEmpty == true ? null : const Icon(Icons.person_outline_rounded, size: 36, color: AppColors.primaryDark)),
+          CircleAvatar(
+            radius: 39,
+            backgroundColor: AppColors.secondary,
+            backgroundImage: user?.photoUrl?.isNotEmpty == true ? CachedNetworkImageProvider(user!.photoUrl!) : null,
+            child: user?.photoUrl?.isNotEmpty == true ? null : const Icon(Icons.person_outline_rounded, size: 36, color: AppColors.primaryDark),
+          ),
           const SizedBox(width: 14),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [Expanded(child: Text(displayName, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w900, letterSpacing: -.4))), if (!_isPreview) IconButton(onPressed: openEditProfile, tooltip: 'Edit profile', icon: const Icon(Icons.edit_outlined, size: 19))]),
@@ -383,11 +385,57 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildToolGrid() => Column(children: [_toolTile(icon: Icons.checkroom_outlined, title: 'My Wardrobe', subtitle: wardrobeCount == 0 ? 'Add pieces and start building your wardrobe.' : '$wardrobeCount pieces · $wardrobeFavouriteCount favourites', onTap: openWardrobe), const SizedBox(height: 10), _toolTile(icon: Icons.auto_awesome_rounded, title: 'VYEA Personal Stylist', subtitle: 'Turn your wardrobe and colours into outfit ideas.', onTap: openAIStylist, badge: isPremium), const SizedBox(height: 10), _toolTile(icon: Icons.bookmark_border_rounded, title: 'Saved Looks', subtitle: savedLookCount == 0 ? 'Save outfits you want to come back to.' : '$savedLookCount saved outfits · revisit your favourites', onTap: openSavedLooks)]);
 
-  Widget _toolTile({required IconData icon, required String title, required String subtitle, required VoidCallback onTap, bool badge = false}) => Material(color: AppColors.surface, borderRadius: BorderRadius.circular(AppRadius.lg), child: InkWell(borderRadius: BorderRadius.circular(AppRadius.lg), onTap: onTap, child: Container(padding: const EdgeInsets.all(15), decoration: BoxDecoration(borderRadius: BorderRadius.circular(AppRadius.lg), border: Border.all(color: AppColors.border)), child: Row(children: [Container(width: 46, height: 46, decoration: const BoxDecoration(color: AppColors.secondary, shape: BoxShape.circle), child: Icon(icon, color: AppColors.primaryDark)), const SizedBox(width: 13), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [Flexible(child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800))), if (badge) ...[const SizedBox(width: 7), const PremiumBadge(compact: true)]]), const SizedBox(height: 3), Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.35))])), const SizedBox(width: 8), const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted)]))));
+  Widget _toolTile({required IconData icon, required String title, required String subtitle, required VoidCallback onTap, bool badge = false}) => Material(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.all(15),
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(AppRadius.lg), border: Border.all(color: AppColors.border)),
+            child: Row(children: [
+              Container(width: 46, height: 46, decoration: const BoxDecoration(color: AppColors.secondary, shape: BoxShape.circle), child: Icon(icon, color: AppColors.primaryDark)),
+              const SizedBox(width: 13),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [Flexible(child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800))), if (badge) ...[const SizedBox(width: 7), const PremiumBadge(compact: true)]]),
+                const SizedBox(height: 3),
+                Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.35)),
+              ])),
+              const SizedBox(width: 8),
+              const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
+            ]),
+          ),
+        ),
+      );
 
-  Widget _buildPreferencesCard() => Container(width: double.infinity, padding: const EdgeInsets.all(17), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(AppRadius.lg), border: Border.all(color: AppColors.border)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [_preferenceGroup('Styles', styles, emptyText: 'No style direction saved yet.'), const SizedBox(height: 17), _preferenceGroup('Preferences', preferences, emptyText: 'No preferences saved yet.'), if (!_isPreview) ...[const SizedBox(height: 14), SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: openStylePreferences, icon: const Icon(Icons.tune_rounded, size: 17), label: const Text('Refine My Style Profile'))]]));
+  Widget _buildPreferencesCard() => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(17),
+        decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(AppRadius.lg), border: Border.all(color: AppColors.border)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          _preferenceGroup('Styles', styles, emptyText: 'No style direction saved yet.'),
+          const SizedBox(height: 17),
+          _preferenceGroup('Preferences', preferences, emptyText: 'No preferences saved yet.'),
+          if (!_isPreview) ...[const SizedBox(height: 14), SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: openStylePreferences, icon: const Icon(Icons.tune_rounded, size: 17), label: const Text('Refine My Style Profile'))],
+        ]),
+      );
 
   Widget _preferenceGroup(String label, List<String> values, {required String emptyText}) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label.toUpperCase(), style: const TextStyle(color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: .6)), const SizedBox(height: 9), values.isEmpty ? Text(emptyText, style: const TextStyle(color: AppColors.textMuted, fontSize: 12)) : Wrap(spacing: 7, runSpacing: 7, children: values.map((value) => StyleChip(label: value, selected: true)).toList())]);
 
-  Widget _buildAccountSection() => Column(children: [_toolTile(icon: Icons.lock_outline_rounded, title: 'Change Password', subtitle: 'Send a secure password reset email.', onTap: changePassword), const SizedBox(height: 10), Container(padding: const EdgeInsets.all(15), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(AppRadius.lg), border: Border.all(color: AppColors.border)), child: Row(children: [Container(width: 46, height: 46, decoration: const BoxDecoration(color: AppColors.secondary, shape: BoxShape.circle), child: const Icon(Icons.verified_user_outlined, color: AppColors.primaryDark)), const SizedBox(width: 13), const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Account Status', style: TextStyle(fontWeight: FontWeight.w800)), SizedBox(height: 3), Text('Your account status is shown from your profile record.', style: TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.35))])), const SizedBox(width: 8), Icon(user?.isActive == true ? Icons.check_circle_rounded : Icons.error_outline_rounded, color: user?.isActive == true ? AppColors.success : AppColors.error)]))]);
+  Widget _buildAccountSection() => Column(children: [
+        _toolTile(icon: Icons.lock_outline_rounded, title: 'Change Password', subtitle: 'Send a secure password reset email.', onTap: changePassword),
+        const SizedBox(height: 10),
+        Container(
+          padding: const EdgeInsets.all(15),
+          decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(AppRadius.lg), border: Border.all(color: AppColors.border)),
+          child: Row(children: [
+            Container(width: 46, height: 46, decoration: const BoxDecoration(color: AppColors.secondary, shape: BoxShape.circle), child: const Icon(Icons.verified_user_outlined, color: AppColors.primaryDark)),
+            const SizedBox(width: 13),
+            const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Account Status', style: TextStyle(fontWeight: FontWeight.w800)), SizedBox(height: 3), Text('Your account status is shown from your profile record.', style: TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.35))])),
+            const SizedBox(width: 8),
+            Icon(user?.isActive == true ? Icons.check_circle_rounded : Icons.error_outline_rounded, color: user?.isActive == true ? AppColors.success : AppColors.error),
+          ]),
+        ),
+      ]);
 }
