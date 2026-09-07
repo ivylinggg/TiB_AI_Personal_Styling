@@ -54,7 +54,7 @@ class TibStyleJourneyService {
     (50, 'Style Explorer'),
     (150, 'Style Builder'),
     (300, 'Style Confident'),
-    (500, 'TiB Stylist'),
+    (500, 'VYEA Stylist'),
   ];
 
   static Future<TibStyleJourney> load(String uid) async {
@@ -64,12 +64,55 @@ class TibStyleJourneyService {
       final snapshot = await _db.collection('users').doc(uid).get();
       final value = snapshot.data()?['dailyChallengeHistory'];
       final history = value is List
-          ? value.whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList()
+          ? value
+              .whereType<Map>()
+              .map((item) => Map<String, dynamic>.from(item))
+              .toList()
           : <Map<String, dynamic>>[];
       return _fromHistory(history);
     } catch (_) {
       return _fromHistory(const []);
     }
+  }
+
+  static Future<void> recordChallenge({
+    required String uid,
+    required String challengeId,
+    required String title,
+    int points = 10,
+  }) async {
+    if (uid.trim().isEmpty) return;
+
+    final userRef = _db.collection('users').doc(uid);
+    final snapshot = await userRef.get();
+    final data = snapshot.data() ?? <String, dynamic>{};
+    final raw = data['dailyChallengeHistory'];
+    final history = raw is List
+        ? raw
+            .whereType<Map>()
+            .map((item) => Map<String, dynamic>.from(item))
+            .toList()
+        : <Map<String, dynamic>>[];
+
+    final today = DateTime.now();
+    final dateKey = _dateKey(today);
+    final alreadyCompleted = history.any(
+      (entry) => entry['date']?.toString() == dateKey && entry['challengeId']?.toString() == challengeId,
+    );
+    if (alreadyCompleted) return;
+
+    history.add({
+      'challengeId': challengeId,
+      'title': title,
+      'points': points,
+      'date': dateKey,
+      'completedAt': FieldValue.serverTimestamp(),
+    });
+
+    await userRef.set({
+      'dailyChallengeHistory': history,
+      'styleJourneyUpdatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
   }
 
   static TibStyleJourney _fromHistory(List<Map<String, dynamic>> history) {
@@ -109,12 +152,48 @@ class TibStyleJourneyService {
     }
 
     final badges = [
-      TibBadge(id: 'first_step', title: 'First Step', description: 'Complete your first Daily Challenge.', icon: '🌱', unlocked: history.isNotEmpty),
-      TibBadge(id: 'getting_started', title: 'Getting Started', description: 'Earn 50 XP from your styling journey.', icon: '✨', unlocked: points >= 50),
-      TibBadge(id: 'three_day_streak', title: '3-Day Streak', description: 'Complete challenges for 3 days in a row.', icon: '🔥', unlocked: streak >= 3),
-      TibBadge(id: 'style_habit', title: 'Style Habit', description: 'Keep a 7-day styling routine.', icon: '💫', unlocked: streak >= 7),
-      TibBadge(id: 'style_explorer', title: 'Style Explorer', description: 'Complete 10 Daily Challenges.', icon: '👗', unlocked: history.length >= 10),
-      TibBadge(id: 'tib_regular', title: 'TiB Regular', description: 'Earn 300 XP from your styling journey.', icon: '🏆', unlocked: points >= 300),
+      TibBadge(
+        id: 'first_step',
+        title: 'First Step',
+        description: 'Complete your first Daily Challenge.',
+        icon: '🌱',
+        unlocked: history.isNotEmpty,
+      ),
+      TibBadge(
+        id: 'getting_started',
+        title: 'Getting Started',
+        description: 'Earn 50 XP from your styling journey.',
+        icon: '✨',
+        unlocked: points >= 50,
+      ),
+      TibBadge(
+        id: 'three_day_streak',
+        title: '3-Day Streak',
+        description: 'Complete challenges for 3 days in a row.',
+        icon: '🔥',
+        unlocked: streak >= 3,
+      ),
+      TibBadge(
+        id: 'style_habit',
+        title: 'Style Habit',
+        description: 'Keep a 7-day styling routine.',
+        icon: '💫',
+        unlocked: streak >= 7,
+      ),
+      TibBadge(
+        id: 'style_explorer',
+        title: 'Style Explorer',
+        description: 'Complete 10 Daily Challenges.',
+        icon: '👗',
+        unlocked: history.length >= 10,
+      ),
+      TibBadge(
+        id: 'vyea_regular',
+        title: 'VYEA Regular',
+        description: 'Earn 300 XP from your styling journey.',
+        icon: '🏆',
+        unlocked: points >= 300,
+      ),
     ];
 
     return TibStyleJourney(
@@ -128,4 +207,7 @@ class TibStyleJourneyService {
       badges: badges,
     );
   }
+
+  static String _dateKey(DateTime date) =>
+      '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
 }
