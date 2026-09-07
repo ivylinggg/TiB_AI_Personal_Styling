@@ -113,11 +113,13 @@ class _MainScreenState extends State<MainScreen> {
               child: const Icon(Icons.auto_awesome_rounded, color: AppColors.primary),
             ),
             const SizedBox(width: 12),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('VYEA', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: 2.6, color: AppColors.brown)),
-              const SizedBox(height: 2),
-              Text(greeting, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800)),
-            ])),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('VYEA', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: 2.6, color: AppColors.brown)),
+                const SizedBox(height: 2),
+                Text(greeting, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800)),
+              ]),
+            ),
             if (widget.adminPreview)
               IconButton(onPressed: _returnToAdmin, tooltip: 'Return to Admin', icon: const Icon(Icons.admin_panel_settings_outlined)),
             if (!widget.adminPreview) ...[
