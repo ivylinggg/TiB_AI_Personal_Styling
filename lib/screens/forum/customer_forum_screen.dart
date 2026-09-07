@@ -15,6 +15,7 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
   final _searchController = TextEditingController();
   String _category = 'All';
   String _query = '';
+  bool _showMineOnly = false;
 
   static const _categories = <String>[
     'All',
@@ -49,12 +50,23 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
     return 'Just now';
   }
 
+  bool _isOfficial(Map<String, dynamic> data) =>
+      data['isOfficial'] == true ||
+      data['source'] == 'admin_content' ||
+      data['source'] == 'admin_forum';
+
   bool _matches(Map<String, dynamic> data) {
     final category = data['category'] as String? ?? 'General';
     final title = (data['title'] as String? ?? '').toLowerCase();
     final body = (data['body'] as String? ?? '').toLowerCase();
     final query = _query.toLowerCase();
-    return (_category == 'All' || category == _category) &&
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final authorId = data['authorId'] as String?;
+
+    final published = data['status'] == null || data['status'] == 'published';
+    return published &&
+        (_category == 'All' || category == _category) &&
+        (!_showMineOnly || (uid != null && authorId == uid)) &&
         (query.isEmpty ||
             title.contains(query) ||
             body.contains(query) ||
@@ -80,7 +92,9 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
                   children: [
                     TextField(
                       controller: titleController,
+                      enabled: !saving,
                       textCapitalization: TextCapitalization.sentences,
+                      maxLength: 90,
                       decoration: const InputDecoration(
                         labelText: 'Title',
                         hintText: 'What do you want to discuss?',
@@ -108,8 +122,10 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
                     const SizedBox(height: 12),
                     TextField(
                       controller: bodyController,
+                      enabled: !saving,
                       minLines: 4,
                       maxLines: 7,
+                      maxLength: 1500,
                       textCapitalization: TextCapitalization.sentences,
                       decoration: const InputDecoration(
                         labelText: 'Post',
@@ -137,6 +153,14 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
                           if (uid == null || title.isEmpty || body.isEmpty) {
                             return;
                           }
+                          if (title.length < 3 || body.length < 3) {
+                            ScaffoldMessenger.of(dialogBuildContext).showSnackBar(
+                              const SnackBar(
+                                content: Text('Please add a little more detail.'),
+                              ),
+                            );
+                            return;
+                          }
 
                           setDialogState(() => saving = true);
                           try {
@@ -162,12 +186,14 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
                                   : (displayName?.isNotEmpty == true
                                       ? displayName
                                       : 'TiB User'),
+                              'authorRole': 'customer',
                               'likeCount': 0,
                               'commentCount': 0,
                               'createdAt': FieldValue.serverTimestamp(),
                               'lastActivityAt': FieldValue.serverTimestamp(),
                               'isOfficial': false,
                               'source': 'customer_forum',
+                              'status': 'published',
                             });
 
                             if (dialogContext.mounted) {
@@ -212,7 +238,7 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
   ) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     final trimmed = text.trim();
-    if (uid == null || trimmed.isEmpty) return false;
+    if (uid == null || trimmed.isEmpty || trimmed.length > 1500) return false;
 
     try {
       final user = await FirebaseFirestore.instance
@@ -222,6 +248,7 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
       final data = user.data() ?? <String, dynamic>{};
       final profileName = (data['name'] as String?)?.trim();
       final displayName = FirebaseAuth.instance.currentUser?.displayName?.trim();
+      final authorRole = data['role'] as String? ?? 'customer';
       final commentRef = postRef.collection('comments').doc();
       final batch = FirebaseFirestore.instance.batch();
 
@@ -231,8 +258,9 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
         'authorName': profileName?.isNotEmpty == true
             ? profileName
             : (displayName?.isNotEmpty == true ? displayName : 'TiB User'),
-        'authorRole': data['role'] as String? ?? 'customer',
-        'isOfficial': data['role'] == 'admin',
+        'authorRole': authorRole,
+        'isOfficial': authorRole == 'admin',
+        'status': 'published',
         'createdAt': FieldValue.serverTimestamp(),
       });
       batch.update(postRef, {
@@ -273,6 +301,7 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
         );
       } else {
         batch.set(likeRef, {
+          'userId': uid,
           'createdAt': FieldValue.serverTimestamp(),
         });
         batch.update(postRef, {'likeCount': current + 1});
@@ -331,10 +360,11 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
     final body = data['body'] as String? ?? '';
     final category = data['category'] as String? ?? 'General';
     final author = data['authorName'] as String? ?? 'TiB User';
-    final official =
-        data['isOfficial'] == true || data['source'] == 'admin_content';
+    final official = _isOfficial(data);
     final likeCount = (data['likeCount'] as num?)?.toInt() ?? 0;
     final commentCount = (data['commentCount'] as num?)?.toInt() ?? 0;
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final mine = uid != null && data['authorId'] == uid;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -381,6 +411,14 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
                     const Icon(
                       Icons.verified_rounded,
                       size: 15,
+                      color: AppColors.primary,
+                    ),
+                  ],
+                  if (mine) ...[
+                    const SizedBox(width: 6),
+                    const Icon(
+                      Icons.person_rounded,
+                      size: 14,
                       color: AppColors.primary,
                     ),
                   ],
@@ -528,6 +566,7 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -557,6 +596,13 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
         ),
         actions: [
           IconButton(
+            onPressed: () => setState(() => _showMineOnly = !_showMineOnly),
+            tooltip: 'My posts',
+            icon: Icon(
+              _showMineOnly ? Icons.person_rounded : Icons.person_outline_rounded,
+            ),
+          ),
+          IconButton(
             onPressed: _createPost,
             tooltip: 'Create post',
             icon: const Icon(Icons.add_comment_outlined),
@@ -564,13 +610,15 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
           const SizedBox(width: 8),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _createPost,
-        backgroundColor: AppColors.primary,
-        foregroundColor: AppColors.background,
-        icon: const Icon(Icons.edit_outlined),
-        label: const Text('Create Post'),
-      ),
+      floatingActionButton: uid == null
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: _createPost,
+              backgroundColor: AppColors.primary,
+              foregroundColor: AppColors.background,
+              icon: const Icon(Icons.edit_outlined),
+              label: const Text('Create Post'),
+            ),
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: _posts.snapshots(),
         builder: (context, snapshot) {
@@ -638,7 +686,19 @@ class _CustomerForumScreenState extends State<CustomerForumScreen> {
                     children: _categories.map(_categoryChip).toList(),
                   ),
                 ),
-                const SizedBox(height: 19),
+                const SizedBox(height: 10),
+                if (_showMineOnly)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Chip(
+                      avatar: const Icon(Icons.person_rounded, size: 15),
+                      label: const Text('My posts'),
+                      deleteIcon: const Icon(Icons.close_rounded, size: 15),
+                      onDeleted: () => setState(() => _showMineOnly = false),
+                      side: const BorderSide(color: AppColors.primarySoft),
+                    ),
+                  ),
+                const SizedBox(height: 8),
                 Row(
                   children: [
                     const Text(
@@ -763,7 +823,7 @@ class _ForumPostDetailScreenState extends State<ForumPostDetailScreen> {
 
   Future<void> _send() async {
     final text = _commentController.text.trim();
-    if (_sending || text.isEmpty) return;
+    if (_sending || text.isEmpty || text.length > 1500) return;
     setState(() => _sending = true);
     try {
       final success = await widget.onAddComment(text);
@@ -872,8 +932,11 @@ class _ForumPostDetailScreenState extends State<ForumPostDetailScreen> {
           }
 
           final data = postSnapshot.data?.data() ?? widget.initialData;
-          final official =
-              data['isOfficial'] == true || data['source'] == 'admin_content';
+          final postStatus = data['status'] as String?;
+          if (postStatus == 'hidden') {
+            return const Center(child: Text('This discussion is no longer available.'));
+          }
+          final official = _isOfficial(data);
           final title = data['title'] as String? ?? 'Forum post';
           final body = data['body'] as String? ?? '';
           final author = data['authorName'] as String? ?? 'TiB User';
@@ -895,7 +958,9 @@ class _ForumPostDetailScreenState extends State<ForumPostDetailScreen> {
                       );
                     }
 
-                    final comments = [...?commentsSnapshot.data?.docs];
+                    final comments = [...?commentsSnapshot.data?.docs]
+                        .where((doc) => doc.data()['status'] != 'hidden')
+                        .toList();
                     comments.sort(
                       (a, b) => _date(a.data()['createdAt'])
                           .compareTo(_date(b.data()['createdAt'])),
@@ -1062,9 +1127,11 @@ class _ForumPostDetailScreenState extends State<ForumPostDetailScreen> {
                           focusNode: _commentFocusNode,
                           minLines: 1,
                           maxLines: 4,
+                          maxLength: 1500,
                           textInputAction: TextInputAction.newline,
                           decoration: InputDecoration(
                             hintText: 'Write a reply...',
+                            counterText: '',
                             filled: true,
                             fillColor: AppColors.surface,
                             border: OutlineInputBorder(
