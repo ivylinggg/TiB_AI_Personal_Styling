@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_gradients.dart';
 import '../../providers/analysis_provider.dart';
+import '../../services/notification_service.dart';
 import '../admin/admin_main_screen.dart';
 import '../ai/ai_hub_screen.dart';
 import '../analysis/analysis_screen.dart';
@@ -38,14 +39,17 @@ class _MainScreenState extends State<MainScreen> {
     ProfileScreen(),
   ];
 
+  String? get _uid => FirebaseAuth.instance.currentUser?.uid;
+
   @override
   void initState() {
     super.initState();
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final uid = _uid;
     if (uid != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         context.read<AnalysisProvider>().loadLatestResult(uid);
+        NotificationService.ensureWelcomeNotification(uid);
       });
     }
   }
@@ -68,26 +72,12 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Future<void> _showNotifications() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final uid = _uid;
     HapticFeedback.lightImpact();
     if (uid == null) return;
 
-    final notificationRef = FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .collection('notifications');
-
     try {
-      final snapshot = await notificationRef.limit(50).get();
-      if (snapshot.docs.isEmpty) {
-        await notificationRef.add({
-          'title': 'Welcome to VYEA',
-          'body': 'Your personal styling space is ready. Explore your wardrobe and discover a look that feels like you.',
-          'type': 'system',
-          'read': false,
-          'createdAt': FieldValue.serverTimestamp(),
-        });
-      }
+      await NotificationService.ensureWelcomeNotification(uid);
     } catch (_) {}
 
     if (!mounted) return;
@@ -101,17 +91,11 @@ class _MainScreenState extends State<MainScreen> {
         return SafeArea(
           child: SizedBox(
             height: MediaQuery.sizeOf(sheetContext).height * 0.72,
-            child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: notificationRef.limit(50).snapshots(),
+            child: StreamBuilder<List<VyeaNotification>>(
+              stream: NotificationService.stream(uid),
               builder: (context, snapshot) {
-                final docs = [...?snapshot.data?.docs];
-                docs.sort((a, b) {
-                  final aValue = a.data()['createdAt'];
-                  final bValue = b.data()['createdAt'];
-                  final aDate = aValue is Timestamp ? aValue.toDate() : DateTime.fromMillisecondsSinceEpoch(0);
-                  final bDate = bValue is Timestamp ? bValue.toDate() : DateTime.fromMillisecondsSinceEpoch(0);
-                  return bDate.compareTo(aDate);
-                });
+                final notifications = snapshot.data ?? const <VyeaNotification>[];
+                final unreadCount = notifications.where((item) => !item.read).length;
 
                 return Padding(
                   padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
@@ -120,26 +104,31 @@ class _MainScreenState extends State<MainScreen> {
                     children: [
                       Row(
                         children: [
-                          const Expanded(child: Text('Notifications', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900))),
-                          if (docs.isNotEmpty)
+                          const Expanded(
+                            child: Text(
+                              'Notifications',
+                              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
+                            ),
+                          ),
+                          if (unreadCount > 0)
                             TextButton(
                               onPressed: () async {
-                                final batch = FirebaseFirestore.instance.batch();
-                                for (final doc in docs) {
-                                  if (doc.data()['read'] != true) {
-                                    batch.update(doc.reference, {'read': true});
-                                  }
-                                }
-                                await batch.commit();
+                                await NotificationService.markAllRead(uid);
                               },
-                              child: const Text('Mark all read'),
+                              child: Text('Mark all read ($unreadCount)'),
                             ),
                         ],
                       ),
                       const SizedBox(height: 12),
                       if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData)
                         const Expanded(child: Center(child: CircularProgressIndicator()))
-                      else if (docs.isEmpty)
+                      else if (snapshot.hasError)
+                        const Expanded(
+                          child: Center(
+                            child: Text('Unable to load notifications right now.'),
+                          ),
+                        )
+                      else if (notifications.isEmpty)
                         const Expanded(
                           child: Center(
                             child: Column(
@@ -149,7 +138,7 @@ class _MainScreenState extends State<MainScreen> {
                                 SizedBox(height: 12),
                                 Text('No notifications yet', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
                                 SizedBox(height: 6),
-                                Text('We’ll keep important styling updates here.', textAlign: TextAlign.center),
+                                Text('Important styling updates will appear here.', textAlign: TextAlign.center),
                               ],
                             ),
                           ),
@@ -157,35 +146,46 @@ class _MainScreenState extends State<MainScreen> {
                       else
                         Expanded(
                           child: ListView.separated(
-                            itemCount: docs.length,
-                            separatorBuilder: (_, _) => const SizedBox(height: 8),
+                            itemCount: notifications.length,
+                            separatorBuilder: (_, __) => const SizedBox(height: 8),
                             itemBuilder: (context, index) {
-                              final doc = docs[index];
-                              final data = doc.data();
-                              final read = data['read'] == true;
-                              final title = data['title'] as String? ?? 'VYEA update';
-                              final body = data['body'] as String? ?? '';
-                              final createdAt = data['createdAt'];
-
+                              final item = notifications[index];
                               return Card(
                                 elevation: 0,
-                                color: read ? AppColors.surface : AppColors.secondary.withValues(alpha: .42),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(17), side: const BorderSide(color: AppColors.border)),
+                                color: item.read
+                                    ? AppColors.surface
+                                    : AppColors.secondary.withValues(alpha: .42),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(17),
+                                  side: const BorderSide(color: AppColors.border),
+                                ),
                                 child: ListTile(
                                   contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
                                   leading: CircleAvatar(
                                     backgroundColor: AppColors.surfaceMuted,
-                                    child: Icon(read ? Icons.notifications_none_rounded : Icons.notifications_active_rounded, color: AppColors.primary),
+                                    child: Icon(
+                                      item.read
+                                          ? Icons.notifications_none_rounded
+                                          : Icons.notifications_active_rounded,
+                                      color: AppColors.primary,
+                                    ),
                                   ),
-                                  title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+                                  title: Text(
+                                    item.title,
+                                    style: const TextStyle(fontWeight: FontWeight.w800),
+                                  ),
                                   subtitle: Padding(
                                     padding: const EdgeInsets.only(top: 4),
-                                    child: Text('$body\n${_formatNotificationDate(createdAt)}'),
+                                    child: Text(
+                                      '${item.body}\n${_formatNotificationDate(item.createdAt)}',
+                                    ),
                                   ),
                                   isThreeLine: true,
-                                  onTap: () async {
-                                    if (!read) await doc.reference.update({'read': true});
-                                  },
+                                  onTap: item.read
+                                      ? null
+                                      : () async {
+                                          await NotificationService.markRead(uid, item.id);
+                                        },
                                 ),
                               );
                             },
@@ -202,14 +202,65 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  String _formatNotificationDate(dynamic value) {
-    if (value is! Timestamp) return 'Just now';
-    final date = value.toDate();
-    final day = date.day.toString().padLeft(2, '0');
-    final month = date.month.toString().padLeft(2, '0');
-    final hour = date.hour.toString().padLeft(2, '0');
-    final minute = date.minute.toString().padLeft(2, '0');
-    return '$day/$month/${date.year} · $hour:$minute';
+  String _formatNotificationDate(DateTime? value) {
+    if (value == null) return 'Just now';
+    final day = value.day.toString().padLeft(2, '0');
+    final month = value.month.toString().padLeft(2, '0');
+    final hour = value.hour.toString().padLeft(2, '0');
+    final minute = value.minute.toString().padLeft(2, '0');
+    return '$day/$month/${value.year} · $hour:$minute';
+  }
+
+  Widget _notificationBell() {
+    final uid = _uid;
+    if (uid == null) {
+      return _topActionButton(
+        icon: Icons.notifications_none_rounded,
+        tooltip: 'Notifications',
+        onTap: _showNotifications,
+      );
+    }
+
+    return StreamBuilder<int>(
+      stream: NotificationService.unreadCountStream(uid),
+      builder: (context, snapshot) {
+        final unread = snapshot.data ?? 0;
+        return Stack(
+          clipBehavior: Clip.none,
+          children: [
+            _topActionButton(
+              icon: unread > 0
+                  ? Icons.notifications_active_rounded
+                  : Icons.notifications_none_rounded,
+              tooltip: unread > 0 ? '$unread unread notifications' : 'Notifications',
+              onTap: _showNotifications,
+            ),
+            if (unread > 0)
+              Positioned(
+                right: -1,
+                top: -1,
+                child: Container(
+                  constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                  decoration: const BoxDecoration(
+                    color: AppColors.primary,
+                    shape: BoxShape.circle,
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    unread > 9 ? '9+' : '$unread',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 8,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
   }
 
   Future<void> _logout() async {
@@ -237,7 +288,9 @@ class _MainScreenState extends State<MainScreen> {
       );
     } on FirebaseAuthException catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not log out: ${error.message ?? 'Please try again.'}')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not log out: ${error.message ?? 'Please try again.'}')),
+      );
     }
   }
 
@@ -272,26 +325,57 @@ class _MainScreenState extends State<MainScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('VYEA', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: 2.6, color: AppColors.brown)),
+                  const Text(
+                    'VYEA',
+                    style: TextStyle(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 2.6,
+                      color: AppColors.brown,
+                    ),
+                  ),
                   const SizedBox(height: 2),
-                  Text(greeting, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 19, height: 1.1, fontWeight: FontWeight.w800, color: AppColors.textPrimary, letterSpacing: -0.3)),
+                  Text(
+                    greeting,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 19,
+                      height: 1.1,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.textPrimary,
+                      letterSpacing: -0.3,
+                    ),
+                  ),
                 ],
               ),
             ),
             if (widget.adminPreview) ...[
-              _topActionButton(icon: Icons.admin_panel_settings_outlined, tooltip: 'Return to Admin', onTap: _returnToAdmin),
+              _topActionButton(
+                icon: Icons.admin_panel_settings_outlined,
+                tooltip: 'Return to Admin',
+                onTap: _returnToAdmin,
+              ),
               const SizedBox(width: 6),
             ],
-            _topActionButton(icon: Icons.notifications_none_rounded, tooltip: 'Notifications', onTap: _showNotifications),
+            _notificationBell(),
             const SizedBox(width: 6),
-            _topActionButton(icon: Icons.logout_rounded, tooltip: 'Log out', onTap: _logout),
+            _topActionButton(
+              icon: Icons.logout_rounded,
+              tooltip: 'Log out',
+              onTap: _logout,
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _topActionButton({required IconData icon, required String tooltip, required VoidCallback onTap}) {
+  Widget _topActionButton({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onTap,
+  }) {
     return Tooltip(
       message: tooltip,
       child: Material(
@@ -300,10 +384,10 @@ class _MainScreenState extends State<MainScreen> {
         child: InkWell(
           onTap: onTap,
           customBorder: const CircleBorder(),
-          child: SizedBox(
+          child: const SizedBox(
             width: 39,
             height: 39,
-            child: Icon(icon, color: AppColors.primary, size: 18),
+            child: Icon(Icons.notifications_none_rounded, color: AppColors.primary, size: 18),
           ),
         ),
       ),
@@ -323,7 +407,12 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  NavigationDestination _destination({required IconData icon, required IconData selectedIcon, required String label, required int index}) {
+  NavigationDestination _destination({
+    required IconData icon,
+    required IconData selectedIcon,
+    required String label,
+    required int index,
+  }) {
     final selected = _selectedIndex == index;
     return NavigationDestination(
       icon: _tabTransition(selected: false, child: Icon(icon)),
@@ -354,10 +443,16 @@ class _MainScreenState extends State<MainScreen> {
                   ).chain(CurveTween(curve: Curves.easeOutCubic));
                   return FadeTransition(
                     opacity: animation,
-                    child: SlideTransition(position: animation.drive(offsetTween), child: child),
+                    child: SlideTransition(
+                      position: animation.drive(offsetTween),
+                      child: child,
+                    ),
                   );
                 },
-                child: KeyedSubtree(key: ValueKey(_selectedIndex), child: _pages[_selectedIndex]),
+                child: KeyedSubtree(
+                  key: ValueKey(_selectedIndex),
+                  child: _pages[_selectedIndex],
+                ),
               ),
             ),
           ],
@@ -371,7 +466,13 @@ class _MainScreenState extends State<MainScreen> {
             color: AppColors.surface.withValues(alpha: .98),
             borderRadius: BorderRadius.circular(22),
             border: Border.all(color: AppColors.border),
-            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .045), blurRadius: 18, offset: const Offset(0, 6))],
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: .045),
+                blurRadius: 18,
+                offset: const Offset(0, 6),
+              ),
+            ],
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(22),
@@ -408,7 +509,11 @@ class _MainScreenState extends State<MainScreen> {
         color: selected ? null : AppColors.surfaceMuted,
         shape: BoxShape.circle,
       ),
-      child: Icon(Icons.auto_awesome_rounded, size: selected ? 19 : 17, color: selected ? Colors.white : AppColors.primary),
+      child: Icon(
+        Icons.auto_awesome_rounded,
+        size: selected ? 19 : 17,
+        color: selected ? Colors.white : AppColors.primary,
+      ),
     );
   }
 }
