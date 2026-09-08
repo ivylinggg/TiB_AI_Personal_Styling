@@ -14,10 +14,8 @@ import '../../services/colour_report_service.dart';
 import '../../services/firestore_service.dart';
 import '../../services/style_preference_service.dart';
 import '../../widgets/colour_swatch.dart';
-import '../ai/ai_outfit_screen.dart';
 import '../ai/ai_stylist_screen.dart';
 import '../ai/style_preferences_screen.dart';
-import '../professional/professional_style_screen.dart';
 import 'season_colour_guide_screen.dart';
 
 class AnalysisResultScreen extends StatefulWidget {
@@ -38,7 +36,6 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
   int _wardrobeCount = 0;
   int _favourites = 0;
   int _savedLooks = 0;
-  List<WardrobeItem> _matchingItems = const [];
 
   ColourAnalysisResult get result => widget.result;
 
@@ -63,12 +60,6 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
       final prefs = data[0] as Map<String, dynamic>?;
       final wardrobe = data[1] as List<WardrobeItem>;
       final saved = data[2] as List;
-      final season = result.season.toLowerCase();
-      final colours = result.colours.map((e) => e.toLowerCase()).toList();
-      final matches = wardrobe.where((item) {
-        final text = '${item.colour} ${item.style} ${item.season}'.toLowerCase();
-        return (colours.isNotEmpty && colours.any(text.contains)) || (season.isNotEmpty && text.contains(season));
-      }).take(6).toList();
       if (!mounted) return;
       setState(() {
         _styles = List<String>.from(prefs?['styles'] ?? const []);
@@ -76,7 +67,6 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
         _wardrobeCount = wardrobe.length;
         _favourites = wardrobe.where((item) => item.isFavourite).length;
         _savedLooks = saved.length;
-        _matchingItems = matches;
         _loadingPersonalContext = false;
       });
     } catch (_) {
@@ -121,7 +111,6 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
   void _openGuide() => Navigator.push(context, MaterialPageRoute(builder: (_) => const SeasonColourGuideScreen()));
   void _openStyle() => Navigator.push(context, MaterialPageRoute(builder: (_) => const StylePreferencesScreen())).then((_) => _loadPersonalContext());
   void _openAIStylist() => Navigator.push(context, MaterialPageRoute(builder: (_) => const AIStylistScreen()));
-  void _openAIOutfit() => Navigator.push(context, MaterialPageRoute(builder: (_) => const AIOutfitScreen()));
 
   @override
   Widget build(BuildContext context) {
@@ -192,7 +181,7 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
                         errorWidget: (context, url, error) => Container(height: 250, color: AppColors.surfaceMuted, child: const Center(child: Icon(Icons.image_not_supported_outlined))),
                       ),
                     ),
-                    Align(alignment: Alignment.centerRight, child: TextButton.icon(onPressed: _generatingReport ? null : _removePhotoAndRescan, icon: const Icon(Icons.refresh_rounded, size: 18), label: const Text('Use a different photo'))),
+                    Align(alignment: Alignment.centerRight, child: TextButton.icon(onPressed: _generatingReport ? null : _removePhotoAndRescan, icon: const Icon(Icons.refresh_rounded, size: 18), label: const Text('Use a different photo')),
                   ],
                   const SizedBox(height: 20),
                   _reportActions(),
@@ -270,8 +259,6 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
     );
   }
 
-  // The existing screen's remaining presentation helpers are preserved by the
-  // repository version. They are intentionally kept private to this screen.
   Widget _hero(String season, SeasonColourProfile profile, Color accent) => Container(padding: const EdgeInsets.all(18), decoration: BoxDecoration(gradient: AppGradients.blush, borderRadius: BorderRadius.circular(24)), child: Row(children: [Container(width: 54, height: 54, decoration: BoxDecoration(color: accent.withValues(alpha: .16), shape: BoxShape.circle), child: Icon(Icons.palette_outlined, color: accent, size: 25)), const SizedBox(width: 13), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(profile.name, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900)), const SizedBox(height: 3), Text(profile.dimension, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)), const SizedBox(height: 5), Text(profile.description, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.35))]))]));
 
   Widget _attributeRow(Color accent) => Row(children: [Expanded(child: _metric('UNDERTONE', result.undertone, accent)), const SizedBox(width: 8), Expanded(child: _metric('DEPTH', result.brightness, accent)), const SizedBox(width: 8), Expanded(child: _metric('CONTRAST', result.contrast, accent))]);
