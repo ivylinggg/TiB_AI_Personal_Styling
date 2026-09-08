@@ -16,18 +16,11 @@ class AiStylingResult {
   final String? shoesId;
   final String? accessoryId;
 
-  const AiStylingResult({
-    required this.explanation,
-    required this.topId,
-    required this.bottomId,
-    required this.shoesId,
-    required this.accessoryId,
-  });
+  const AiStylingResult({required this.explanation, required this.topId, required this.bottomId, required this.shoesId, required this.accessoryId});
 }
 
-/// Calls the existing Apps Script Web App's `aiStyling` action.
-/// Claude receives the user's observed personal-colour traits and face shape
-/// together with wardrobe, preferences and optional TiB Model measurements.
+/// Sends the user's observed personal-colour traits, face shape, wardrobe and
+/// preferences to the existing AI styling backend.
 class AiStylingService {
   AiStylingService._();
 
@@ -44,7 +37,6 @@ class AiStylingService {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return null;
-
       final idToken = await user.getIdToken();
       if (idToken == null || idToken.isEmpty) return null;
 
@@ -56,7 +48,8 @@ class AiStylingService {
       } catch (_) {}
 
       final tibModel = await TibModelService.load();
-      final tibContext = {
+      final scannedFaceShape = profile.faceShape != 'Unknown' ? profile.faceShape : '';
+      final tibContext = <String, dynamic>{
         if (tibModel.isComplete) ...{
           'faceShape': tibModel.faceShape,
           'bodyShape': tibModel.bodyShape,
@@ -66,7 +59,7 @@ class AiStylingService {
           'waistCm': tibModel.waist,
           'hipsCm': tibModel.hips,
         },
-        if (profile.faceShape != 'Unknown') 'scannedFaceShape': profile.faceShape,
+        if (scannedFaceShape.isNotEmpty) 'scannedFaceShape': scannedFaceShape,
       };
 
       final role = personalBrand['role'] is String ? (personalBrand['role'] as String).trim() : '';
@@ -74,12 +67,10 @@ class AiStylingService {
           ? (personalBrand['impressions'] as List).whereType<String>().map((value) => value.trim()).where((value) => value.isNotEmpty).take(4).toList()
           : const <String>[];
       final statement = personalBrand['statement'] is String ? (personalBrand['statement'] as String).trim() : '';
-
       final brandContext = <String>[];
       if (role.isNotEmpty) brandContext.add('Role: $role');
       if (impressions.isNotEmpty) brandContext.add('Desired impression: ${impressions.join(', ')}');
       if (statement.isNotEmpty) brandContext.add('Personal brand statement: $statement');
-
       final enrichedOccasion = brandContext.isEmpty ? occasion : '$occasion\n\nPersonal Brand context:\n${brandContext.join('\n')}';
 
       final response = await http.post(
@@ -97,17 +88,24 @@ class AiStylingService {
             'colours': profile.colours,
             'colourReasons': profile.colourReasons,
             'faceShape': profile.faceShape,
+            'personalColour': {
+              'undertone': profile.undertone,
+              'value': profile.brightness,
+              'contrast': profile.contrast,
+              'recommendedColours': profile.colours,
+              'analysisReasons': profile.colourReasons,
+            },
           },
           'tibModel': tibContext,
           'wardrobe': wardrobe.map((item) => {
-                'id': item.id,
-                'name': item.name,
-                'category': item.category,
-                'colour': item.colour,
-                'style': item.style,
-                'season': item.season,
-                'isFavourite': item.isFavourite,
-              }).toList(),
+            'id': item.id,
+            'name': item.name,
+            'category': item.category,
+            'colour': item.colour,
+            'style': item.style,
+            'season': item.season,
+            'isFavourite': item.isFavourite,
+          }).toList(),
           'styles': styles,
           'preferences': preferences,
           'occasion': enrichedOccasion,
@@ -127,30 +125,19 @@ class AiStylingService {
       if (response.statusCode != 200) return null;
       final decoded = jsonDecode(response.body);
       if (decoded is! Map<String, dynamic> || decoded['success'] != true) return null;
-
       final explanation = decoded['explanation'] is String ? (decoded['explanation'] as String).trim() : '';
       String? asId(dynamic value) => value is String && value.trim().isNotEmpty ? value.trim() : null;
       final wardrobeIds = wardrobe.map((item) => item.id).toSet();
       String? validId(dynamic value) {
         final id = asId(value);
-        if (id == null || !wardrobeIds.contains(id)) return null;
-        return id;
+        return id != null && wardrobeIds.contains(id) ? id : null;
       }
-
       final topId = validId(decoded['topId']);
       final bottomId = validId(decoded['bottomId']);
       final shoesId = validId(decoded['shoesId']);
       final accessoryId = validId(decoded['accessoryId']);
-      final hasRecommendation = explanation.isNotEmpty || topId != null || bottomId != null || shoesId != null || accessoryId != null;
-      if (!hasRecommendation) return null;
-
-      return AiStylingResult(
-        explanation: explanation,
-        topId: topId,
-        bottomId: bottomId,
-        shoesId: shoesId,
-        accessoryId: accessoryId,
-      );
+      if (explanation.isEmpty && topId == null && bottomId == null && shoesId == null && accessoryId == null) return null;
+      return AiStylingResult(explanation: explanation, topId: topId, bottomId: bottomId, shoesId: shoesId, accessoryId: accessoryId);
     } catch (_) {
       return null;
     }
