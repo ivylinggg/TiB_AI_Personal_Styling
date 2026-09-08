@@ -134,7 +134,18 @@ service cloud.firestore {
       allow update: if isAdmin()
         || (isSignedIn()
           && resource.data.get('authorId', '') == request.auth.uid
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'body', 'category', 'updatedAt']));
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'body', 'category', 'updatedAt']))
+        || (isSignedIn()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['commentCount', 'lastActivityAt'])
+          && request.resource.data.get('commentCount', 0) == resource.data.get('commentCount', 0) + 1)
+        || (isSignedIn()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likeCount', 'lastActivityAt'])
+          && (
+            (request.resource.data.get('likeCount', 0) == resource.data.get('likeCount', 0) + 1
+              && getAfter(/databases/$(database)/documents/forum_posts/$(postId)/likes/$(request.auth.uid)).exists())
+            || (request.resource.data.get('likeCount', 0) == resource.data.get('likeCount', 0) - 1
+              && !getAfter(/databases/$(database)/documents/forum_posts/$(postId)/likes/$(request.auth.uid)).exists())
+          ));
       allow delete: if isAdmin() || (isSignedIn() && resource.data.get('authorId', '') == request.auth.uid);
 
       match /comments/{commentId} {
@@ -151,7 +162,8 @@ service cloud.firestore {
 
       match /likes/{userId} {
         allow get, list: if isSignedIn();
-        allow create: if isOwner(userId);
+        allow create: if isOwner(userId)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['createdAt']);
         allow delete: if isOwner(userId);
         allow update: if false;
       }
@@ -193,6 +205,7 @@ service cloud.firestore {
           && resource.data.get('status', '') == 'resolved'
           && request.resource.data.get('status', '') == 'resolved'
           && request.resource.data.get('assignedConsultantId', null) == resource.data.get('assignedConsultantId', null)
+          && resource.data.get('rating', null) == null
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rating', 'ratingComment', 'ratedAt'])
           && request.resource.data.get('rating', 0) is int
           && request.resource.data.get('rating', 0) >= 1
