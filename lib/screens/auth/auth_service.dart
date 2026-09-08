@@ -16,9 +16,6 @@ class AuthService {
   static const String _googleWebClientId =
       '494434706372-jdg9h3re1bdc6idecjumdavdmbh3eai8.apps.googleusercontent.com';
 
-  // Keep Google authentication on the legacy Google Sign-In Android flow.
-  // The newer Credential Manager flow is the source of the [16] reauth failure
-  // seen in the current Android environment.
   static final GoogleSignIn _googleSignIn = GoogleSignIn(
     serverClientId: _googleWebClientId,
   );
@@ -29,7 +26,10 @@ class AuthService {
     required String email,
     required String password,
   }) async {
-    return _auth.signInWithEmailAndPassword(email: email, password: password);
+    return _auth.signInWithEmailAndPassword(
+      email: email.trim(),
+      password: password,
+    );
   }
 
   static Future<UserCredential?> loginWithGoogle() async {
@@ -60,8 +60,27 @@ class AuthService {
       );
     }
 
-    final existingProfile = await FirestoreService.getUser(user.uid);
-    if (existingProfile != null) return;
+    final ref = _firestore.collection('users').doc(user.uid);
+    final snapshot = await ref.get();
+
+    if (snapshot.exists) {
+      final data = snapshot.data() ?? <String, dynamic>{};
+      final role = data['role'];
+      final isActive = data['isActive'];
+
+      final patch = <String, dynamic>{};
+      if (role is! String || role.trim().isEmpty) {
+        patch['role'] = 'customer';
+      }
+      if (isActive is! bool) {
+        patch['isActive'] = true;
+      }
+      if (patch.isNotEmpty) {
+        patch['updatedAt'] = FieldValue.serverTimestamp();
+        await ref.update(patch);
+      }
+      return;
+    }
 
     final profile = UserModel(
       uid: user.uid,
@@ -115,7 +134,7 @@ class AuthService {
     required String password,
   }) async {
     return _auth.createUserWithEmailAndPassword(
-      email: email,
+      email: email.trim(),
       password: password,
     );
   }
