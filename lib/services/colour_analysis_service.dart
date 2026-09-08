@@ -39,13 +39,6 @@ class ColourAnalysisService {
     );
     final guide = SeasonColourGuide.forSeason(season);
 
-    final reasons = <String>[
-      '${sample.warmthLabel} undertone detected from the sampled skin tones',
-      '${sample.brightnessLabel} overall skin depth detected',
-      '${sample.contrastLabel} natural facial contrast detected',
-      sample.clarityLabel,
-    ];
-
     return ColourAnalysisResult(
       season: season,
       undertone: undertone,
@@ -53,7 +46,12 @@ class ColourAnalysisService {
       contrast: contrast,
       imageUrl: imageUrl,
       colours: guide.bestColours,
-      colourReasons: reasons,
+      colourReasons: [
+        '${sample.warmthLabel} undertone detected from natural skin colour',
+        '${sample.brightnessLabel} skin depth detected from sampled facial tones',
+        '${sample.contrastLabel} natural facial contrast detected',
+        sample.clarityLabel,
+      ],
     );
   }
 
@@ -148,7 +146,8 @@ class ColourAnalysisService {
     return nr > 0.28 && nr < 0.56 && ng > 0.20 && ng < 0.43 && nb < 0.34;
   }
 
-  static double _luminance(double r, double g, double b) => (0.2126 * r) + (0.7152 * g) + (0.0722 * b);
+  static double _luminance(double r, double g, double b) =>
+      (0.2126 * r) + (0.7152 * g) + (0.0722 * b);
 
   static String _undertone(double warmthScore) {
     if (warmthScore >= 36) return 'Warm';
@@ -176,24 +175,27 @@ class ColourAnalysisService {
     required double skinChroma,
     required double colourClarity,
   }) {
-    final isWarm = undertone == 'Warm';
-    final isCool = undertone == 'Cool';
-    final isLight = brightness == 'Light';
-    final isDeep = brightness == 'Deep';
-    final isClear = colourClarity >= 10.5 || skinChroma >= 42;
-    final isMuted = colourClarity <= 8.0 || skinChroma <= 28;
+    final clear = colourClarity >= 10.5 || skinChroma >= 42;
+    final muted = colourClarity <= 8.0 || skinChroma <= 28;
 
-    if (isWarm && isLight && isClear) return 'Spring';
-    if (isWarm && isDeep && (isMuted || contrast != 'High')) return 'Autumn';
-    if (isCool && isLight && (isMuted || contrast == 'Low')) return 'Summer';
-    if (isCool && isDeep && isClear) return 'Winter';
+    // Seasonal identity is determined from the observed colour character,
+    // not from skin depth alone. Warm/cool is the primary family; light/deep
+    // and clear/soft refine the result.
+    if (undertone == 'Warm') {
+      if (brightness == 'Light' && clear) return 'Spring';
+      if (brightness == 'Deep' || muted) return 'Autumn';
+      return contrast == 'High' && clear ? 'Spring' : 'Autumn';
+    }
 
-    if (isWarm) return isLight ? 'Spring' : 'Autumn';
-    if (isCool) return isLight ? 'Summer' : 'Winter';
+    if (undertone == 'Cool') {
+      if (brightness == 'Light' && (muted || contrast == 'Low')) return 'Summer';
+      if (brightness == 'Deep' || clear) return 'Winter';
+      return contrast == 'High' ? 'Winter' : 'Summer';
+    }
 
-    if (isLight) return contrast == 'High' ? 'Spring' : 'Summer';
-    if (isDeep) return contrast == 'High' ? 'Winter' : 'Autumn';
-    return isMuted ? 'Summer' : (contrast == 'High' ? 'Winter' : 'Autumn');
+    if (brightness == 'Light') return muted || contrast == 'Low' ? 'Summer' : 'Spring';
+    if (brightness == 'Deep') return clear && contrast == 'High' ? 'Winter' : 'Autumn';
+    return muted ? 'Summer' : (contrast == 'High' ? 'Winter' : 'Autumn');
   }
 }
 
