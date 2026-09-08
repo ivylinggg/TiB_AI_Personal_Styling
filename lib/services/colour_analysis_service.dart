@@ -39,6 +39,13 @@ class ColourAnalysisService {
     );
     final guide = SeasonColourGuide.forSeason(season);
 
+    final reasons = <String>[
+      '${sample.warmthLabel} undertone detected from the sampled skin tones',
+      '${sample.brightnessLabel} overall skin depth detected',
+      '${sample.contrastLabel} natural facial contrast detected',
+      sample.clarityLabel,
+    ];
+
     return ColourAnalysisResult(
       season: season,
       undertone: undertone,
@@ -46,6 +53,7 @@ class ColourAnalysisService {
       contrast: contrast,
       imageUrl: imageUrl,
       colours: guide.bestColours,
+      colourReasons: reasons,
     );
   }
 
@@ -95,11 +103,7 @@ class ColourAnalysisService {
     for (var y = 0; y < height; y += 12) {
       for (var x = 0; x < width; x += 12) {
         final pixel = image.getPixel(x, y);
-        final value = _luminance(
-          pixel.r.toDouble(),
-          pixel.g.toDouble(),
-          pixel.b.toDouble(),
-        );
+        final value = _luminance(pixel.r.toDouble(), pixel.g.toDouble(), pixel.b.toDouble());
         darkest = math.min(darkest, value);
         lightest = math.max(lightest, value);
       }
@@ -110,11 +114,7 @@ class ColourAnalysisService {
     for (var y = top; y < bottom; y += 5) {
       for (var x = left; x < right; x += 5) {
         final pixel = image.getPixel(x, y);
-        final value = _luminance(
-          pixel.r.toDouble(),
-          pixel.g.toDouble(),
-          pixel.b.toDouble(),
-        );
+        final value = _luminance(pixel.r.toDouble(), pixel.g.toDouble(), pixel.b.toDouble());
         if (value < avgSkinLuminance * 0.72) {
           darkTotal += value;
           darkCount++;
@@ -148,8 +148,7 @@ class ColourAnalysisService {
     return nr > 0.28 && nr < 0.56 && ng > 0.20 && ng < 0.43 && nb < 0.34;
   }
 
-  static double _luminance(double r, double g, double b) =>
-      (0.2126 * r) + (0.7152 * g) + (0.0722 * b);
+  static double _luminance(double r, double g, double b) => (0.2126 * r) + (0.7152 * g) + (0.0722 * b);
 
   static String _undertone(double warmthScore) {
     if (warmthScore >= 36) return 'Warm';
@@ -164,10 +163,7 @@ class ColourAnalysisService {
   }
 
   static String _contrast(_PortraitSample sample) {
-    final score = math.max(
-      sample.skinToDarkContrast,
-      sample.globalRange * 0.55,
-    );
+    final score = math.max(sample.skinToDarkContrast, sample.globalRange * 0.55);
     if (score >= 105) return 'High';
     if (score >= 62) return 'Medium';
     return 'Low';
@@ -180,82 +176,24 @@ class ColourAnalysisService {
     required double skinChroma,
     required double colourClarity,
   }) {
-    final scores = <String, double>{
-      'Spring': 0,
-      'Summer': 0,
-      'Autumn': 0,
-      'Winter': 0,
-    };
+    final isWarm = undertone == 'Warm';
+    final isCool = undertone == 'Cool';
+    final isLight = brightness == 'Light';
+    final isDeep = brightness == 'Deep';
+    final isClear = colourClarity >= 10.5 || skinChroma >= 42;
+    final isMuted = colourClarity <= 8.0 || skinChroma <= 28;
 
-    if (undertone == 'Warm') {
-      scores['Spring'] = scores['Spring']! + 34;
-      scores['Autumn'] = scores['Autumn']! + 34;
-      scores['Summer'] = scores['Summer']! - 18;
-      scores['Winter'] = scores['Winter']! - 18;
-    } else if (undertone == 'Cool') {
-      scores['Summer'] = scores['Summer']! + 34;
-      scores['Winter'] = scores['Winter']! + 34;
-      scores['Spring'] = scores['Spring']! - 18;
-      scores['Autumn'] = scores['Autumn']! - 18;
-    } else {
-      for (final season in scores.keys) {
-        scores[season] = scores[season]! + 8;
-      }
-    }
+    if (isWarm && isLight && isClear) return 'Spring';
+    if (isWarm && isDeep && (isMuted || contrast != 'High')) return 'Autumn';
+    if (isCool && isLight && (isMuted || contrast == 'Low')) return 'Summer';
+    if (isCool && isDeep && isClear) return 'Winter';
 
-    switch (brightness) {
-      case 'Light':
-        scores['Spring'] = scores['Spring']! + 30;
-        scores['Summer'] = scores['Summer']! + 30;
-        scores['Autumn'] = scores['Autumn']! - 8;
-        scores['Winter'] = scores['Winter']! - 8;
-        break;
-      case 'Deep':
-        scores['Autumn'] = scores['Autumn']! + 30;
-        scores['Winter'] = scores['Winter']! + 30;
-        scores['Spring'] = scores['Spring']! - 8;
-        scores['Summer'] = scores['Summer']! - 8;
-        break;
-      default:
-        for (final season in scores.keys) {
-          scores[season] = scores[season]! + 12;
-        }
-    }
+    if (isWarm) return isLight ? 'Spring' : 'Autumn';
+    if (isCool) return isLight ? 'Summer' : 'Winter';
 
-    if (contrast == 'High') {
-      scores['Spring'] = scores['Spring']! + 22;
-      scores['Winter'] = scores['Winter']! + 22;
-      scores['Summer'] = scores['Summer']! - 6;
-      scores['Autumn'] = scores['Autumn']! - 6;
-    } else if (contrast == 'Low') {
-      scores['Summer'] = scores['Summer']! + 22;
-      scores['Autumn'] = scores['Autumn']! + 22;
-      scores['Spring'] = scores['Spring']! - 6;
-      scores['Winter'] = scores['Winter']! - 6;
-    } else {
-      for (final season in scores.keys) {
-        scores[season] = scores[season]! + 8;
-      }
-    }
-
-    final clearBonus = math.min(18, math.max(0, colourClarity * 1.6));
-    final mutedBonus = math.min(18, math.max(0, 12 - colourClarity * 1.2));
-    scores['Spring'] = scores['Spring']! + clearBonus;
-    scores['Winter'] = scores['Winter']! + clearBonus;
-    scores['Summer'] = scores['Summer']! + mutedBonus;
-    scores['Autumn'] = scores['Autumn']! + mutedBonus;
-
-    if (skinChroma >= 42) {
-      scores['Spring'] = scores['Spring']! + 8;
-      scores['Winter'] = scores['Winter']! + 8;
-    } else if (skinChroma <= 28) {
-      scores['Summer'] = scores['Summer']! + 8;
-      scores['Autumn'] = scores['Autumn']! + 8;
-    }
-
-    return scores.entries.reduce(
-      (best, entry) => entry.value > best.value ? entry : best,
-    ).key;
+    if (isLight) return contrast == 'High' ? 'Spring' : 'Summer';
+    if (isDeep) return contrast == 'High' ? 'Winter' : 'Autumn';
+    return isMuted ? 'Summer' : (contrast == 'High' ? 'Winter' : 'Autumn');
   }
 }
 
@@ -287,4 +225,29 @@ class _PortraitSample {
         globalRange: 0,
         skinCount: 0,
       );
+
+  String get warmthLabel {
+    if (warmthScore >= 36) return 'Warm';
+    if (warmthScore <= 23) return 'Cool';
+    return 'Neutral';
+  }
+
+  String get brightnessLabel {
+    if (skinLuminance >= 184) return 'Light';
+    if (skinLuminance >= 118) return 'Medium';
+    return 'Deep';
+  }
+
+  String get contrastLabel {
+    final value = math.max(skinToDarkContrast, globalRange * .55);
+    if (value >= 105) return 'High';
+    if (value >= 62) return 'Medium';
+    return 'Low';
+  }
+
+  String get clarityLabel {
+    if (colourClarity >= 10.5) return 'Clear, lively colouring detected';
+    if (colourClarity <= 8) return 'Soft, muted colouring detected';
+    return 'Balanced colour clarity detected';
+  }
 }
