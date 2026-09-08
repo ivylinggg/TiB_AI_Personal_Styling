@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/colour_analysis_result.dart';
 import '../services/colour_analysis_service.dart';
+import '../services/face_shape_analysis_service.dart';
 import '../services/firestore_service.dart';
 import '../services/mlkit_service.dart';
 import '../services/storage_service.dart';
@@ -76,9 +77,7 @@ class AnalysisProvider extends ChangeNotifier {
           .get();
 
       _isPremium = userSnapshot.data()?['isPremium'] == true;
-      _status = _isPremium
-          ? 'Premium access active. Detecting face...'
-          : 'Detecting face...';
+      _status = _isPremium ? 'Premium access active. Detecting face...' : 'Detecting face...';
       notifyListeners();
     } catch (_) {
       _isPremium = false;
@@ -87,7 +86,6 @@ class AnalysisProvider extends ChangeNotifier {
     }
 
     try {
-      // Validate that the photo contains exactly one face.
       final faces = await MlKitService.detectFace(image);
 
       if (faces.isEmpty) {
@@ -140,9 +138,7 @@ class AnalysisProvider extends ChangeNotifier {
         colourReasons: colourResult.colourReasons,
       );
 
-      _status = _isPremium
-          ? 'Preparing your Premium personal colour profile...'
-          : 'Saving your personal colour profile...';
+      _status = 'Saving your personal colour & face profile...';
       notifyListeners();
 
       await FirestoreService.saveAnalysisResult(
@@ -161,9 +157,7 @@ class AnalysisProvider extends ChangeNotifier {
       }
 
       _result = analysisResult;
-      _status = _isPremium
-          ? 'Personal colour & face analysis completed successfully'
-          : 'Personal colour & face analysis completed successfully';
+      _status = 'Personal colour & face analysis completed successfully';
       return true;
     } catch (e) {
       _setError('Analysis failed: $e');
