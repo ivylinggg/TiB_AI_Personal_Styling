@@ -49,10 +49,15 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
         });
         return;
       }
-      final document = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+
+      final document = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
       final data = document.data();
       final role = (data?['role'] as String? ?? '').trim().toLowerCase();
       final isActive = data?['isActive'] as bool? ?? true;
+
       if (!mounted) return;
       setState(() {
         _isCheckingAccess = false;
@@ -88,6 +93,8 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
         AdminMode.consultantPreview => Icons.support_agent_rounded,
         AdminMode.customerPreview => Icons.person_outline_rounded,
       };
+
+  bool get _isPreviewMode => _mode != AdminMode.administrator;
 
   void _setMode(AdminMode mode) {
     if (_mode == mode) return;
@@ -141,10 +148,11 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const ListTile(
+                ListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: Text('Choose a Customer'),
-                  subtitle: Text(
+                  leading: CircleAvatar(child: Icon(_modeIcon)),
+                  title: const Text('Choose a Customer'),
+                  subtitle: const Text(
                     'Preview this customer using their real saved style data. Your admin session stays unchanged.',
                   ),
                 ),
@@ -207,10 +215,15 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const ListTile(
+              ListTile(
                 contentPadding: EdgeInsets.zero,
-                title: Text('Switch Role Dashboard'),
-                subtitle: Text('Preview another role without changing your real Firebase role.'),
+                leading: CircleAvatar(child: Icon(_modeIcon)),
+                title: const Text('Switch Role Dashboard'),
+                subtitle: Text(
+                  _isPreviewMode
+                      ? 'Preview mode is active. Your real Firebase role remains Administrator.'
+                      : 'Open a preview dashboard without changing your real Firebase role.',
+                ),
               ),
               _ModeTile(
                 title: 'Administrator',
@@ -364,7 +377,7 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
                           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
                         ),
                       ),
-                      if (_mode != AdminMode.administrator) ...[
+                      if (_isPreviewMode) ...[
                         const SizedBox(width: 7),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
@@ -394,10 +407,13 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
             onPressed: _isCheckingAccess ? null : _verifyAdministratorAccess,
             icon: const Icon(Icons.refresh_rounded),
           ),
-          IconButton(
-            tooltip: 'Switch Role Dashboard',
-            onPressed: _showModeSelector,
-            icon: const Icon(Icons.swap_horiz_rounded),
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: IconButton.filledTonal(
+              tooltip: 'Switch Role Dashboard',
+              onPressed: _showModeSelector,
+              icon: const Icon(Icons.swap_horiz_rounded),
+            ),
           ),
         ],
       ),
