@@ -74,16 +74,43 @@ class LiveConsultancyService {
         : _messages(uid).orderBy('createdAt').snapshots();
   }
 
-  /// Fetches consultations without a composite query so no composite Firestore
-  /// index is required. Consumers should sort the returned docs locally.
+  /// Returns only consultations the signed-in staff member is permitted to
+  /// list. Admins can see the full queue. Consultants can see consultations
+  /// assigned to them plus unassigned open/waiting requests that they may accept.
   static Stream<QuerySnapshot<Map<String, dynamic>>> consultationsStream({
     String? status,
-  }) {
+  }) async* {
+    final uid = currentUid;
+    if (uid == null) return;
+
+    final profile = await _userData(uid);
+    final role = (profile?['role'] as String? ?? '').trim().toLowerCase();
+    final active = profile?['isActive'] as bool? ?? true;
+
     Query<Map<String, dynamic>> query = _consultations;
-    if (status != null) {
-      query = query.where('status', isEqualTo: status);
+
+    if (role == 'admin') {
+      if (status != null) {
+        query = query.where('status', isEqualTo: status);
+      }
+    } else if (role == 'consultant' && active) {
+      query = query.where(
+        Filter.or(
+          Filter('assignedConsultantId', isEqualTo: uid),
+          Filter.and(
+            Filter('assignedConsultantId', isNull: true),
+            Filter('status', whereIn: const ['open', 'waiting_for_consultant']),
+          ),
+        ),
+      );
+      if (status != null) {
+        query = query.where('status', isEqualTo: status);
+      }
+    } else {
+      return;
     }
-    return query.snapshots();
+
+    yield* query.snapshots();
   }
 
   static Stream<QuerySnapshot<Map<String, dynamic>>> conversationMessages(
