@@ -18,12 +18,24 @@ service cloud.firestore {
       return userData(request.auth.uid);
     }
 
+    function role() {
+      return isSignedIn() ? currentUserData().get('role', 'customer') : 'customer';
+    }
+
     function isAdmin() {
-      return isSignedIn() && currentUserData().get('role', 'customer') == 'admin';
+      return isSignedIn() && role() == 'admin';
     }
 
     function isConsultant() {
-      return isSignedIn() && (currentUserData().get('role', 'customer') == 'consultant' || isAdmin());
+      return isSignedIn() && role() == 'consultant';
+    }
+
+    function isActiveConsultant() {
+      return isConsultant() && currentUserData().get('isActive', true) == true;
+    }
+
+    function isStaff() {
+      return isAdmin() || isActiveConsultant();
     }
 
     function isPremiumUser() {
@@ -42,18 +54,32 @@ service cloud.firestore {
         && request.resource.data.get('email', '') == request.auth.token.email;
     }
 
-    function protectedUserFieldsUnchanged() {
+    function customerProfileFieldsUnchanged() {
       return request.resource.data.get('role', resource.data.get('role', 'customer')) == resource.data.get('role', 'customer')
         && request.resource.data.get('isActive', resource.data.get('isActive', true)) == resource.data.get('isActive', true)
         && request.resource.data.get('isPremium', resource.data.get('isPremium', false)) == resource.data.get('isPremium', false)
         && request.resource.data.get('email', resource.data.get('email', '')) == resource.data.get('email', '');
     }
 
+    function isOwnAssignedConsultation(userId) {
+      return isActiveConsultant()
+        && resource.data.get('assignedConsultantId', null) == request.auth.uid;
+    }
+
+    function canReadConsultation(userId) {
+      return isOwner(userId)
+        || isAdmin()
+        || isOwnAssignedConsultation(userId)
+        || (isActiveConsultant()
+          && resource.data.get('assignedConsultantId', null) == null
+          && resource.data.get('status', '') in ['open', 'waiting_for_consultant']);
+    }
+
     match /users/{userId} {
       allow get: if isOwner(userId) || isAdmin();
       allow list: if isAdmin();
       allow create: if isValidCustomerCreate(userId) || isAdmin();
-      allow update: if isAdmin() || (isOwner(userId) && protectedUserFieldsUnchanged());
+      allow update: if isAdmin() || (isOwner(userId) && customerProfileFieldsUnchanged());
       allow delete: if isAdmin();
 
       match /analysis/{analysisId} {
@@ -64,7 +90,7 @@ service cloud.firestore {
 
       match /wardrobe/{itemId} {
         allow read: if isOwner(userId) || isAdmin();
-        allow create: if isOwner(userId) && request.resource.data.userId == userId;
+        allow create: if isOwner(userId) && request.resource.data.get('userId', userId) == userId;
         allow update, delete: if isOwner(userId) || isAdmin();
       }
 
@@ -74,9 +100,16 @@ service cloud.firestore {
 
       match /notifications/{notificationId} {
         allow read: if isOwner(userId) || isAdmin();
-        allow create: if isAdmin();
-        allow update: if isOwner(userId) || isAdmin();
-        allow delete: if isOwner(userId) || isAdmin();
+        allow create: if isAdmin()
+          || (isOwner(userId)
+            && request.resource.data.get('read', false) == false
+            && request.resource.data.get('title', '') is string
+            && request.resource.data.get('body', '') is string
+            && request.resource.data.get('type', 'system') is string);
+        allow update: if isAdmin()
+          || (isOwner(userId)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']));
+        allow delete: if isAdmin() || isOwner(userId);
       }
     }
 
@@ -97,40 +130,88 @@ service cloud.firestore {
     match /forum_posts/{postId} {
       allow get, list: if isSignedIn();
       allow create: if isSignedIn()
-        && request.resource.data.authorId == request.auth.uid
-        && request.resource.data.title is string
-        && request.resource.data.body is string
-        && request.resource.data.category is string
+        && request.resource.data.get('authorId', '') == request.auth.uid
+        && request.resource.data.get('title', '') is string
+        && request.resource.data.get('body', '') is string
+        && request.resource.data.get('category', '') is string
         && request.resource.data.get('isOfficial', false) == false;
-      allow update: if isSignedIn() && (resource.data.authorId == request.auth.uid || isAdmin());
-      allow delete: if isSignedIn() && (resource.data.authorId == request.auth.uid || isAdmin());
+      allow update: if isAdmin()
+        || (isSignedIn()
+          && resource.data.get('authorId', '') == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'body', 'category', 'updatedAt']));
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.get('authorId', '') == request.auth.uid);
 
       match /comments/{commentId} {
         allow get, list: if isSignedIn();
-        allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid && request.resource.data.body is string;
-        allow update, delete: if isSignedIn() && (resource.data.authorId == request.auth.uid || isAdmin());
+        allow create: if isSignedIn()
+          && request.resource.data.get('authorId', '') == request.auth.uid
+          && request.resource.data.get('body', '') is string;
+        allow update: if isAdmin()
+          || (isSignedIn()
+            && resource.data.get('authorId', '') == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['body', 'updatedAt']));
+        allow delete: if isAdmin() || (isSignedIn() && resource.data.get('authorId', '') == request.auth.uid);
       }
 
       match /likes/{userId} {
         allow get, list: if isSignedIn();
         allow create: if isOwner(userId);
         allow delete: if isOwner(userId);
+        allow update: if false;
       }
     }
 
     match /consultations/{userId} {
-      allow get, create, update: if isOwner(userId) || isConsultant();
-      allow list: if isConsultant();
+      allow get: if canReadConsultation(userId);
+      allow list: if isAdmin()
+        || (isActiveConsultant()
+          && resource.data.get('assignedConsultantId', null) == request.auth.uid);
+      allow create: if isOwner(userId)
+        && request.resource.data.get('uid', userId) == userId
+        && request.resource.data.get('assignedConsultantId', null) == null;
+      allow update: if isAdmin()
+        || (isOwner(userId)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'uid', 'userName', 'email', 'status', 'lastMessage', 'lastSenderType',
+            'unreadForUser', 'unreadForConsultant', 'firstConsultantReplyAt',
+            'responseTimeSeconds', 'rating', 'ratingComment', 'ratedAt',
+            'resolvedAt', 'createdAt', 'updatedAt', 'assignedConsultantId',
+            'assignedConsultantName', 'assignedAt'
+          ])
+          && request.resource.data.get('uid', userId) == userId
+          && request.resource.data.get('assignedConsultantId', null) == resource.data.get('assignedConsultantId', null))
+        || (isOwnAssignedConsultation(userId)
+          && request.resource.data.get('assignedConsultantId', null) == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status', 'lastMessage', 'lastSenderType', 'unreadForUser',
+            'unreadForConsultant', 'firstConsultantReplyAt', 'responseTimeSeconds',
+            'resolvedAt', 'updatedAt', 'assignedConsultantId', 'assignedConsultantName',
+            'assignedAt'
+          ]));
       allow delete: if isAdmin();
+
       match /messages/{messageId} {
-        allow read, create: if isOwner(userId) || isConsultant();
-        allow update, delete: if isAdmin();
+        allow read: if isOwner(userId) || isAdmin() || isOwnAssignedConsultation(userId);
+        allow create: if (isOwner(userId)
+            && request.resource.data.get('senderType', '') == 'user'
+            && request.resource.data.get('senderId', '') == request.auth.uid)
+          || (isOwnAssignedConsultation(userId)
+            && request.resource.data.get('senderType', '') == 'consultant'
+            && request.resource.data.get('senderId', '') == request.auth.uid);
+        allow update: if isAdmin()
+          || (isOwner(userId)
+            && resource.data.get('senderType', '') == 'consultant'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']))
+          || (isOwnAssignedConsultation(userId)
+            && resource.data.get('senderType', '') == 'user'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']));
+        allow delete: if isAdmin();
       }
     }
 
     match /consultant_presence/{consultantId} {
       allow get, list: if isSignedIn();
-      allow create, update, delete: if isConsultant() && request.auth.uid == consultantId;
+      allow create, update, delete: if isActiveConsultant() && request.auth.uid == consultantId;
     }
 
     match /{path=**} {
