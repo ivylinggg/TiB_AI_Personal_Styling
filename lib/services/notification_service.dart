@@ -1,4 +1,8 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 class VyeaNotification {
   final String id;
@@ -37,9 +41,40 @@ class NotificationService {
   NotificationService._();
 
   static final FirebaseFirestore _db = FirebaseFirestore.instance;
+  static final FirebaseMessaging _messaging = FirebaseMessaging.instance;
 
   static CollectionReference<Map<String, dynamic>> _notifications(String uid) =>
       _db.collection('users').doc(uid).collection('notifications');
+
+  static Future<void> initializePushNotifications() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    await _messaging.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+      provisional: false,
+    );
+
+    final token = await _messaging.getToken();
+    if (token != null && token.trim().isNotEmpty) {
+      await _storeDeviceToken(user.uid, token);
+    }
+
+    _messaging.onTokenRefresh.listen((token) {
+      if (token.trim().isNotEmpty) {
+        unawaited(_storeDeviceToken(user.uid, token));
+      }
+    });
+  }
+
+  static Future<void> _storeDeviceToken(String uid, String token) async {
+    await _db.collection('users').doc(uid).set({
+      'fcmTokens': FieldValue.arrayUnion([token]),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
 
   static Stream<List<VyeaNotification>> stream(String uid) {
     if (uid.trim().isEmpty) return const Stream.empty();
