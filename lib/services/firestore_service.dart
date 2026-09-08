@@ -60,41 +60,23 @@ class FirestoreService {
 
   static Future<PersonalStyleContext> getPersonalStyleContext(String uid) async {
     if (uid.trim().isEmpty) {
-      return const PersonalStyleContext(
-        user: null,
-        colourAnalysis: null,
-        styles: [],
-        preferences: [],
-        wardrobe: [],
-        savedLooks: [],
-      );
+      return const PersonalStyleContext(user: null, colourAnalysis: null, styles: [], preferences: [], wardrobe: [], savedLooks: []);
     }
-
     final userFuture = getUser(uid);
     final analysisFuture = getLatestColourAnalysis(uid);
     final preferencesFuture = _db.collection('users').doc(uid).collection('preferences').doc('style').get();
     final wardrobeFuture = getWardrobeItems(uid);
     final savedLooksFuture = getSavedOutfitLooks(uid);
-
     try {
-      final results = await Future.wait<dynamic>([
-        userFuture,
-        analysisFuture,
-        preferencesFuture,
-        wardrobeFuture,
-        savedLooksFuture,
-      ]);
-      final preferenceDoc = results[2] as DocumentSnapshot<Map<String, dynamic>>;
-      final preferenceData = preferenceDoc.data();
-      final wardrobe = results[3] as List<WardrobeItem>;
-      final savedLooks = results[4] as List<Map<String, dynamic>>;
+      final results = await Future.wait<dynamic>([userFuture, analysisFuture, preferencesFuture, wardrobeFuture, savedLooksFuture]);
+      final preferenceData = (results[2] as DocumentSnapshot<Map<String, dynamic>>).data();
       return PersonalStyleContext(
         user: results[0] as UserModel?,
         colourAnalysis: results[1] as ColourAnalysisResult?,
         styles: List<String>.from(preferenceData?['styles'] ?? const []),
         preferences: List<String>.from(preferenceData?['preferences'] ?? const []),
-        wardrobe: wardrobe,
-        savedLooks: savedLooks,
+        wardrobe: results[3] as List<WardrobeItem>,
+        savedLooks: results[4] as List<Map<String, dynamic>>,
       );
     } catch (_) {
       return PersonalStyleContext(
@@ -111,9 +93,7 @@ class FirestoreService {
   static Future<void> createUser(UserModel user) async {
     await _db.collection('users').doc(user.uid).set(user.toMap()).timeout(
       const Duration(seconds: 15),
-      onTimeout: () => throw TimeoutException(
-        'Creating your profile timed out. Please check your connection and try again.',
-      ),
+      onTimeout: () => throw TimeoutException('Creating your profile timed out. Please check your connection and try again.'),
     );
   }
 
@@ -132,27 +112,14 @@ class FirestoreService {
   }
 
   static Future<void> updateUser(String uid, Map<String, dynamic> data) async {
-    await _db.collection('users').doc(uid).update({
-      ...data,
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
+    await _db.collection('users').doc(uid).update({...data, 'updatedAt': FieldValue.serverTimestamp()});
   }
 
-  static Future<void> updateColourProfile({
-    required String uid,
-    required String colourSeason,
-    required String skinTone,
-  }) async {
-    await updateUser(uid, {
-      'colourSeason': colourSeason,
-      'skinTone': skinTone,
-    });
+  static Future<void> updateColourProfile({required String uid, required String colourSeason, required String skinTone}) async {
+    await updateUser(uid, {'colourSeason': colourSeason, 'skinTone': skinTone});
   }
 
-  static Future<void> saveAnalysis({
-    required String uid,
-    required AnalysisModel analysis,
-  }) async {
+  static Future<void> saveAnalysis({required String uid, required AnalysisModel analysis}) async {
     await _db.collection('users').doc(uid).collection('analysis').add(analysis.toMap());
   }
 
@@ -161,10 +128,7 @@ class FirestoreService {
     return snapshot.docs.map(AnalysisModel.fromFirestore).toList();
   }
 
-  static Future<void> saveAnalysisResult({
-    required String uid,
-    required ColourAnalysisResult result,
-  }) async {
+  static Future<void> saveAnalysisResult({required String uid, required ColourAnalysisResult result}) async {
     await _db.collection('users').doc(uid).collection('analysis').add({
       'season': result.season,
       'undertone': result.undertone,
@@ -226,37 +190,19 @@ class FirestoreService {
     return snapshot.docs.map(WardrobeItem.fromFirestore).toList();
   }
 
-  static Stream<List<WardrobeItem>> watchWardrobeItems(String uid) {
-    return _wardrobe(uid).orderBy('createdAt', descending: true).snapshots().map((snapshot) => snapshot.docs.map(WardrobeItem.fromFirestore).toList());
-  }
+  static Stream<List<WardrobeItem>> watchWardrobeItems(String uid) => _wardrobe(uid).orderBy('createdAt', descending: true).snapshots().map((snapshot) => snapshot.docs.map(WardrobeItem.fromFirestore).toList());
 
-  static Future<void> updateWardrobeItem(String uid, String itemId, Map<String, dynamic> data) async {
-    await _wardrobe(uid).doc(itemId).update(data);
-  }
+  static Future<void> updateWardrobeItem(String uid, String itemId, Map<String, dynamic> data) async => _wardrobe(uid).doc(itemId).update(data);
+  static Future<void> deleteWardrobeItem(String uid, String itemId) async => _wardrobe(uid).doc(itemId).delete();
 
-  static Future<void> deleteWardrobeItem(String uid, String itemId) async {
-    await _wardrobe(uid).doc(itemId).delete();
-  }
-
-  static Future<String> saveOutfitLook({
-    required String uid,
-    required String occasion,
-    required List<String> itemIds,
-    required int matchScore,
-    required String season,
-    String? title,
-    String? notes,
-  }) async {
+  static Future<String> saveOutfitLook({required String uid, required String occasion, required List<String> itemIds, required int matchScore, required String season, String? title, String? notes}) async {
     final sanitizedItemIds = itemIds.map((id) => id.trim()).where((id) => id.isNotEmpty).toSet().toList();
     if (sanitizedItemIds.isEmpty) throw ArgumentError('A saved look must contain at least one wardrobe item.');
-    final normalizedOccasion = occasion.trim().isEmpty ? 'Everyday' : occasion.trim();
-    final normalizedSeason = season.trim().isEmpty ? 'Unknown' : season.trim();
-    final normalizedScore = matchScore.clamp(0, 100);
     final payload = <String, dynamic>{
-      'occasion': normalizedOccasion,
+      'occasion': occasion.trim().isEmpty ? 'Everyday' : occasion.trim(),
       'itemIds': sanitizedItemIds,
-      'matchScore': normalizedScore,
-      'season': normalizedSeason,
+      'matchScore': matchScore.clamp(0, 100),
+      'season': season.trim().isEmpty ? 'Unknown' : season.trim(),
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
       if (title != null && title.trim().isNotEmpty) 'title': title.trim(),
@@ -270,9 +216,7 @@ class FirestoreService {
     return snapshot.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList();
   }
 
-  static Future<void> deleteSavedOutfitLook(String uid, String lookId) async {
-    await _db.collection('users').doc(uid).collection('savedLooks').doc(lookId).delete();
-  }
+  static Future<void> deleteSavedOutfitLook(String uid, String lookId) async => _db.collection('users').doc(uid).collection('savedLooks').doc(lookId).delete();
 
   static Future<CustomerDeletionResult> deleteCustomerData(String uid) async {
     final userRef = _db.collection('users').doc(uid);
@@ -298,7 +242,7 @@ class FirestoreService {
       if (url is String && url.isNotEmpty) imageUrls.add(url);
     }
 
-    final references = <DocumentReference<Map<String, dynamic>>>[
+    final refs = <DocumentReference<Map<String, dynamic>>>[
       ...wardrobeSnapshot.docs.map((doc) => doc.reference),
       ...preferencesSnapshot.docs.map((doc) => doc.reference),
       ...analysisSnapshot.docs.map((doc) => doc.reference),
@@ -309,10 +253,10 @@ class FirestoreService {
       userRef,
     ];
     const chunkSize = 450;
-    for (var start = 0; start < references.length; start += chunkSize) {
-      final end = (start + chunkSize < references.length) ? start + chunkSize : references.length;
+    for (var start = 0; start < refs.length; start += chunkSize) {
+      final end = (start + chunkSize < refs.length) ? start + chunkSize : refs.length;
       final batch = _db.batch();
-      for (final ref in references.sublist(start, end)) {
+      for (final ref in refs.sublist(start, end)) {
         batch.delete(ref);
       }
       await batch.commit();
