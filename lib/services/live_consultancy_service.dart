@@ -118,10 +118,30 @@ class LiveConsultancyService {
     yield* query.snapshots();
   }
 
+  /// Message bodies are private to the customer, admin, or assigned consultant.
+  /// An unassigned consultant may inspect the consultation metadata needed to
+  /// accept it, but cannot stream its private messages before acceptance.
   static Stream<QuerySnapshot<Map<String, dynamic>>> conversationMessages(
     String uid,
-  ) =>
-      _messages(uid).orderBy('createdAt').snapshots();
+  ) async* {
+    final viewer = currentUid;
+    if (viewer == null) return;
+
+    if (viewer == uid || await _isAdmin(viewer)) {
+      yield* _messages(uid).orderBy('createdAt').snapshots();
+      return;
+    }
+
+    final profile = await _userData(viewer);
+    final role = (profile?['role'] as String? ?? '').trim().toLowerCase();
+    final active = profile?['isActive'] as bool? ?? true;
+    if (role != 'consultant' || !active) return;
+
+    final consultation = (await _consultation(uid).get()).data();
+    if (consultation?['assignedConsultantId'] != viewer) return;
+
+    yield* _messages(uid).orderBy('createdAt').snapshots();
+  }
 
   static Stream<QuerySnapshot<Map<String, dynamic>>> consultantPresenceStream() =>
       _presence.orderBy('updatedAt', descending: true).snapshots();
