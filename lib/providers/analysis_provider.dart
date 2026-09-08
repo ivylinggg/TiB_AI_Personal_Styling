@@ -26,29 +26,17 @@ class AnalysisProvider extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   bool get isPremium => _isPremium;
 
-  /// Loads the user's most recently saved colour analysis (if any) from
-  /// Firestore into [result], so screens that depend on [result] (Dashboard,
-  /// AI Stylist) reflect a previous analysis without requiring the user to
-  /// run a fresh one in the current session. Called once per session, e.g.
-  /// when the customer's main shell first mounts after login.
   Future<void> loadLatestResult(String uid) async {
-    if (uid.trim().isEmpty) {
-      return;
-    }
+    if (uid.trim().isEmpty) return;
 
     _isLoadingSavedResult = true;
     notifyListeners();
 
     try {
       final latest = await FirestoreService.getLatestColourAnalysis(uid);
-
-      if (latest != null) {
-        _result = latest;
-      }
+      if (latest != null) _result = latest;
     } catch (_) {
-      // Best-effort background load: if it fails, keep whatever is
-      // already in memory (nothing, on a fresh session) rather than
-      // surfacing an error for a load the user didn't explicitly request.
+      // Best-effort background load.
     } finally {
       _isLoadingSavedResult = false;
       notifyListeners();
@@ -99,13 +87,11 @@ class AnalysisProvider extends ChangeNotifier {
     }
 
     try {
-      // 1. Validate that the photo contains exactly one face.
+      // Validate that the photo contains exactly one face.
       final faces = await MlKitService.detectFace(image);
 
       if (faces.isEmpty) {
-        _setError(
-          'No face was detected. Please use a clear front-facing photo.',
-        );
+        _setError('No face was detected. Please use a clear front-facing photo.');
         return false;
       }
 
@@ -114,57 +100,70 @@ class AnalysisProvider extends ChangeNotifier {
         return false;
       }
 
-      _status = 'Face detected. Uploading image...';
+      _status = 'Face detected. Measuring your face shape...';
       notifyListeners();
 
-      // 2. Upload the original analysis image.
+      final faceShape = await FaceShapeAnalysisService.analyse(
+        image: image,
+        faces: faces,
+      );
+
+      _status = 'Face shape detected. Uploading image...';
+      notifyListeners();
+
       final imageUrl = await StorageService.uploadAnalysisImage(
         uid: uid,
         image: image,
       );
 
       _status = _isPremium
-          ? 'Analysing your colours with Premium insights...'
-          : 'Analysing your colours...';
+          ? 'Analysing your personal colours with Premium insights...'
+          : 'Analysing your personal colours...';
       notifyListeners();
 
-      // 3. Run the colour analysis against the selected image.
-      final analysisResult = await ColourAnalysisService.analyse(
+      final colourResult = await ColourAnalysisService.analyse(
         image: image,
         imageUrl: imageUrl,
       );
 
+      final analysisResult = ColourAnalysisResult(
+        season: colourResult.season,
+        undertone: colourResult.undertone,
+        brightness: colourResult.brightness,
+        contrast: colourResult.contrast,
+        imageUrl: imageUrl,
+        colours: colourResult.colours,
+        faceShape: faceShape.shape,
+        faceShapeDescription: faceShape.description,
+        faceMeasurements: faceShape.measurements,
+        faceStylingGuidance: faceShape.stylingGuidance,
+        colourReasons: colourResult.colourReasons,
+      );
+
       _status = _isPremium
-          ? 'Preparing your Premium colour insights...'
-          : 'Saving your analysis...';
+          ? 'Preparing your Premium personal colour profile...'
+          : 'Saving your personal colour profile...';
       notifyListeners();
 
-      // 4. Persist the result in the authenticated user's history.
       await FirestoreService.saveAnalysisResult(
         uid: uid,
         result: analysisResult,
       );
 
-      // 5. Sync the summary colourSeason/skinTone fields onto the user's
-      // profile document so Profile and the admin screens can display
-      // them directly. This is best-effort: the analysis itself is
-      // already saved successfully above, so a failure here should not
-      // fail the analysis the user is waiting on.
       try {
         await FirestoreService.updateColourProfile(
           uid: uid,
           colourSeason: analysisResult.season,
-          skinTone: '${analysisResult.brightness} ${analysisResult.undertone}'
-              .trim(),
+          skinTone: '${analysisResult.brightness} ${analysisResult.undertone}'.trim(),
         );
       } catch (_) {
-        // Ignore: see comment above.
+        // Ignore profile-sync failure after analysis has been saved.
       }
 
       _result = analysisResult;
       _status = _isPremium
-          ? 'Premium colour analysis completed successfully'
-          : 'Analysis completed successfully';
+          ? 'Personal colour & face analysis completed successfully'
+          : 'Personal colour & face analysis completed successfully';
       return true;
     } catch (e) {
       _setError('Analysis failed: $e');
