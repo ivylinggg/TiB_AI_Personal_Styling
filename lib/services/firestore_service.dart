@@ -172,31 +172,20 @@ class FirestoreService {
       'contrast': result.contrast,
       'imageUrl': result.imageUrl,
       'colours': result.colours,
+      'faceShape': result.faceShape,
+      'faceShapeDescription': result.faceShapeDescription,
+      'faceMeasurements': result.faceMeasurements,
+      'faceStylingGuidance': result.faceStylingGuidance,
+      'colourReasons': result.colourReasons,
       'createdAt': FieldValue.serverTimestamp(),
     });
   }
 
-  static Future<List<ColourAnalysisResult>> getColourAnalysisHistory(String uid) async {
-    final snapshot = await _db.collection('users').doc(uid).collection('analysis').orderBy('createdAt', descending: true).get();
-    return snapshot.docs.map((doc) {
-      final data = doc.data();
-      final colours = data['colours'];
-      return ColourAnalysisResult(
-        season: data['season'] as String? ?? 'Unknown',
-        undertone: data['undertone'] as String? ?? 'Unknown',
-        brightness: data['brightness'] as String? ?? 'Unknown',
-        contrast: data['contrast'] as String? ?? 'Unknown',
-        imageUrl: data['imageUrl'] as String? ?? '',
-        colours: colours is List ? colours.map((item) => item.toString()).toList() : const [],
-      );
-    }).toList();
-  }
-
-  static Future<ColourAnalysisResult?> getLatestColourAnalysis(String uid) async {
-    final snapshot = await _db.collection('users').doc(uid).collection('analysis').orderBy('createdAt', descending: true).limit(1).get();
-    if (snapshot.docs.isEmpty) return null;
-    final data = snapshot.docs.first.data();
+  static ColourAnalysisResult _resultFromData(Map<String, dynamic> data) {
     final colours = data['colours'];
+    final measurements = data['faceMeasurements'];
+    final guidance = data['faceStylingGuidance'];
+    final reasons = data['colourReasons'];
     return ColourAnalysisResult(
       season: data['season'] as String? ?? 'Unknown',
       undertone: data['undertone'] as String? ?? 'Unknown',
@@ -204,7 +193,25 @@ class FirestoreService {
       contrast: data['contrast'] as String? ?? 'Unknown',
       imageUrl: data['imageUrl'] as String? ?? '',
       colours: colours is List ? colours.map((item) => item.toString()).toList() : const [],
+      faceShape: data['faceShape'] as String? ?? 'Unknown',
+      faceShapeDescription: data['faceShapeDescription'] as String? ?? '',
+      faceMeasurements: measurements is Map
+          ? measurements.map((key, value) => MapEntry(key.toString(), (value as num).toDouble()))
+          : const {},
+      faceStylingGuidance: guidance is List ? guidance.map((item) => item.toString()).toList() : const [],
+      colourReasons: reasons is List ? reasons.map((item) => item.toString()).toList() : const [],
     );
+  }
+
+  static Future<List<ColourAnalysisResult>> getColourAnalysisHistory(String uid) async {
+    final snapshot = await _db.collection('users').doc(uid).collection('analysis').orderBy('createdAt', descending: true).get();
+    return snapshot.docs.map((doc) => _resultFromData(doc.data())).toList();
+  }
+
+  static Future<ColourAnalysisResult?> getLatestColourAnalysis(String uid) async {
+    final snapshot = await _db.collection('users').doc(uid).collection('analysis').orderBy('createdAt', descending: true).limit(1).get();
+    if (snapshot.docs.isEmpty) return null;
+    return _resultFromData(snapshot.docs.first.data());
   }
 
   static CollectionReference<Map<String, dynamic>> _wardrobe(String uid) => _db.collection('users').doc(uid).collection('wardrobe');
@@ -220,10 +227,7 @@ class FirestoreService {
   }
 
   static Stream<List<WardrobeItem>> watchWardrobeItems(String uid) {
-    return _wardrobe(uid)
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .map((snapshot) => snapshot.docs.map(WardrobeItem.fromFirestore).toList());
+    return _wardrobe(uid).orderBy('createdAt', descending: true).snapshots().map((snapshot) => snapshot.docs.map(WardrobeItem.fromFirestore).toList());
   }
 
   static Future<void> updateWardrobeItem(String uid, String itemId, Map<String, dynamic> data) async {
@@ -244,9 +248,7 @@ class FirestoreService {
     String? notes,
   }) async {
     final sanitizedItemIds = itemIds.map((id) => id.trim()).where((id) => id.isNotEmpty).toSet().toList();
-    if (sanitizedItemIds.isEmpty) {
-      throw ArgumentError('A saved look must contain at least one wardrobe item.');
-    }
+    if (sanitizedItemIds.isEmpty) throw ArgumentError('A saved look must contain at least one wardrobe item.');
     final normalizedOccasion = occasion.trim().isEmpty ? 'Everyday' : occasion.trim();
     final normalizedSeason = season.trim().isEmpty ? 'Unknown' : season.trim();
     final normalizedScore = matchScore.clamp(0, 100);
