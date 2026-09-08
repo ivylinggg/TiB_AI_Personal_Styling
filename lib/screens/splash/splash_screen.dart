@@ -19,6 +19,8 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
+  bool _hasRouted = false;
+
   @override
   void initState() {
     super.initState();
@@ -26,7 +28,7 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _routeFromSplash() async {
-    if (!mounted) return;
+    if (!mounted || _hasRouted) return;
 
     final currentUser = FirebaseAuth.instance.currentUser;
 
@@ -37,7 +39,7 @@ class _SplashScreenState extends State<SplashScreen> {
           await AuthService.logout();
         } else {
           final role = await AuthService.getCurrentUserRole();
-          if (!mounted) return;
+          if (!mounted || _hasRouted) return;
 
           if (role == 'admin') {
             _replace(const AdminMainScreen());
@@ -45,7 +47,7 @@ class _SplashScreenState extends State<SplashScreen> {
           }
 
           final profile = await AuthService.getCurrentUserProfile();
-          if (!mounted) return;
+          if (!mounted || _hasRouted) return;
 
           final onboardingComplete = profile['onboardingComplete'] == true;
           _replace(
@@ -56,18 +58,18 @@ class _SplashScreenState extends State<SplashScreen> {
           return;
         }
       } catch (_) {
-        if (!mounted) return;
+        if (!mounted || _hasRouted) return;
       }
     }
 
     final prefs = await SharedPreferences.getInstance();
-    if (!mounted) return;
+    if (!mounted || _hasRouted) return;
 
     final hasSeenIntro = prefs.getBool('tib_intro_seen') ?? false;
 
     if (!hasSeenIntro) {
       await prefs.setBool('tib_intro_seen', true);
-      if (!mounted) return;
+      if (!mounted || _hasRouted) return;
       _replace(const OnboardingScreen());
       return;
     }
@@ -76,11 +78,14 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   void _replace(Widget destination) {
-    if (!mounted) return;
-    Navigator.pushAndRemoveUntil(
-      context,
+    if (!mounted || _hasRouted) return;
+    _hasRouted = true;
+
+    // Splash is always the first route in this flow. Replacing it instead of
+    // clearing the entire history avoids a transient empty Navigator history
+    // on newer Flutter releases.
+    Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => destination),
-      (_) => false,
     );
   }
 
