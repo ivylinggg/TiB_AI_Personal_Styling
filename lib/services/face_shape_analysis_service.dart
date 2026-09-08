@@ -37,10 +37,10 @@ class FaceShapeAnalysisService {
 
     final face = faces.single;
     final contour = face.contours[FaceContourType.face];
-    final boundingBox = face.boundingBox;
-
-    if (contour == null || contour.points.length < 12) {
-      return _analyseFromBoundingBox(boundingBox);
+    if (contour == null || contour.points.length < 24) {
+      throw const FormatException(
+        'Face outline could not be measured reliably. Please use a front-facing photo with your full face visible.',
+      );
     }
 
     final points = contour.points;
@@ -48,76 +48,89 @@ class FaceShapeAnalysisService {
     final right = points.map((p) => p.x.toDouble()).reduce(math.max);
     final top = points.map((p) => p.y.toDouble()).reduce(math.min);
     final bottom = points.map((p) => p.y.toDouble()).reduce(math.max);
-    final width = math.max(1, right - left);
-    final height = math.max(1, bottom - top);
+    final width = math.max(1.0, right - left);
+    final height = math.max(1.0, bottom - top);
 
     double widthAt(double relativeY) {
-      final targetY = top + (height * relativeY);
-      final near = points.where((p) => (p.y - targetY).abs() <= height * 0.055).toList();
-      if (near.length < 2) return width * 0.5;
+      final targetY = top + height * relativeY;
+      final tolerance = height * .045;
+      final near = points.where((p) => (p.y - targetY).abs() <= tolerance).toList();
+      if (near.length < 2) return width * .5;
       final minX = near.map((p) => p.x.toDouble()).reduce(math.min);
       final maxX = near.map((p) => p.x.toDouble()).reduce(math.max);
-      return maxX - minX;
+      return math.max(1.0, maxX - minX);
     }
 
-    final upperWidth = widthAt(.30);
+    final foreheadWidth = widthAt(.28);
+    final upperCheekWidth = widthAt(.43);
     final cheekboneWidth = widthAt(.50);
+    final lowerCheekWidth = widthAt(.60);
     final jawWidth = widthAt(.72);
     final chinWidth = widthAt(.86);
-    final widthHeightRatio = width / height;
-    final jawToCheek = jawWidth / math.max(1, cheekboneWidth);
-    final foreheadToCheek = upperWidth / math.max(1, cheekboneWidth);
-    final chinToJaw = chinWidth / math.max(1, jawWidth);
+
+    final faceRatio = height / width;
+    final foreheadToCheek = foreheadWidth / cheekboneWidth;
+    final jawToCheek = jawWidth / cheekboneWidth;
+    final lowerToUpperCheek = lowerCheekWidth / upperCheekWidth;
+    final chinToJaw = chinWidth / jawWidth;
 
     final shape = _classify(
-      widthHeightRatio: widthHeightRatio,
+      faceRatio: faceRatio,
       foreheadToCheek: foreheadToCheek,
       jawToCheek: jawToCheek,
+      lowerToUpperCheek: lowerToUpperCheek,
       chinToJaw: chinToJaw,
+    );
+
+    final balance = _balanceScore(
+      faceRatio: faceRatio,
+      foreheadToCheek: foreheadToCheek,
+      jawToCheek: jawToCheek,
+      lowerToUpperCheek: lowerToUpperCheek,
     );
 
     return FaceShapeAnalysis(
       shape: shape,
       description: _description[shape]!,
       measurements: {
-        'faceRatio': _round(widthHeightRatio),
+        'faceRatio': _round(faceRatio),
         'foreheadToCheek': _round(foreheadToCheek),
+        'cheekboneWidthRatio': _round(cheekboneWidth / width),
         'jawToCheek': _round(jawToCheek),
+        'lowerToUpperCheek': _round(lowerToUpperCheek),
         'chinToJaw': _round(chinToJaw),
+        'measurementConfidence': _round(balance),
       },
       stylingGuidance: _guidance[shape]!,
     );
   }
 
-  static FaceShapeAnalysis _analyseFromBoundingBox(dynamic box) {
-    final width = math.max(1, box.width as num).toDouble();
-    final height = math.max(1, box.height as num).toDouble();
-    final ratio = width / height;
-    final shape = ratio < .72
-        ? 'Oblong'
-        : ratio > .93
-            ? 'Round'
-            : 'Oval';
-    return FaceShapeAnalysis(
-      shape: shape,
-      description: _description[shape]!,
-      measurements: {'faceRatio': _round(ratio)},
-      stylingGuidance: _guidance[shape]!,
-    );
-  }
-
   static String _classify({
-    required double widthHeightRatio,
+    required double faceRatio,
     required double foreheadToCheek,
     required double jawToCheek,
+    required double lowerToUpperCheek,
     required double chinToJaw,
   }) {
-    if (widthHeightRatio <= .70) return 'Oblong';
-    if (foreheadToCheek >= .92 && jawToCheek <= .68 && chinToJaw <= .62) return 'Heart';
-    if (jawToCheek >= .86 && widthHeightRatio >= .78 && widthHeightRatio <= .98) return 'Square';
-    if (widthHeightRatio >= .91 && jawToCheek >= .82) return 'Round';
-    if (foreheadToCheek <= .78 && jawToCheek <= .82 && chinToJaw <= .72) return 'Diamond';
+    if (faceRatio >= 1.48 && jawToCheek < .90) return 'Oblong';
+    if (faceRatio <= 1.18 && jawToCheek >= .90 && lowerToUpperCheek >= .90) return 'Round';
+    if (foreheadToCheek >= .91 && jawToCheek <= .73 && chinToJaw <= .63) return 'Heart';
+    if (jawToCheek >= .87 && foreheadToCheek >= .82 && faceRatio <= 1.32) return 'Square';
+    if (foreheadToCheek <= .80 && jawToCheek <= .82 && chinToJaw <= .72) return 'Diamond';
     return 'Oval';
+  }
+
+  static double _balanceScore({
+    required double faceRatio,
+    required double foreheadToCheek,
+    required double jawToCheek,
+    required double lowerToUpperCheek,
+  }) {
+    final ratioFit = 1 - (faceRatio - 1.35).abs().clamp(0.0, .7) / .7;
+    final foreheadFit = 1 - (foreheadToCheek - .88).abs().clamp(0.0, .45) / .45;
+    final jawFit = 1 - (jawToCheek - .84).abs().clamp(0.0, .45) / .45;
+    final cheekFit = 1 - (lowerToUpperCheek - .92).abs().clamp(0.0, .45) / .45;
+    return ((ratioFit + foreheadFit + jawFit + cheekFit) / 4 * 100).clamp(0, 100).toDouble();
   }
 
   static double _round(double value) => double.parse(value.toStringAsFixed(3));
