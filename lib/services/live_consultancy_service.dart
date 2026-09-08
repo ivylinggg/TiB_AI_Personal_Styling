@@ -32,6 +32,11 @@ class LiveConsultancyService {
     return active && (role == 'consultant' || role == 'admin');
   }
 
+  static Future<bool> _isAdmin(String uid) async {
+    final data = await _userData(uid);
+    return (data?['role'] as String? ?? '').trim().toLowerCase() == 'admin';
+  }
+
   static Future<void> ensureConversation() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -231,13 +236,15 @@ class LiveConsultancyService {
     });
   }
 
+  /// Explicit reassignment is an administrative action. Consultants can only
+  /// claim an unassigned request through [acceptConsultation].
   static Future<void> assignConsultant({
     required String uid,
     required String consultantId,
     required String consultantName,
   }) async {
     final actingUser = FirebaseAuth.instance.currentUser;
-    if (actingUser == null || !await _hasConsultantRole(actingUser.uid)) return;
+    if (actingUser == null || !await _isAdmin(actingUser.uid)) return;
 
     final targetIsConsultant = await _hasConsultantRole(consultantId);
     if (!targetIsConsultant) return;
