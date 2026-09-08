@@ -24,6 +24,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final passwordController = TextEditingController();
   bool obscurePassword = true;
   _LoginStage _stage = _LoginStage.idle;
+  bool _hasRouted = false;
 
   bool get isLoading => _stage != _LoginStage.idle;
 
@@ -35,6 +36,8 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> login() async {
+    if (isLoading || _hasRouted) return;
+
     final email = emailController.text.trim();
     final password = passwordController.text;
     if (email.isEmpty || password.isEmpty) {
@@ -50,12 +53,12 @@ class _LoginScreenState extends State<LoginScreen> {
     } catch (_) {
       _showMessage('Login failed. Please try again.');
     } finally {
-      if (mounted) setState(() => _stage = _LoginStage.idle);
+      if (mounted && !_hasRouted) setState(() => _stage = _LoginStage.idle);
     }
   }
 
   Future<void> loginWithGoogle() async {
-    if (isLoading) return;
+    if (isLoading || _hasRouted) return;
     setState(() => _stage = _LoginStage.signingIn);
     try {
       final credential = await AuthService.loginWithGoogle();
@@ -69,46 +72,52 @@ class _LoginScreenState extends State<LoginScreen> {
     } catch (error) {
       _showMessage('Google sign-in failed — ${error.toString()}');
     } finally {
-      if (mounted) setState(() => _stage = _LoginStage.idle);
+      if (mounted && !_hasRouted) setState(() => _stage = _LoginStage.idle);
     }
   }
 
   Future<void> _routeAuthenticatedUser() async {
+    if (!mounted || _hasRouted) return;
+
     final active = await AuthService.isCurrentUserActive();
+    if (!mounted || _hasRouted) return;
+
     if (!active) {
       await AuthService.logout();
+      if (!mounted) return;
       _showMessage('Your account is currently inactive.');
       return;
     }
+
     final role = await AuthService.getCurrentUserRole();
-    if (!mounted) return;
+    if (!mounted || _hasRouted) return;
+
     if (role == 'admin') {
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => const AdminMainScreen()),
-        (_) => false,
-      );
+      _replaceAfterLogin(const AdminMainScreen());
       return;
     }
     if (role == 'consultant' || role == 'staff') {
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => const StaffConsoleScreen()),
-        (_) => false,
-      );
+      _replaceAfterLogin(const StaffConsoleScreen());
       return;
     }
+
     final profile = await AuthService.getCurrentUserProfile();
-    if (!mounted) return;
+    if (!mounted || _hasRouted) return;
     final onboardingComplete = profile['onboardingComplete'] == true;
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(
-        builder: (_) => onboardingComplete
-            ? const MainScreen()
-            : const FlashProfileFlow(),
-      ),
-      (_) => false,
+    _replaceAfterLogin(
+      onboardingComplete ? const MainScreen() : const FlashProfileFlow(),
+    );
+  }
+
+  void _replaceAfterLogin(Widget destination) {
+    if (!mounted || _hasRouted) return;
+    _hasRouted = true;
+
+    // Login is the active route after returning from password reset/register.
+    // Replacing it keeps the navigation stack non-empty and avoids a transient
+    // empty Navigator history during authentication routing.
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => destination),
     );
   }
 
