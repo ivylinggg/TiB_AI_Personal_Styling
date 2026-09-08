@@ -174,12 +174,11 @@ class ColourAnalysisService {
   }
 
   static double _luminance(double r, double g, double b) {
-    final maxValue = math.max(r, math.max(g, b));
-    final minValue = math.min(r, math.min(g, b));
-    if (maxValue > 1.0) {
-      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    final maxChannel = math.max(r, math.max(g, b));
+    if (maxChannel <= 1.0) {
+      return (0.2126 * r + 0.7152 * g + 0.0722 * b) * 255.0;
     }
-    return (0.2126 * r + 0.7152 * g + 0.0722 * b) * 255.0;
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
   }
 
   static bool _looksLikeSkin(double r, double g, double b) {
@@ -266,6 +265,8 @@ class ColourAnalysisService {
       return contrast == 'Low' ? 'Summer' : 'Winter';
     }
 
+    // Neutral undertones are refined by value + clarity rather than forced
+    // into a warm/cool family using skin depth alone.
     if (brightness == 'Light') return soft ? 'Summer' : 'Spring';
     if (brightness == 'Deep' || brightness == 'Medium-Deep') {
       return clear && contrast == 'High' ? 'Winter' : 'Autumn';
