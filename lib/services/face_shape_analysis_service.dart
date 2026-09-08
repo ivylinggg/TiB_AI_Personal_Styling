@@ -89,9 +89,9 @@ class FaceShapeAnalysisService {
     );
   }
 
-  static FaceShapeAnalysis _analyseFromBoundingBox(Rect box) {
-    final width = math.max(1, box.width);
-    final height = math.max(1, box.height);
+  static FaceShapeAnalysis _analyseFromBoundingBox(dynamic box) {
+    final width = math.max(1, box.width as num).toDouble();
+    final height = math.max(1, box.height as num).toDouble();
     final ratio = width / height;
     final shape = ratio < .72
         ? 'Oblong'
