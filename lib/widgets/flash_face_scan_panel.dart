@@ -9,12 +9,10 @@ import '../core/constants/app_colors.dart';
 import '../core/constants/app_radius.dart';
 import '../services/mlkit_service.dart';
 
-/// Live Face ID-style scanner shared by Colour Analysis and Flash Profile.
+/// Live front-camera face scanner shared by Colour Analysis and Flash Profile.
 ///
-/// The user keeps their face straight and centred while the front camera
-/// continuously checks temporary frames. No shutter button and no
-/// left/right/up/down poses are required. Once a valid scan is found, the
-/// user can review it, retry the scan, or continue with the captured face.
+/// Camera failures are handled gracefully so users can fall back to a gallery
+/// photo. The scanner only accepts one centred, forward-facing face.
 class FlashFaceScanPanel extends StatefulWidget {
   final ValueChanged<File> onCaptured;
   final bool busy;
@@ -58,52 +56,95 @@ class _FlashFaceScanPanelState extends State<FlashFaceScanPanel>
     super.didUpdateWidget(oldWidget);
     if (widget.busy && !oldWidget.busy && mounted) {
       _stopScanning();
-      setState(() => _status = 'Creating your colour profile…');
+      if (_controller != null) {
+        setState(() => _status = 'Creating your colour profile…');
+      }
     }
   }
 
   Future<void> _initCamera() async {
+    CameraController? controller;
     try {
       final cameras = await availableCameras();
-      if (cameras.isEmpty) throw Exception('No camera is available.');
+      if (cameras.isEmpty) {
+        throw StateError('No camera is available on this device.');
+      }
 
       final front = cameras.where(
         (camera) => camera.lensDirection == CameraLensDirection.front,
       );
       final selected = front.isNotEmpty ? front.first : cameras.first;
 
-      final controller = CameraController(
+      controller = CameraController(
         selected,
-        ResolutionPreset.high,
+        ResolutionPreset.medium,
         enableAudio: false,
       );
-
       await controller.initialize();
+
       if (!mounted) {
         await controller.dispose();
         return;
       }
 
+      controller.addListener(_handleCameraError);
       setState(() {
         _controller = controller;
         _initialising = false;
         _error = null;
       });
-
       _startScanning();
-    } catch (_) {
+    } on CameraException catch (error) {
+      await controller?.dispose();
       if (!mounted) return;
       setState(() {
         _initialising = false;
-        _error = 'Camera could not be started.';
+        _error = _cameraErrorMessage(error);
+        _status = 'Camera is unavailable. You can choose a clear photo instead.';
+      });
+    } catch (error) {
+      await controller?.dispose();
+      if (!mounted) return;
+      setState(() {
+        _initialising = false;
+        _error = 'Camera could not be started: $error';
+        _status = 'Camera is unavailable. You can choose a clear photo instead.';
       });
     }
+  }
+
+  String _cameraErrorMessage(CameraException error) {
+    switch (error.code) {
+      case 'CameraAccessDenied':
+      case 'CameraAccessDeniedWithoutPrompt':
+        return 'Camera permission is denied. Enable Camera access in Settings, or choose a photo from your gallery.';
+      case 'CameraAccessRestricted':
+        return 'Camera access is restricted on this device. You can choose a photo from your gallery.';
+      case 'CameraNotFound':
+        return 'No camera was found on this device.';
+      case 'CameraNotReadable':
+        return 'The camera is currently unavailable. Close other apps using the camera and try again.';
+      default:
+        return error.description ?? 'Camera could not be started.';
+    }
+  }
+
+  void _handleCameraError() {
+    final controller = _controller;
+    if (!mounted || controller == null) return;
+    final description = controller.value.errorDescription;
+    if (description == null || description.isEmpty || _error != null) return;
+    _stopScanning();
+    setState(() {
+      _error = description;
+      _status = 'Camera stopped. You can choose a clear photo instead.';
+    });
   }
 
   void _startScanning() {
     _scanTimer?.cancel();
     _scanTimer = Timer.periodic(
-      const Duration(milliseconds: 750),
+      const Duration(milliseconds: 900),
       (_) => _scanFrame(),
     );
     _scanFrame();
@@ -121,23 +162,29 @@ class _FlashFaceScanPanelState extends State<FlashFaceScanPanel>
       _completed = false;
       _checkingFrame = false;
       _stableChecks = 0;
+      _error = null;
       _status = 'Look straight at the camera and hold still.';
     });
-    _startScanning();
+    if (_controller?.value.isInitialized == true) {
+      _startScanning();
+      return;
+    }
+    setState(() => _initialising = true);
+    _initCamera();
   }
 
   void _continueWithScan() {
     final file = _capturedFile;
     if (file == null || !mounted || widget.busy) return;
-    setState(() => _status = 'Creating your colour profile…');
     widget.onCaptured(file);
   }
 
   @override
   void dispose() {
     _stopScanning();
-    _pulseController.dispose();
+    _controller?.removeListener(_handleCameraError);
     _controller?.dispose();
+    _pulseController.dispose();
     super.dispose();
   }
 
@@ -148,8 +195,10 @@ class _FlashFaceScanPanelState extends State<FlashFaceScanPanel>
         _completed ||
         _checkingFrame ||
         _capturedFile != null ||
+        _error != null ||
         controller == null ||
-        !controller.value.isInitialized) {
+        !controller.value.isInitialized ||
+        controller.value.isTakingPicture) {
       return;
     }
 
@@ -214,6 +263,15 @@ class _FlashFaceScanPanelState extends State<FlashFaceScanPanel>
         _checkingFrame = false;
         _status = 'Face detected. Hold still… ${3 - _stableChecks}';
       });
+    } on CameraException catch (error) {
+      if (!mounted) return;
+      _stableChecks = 0;
+      _stopScanning();
+      setState(() {
+        _checkingFrame = false;
+        _error = _cameraErrorMessage(error);
+        _status = 'Camera stopped. You can choose a clear photo instead.';
+      });
     } catch (_) {
       if (!mounted) return;
       _stableChecks = 0;
@@ -230,14 +288,16 @@ class _FlashFaceScanPanelState extends State<FlashFaceScanPanel>
     }
 
     _stopScanning();
-
     final picked = await ImagePicker().pickImage(
       source: ImageSource.gallery,
       imageQuality: 90,
       maxWidth: 1800,
     );
+
     if (picked == null || !mounted) {
-      if (mounted && !widget.busy && !_completed) _startScanning();
+      if (mounted && !widget.busy && !_completed && _controller?.value.isInitialized == true) {
+        _startScanning();
+      }
       return;
     }
 
@@ -249,7 +309,6 @@ class _FlashFaceScanPanelState extends State<FlashFaceScanPanel>
     try {
       final file = File(picked.path);
       final faces = await MlKitService.detectFace(file);
-
       if (!mounted) return;
 
       if (faces.length != 1) {
@@ -259,7 +318,7 @@ class _FlashFaceScanPanelState extends State<FlashFaceScanPanel>
               ? 'No face detected in that photo.'
               : 'Please choose a photo with only one visible face.';
         });
-        _startScanning();
+        if (_controller?.value.isInitialized == true) _startScanning();
         return;
       }
 
@@ -275,7 +334,7 @@ class _FlashFaceScanPanelState extends State<FlashFaceScanPanel>
         _checkingFrame = false;
         _status = 'This photo could not be checked. Try again.';
       });
-      _startScanning();
+      if (_controller?.value.isInitialized == true) _startScanning();
     }
   }
 
@@ -310,10 +369,10 @@ class _FlashFaceScanPanelState extends State<FlashFaceScanPanel>
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
                 ),
                 const SizedBox(height: 7),
-                const Text(
-                  'You can still choose a clear face photo from your gallery.',
+                Text(
+                  _error ?? 'No camera is available. You can still choose a clear face photo from your gallery.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 11.5,
                     height: 1.35,
@@ -324,6 +383,11 @@ class _FlashFaceScanPanelState extends State<FlashFaceScanPanel>
                   onPressed: widget.busy ? null : _gallery,
                   icon: const Icon(Icons.photo_library_outlined),
                   label: const Text('Choose Photo'),
+                ),
+                const SizedBox(height: 4),
+                TextButton(
+                  onPressed: widget.busy ? null : _retryScan,
+                  child: const Text('Try Camera Again'),
                 ),
               ],
             ),
@@ -545,51 +609,63 @@ class _FaceGuidePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final overlay = Paint()..color = Colors.black.withValues(alpha: .08);
-    canvas.drawRect(Offset.zero & size, overlay);
-
-    final center = Offset(size.width * .43, size.height * .47);
-    final ovalRect = Rect.fromCenter(
+    final center = Offset(size.width / 2, size.height * .43);
+    final faceWidth = size.width * .57;
+    final faceHeight = size.height * .67;
+    final rect = Rect.fromCenter(
       center: center,
-      width: size.width * .55,
-      height: size.height * .74,
+      width: faceWidth,
+      height: faceHeight,
     );
 
-    final pulseValue = active ? pulse.value : 0.0;
-    final stroke = Paint()
+    final overlay = Paint()..color = Colors.black.withValues(alpha: .16);
+    final outer = Path()..addRect(Offset.zero & size);
+    final hole = Path()..addOval(rect);
+    canvas.drawPath(Path.combine(PathOperation.difference, outer, hole), overlay);
+
+    final linePaint = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = active ? 3.2 + pulseValue * 1.2 : 2.2
-      ..color = active
-          ? AppColors.primary.withValues(alpha: .80 + pulseValue * .20)
-          : Colors.white;
-    canvas.drawOval(ovalRect, stroke);
+      ..strokeWidth = active ? 3 : 2
+      ..color = Colors.white.withValues(alpha: active ? .95 : .78);
+    canvas.drawOval(rect, linePaint);
 
     final cornerPaint = Paint()
       ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.5
       ..strokeCap = StrokeCap.round
-      ..strokeWidth = 3.1
       ..color = Colors.white;
-
-    const length = 28.0;
-    final l = ovalRect.left - 1;
-    final r = ovalRect.right + 1;
-    final t = ovalRect.top - 1;
-    final b = ovalRect.bottom + 1;
+    const corner = 28.0;
+    final left = rect.left;
+    final right = rect.right;
+    final top = rect.top;
+    final bottom = rect.bottom;
 
     canvas
-      ..drawLine(Offset(l, t + length), Offset(l, t), cornerPaint)
-      ..drawLine(Offset(l, t), Offset(l + length, t), cornerPaint)
-      ..drawLine(Offset(r, t + length), Offset(r, t), cornerPaint)
-      ..drawLine(Offset(r, t), Offset(r - length, t), cornerPaint)
-      ..drawLine(Offset(l, b - length), Offset(l, b), cornerPaint)
-      ..drawLine(Offset(l, b), Offset(l + length, b), cornerPaint)
-      ..drawLine(Offset(r, b - length), Offset(r, b), cornerPaint)
-      ..drawLine(Offset(r, b), Offset(r - length, b), cornerPaint);
+      ..drawLine(Offset(left, top + corner), Offset(left, top), cornerPaint)
+      ..drawLine(Offset(left, top), Offset(left + corner, top), cornerPaint)
+      ..drawLine(Offset(right - corner, top), Offset(right, top), cornerPaint)
+      ..drawLine(Offset(right, top), Offset(right, top + corner), cornerPaint)
+      ..drawLine(Offset(left, bottom - corner), Offset(left, bottom), cornerPaint)
+      ..drawLine(Offset(left, bottom), Offset(left + corner, bottom), cornerPaint)
+      ..drawLine(Offset(right - corner, bottom), Offset(right, bottom), cornerPaint)
+      ..drawLine(Offset(right, bottom), Offset(right, bottom - corner), cornerPaint);
+
+    if (active) {
+      final sweepY = top + rect.height * pulse.value;
+      final sweepPaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.5
+        ..color = AppColors.primary.withValues(alpha: .85);
+      canvas.drawLine(
+        Offset(left + 18, sweepY),
+        Offset(right - 18, sweepY),
+        sweepPaint,
+      );
+    }
   }
 
   @override
   bool shouldRepaint(covariant _FaceGuidePainter oldDelegate) {
-    return oldDelegate.active != active ||
-        oldDelegate.pulse.value != pulse.value;
+    return oldDelegate.active != active || oldDelegate.pulse.value != pulse.value;
   }
 }
