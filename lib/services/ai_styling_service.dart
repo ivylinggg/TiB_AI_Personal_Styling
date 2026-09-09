@@ -40,11 +40,15 @@ class AiStylingResult {
     this.scoreBreakdown = const {},
   });
 
-  List<String> get itemIds => [topId, bottomId, dressId, suitId, jacketId, shoesId, accessoryId]
-      .whereType<String>()
-      .where((id) => id.isNotEmpty)
-      .toSet()
-      .toList(growable: false);
+  List<String> get itemIds => [
+        topId,
+        bottomId,
+        dressId,
+        suitId,
+        jacketId,
+        shoesId,
+        accessoryId,
+      ].whereType<String>().where((id) => id.isNotEmpty).toSet().toList(growable: false);
 
   bool get hasAnyItems => itemIds.isNotEmpty;
 
@@ -184,11 +188,7 @@ class AiStylingService {
     if (candidates.isEmpty) return const [];
     final selected = selectedItem == null ? null : unique[selectedItem.id.trim()];
 
-    WardrobeItem? choose(
-      String category, {
-      Set<String> used = const {},
-      List<WardrobeItem> anchors = const [],
-    }) {
+    WardrobeItem? choose(String category, {Set<String> used = const {}, List<WardrobeItem> anchors = const []}) {
       final pool = candidates.where((item) => item.category == category && !used.contains(item.id)).toList(growable: false);
       if (pool.isEmpty) return null;
       final ranked = _rankItems(
@@ -215,19 +215,17 @@ class AiStylingService {
         ? selected
         : _bestPartner(candidates, const {'Bottoms', 'Skirts'}, anchors: top == null ? const [] : [top], profile: profile, occasion: occasion, styles: styles, preferences: preferences, feedbackBias: feedbackBias);
     if (top != null && lower != null) {
-      final look = _buildTwoPiece(candidates, top, lower, choose, profile: profile, occasion: occasion, styles: styles, preferences: preferences);
+      final look = _buildTwoPiece(candidates, top, lower, choose, profile: profile, occasion: occasion, styles: styles, preferences: preferences, feedbackBias: feedbackBias);
       final key = _lookKey(look);
       if (key != null && !excludedLookKeys.contains(key)) return look;
     }
 
-    final dress = choose('Dresses');
-    if (dress != null) {
+    for (final dress in _rankItems(candidates.where((item) => item.category == 'Dresses').toList(growable: false), profile: profile, occasion: occasion, styles: styles, preferences: preferences, feedbackBias: feedbackBias)) {
       final look = _buildOnePiece(candidates, dress, choose, profile: profile, occasion: occasion, styles: styles, preferences: preferences, excludedLookKeys: excludedLookKeys);
       if (look.isNotEmpty) return look;
     }
 
-    final suit = choose('Suits');
-    if (suit != null) {
+    for (final suit in _rankItems(candidates.where((item) => item.category == 'Suits').toList(growable: false), profile: profile, occasion: occasion, styles: styles, preferences: preferences, feedbackBias: feedbackBias)) {
       final look = _buildSuit(candidates, suit, choose, profile: profile, occasion: occasion, styles: styles, preferences: preferences, excludedLookKeys: excludedLookKeys);
       if (look.isNotEmpty) return look;
     }
@@ -243,6 +241,7 @@ class AiStylingService {
     required String occasion,
     required List<String> styles,
     required List<String> preferences,
+    Map<String, double> feedbackBias = const {},
   }) {
     final result = <WardrobeItem>[top, lower];
     final used = <String>{top.id, lower.id};
@@ -347,22 +346,11 @@ class AiStylingService {
 
     final categories = sanitized.map((item) => item.category).toSet();
     final validStructure =
-        (categories.contains('Dresses') &&
-                !categories.contains('Bottoms') &&
-                !categories.contains('Skirts') &&
-                !categories.contains('Tops') &&
-                !categories.contains('Suits')) ||
-        (categories.contains('Suits') &&
-                !categories.contains('Bottoms') &&
-                !categories.contains('Skirts') &&
-                !categories.contains('Tops') &&
-                !categories.contains('Dresses')) ||
-        (categories.contains('Tops') &&
-                (categories.contains('Bottoms') || categories.contains('Skirts')) &&
-                !categories.contains('Dresses') &&
-                !categories.contains('Suits'));
-
+        (categories.contains('Dresses') && !categories.contains('Bottoms') && !categories.contains('Skirts') && !categories.contains('Tops') && !categories.contains('Suits')) ||
+        (categories.contains('Suits') && !categories.contains('Bottoms') && !categories.contains('Skirts') && !categories.contains('Tops') && !categories.contains('Dresses')) ||
+        (categories.contains('Tops') && (categories.contains('Bottoms') || categories.contains('Skirts')) && !categories.contains('Dresses') && !categories.contains('Suits'));
     if (!validStructure) return const [];
+
     final score = _scoreLook(sanitized, profile: profile, occasion: occasion, styles: styles, preferences: preferences, selectedItem: selectedItem);
     if (score < 18) return const [];
     return sanitized.take(5).toList(growable: false);
@@ -384,7 +372,6 @@ class AiStylingService {
       final colour = _normaliseColour(item.colour);
       final combined = '${item.name} ${item.style} ${item.season} ${item.occasion} ${item.formality} ${item.pattern} ${item.material} ${item.silhouette} ${item.fit} ${item.length} ${item.notes}'.toLowerCase();
       final season = profile?.season.trim().toLowerCase() ?? '';
-
       if (item.isFavourite) score += 18;
       if (profile != null && profile.colours.any((value) => _colourMatches(colour, value))) score += 24;
       if (profile != null && profile.bestNeutrals.any((value) => _colourMatches(colour, value))) score += 12;
@@ -395,21 +382,13 @@ class AiStylingService {
       if (cleanPreferences.any(combined.contains)) score += 10;
       if (_occasionTokens(occasion).any(combined.contains)) score += 14;
       if (_isNeutral(_colourFamily(colour))) score += 3;
-      if (item.warmth != null &&
-          (occasion.toLowerCase().contains('weekend') || occasion.toLowerCase().contains('cafe')) &&
-          item.warmth! <= 2) {
-        score += 3;
-      }
-
+      if (item.warmth != null && (occasion.toLowerCase().contains('weekend') || occasion.toLowerCase().contains('cafe')) && item.warmth! <= 2) score += 3;
       for (final anchor in anchors) {
         score += _pairCompatibilityScore(item, anchor);
       }
       return _ScoredItem(item, score);
     }).toList(growable: false);
-
-    scored.sort((a, b) => b.score == a.score
-        ? a.item.name.toLowerCase().compareTo(b.item.name.toLowerCase())
-        : b.score.compareTo(a.score));
+    scored.sort((a, b) => b.score == a.score ? a.item.name.toLowerCase().compareTo(b.item.name.toLowerCase()) : b.score.compareTo(a.score));
     return scored.map((entry) => entry.item).toList(growable: false);
   }
 
@@ -432,28 +411,20 @@ class AiStylingService {
       }
     }
     if (selectedItem != null && look.any((item) => item.id == selectedItem.id)) score += 8;
-
     final categories = look.map((item) => item.category).toSet();
     final validStructure =
         (categories.contains('Dresses') && !categories.contains('Bottoms') && !categories.contains('Skirts') && !categories.contains('Tops') && !categories.contains('Suits')) ||
         (categories.contains('Suits') && !categories.contains('Bottoms') && !categories.contains('Skirts') && !categories.contains('Tops') && !categories.contains('Dresses')) ||
         (categories.contains('Tops') && (categories.contains('Bottoms') || categories.contains('Skirts')) && !categories.contains('Dresses') && !categories.contains('Suits'));
-    if (validStructure) score += 18;
+    if (validStructure) score += 20;
     return score.clamp(0, 100);
   }
 
-  static int _individualFitScore(
-    WardrobeItem item, {
-    required ColourAnalysisResult? profile,
-    required String occasion,
-    required List<String> styles,
-    required List<String> preferences,
-  }) {
+  static int _individualFitScore(WardrobeItem item, {required ColourAnalysisResult? profile, required String occasion, required List<String> styles, required List<String> preferences}) {
     var score = 0;
     final colour = _normaliseColour(item.colour);
     final combined = '${item.name} ${item.style} ${item.season} ${item.occasion} ${item.formality} ${item.pattern} ${item.material} ${item.silhouette} ${item.fit} ${item.length} ${item.notes}'.toLowerCase();
     final season = profile?.season.trim().toLowerCase() ?? '';
-
     if (item.isFavourite) score += 5;
     if (profile != null && profile.colours.any((value) => _colourMatches(colour, value))) score += 8;
     if (profile != null && profile.bestNeutrals.any((value) => _colourMatches(colour, value))) score += 4;
@@ -496,10 +467,7 @@ class AiStylingService {
 
     final seasonA = first.season.trim().toLowerCase();
     final seasonB = second.season.trim().toLowerCase();
-    if (seasonA.isNotEmpty && seasonB.isNotEmpty &&
-        (seasonA == seasonB || seasonA.contains('all seasons') || seasonB.contains('all seasons'))) {
-      score += 3;
-    }
+    if (seasonA.isNotEmpty && seasonB.isNotEmpty && (seasonA == seasonB || seasonA.contains('all seasons') || seasonB.contains('all seasons'))) score += 3;
 
     final patternA = first.pattern.trim().toLowerCase();
     final patternB = second.pattern.trim().toLowerCase();
@@ -536,24 +504,17 @@ class AiStylingService {
   }) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null || wardrobe.isEmpty || occasion.trim().isEmpty) return null;
-
     final requestUid = user.uid;
-    final ownedWardrobe = wardrobe
-        .where((item) => item.userId.isEmpty || item.userId == requestUid)
-        .where((item) => _knownCategories.contains(item.category.trim()))
-        .toList(growable: false);
+    final ownedWardrobe = wardrobe.where((item) => item.userId.isEmpty || item.userId == requestUid).where((item) => _knownCategories.contains(item.category.trim())).toList(growable: false);
     if (ownedWardrobe.isEmpty) return null;
-
     final safeSelectedItem = selectedItem == null ? null : _findById(ownedWardrobe, selectedItem.id.trim());
 
     try {
       final idToken = await user.getIdToken();
       if (idToken == null || idToken.isEmpty) return null;
-
       final personalBrand = await _loadPersonalBrand(requestUid);
       final tibModel = await TibModelService.loadForUser(requestUid);
       final feedbackBias = await _feedbackBiasForUser(requestUid);
-
       final response = await http.post(
         Uri.parse(GoogleDriveConfig.uploadUrl),
         headers: const {'Content-Type': 'application/json'},
@@ -573,7 +534,6 @@ class AiStylingService {
           if (safeSelectedItem != null) 'selectedItem': _wardrobePayload(safeSelectedItem),
         }),
       ).timeout(_requestTimeout);
-
       if (response.statusCode < 200 || response.statusCode >= 300) return null;
       final decoded = jsonDecode(response.body);
       final data = _extractResponseMap(decoded);
@@ -597,19 +557,22 @@ class AiStylingService {
         scoreBreakdown: _readIntMap(data['scoreBreakdown'] ?? data['matchBreakdown']),
       );
 
-      final rawLook = <WardrobeItem?>[
-        _findById(ownedWardrobe, rawResult.topId),
-        _findById(ownedWardrobe, rawResult.bottomId),
-        _findById(ownedWardrobe, rawResult.dressId),
-        _findById(ownedWardrobe, rawResult.suitId),
-        _findById(ownedWardrobe, rawResult.jacketId),
-        _findById(ownedWardrobe, rawResult.shoesId),
-        _findById(ownedWardrobe, rawResult.accessoryId),
-      ];
-      final typedRawLook = rawLook.whereType<WardrobeItem>().toList(growable: false);
+      final rawLook = <WardrobeItem>[];
+      for (final id in <String?>[
+        rawResult.topId,
+        rawResult.bottomId,
+        rawResult.dressId,
+        rawResult.suitId,
+        rawResult.jacketId,
+        rawResult.shoesId,
+        rawResult.accessoryId,
+      ]) {
+        final item = _findById(ownedWardrobe, id);
+        if (item != null) rawLook.add(item);
+      }
 
       final sanitized = sanitizeLook(
-        typedRawLook,
+        rawLook,
         selectedItem: safeSelectedItem,
         occasion: occasion.trim(),
         profile: profile,
@@ -618,25 +581,9 @@ class AiStylingService {
         excludedLookKeys: excludedLookKeys,
         feedbackBias: feedbackBias,
       );
-
       if (sanitized.isEmpty && rawResult.explanation.isEmpty) return null;
-      final localScore = _scoreLook(
-        sanitized,
-        profile: profile,
-        occasion: occasion.trim(),
-        styles: styles,
-        preferences: preferences,
-        selectedItem: safeSelectedItem,
-      );
-      final localBreakdown = _localBreakdown(
-        sanitized,
-        profile: profile,
-        occasion: occasion.trim(),
-        styles: styles,
-        preferences: preferences,
-        selectedItem: safeSelectedItem,
-      );
-
+      final localScore = _scoreLook(sanitized, profile: profile, occasion: occasion.trim(), styles: styles, preferences: preferences, selectedItem: safeSelectedItem);
+      final localBreakdown = _localBreakdown(sanitized, profile: profile, occasion: occasion.trim(), styles: styles, preferences: preferences, selectedItem: safeSelectedItem);
       return AiStylingResult(
         explanation: rawResult.explanation,
         topId: _idForCategory(sanitized, 'Tops'),
@@ -772,7 +719,6 @@ class AiStylingService {
     var style = 0;
     var harmony = 0;
     var personal = 0;
-
     for (final item in look) {
       final text = '${item.name} ${item.style} ${item.colour} ${item.formality} ${item.occasion} ${item.pattern} ${item.material}'.toLowerCase();
       final normalized = _normaliseColour(item.colour);
@@ -783,14 +729,12 @@ class AiStylingService {
       if (item.isFavourite) personal += 1;
       if (selectedItem != null && item.id == selectedItem.id) personal += 2;
     }
-
     for (var i = 0; i < look.length; i++) {
       for (var j = i + 1; j < look.length; j++) {
         final pair = _pairCompatibilityScore(look[i], look[j]);
         if (pair > 0) harmony += pair;
       }
     }
-
     return <String, int>{
       'colour': colour,
       'occasion': occasionScore,
@@ -841,12 +785,7 @@ class AiStylingService {
 
   static List<String> _readStringList(dynamic value, {required int limit}) {
     if (value is! List) return const [];
-    return value
-        .map((item) => item.toString().trim())
-        .where((item) => item.isNotEmpty)
-        .toSet()
-        .take(limit)
-        .toList(growable: false);
+    return value.map((item) => item.toString().trim()).where((item) => item.isNotEmpty).toSet().take(limit).toList(growable: false);
   }
 
   static Map<String, int> _readIntMap(dynamic value) {
