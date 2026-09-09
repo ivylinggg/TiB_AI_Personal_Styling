@@ -27,6 +27,7 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
   int _previousIndex = 0;
+  String? _notificationUid;
 
   late final List<Widget> _pages = [
     const DashboardDesignedScreen(),
@@ -42,13 +43,24 @@ class _MainScreenState extends State<MainScreen> {
   @override
   void initState() {
     super.initState();
+    _scheduleNotificationSetup();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _scheduleNotificationSetup();
+  }
+
+  void _scheduleNotificationSetup() {
     final uid = _authUid;
-    if (uid != null && !widget.adminPreview) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        NotificationService.ensureWelcomeNotification(uid);
-      });
-    }
+    if (uid == null || widget.adminPreview || _notificationUid == uid) return;
+    _notificationUid = uid;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      await NotificationService.initializePushNotifications();
+      await NotificationService.ensureWelcomeNotification(uid);
+    });
   }
 
   void _selectTab(int index) {
@@ -82,6 +94,7 @@ class _MainScreenState extends State<MainScreen> {
       ),
     );
     if (confirmed != true || !mounted) return;
+    await NotificationService.resetForAccountChange();
     await FirebaseAuth.instance.signOut();
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
