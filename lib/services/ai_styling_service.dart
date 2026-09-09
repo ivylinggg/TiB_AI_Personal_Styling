@@ -15,6 +15,9 @@ class AiStylingResult {
   final String? bottomId;
   final String? shoesId;
   final String? accessoryId;
+  final String? lookTitle;
+  final String? colourDirection;
+  final List<String> stylingNotes;
 
   const AiStylingResult({
     required this.explanation,
@@ -22,6 +25,9 @@ class AiStylingResult {
     required this.bottomId,
     required this.shoesId,
     required this.accessoryId,
+    this.lookTitle,
+    this.colourDirection,
+    this.stylingNotes = const [],
   });
 
   bool get hasAnyItems =>
@@ -35,9 +41,6 @@ class AiStylingResult {
       ].whereType<String>().toSet().toList();
 }
 
-/// Sends the authenticated user's personal styling context to the AI backend.
-/// Backend output is always constrained to the wardrobe snapshot belonging to
-/// the current Firebase user.
 class AiStylingService {
   AiStylingService._();
 
@@ -104,7 +107,6 @@ class AiStylingService {
       final data = _extractResponseMap(decoded);
       if (data == null || data['success'] != true) return null;
 
-      // Never apply a delayed answer to a different account after logout/login.
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser == null || currentUser.uid != requestUid) return null;
 
@@ -119,6 +121,14 @@ class AiStylingService {
         bottomId: _validWardrobeId(data['bottomId'], allowedIds),
         shoesId: _validWardrobeId(data['shoesId'], allowedIds),
         accessoryId: _validWardrobeId(data['accessoryId'], allowedIds),
+        lookTitle: _readOptionalText(data['lookTitle'] ?? data['title']),
+        colourDirection: _readOptionalText(
+          data['colourDirection'] ?? data['colourStory'],
+        ),
+        stylingNotes: _readStringList(
+          data['stylingNotes'] ?? data['notes'] ?? data['tips'],
+          limit: 6,
+        ),
       );
 
       if (!result.hasAnyItems && result.explanation.isEmpty) return null;
@@ -193,13 +203,15 @@ class AiStylingService {
         'isFavourite': item.isFavourite,
       };
 
-  static List<String> _cleanStrings(List<String> values, {required int limit}) =>
-      values
-          .map((value) => value.trim())
-          .where((value) => value.isNotEmpty)
-          .toSet()
-          .take(limit)
-          .toList(growable: false);
+  static List<String> _cleanStrings(
+    List<String> values, {
+    required int limit,
+  }) => values
+      .map((value) => value.trim())
+      .where((value) => value.isNotEmpty)
+      .toSet()
+      .take(limit)
+      .toList(growable: false);
 
   static Map<String, dynamic>? _extractResponseMap(dynamic decoded) {
     if (decoded is! Map) return null;
@@ -208,7 +220,23 @@ class AiStylingService {
     return Map<String, dynamic>.from(decoded);
   }
 
-  static String _readText(dynamic value) => value is String ? value.trim() : '';
+  static String _readText(dynamic value) =>
+      value is String ? value.trim() : '';
+
+  static String? _readOptionalText(dynamic value) {
+    final text = _readText(value);
+    return text.isEmpty ? null : text;
+  }
+
+  static List<String> _readStringList(dynamic value, {required int limit}) {
+    if (value is! List) return const [];
+    return value
+        .map((item) => item.toString().trim())
+        .where((item) => item.isNotEmpty)
+        .toSet()
+        .take(limit)
+        .toList(growable: false);
+  }
 
   static String? _validWardrobeId(dynamic value, Set<String> allowedIds) {
     if (value is! String) return null;
