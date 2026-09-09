@@ -24,6 +24,7 @@ import 'settings_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
+
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
@@ -83,7 +84,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
 
     try {
-      final data = await AdminPreviewService.loadCustomerProfile(uid);
+      final data = isPreview
+          ? await AdminPreviewService.loadCustomerProfile(uid)
+          : await AdminPreviewService.loadCustomerProfile(uid);
       if (!mounted) return;
       setState(() {
         user = data.user;
@@ -131,10 +134,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
         backgroundColor: AppColors.background,
         elevation: 0,
         titleSpacing: 20,
-        title: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('VYEA', style: TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 2.8)),
-          Text('Your profile', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800)),
-        ]),
+        title: const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('VYEA', style: TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 2.8)),
+            Text('Your profile', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800)),
+          ],
+        ),
         actions: [
           IconButton(onPressed: isLoading ? null : loadProfile, icon: const Icon(Icons.refresh_rounded)),
           if (!isPreview) IconButton(onPressed: openSettings, icon: const Icon(Icons.settings_outlined)),
@@ -229,9 +235,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _identityPanel() {
     final result = analysis;
     final hasAnalysis = result != null;
-    final season = hasAnalysis ? result!.season : 'Colour profile pending';
-    final undertone = hasAnalysis ? result.undertone : 'Not analysed';
-    final face = hasAnalysis ? result.faceShape : 'Not analysed';
+    final season = result?.season ?? 'Colour profile pending';
+    final undertone = result?.undertone ?? 'Not analysed';
+    final face = result?.faceShape ?? 'Not analysed';
     final reasons = result?.colourReasons ?? const <String>[];
     final value = result?.brightness.trim();
     final contrast = result?.contrast.trim();
@@ -254,7 +260,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ...reasons.take(3).map((reason) => Padding(padding: const EdgeInsets.only(bottom: 5), child: Text('• $reason', style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.35)))),
         ],
         const SizedBox(height: 14),
-        OutlinedButton.icon(onPressed: hasAnalysis ? () => openAnalysisResult(result!) : openColourAnalysis, icon: Icon(hasAnalysis ? Icons.insights_outlined : Icons.camera_alt_outlined, size: 18), label: Text(hasAnalysis ? 'View full colour profile' : 'Start colour analysis')),
+        OutlinedButton.icon(onPressed: hasAnalysis ? () => openAnalysisResult(result) : openColourAnalysis, icon: Icon(hasAnalysis ? Icons.insights_outlined : Icons.camera_alt_outlined, size: 18), label: Text(hasAnalysis ? 'View full colour profile' : 'Start colour analysis')),
       ]),
     );
   }
