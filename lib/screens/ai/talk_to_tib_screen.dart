@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/state/personal_style_provider.dart';
 import '../../services/talk_to_tib_bot_service.dart';
 import 'ai_stylist_screen.dart';
 import 'live_consultancy_screen.dart';
@@ -17,7 +19,7 @@ class _TalkToTibScreenState extends State<TalkToTibScreen> {
   final ScrollController _scroll = ScrollController();
   final List<_ChatMessage> _messages = [
     const _ChatMessage(
-      text: 'Hi! I’m VYEA. Ask me about your colours, wardrobe, proportions or what to wear next.',
+      text: 'Hi! I’m VYEA. I can work from your colour profile, Personal TiB, wardrobe and style preferences. What are you getting dressed for?',
       fromUser: false,
     ),
   ];
@@ -49,20 +51,33 @@ class _TalkToTibScreenState extends State<TalkToTibScreen> {
     });
     _scrollToBottom();
 
-    final reply = await TalkToTibBotService.reply(text);
-
-    if (!mounted) return;
-    setState(() {
-      _messages.add(
-        _ChatMessage(
-          text: reply.text,
-          fromUser: false,
-          aiGenerated: reply.isAiGenerated,
-          escalated: reply.shouldEscalate,
-        ),
-      );
-      _sending = false;
-    });
+    try {
+      final reply = await TalkToTibBotService.reply(text);
+      if (!mounted) return;
+      setState(() {
+        _messages.add(
+          _ChatMessage(
+            text: reply.text,
+            fromUser: false,
+            aiGenerated: reply.isAiGenerated,
+            escalated: reply.shouldEscalate,
+          ),
+        );
+        _sending = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _messages.add(
+          const _ChatMessage(
+            text: 'I could not complete that right now. Please try again, or switch to a Live Consultant for help.',
+            fromUser: false,
+            escalated: true,
+          ),
+        );
+        _sending = false;
+      });
+    }
     _scrollToBottom();
   }
 
@@ -84,8 +99,30 @@ class _TalkToTibScreenState extends State<TalkToTibScreen> {
     );
   }
 
+  void _openStylist() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const AIStylistScreen()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final style = context.watch<PersonalStyleProvider>();
+    final colour = style.colourAnalysis;
+    final profileLabel = colour == null
+        ? 'Colour profile not set'
+        : [
+            if (colour.season.trim().isNotEmpty) colour.season.trim(),
+            if (colour.faceShape.trim().isNotEmpty) colour.faceShape.trim(),
+          ].join(' · ');
+
+    final readyInputs = [
+      style.hasColourProfile,
+      style.hasTiBModel,
+      style.hasWardrobe,
+    ].where((value) => value).length;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -116,7 +153,12 @@ class _TalkToTibScreenState extends State<TalkToTibScreen> {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 6, 20, 10),
-            child: _availabilityCard(),
+            child: _availabilityCard(
+              profileLabel: profileLabel,
+              readyInputs: readyInputs,
+              wardrobeCount: style.wardrobe.length,
+              hasTiBModel: style.hasTiBModel,
+            ),
           ),
           Expanded(
             child: ListView.builder(
@@ -133,81 +175,122 @@ class _TalkToTibScreenState extends State<TalkToTibScreen> {
     );
   }
 
-  Widget _availabilityCard() {
+  Widget _availabilityCard({
+    required String profileLabel,
+    required int readyInputs,
+    required int wardrobeCount,
+    required bool hasTiBModel,
+  }) {
     return Container(
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
         color: AppColors.primaryDark,
         borderRadius: BorderRadius.circular(22),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: const BoxDecoration(
-              color: AppColors.peach,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.auto_awesome_rounded,
-              color: AppColors.primaryDark,
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 12),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'PERSONAL STYLE CHAT',
-                  style: TextStyle(
-                    color: AppColors.peach,
-                    fontSize: 8.8,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.15,
-                  ),
+          Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: const BoxDecoration(
+                  color: AppColors.peach,
+                  shape: BoxShape.circle,
                 ),
-                SizedBox(height: 4),
-                Text(
-                  'Ask first. Style when you’re ready.',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                  ),
+                child: const Icon(
+                  Icons.auto_awesome_rounded,
+                  color: AppColors.primaryDark,
+                  size: 20,
                 ),
-                SizedBox(height: 3),
-                Text(
-                  'VYEA can now use your saved styling context when it is available.',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 10.5,
-                    height: 1.35,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: .10),
-              borderRadius: BorderRadius.circular(9),
-            ),
-            child: const Text(
-              'AI',
-              style: TextStyle(
-                color: Colors.white70,
-                fontSize: 7.5,
-                fontWeight: FontWeight.w900,
-                letterSpacing: .7,
               ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'PERSONAL STYLE CHAT',
+                      style: TextStyle(
+                        color: AppColors.peach,
+                        fontSize: 8.8,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.15,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'Ask first. Style when you’re ready.',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: .10),
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                child: Text(
+                  '$readyInputs/3',
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 7.5,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: .7,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 11),
+          const Text(
+            'YOUR CONTEXT',
+            style: TextStyle(
+              color: Colors.white54,
+              fontSize: 8,
+              fontWeight: FontWeight.w900,
+              letterSpacing: .9,
             ),
           ),
+          const SizedBox(height: 6),
+          _contextRow(Icons.palette_outlined, profileLabel),
+          const SizedBox(height: 5),
+          _contextRow(
+            Icons.person_outline_rounded,
+            hasTiBModel ? 'Personal TiB ready' : 'Personal TiB not set',
+          ),
+          const SizedBox(height: 5),
+          _contextRow(Icons.checkroom_outlined, '$wardrobeCount wardrobe pieces'),
         ],
       ),
+    );
+  }
+
+  Widget _contextRow(IconData icon, String text) {
+    return Row(
+      children: [
+        Icon(icon, color: Colors.white70, size: 15),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -246,13 +329,20 @@ class _TalkToTibScreenState extends State<TalkToTibScreen> {
                   ),
                   if (message.aiGenerated) ...[
                     const SizedBox(width: 7),
-                    const Text(
-                      'PERSONALISED',
-                      style: TextStyle(
-                        color: AppColors.textMuted,
-                        fontSize: 7.5,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: .8,
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: AppColors.secondary,
+                        borderRadius: BorderRadius.circular(7),
+                      ),
+                      child: const Text(
+                        'PERSONALISED',
+                        style: TextStyle(
+                          color: AppColors.primaryDark,
+                          fontSize: 6.8,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: .55,
+                        ),
                       ),
                     ),
                   ],
@@ -268,19 +358,17 @@ class _TalkToTibScreenState extends State<TalkToTibScreen> {
               ),
             ),
             if (message.escalated) ...[
-              const SizedBox(height: 10),
+              const SizedBox(height: 9),
               OutlinedButton.icon(
                 onPressed: _openLiveConsultancy,
-                icon: const Icon(Icons.support_agent_rounded, size: 16),
+                icon: const Icon(Icons.support_agent_rounded, size: 15),
                 label: const Text('Chat with a Live Consultant'),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.primary,
                   side: const BorderSide(color: AppColors.primarySoft),
-                  padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                   visualDensity: VisualDensity.compact,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(13),
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
               ),
             ],
@@ -332,21 +420,36 @@ class _TalkToTibScreenState extends State<TalkToTibScreen> {
         top: false,
         child: Column(
           children: [
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: _openLiveConsultancy,
-                icon: const Icon(Icons.support_agent_rounded, size: 18),
-                label: const Text('Chat with a Live Consultant'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.primary,
-                  side: const BorderSide(color: AppColors.primarySoft),
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(15),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _openLiveConsultancy,
+                    icon: const Icon(Icons.support_agent_rounded, size: 17),
+                    label: const Text('Live Consultant'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.primary,
+                      side: const BorderSide(color: AppColors.primarySoft),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                    ),
                   ),
                 ),
-              ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _openStylist,
+                    icon: const Icon(Icons.auto_awesome_rounded, size: 17),
+                    label: const Text('Build a Look'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.brown,
+                      side: const BorderSide(color: AppColors.border),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                    ),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 8),
             Row(
@@ -396,16 +499,6 @@ class _TalkToTibScreenState extends State<TalkToTibScreen> {
                   ),
                 ),
               ],
-            ),
-            const SizedBox(height: 5),
-            TextButton.icon(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const AIStylistScreen()),
-              ),
-              icon: const Icon(Icons.auto_awesome_rounded, size: 15),
-              label: const Text('Build a wardrobe look with VYEA'),
-              style: TextButton.styleFrom(foregroundColor: AppColors.brown),
             ),
           ],
         ),
