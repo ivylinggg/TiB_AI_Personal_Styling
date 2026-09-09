@@ -203,24 +203,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
           CircleAvatar(radius: 39, backgroundColor: AppColors.secondary, backgroundImage: photoUrl.isNotEmpty ? CachedNetworkImageProvider(photoUrl) : null, child: photoUrl.isEmpty ? const Icon(Icons.person_outline_rounded, size: 36, color: AppColors.primaryDark) : null),
           const SizedBox(width: 14),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [Expanded(child: Text(displayName, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w900))), if (!isPreview) IconButton(onPressed: () {}, icon: const Icon(Icons.edit_outlined, size: 19))]),
+            Text(displayName, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w900)),
             Text(email.isEmpty ? 'Email not available' : email, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5)),
             const SizedBox(height: 8),
             Row(children: [Icon(isPremium ? Icons.auto_awesome_rounded : Icons.person_outline_rounded, size: 14), const SizedBox(width: 5), Text(isPremium ? 'Premium member' : 'Free member', style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.5, fontWeight: FontWeight.w800))]),
           ])),
         ]),
         const SizedBox(height: 16),
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border)),
-          child: Row(children: [Expanded(child: _metric('$wardrobeCount', 'Wardrobe')), _metricDivider(), Expanded(child: _metric('$savedLookCount', 'Saved looks')), _metricDivider(), Expanded(child: _metric('$wardrobeFavouriteCount', 'Favourites'))]),
-        ),
+        Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border)), child: Row(children: [Expanded(child: _metric('$wardrobeCount', 'Wardrobe')), _metricDivider(), Expanded(child: _metric('$savedLookCount', 'Saved looks')), _metricDivider(), Expanded(child: _metric('$wardrobeFavouriteCount', 'Favourites'))])),
         const SizedBox(height: 10),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
-          decoration: BoxDecoration(color: AppColors.primaryDark, borderRadius: BorderRadius.circular(17)),
-          child: Row(children: [const Icon(Icons.auto_awesome_rounded, size: 17, color: AppColors.peach), const SizedBox(width: 8), Expanded(child: Text('${styles.length} styles · ${preferences.length} preferences saved', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700))), Text(isPremium ? 'PERSONAL+' : 'PERSONAL', style: const TextStyle(color: Colors.white70, fontSize: 8.5, fontWeight: FontWeight.w900, letterSpacing: .9))]),
-        ),
+        Container(padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11), decoration: BoxDecoration(color: AppColors.primaryDark, borderRadius: BorderRadius.circular(17)), child: Row(children: [const Icon(Icons.auto_awesome_rounded, size: 17, color: AppColors.peach), const SizedBox(width: 8), Expanded(child: Text('${styles.length} styles · ${preferences.length} preferences saved', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700))), Text(isPremium ? 'PERSONAL+' : 'PERSONAL', style: const TextStyle(color: Colors.white70, fontSize: 8.5, fontWeight: FontWeight.w900, letterSpacing: .9))])),
       ]),
     );
   }
@@ -256,7 +248,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ...reasons.take(3).map((reason) => Padding(padding: const EdgeInsets.only(bottom: 5), child: Text('• $reason', style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.35)))),
         ],
         const SizedBox(height: 14),
-        OutlinedButton.icon(onPressed: hasAnalysis && result != null ? () => openAnalysisResult(result) : openColourAnalysis, icon: Icon(hasAnalysis ? Icons.insights_outlined : Icons.camera_alt_outlined, size: 18), label: Text(hasAnalysis ? 'View full colour profile' : 'Start colour analysis')),
+        OutlinedButton.icon(onPressed: hasAnalysis ? () => openAnalysisResult(result) : openColourAnalysis, icon: Icon(hasAnalysis ? Icons.insights_outlined : Icons.camera_alt_outlined, size: 18), label: Text(hasAnalysis ? 'View full colour profile' : 'Start colour analysis')),
       ]),
     );
   }
