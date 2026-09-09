@@ -18,12 +18,12 @@
 	<string>VYEA</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
-	<key>CFBundleShortVersionString</key>
-	<string>$(FLUTTER_BUILD_NAME)</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(FLUTTER_BUILD_NAME)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
@@ -36,6 +36,10 @@
 	<string>VYEA may save photos to your photo library when needed for your styling experience.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>VYEA uses your photo library so you can choose photos for Colour Analysis, your profile, and wardrobe items.</string>
+	<key>GIDClientID</key>
+	<string>494434706372-m3o2bvqoqac6e4fjeg7uuc65cn5a53ul.apps.googleusercontent.com</string>
+	<key>GIDServerClientID</key>
+	<string>494434706372-jdg9h3re1bdc6idecjumdavdmbh3eai8.apps.googleusercontent.com</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
