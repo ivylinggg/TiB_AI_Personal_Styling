@@ -67,7 +67,7 @@ class StyleFeedbackService {
       'itemIds': ids,
       'occasion': occasion.trim(),
       'updatedAt': FieldValue.serverTimestamp(),
-      if (matchScore != null) 'matchScore': matchScore,
+      ...matchScore == null ? <String, dynamic>{} : <String, dynamic>{'matchScore': matchScore},
     };
     await _feedbackCollection(uid).doc('generated_$generatedKey').set(payload);
   }
