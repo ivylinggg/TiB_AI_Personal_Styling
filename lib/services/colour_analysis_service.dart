@@ -6,11 +6,8 @@ import 'package:image/image.dart' as img;
 import '../data/season_colour_guide.dart';
 import '../models/colour_analysis_result.dart';
 
-/// Local, deterministic personal-colour analysis.
-///
-/// The result is based on the photographed skin/face characteristics. It is
-/// deliberately not tied to a single default season: each season decision is
-/// derived from the measured undertone, value, contrast and chroma signals.
+/// Local personal-colour analysis based on the observed face/skin image.
+/// This is a heuristic photo analysis, not a clinical or laboratory colour test.
 class ColourAnalysisService {
   ColourAnalysisService._();
 
@@ -44,20 +41,20 @@ class ColourAnalysisService {
       chroma: chroma,
       clarity: clarity,
       skinValue: sample.skinToneValue,
-      warmStrength: sample.warmStrength,
-      coolStrength: sample.coolStrength,
-      chromaSignal: sample.averageChroma,
-      claritySignal: sample.claritySignal,
+      warmRatio: sample.warmRatio,
+      coolRatio: sample.coolRatio,
+      neutralRatio: sample.neutralRatio,
+      averageChroma: sample.averageChroma,
     );
     final guide = SeasonColourGuide.forSeason(season);
 
     final reasons = <String>[
-      '${_titleCase(undertone)} undertone signal detected from ${sample.skinCount} sampled skin pixels',
-      '${_titleCase(brightness)} overall skin value detected',
+      '${_titleCase(undertone)} undertone signal from ${sample.skinCount} sampled skin pixels',
+      '${_titleCase(brightness)} skin value detected',
       '${_titleCase(contrast)} natural facial contrast detected',
       '${_titleCase(chroma)} colour intensity detected',
       '${_titleCase(clarity)} colour clarity detected',
-      'Season selected from the combined colour characteristics rather than a fixed default',
+      'Primary season selected from the combined observed colour characteristics',
     ];
 
     return ColourAnalysisResult(
@@ -76,14 +73,17 @@ class ColourAnalysisService {
     final height = image.height;
     if (width < 32 || height < 32) return _PortraitSample.empty();
 
+    // Sample the central portrait region instead of the whole image so
+    // background, clothing and large white/black areas do not dominate.
     final left = (width * .16).round().clamp(0, width - 1).toInt();
     final right = (width * .84).round().clamp(left + 1, width).toInt();
     final top = (height * .10).round().clamp(0, height - 1).toInt();
     final bottom = (height * .78).round().clamp(top + 1, height).toInt();
 
     final skinPixels = <_ColourPixel>[];
-    var warmStrength = 0.0;
-    var coolStrength = 0.0;
+    var warmPixels = 0;
+    var coolPixels = 0;
+    var neutralPixels = 0;
 
     for (var y = top; y < bottom; y += 2) {
       for (var x = left; x < right; x += 2) {
@@ -96,14 +96,13 @@ class ColourAnalysisService {
         if (!_looksLikeSkin(rgb.r, rgb.g, rgb.b)) continue;
         skinPixels.add(rgb);
 
-        final redBlue = rgb.r - rgb.b;
-        final greenBlue = rgb.g - rgb.b;
-        final redGreen = rgb.r - rgb.g;
-        final warmth = (redBlue * .58) + (greenBlue * .26) + (redGreen * .16);
-        if (warmth > 10) {
-          warmStrength += warmth;
-        } else if (warmth < 4) {
-          coolStrength += 4 - warmth;
+        final temperature = _pixelTemperature(rgb.r, rgb.g, rgb.b);
+        if (temperature > 0.045) {
+          warmPixels++;
+        } else if (temperature < -0.018) {
+          coolPixels++;
+        } else {
+          neutralPixels++;
         }
       }
     }
@@ -134,8 +133,6 @@ class ColourAnalysisService {
     var facialLight = 0.0;
     var facialDarkCount = 0;
     var facialLightCount = 0;
-    var warmRegion = 0.0;
-    var coolRegion = 0.0;
 
     for (var y = 0; y < height; y += 8) {
       for (var x = 0; x < width; x += 8) {
@@ -156,12 +153,6 @@ class ColourAnalysisService {
             facialLight += value;
             facialLightCount++;
           }
-          if (_looksLikeSkin(r, g, b)) {
-            final redBlue = r - b;
-            final warmth = (redBlue * .65) + ((g - b) * .35);
-            if (warmth > 10) warmRegion += warmth;
-            if (warmth < 5) coolRegion += 5 - warmth;
-          }
         }
       }
     }
@@ -179,25 +170,28 @@ class ColourAnalysisService {
             .reduce((a, b) => a + b) /
         count;
     final claritySignal = (averageChroma / math.max(p50, 1)) * 100.0;
-    final neutralitySignal =
-        ((avg.r - avg.g).abs() + (avg.g - avg.b).abs()) /
-            math.max(avg.r + avg.g + avg.b, 1) *
-        100.0;
 
     return _PortraitSample(
       skinToneValue: p50,
       skinMeanLuminance: _luminance(avg.r, avg.g, avg.b),
       skinSpread: skinSpread,
       skinContrast: skinContrast,
-      warmStrength: warmStrength,
-      coolStrength: coolStrength,
-      averageWarmth: ((warmRegion - coolRegion) / math.max(1.0, count)),
+      warmRatio: warmPixels / count,
+      coolRatio: coolPixels / count,
+      neutralRatio: neutralPixels / count,
       averageChroma: averageChroma,
       claritySignal: claritySignal,
-      neutralitySignal: neutralitySignal,
       globalRange: imageLightest - imageDarkest,
       skinCount: skinPixels.length,
     );
+  }
+
+  static double _pixelTemperature(double r, double g, double b) {
+    final sum = math.max(r + g + b, 1.0);
+    // Warm skin tends to show stronger red/yellow relative to blue; cool skin
+    // has a comparatively smaller warm-channel advantage. Normalising keeps the
+    // signal less sensitive to exposure.
+    return ((r - b) * .62 + (g - b) * .38) / sum;
   }
 
   static double _luminance(double r, double g, double b) {
@@ -218,19 +212,17 @@ class ColourAnalysisService {
     final nr = r / sum;
     final ng = g / sum;
     final nb = b / sum;
-    final warmSkin = nr > .27 && nr < .62 && ng > .19 && ng < .45 && nb < .38;
+    final hueLike = nr > .27 && nr < .62 && ng > .19 && ng < .45 && nb < .38;
     final channelOrder = r >= g * .88 && g >= b * .88;
-    return warmSkin && channelOrder;
+    return hueLike && channelOrder;
   }
 
   static String _undertone(_PortraitSample sample) {
-    final warm = sample.warmStrength;
-    final cool = sample.coolStrength;
-    final total = warm + cool;
-    if (total < 1) return 'Neutral';
-    final difference = (warm - cool) / total;
-    if (difference >= .13) return 'Warm';
-    if (difference <= -.13) return 'Cool';
+    final warm = sample.warmRatio;
+    final cool = sample.coolRatio;
+    final neutral = sample.neutralRatio;
+    if (warm > cool + .09 && warm >= neutral * .9) return 'Warm';
+    if (cool > warm + .09 && cool >= neutral * .9) return 'Cool';
     return 'Neutral';
   }
 
@@ -260,13 +252,6 @@ class ColourAnalysisService {
     return 'Balanced';
   }
 
-  static String _temperature(String undertone, _PortraitSample sample) {
-    if (undertone == 'Warm' && sample.averageChroma >= 34) return 'Warm and vibrant';
-    if (undertone == 'Cool' && sample.averageChroma >= 34) return 'Cool and defined';
-    if (undertone == 'Neutral') return 'Balanced neutral';
-    return undertone;
-  }
-
   static String _season({
     required String undertone,
     required String brightness,
@@ -274,74 +259,77 @@ class ColourAnalysisService {
     required String chroma,
     required String clarity,
     required double skinValue,
-    required double warmStrength,
-    required double coolStrength,
-    required double chromaSignal,
-    required double claritySignal,
+    required double warmRatio,
+    required double coolRatio,
+    required double neutralRatio,
+    required double averageChroma,
   }) {
-    final warmDominance = warmStrength - coolStrength;
-    final coolDominance = coolStrength - warmStrength;
+    final warm = warmRatio;
+    final cool = coolRatio;
+    final neutral = neutralRatio;
+    final warmthLead = warm - cool;
+    final coolnessLead = cool - warm;
     final highChroma = chroma == 'High';
+    final mediumChroma = chroma == 'Medium';
     final soft = clarity == 'Soft';
     final clear = clarity == 'Clear';
     final highContrast = contrast == 'High';
+    final mediumContrast = contrast == 'Medium';
     final light = brightness == 'Light';
     final deep = brightness == 'Deep' || brightness == 'Medium-Deep';
 
-    // Use measured characteristics to rank a primary season. There is no
-    // unconditional Winter branch and no single-season fallback.
     final scores = <String, double>{
-      'Spring': 0,
-      'Summer': 0,
-      'Autumn': 0,
-      'Winter': 0,
+      'Spring':
+          (warmthLead > .02 ? 3.0 : 0) +
+          (light ? 2.4 : 0) +
+          (highChroma ? 2.0 : 0) +
+          (clear ? 1.7 : 0) +
+          (mediumContrast ? .6 : 0) +
+          (skinValue >= 155 ? .8 : 0),
+      'Summer':
+          (coolnessLead > .02 ? 3.0 : 0) +
+          (light ? 2.2 : 0) +
+          (soft ? 2.1 : 0) +
+          (!highContrast ? 1.0 : 0) +
+          (!highChroma ? 1.0 : 0) +
+          (skinValue >= 140 ? .7 : 0),
+      'Autumn':
+          (warmthLead > .02 ? 2.6 : 0) +
+          (deep ? 2.4 : 0) +
+          (soft ? 2.0 : 0) +
+          (!highChroma ? 1.0 : 0) +
+          (averageChroma < 42 ? .8 : 0) +
+          (skinValue < 165 ? .6 : 0),
+      'Winter':
+          (coolnessLead > .02 ? 2.8 : 0) +
+          (deep ? 2.2 : 0) +
+          (highContrast ? 2.3 : 0) +
+          (highChroma ? 1.9 : 0) +
+          (clear ? 1.7 : 0) +
+          (skinValue < 165 ? .6 : 0),
     };
 
-    scores['Spring'] =
-        (warmDominance > 0 ? 2.1 : 0) +
-        (light ? 1.8 : 0) +
-        (highChroma ? 1.8 : 0) +
-        (clear ? 1.5 : 0) +
-        (!deep ? 1.0 : 0) +
-        (skinValue >= 155 ? 1.1 : 0) +
-        (claritySignal >= 10 ? .7 : 0);
-
-    scores['Summer'] =
-        (coolDominance > 0 ? 2.2 : 0) +
-        (light ? 1.9 : 0) +
-        (soft ? 2.0 : 0) +
-        (!highContrast ? 1.0 : 0) +
-        (chroma != 'High' ? 1.0 : 0) +
-        (skinValue >= 140 ? .7 : 0);
-
-    scores['Autumn'] =
-        (warmDominance > 0 ? 2.2 : 0) +
-        (deep ? 1.9 : 0) +
-        (soft ? 1.8 : 0) +
-        (!highChroma ? 1.0 : 0) +
-        (chromaSignal < 38 ? .8 : 0) +
-        (skinValue < 160 ? .7 : 0);
-
-    scores['Winter'] =
-        (coolDominance > 0 ? 2.3 : 0) +
-        (deep ? 1.7 : 0) +
-        (highContrast ? 2.0 : 0) +
-        (highChroma ? 1.8 : 0) +
-        (clear ? 1.5 : 0) +
-        (skinValue < 165 ? .6 : 0);
-
-    // Neutral undertones are resolved using value/clarity/contrast rather than
-    // forcing them into a cool season.
+    // Neutral undertones require secondary dimensions to separate Spring/Autumn
+    // from Summer/Winter. Do not silently treat neutral as cool.
     if (undertone == 'Neutral') {
-      scores['Summer'] = scores['Summer'] + (soft ? 1.2 : 0) + (light ? .8 : 0);
-      scores['Spring'] = scores['Spring'] + (!soft && light ? .9 : 0) + (highChroma ? .5 : 0);
-      scores['Autumn'] = scores['Autumn'] + (soft && deep ? 1.0 : 0);
-      scores['Winter'] = scores['Winter'] + (highContrast && highChroma ? .9 : 0);
+      scores['Spring'] = scores['Spring']! + (light && !soft ? 1.2 : 0) + (highChroma ? .6 : 0);
+      scores['Summer'] = scores['Summer']! + (light && soft ? 1.4 : 0) + (!mediumChroma && !highChroma ? .5 : 0);
+      scores['Autumn'] = scores['Autumn']! + (deep && soft ? 1.3 : 0);
+      scores['Winter'] = scores['Winter']! + (deep && highContrast && highChroma ? 1.2 : 0);
+    }
+
+    // A weak temperature lead should not be allowed to manufacture a cool/warm
+    // result from tiny measurement noise. In that case value/contrast/clarity
+    // decide between adjacent seasons.
+    if (math.max(warm, cool) - neutral < .03) {
+      if (light && soft) return 'Summer';
+      if (light && clear && highChroma) return 'Spring';
+      if (deep && soft) return 'Autumn';
+      if (deep && clear && highContrast && highChroma) return 'Winter';
     }
 
     return scores.entries.reduce(
       (best, entry) => entry.value > best.value ? entry : best,
-      MapEntry<String, double>('Summer', -double.infinity),
     ).key;
   }
 
@@ -359,12 +347,11 @@ class _PortraitSample {
   final double skinMeanLuminance;
   final double skinSpread;
   final double skinContrast;
-  final double warmStrength;
-  final double coolStrength;
-  final double averageWarmth;
+  final double warmRatio;
+  final double coolRatio;
+  final double neutralRatio;
   final double averageChroma;
   final double claritySignal;
-  final double neutralitySignal;
   final double globalRange;
   final int skinCount;
 
@@ -373,12 +360,11 @@ class _PortraitSample {
     required this.skinMeanLuminance,
     required this.skinSpread,
     required this.skinContrast,
-    required this.warmStrength,
-    required this.coolStrength,
-    required this.averageWarmth,
+    required this.warmRatio,
+    required this.coolRatio,
+    required this.neutralRatio,
     required this.averageChroma,
     required this.claritySignal,
-    required this.neutralitySignal,
     required this.globalRange,
     required this.skinCount,
   });
@@ -388,13 +374,11 @@ class _PortraitSample {
         skinMeanLuminance: 0,
         skinSpread: 0,
         skinContrast: 0,
-        warmStrength: 0,
-        coolStrength: 0,
-        averageWarmth: 0,
-        chroma: 0,
+        warmRatio: 0,
+        coolRatio: 0,
+        neutralRatio: 0,
         averageChroma: 0,
         claritySignal: 0,
-        neutralitySignal: 0,
         globalRange: 0,
         skinCount: 0,
       );
