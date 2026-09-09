@@ -71,7 +71,7 @@ class WardrobeImageValidationService {
 
   static _ImageAnalysis _analyse(img.Image image) {
     var foreground = 0;
-    var skinLike = 0;
+    var skinPixelCount = 0;
     var colouredObject = 0;
     var edgeSum = 0.0;
     var edgeCount = 0;
@@ -80,7 +80,7 @@ class WardrobeImageValidationService {
     int luminance(img.Pixel p) =>
         (0.2126 * p.r + 0.7152 * p.g + 0.0722 * p.b).round();
 
-    bool skinLike(img.Pixel p) {
+    bool looksSkinLike(img.Pixel p) {
       final r = p.r.toDouble();
       final g = p.g.toDouble();
       final b = p.b.toDouble();
@@ -101,12 +101,9 @@ class WardrobeImageValidationService {
         final minC = math.min(p.r, math.min(p.g, p.b)).toDouble();
         final chroma = (maxC - minC) / 255;
 
-        // Treat mid-tone / chromatic pixels as likely foreground. Extreme
-        // black or white pixels can still be clothing, so keep them when
-        // nearby edge contrast supports a real object boundary.
         if (chroma > 0.12 || (l > 38 && l < 224)) foreground++;
         if (chroma > 0.22 && l > 30 && l < 230) colouredObject++;
-        if (skinLike(p)) skinLike++;
+        if (looksSkinLike(p)) skinPixelCount++;
 
         if (x + 2 < image.width) {
           edgeSum += (l - luminance(image.getPixel(x + 2, y))).abs() / 255;
@@ -121,7 +118,7 @@ class WardrobeImageValidationService {
 
     return _ImageAnalysis(
       foregroundRatio: total == 0 ? 0 : foreground / total,
-      skinRatio: total == 0 ? 0 : skinLike / total,
+      skinRatio: total == 0 ? 0 : skinPixelCount / total,
       colouredObjectRatio: total == 0 ? 0 : colouredObject / total,
       edgeContrast: edgeCount == 0 ? 0 : edgeSum / edgeCount,
     );
