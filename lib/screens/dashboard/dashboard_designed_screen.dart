@@ -51,11 +51,7 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
 
   Future<void> _load({bool force = false}) async {
     final style = context.read<PersonalStyleProvider>();
-    if (force) {
-      await style.refresh(force: true);
-    } else {
-      await style.refresh();
-    }
+    await style.refresh(force: force);
 
     if (!mounted) return;
 
@@ -71,29 +67,39 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
       return;
     }
 
-    final recommendation = TodayRecommendationService().getTodayRecommendation(uid);
-    final challenge = DailyChallengeService().getTodayChallenge(uid);
+    final recommendation = TodayRecommendationService.getRecommendation(
+      analysis: style.colourAnalysis,
+      personalStyle: style.stylePreferences?['styleIdentity']?.toString(),
+      wardrobe: style.wardrobe
+          .map((item) => item.toMap())
+          .toList(),
+    );
+    final challenge = DailyChallengeService.personalizedToday(
+      uid,
+      analysis: style.colourAnalysis,
+    );
     final journey = TibStyleJourneyService().getJourney(uid);
 
     setState(() {
       _recommendationFuture = recommendation;
       _challengeFuture = challenge;
       _journeyFuture = journey;
+      _challengeCompleted = false;
     });
 
     try {
-      final result = await challenge;
+      final selected = await challenge;
       if (!mounted || _requestUid != uid) return;
-      setState(() => _challengeCompleted = result.isCompleted);
+      final completed = await DailyChallengeService.isCompleted(uid);
+      if (!mounted || _requestUid != uid) return;
+      setState(() => _challengeCompleted = completed || selected.isCompleted);
     } catch (_) {
       if (!mounted || _requestUid != uid) return;
       setState(() => _challengeCompleted = false);
     }
   }
 
-  Future<void> _refresh() async {
-    await _load(force: true);
-  }
+  Future<void> _refresh() async => _load(force: true);
 
   Future<void> _open(Widget screen) async {
     await Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
@@ -107,7 +113,7 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
 
     setState(() => _completingChallenge = true);
     try {
-      await DailyChallengeService().completeChallenge(uid, challenge.id);
+      await DailyChallengeService.complete(uid, challenge: challenge);
       if (!mounted || _requestUid != uid) return;
       setState(() {
         _challengeCompleted = true;
@@ -127,7 +133,8 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
     return Consumer2<PersonalStyleProvider, TibSession>(
       builder: (context, style, session, _) {
         final user = style.user ?? session.profile;
-        final firstName = (user?.displayName ?? '').trim().split(' ').first;
+        final rawName = user?.displayName?.trim() ?? '';
+        final firstName = rawName.isEmpty ? '' : rawName.split(RegExp(r'\s+')).first;
         final greeting = firstName.isEmpty ? 'Your style space' : 'Welcome back, $firstName';
 
         return Scaffold(
@@ -185,7 +192,7 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
                     ],
                   ),
                   const SizedBox(height: 18),
-                  _welcomeCard(context, style),
+                  _welcomeCard(style),
                   const SizedBox(height: 20),
                   _sectionLabel('PERSONAL SYSTEM', 'The foundation behind your recommendations.'),
                   const SizedBox(height: 11),
@@ -198,7 +205,6 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
                     physics: const NeverScrollableScrollPhysics(),
                     children: [
                       _systemCard(
-                        context,
                         icon: Icons.palette_outlined,
                         title: 'Colour Profile',
                         status: style.hasColourProfile ? 'Ready' : 'Set up',
@@ -208,7 +214,6 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
                         onTap: () => _open(const AnalysisScreen()),
                       ),
                       _systemCard(
-                        context,
                         icon: Icons.person_outline_rounded,
                         title: 'Personal TiB',
                         status: style.hasTiBModel ? 'Ready' : 'Set up',
@@ -218,7 +223,6 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
                         onTap: () => _open(const CreateTibModelScreen()),
                       ),
                       _systemCard(
-                        context,
                         icon: Icons.checkroom_outlined,
                         title: 'Wardrobe',
                         status: '${style.wardrobe.length} pieces',
@@ -228,7 +232,6 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
                         onTap: () => _open(const WardrobeScreen()),
                       ),
                       _systemCard(
-                        context,
                         icon: Icons.auto_awesome_rounded,
                         title: 'AI Stylist',
                         status: style.hasSavedLooks ? '${style.savedLooks.length} looks' : 'Explore',
@@ -261,15 +264,15 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
   String _colourSummary(PersonalStyleProvider style) {
     final colour = style.colourAnalysis;
     if (colour == null) return 'Colour profile available.';
-    final season = colour.season.isEmpty ? '' : colour.season;
-    final face = colour.faceShape.isEmpty ? '' : colour.faceShape;
+    final season = colour.season.trim();
+    final face = colour.faceShape.trim();
     if (season.isNotEmpty && face.isNotEmpty) return '$season · $face';
     if (season.isNotEmpty) return season;
     if (face.isNotEmpty) return face;
     return 'Colour profile available.';
   }
 
-  Widget _welcomeCard(BuildContext context, PersonalStyleProvider style) {
+  Widget _welcomeCard(PersonalStyleProvider style) {
     final completed = [
       style.hasColourProfile,
       style.hasTiBModel,
@@ -292,15 +295,8 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
               Container(
                 width: 46,
                 height: 46,
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.auto_awesome_rounded,
-                  color: AppColors.primary,
-                  size: 22,
-                ),
+                decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                child: const Icon(Icons.auto_awesome_rounded, color: AppColors.primary, size: 22),
               ),
               const Spacer(),
               _statusPill(completed == 3 ? 'READY' : '$completed/3 SET'),
@@ -309,22 +305,14 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
           const SizedBox(height: 17),
           const Text(
             'Make the system yours.',
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w900,
-              letterSpacing: -.6,
-            ),
+            style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, letterSpacing: -.6),
           ),
           const SizedBox(height: 6),
           Text(
             completed == 3
                 ? 'Your core styling inputs are ready to power more personal recommendations.'
                 : 'Complete your colour profile, Personal TiB and wardrobe to make every recommendation more personal.',
-            style: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 11.5,
-              height: 1.45,
-            ),
+            style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.45),
           ),
           const SizedBox(height: 14),
           ClipRRect(
@@ -345,30 +333,14 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          title,
-          style: const TextStyle(
-            color: AppColors.textMuted,
-            fontSize: 9,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 1.35,
-          ),
-        ),
+        Text(title, style: const TextStyle(color: AppColors.textMuted, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1.35)),
         const SizedBox(height: 4),
-        Text(
-          subtitle,
-          style: const TextStyle(
-            color: AppColors.textSecondary,
-            fontSize: 11.5,
-            height: 1.35,
-          ),
-        ),
+        Text(subtitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.35)),
       ],
     );
   }
 
-  Widget _systemCard(
-    BuildContext context, {
+  Widget _systemCard({
     required IconData icon,
     required String title,
     required String status,
@@ -396,10 +368,7 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
                   Container(
                     width: 39,
                     height: 39,
-                    decoration: const BoxDecoration(
-                      color: AppColors.secondary,
-                      shape: BoxShape.circle,
-                    ),
+                    decoration: const BoxDecoration(color: AppColors.secondary, shape: BoxShape.circle),
                     child: Icon(icon, color: AppColors.primary, size: 19),
                   ),
                   const Spacer(),
@@ -407,23 +376,13 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
                 ],
               ),
               const Spacer(),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
+              Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
               const SizedBox(height: 4),
               Text(
                 subtitle,
                 maxLines: 3,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 10.3,
-                  height: 1.35,
-                ),
+                style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.3, height: 1.35),
               ),
             ],
           ),
@@ -436,9 +395,7 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
     return FutureBuilder<TibStyleJourney>(
       future: _journeyFuture,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return _loadingCard();
-        }
+        if (snapshot.connectionState == ConnectionState.waiting) return _loadingCard();
         if (snapshot.hasError || snapshot.data == null) {
           return _emptyCard('Your style journey will appear here as you build more of your profile.');
         }
@@ -446,33 +403,18 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
         final journey = snapshot.data!;
         return Container(
           padding: const EdgeInsets.all(17),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: AppColors.border),
-          ),
+          decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  Expanded(
-                    child: Text(
-                      journey.currentStage,
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
-                    ),
-                  ),
-                  Text(
-                    '${journey.progressPercent}%',
-                    style: const TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.w900),
-                  ),
+                  Expanded(child: Text(journey.currentStage, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900))),
+                  Text('${journey.progressPercent}%', style: const TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.w900)),
                 ],
               ),
               const SizedBox(height: 8),
-              Text(
-                journey.description,
-                style: const TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.4),
-              ),
+              Text(journey.description, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.4)),
               const SizedBox(height: 13),
               ClipRRect(
                 borderRadius: BorderRadius.circular(10),
@@ -494,9 +436,7 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
     return FutureBuilder<TodayRecommendation>(
       future: _recommendationFuture,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return _loadingCard();
-        }
+        if (snapshot.connectionState == ConnectionState.waiting) return _loadingCard();
         if (snapshot.hasError || snapshot.data == null) {
           return _emptyCard('Your daily style signal will appear once your personal inputs are available.');
         }
@@ -504,11 +444,7 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
         final recommendation = snapshot.data!;
         return Container(
           padding: const EdgeInsets.fromLTRB(17, 17, 14, 17),
-          decoration: BoxDecoration(
-            gradient: AppGradients.premium,
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: AppColors.border),
-          ),
+          decoration: BoxDecoration(gradient: AppGradients.premium, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -523,21 +459,19 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      recommendation.title,
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+                    Row(
+                      children: [
+                        Expanded(child: Text(recommendation.style, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900))),
+                        if (recommendation.isAiGenerated) _statusPill('AI'),
+                      ],
                     ),
                     const SizedBox(height: 5),
-                    Text(
-                      recommendation.description,
-                      style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.8, height: 1.4),
-                    ),
-                    if (recommendation.actionLabel.isNotEmpty) ...[
-                      const SizedBox(height: 9),
-                      Text(
-                        recommendation.actionLabel,
-                        style: const TextStyle(color: AppColors.primary, fontSize: 9.5, fontWeight: FontWeight.w900),
-                      ),
+                    Text(recommendation.outfit, style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.8, height: 1.4)),
+                    const SizedBox(height: 8),
+                    Text(recommendation.reason, style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.4, height: 1.4)),
+                    if (recommendation.stylingTip.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text(recommendation.stylingTip, style: const TextStyle(color: AppColors.primary, fontSize: 9.5, fontWeight: FontWeight.w800, height: 1.35)),
                     ],
                   ],
                 ),
@@ -553,22 +487,16 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
     return FutureBuilder<DailyChallenge>(
       future: _challengeFuture,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return _loadingCard();
-        }
+        if (snapshot.connectionState == ConnectionState.waiting) return _loadingCard();
         if (snapshot.hasError || snapshot.data == null) {
           return _emptyCard('Your next style challenge will appear here.');
         }
 
         final challenge = snapshot.data!;
-        final completed = _challengeCompleted || challenge.isCompleted;
+        final completed = _challengeCompleted;
         return Container(
           padding: const EdgeInsets.all(17),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: AppColors.border),
-          ),
+          decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -576,11 +504,7 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
                 width: 44,
                 height: 44,
                 decoration: const BoxDecoration(color: AppColors.secondary, shape: BoxShape.circle),
-                child: Icon(
-                  completed ? Icons.check_rounded : Icons.flag_outlined,
-                  color: AppColors.primary,
-                  size: 21,
-                ),
+                child: Icon(completed ? Icons.check_rounded : Icons.flag_outlined, color: AppColors.primary, size: 21),
               ),
               const SizedBox(width: 13),
               Expanded(
@@ -589,16 +513,10 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
                   children: [
                     Text(challenge.title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
                     const SizedBox(height: 5),
-                    Text(
-                      challenge.description,
-                      style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.8, height: 1.4),
-                    ),
+                    Text(challenge.description, style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.8, height: 1.4)),
                     const SizedBox(height: 11),
                     if (completed)
-                      const Text(
-                        'Completed today',
-                        style: TextStyle(color: AppColors.primary, fontSize: 9.5, fontWeight: FontWeight.w900),
-                      )
+                      Text('Completed today  ·  +${challenge.points} pts', style: const TextStyle(color: AppColors.primary, fontSize: 9.5, fontWeight: FontWeight.w900))
                     else
                       Align(
                         alignment: Alignment.centerLeft,
@@ -607,7 +525,7 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
                           icon: _completingChallenge
                               ? const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 1.8))
                               : const Icon(Icons.check_rounded, size: 15),
-                          label: const Text('Mark complete'),
+                          label: Text('Complete  +${challenge.points}'),
                         ),
                       ),
                   ],
@@ -623,51 +541,28 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
   Widget _loadingCard() {
     return Container(
       height: 108,
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.border),
-      ),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)),
       alignment: Alignment.center,
-      child: const SizedBox(
-        width: 20,
-        height: 20,
-        child: CircularProgressIndicator(strokeWidth: 2),
-      ),
+      child: const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
     );
   }
 
   Widget _emptyCard(String text) {
     return Container(
       padding: const EdgeInsets.all(17),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Text(
-        text,
-        style: const TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.45),
-      ),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)),
+      child: Text(text, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.45)),
     );
   }
 
   Widget _statusPill(String label) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: .72),
-        borderRadius: BorderRadius.circular(99),
-      ),
+      decoration: BoxDecoration(color: Colors.white.withValues(alpha: .72), borderRadius: BorderRadius.circular(99)),
       child: Text(
         label,
         overflow: TextOverflow.ellipsis,
-        style: const TextStyle(
-          color: AppColors.primaryDark,
-          fontSize: 7.8,
-          fontWeight: FontWeight.w900,
-          letterSpacing: .65,
-        ),
+        style: const TextStyle(color: AppColors.primaryDark, fontSize: 7.8, fontWeight: FontWeight.w900, letterSpacing: .65),
       ),
     );
   }
