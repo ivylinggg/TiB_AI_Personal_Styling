@@ -75,7 +75,9 @@ class _StyleMeScreenState extends State<StyleMeScreen> {
           ? List<WardrobeItem>.from(values[0] as List<WardrobeItem>)
           : <WardrobeItem>[];
       setState(() {
-        _wardrobe = items.where((item) => item.userId.isEmpty || item.userId == uid).toList(growable: false);
+        _wardrobe = items
+            .where((item) => item.userId.isEmpty || item.userId == uid)
+            .toList(growable: false);
         _styles = _stringList(prefs['styles']);
         _preferences = _stringList(prefs['preferences']);
         _isPremium = userDoc.data()?['isPremium'] == true;
@@ -145,9 +147,18 @@ class _StyleMeScreenState extends State<StyleMeScreen> {
 
   List<WardrobeItem> _buildLocalLook(String prompt, ColourAnalysisResult profile) {
     final text = prompt.toLowerCase();
-    final wantsDress = text.contains('dress') || text.contains('date') || text.contains('birthday') || text.contains('dinner');
-    final wantsSmart = text.contains('work') || text.contains('office') || text.contains('meeting') || text.contains('smart');
-    final wantsCasual = text.contains('cafe') || text.contains('shopping') || text.contains('weekend') || text.contains('airport');
+    final wantsDress = text.contains('dress') ||
+        text.contains('date') ||
+        text.contains('birthday') ||
+        text.contains('dinner');
+    final wantsSmart = text.contains('work') ||
+        text.contains('office') ||
+        text.contains('meeting') ||
+        text.contains('smart');
+    final wantsCasual = text.contains('cafe') ||
+        text.contains('shopping') ||
+        text.contains('weekend') ||
+        text.contains('airport');
 
     int score(WardrobeItem item) {
       var value = 0;
@@ -157,10 +168,18 @@ class _StyleMeScreenState extends State<StyleMeScreen> {
       if (item.isFavourite) value += 8;
       if (_styles.any((s) => style.contains(s.toLowerCase()))) value += 9;
       if (_preferences.any((p) => style.contains(p.toLowerCase()))) value += 4;
-      if (profile.colours.any((c) => c.toLowerCase().contains(colour) || colour.contains(c.toLowerCase()))) value += 12;
+      if (profile.colours.any((c) =>
+          c.toLowerCase().contains(colour) || colour.contains(c.toLowerCase()))) {
+        value += 12;
+      }
       if (wantsDress && category == 'dresses') value += 20;
-      if (wantsSmart && (style.contains('smart') || style.contains('elegant'))) value += 16;
-      if (wantsCasual && (style.contains('casual') || style.contains('everyday'))) value += 14;
+      if (wantsSmart && (style.contains('smart') || style.contains('elegant'))) {
+        value += 16;
+      }
+      if (wantsCasual &&
+          (style.contains('casual') || style.contains('everyday'))) {
+        value += 14;
+      }
       if (!wantsDress && category == 'tops') value += 7;
       if (!wantsDress && category == 'bottoms') value += 7;
       if (category == 'shoes') value += 3;
@@ -168,7 +187,8 @@ class _StyleMeScreenState extends State<StyleMeScreen> {
       return value;
     }
 
-    final sorted = [..._wardrobe]..sort((a, b) => score(b).compareTo(score(a)));
+    final sorted = [..._wardrobe]
+      ..sort((a, b) => score(b).compareTo(score(a)));
     final look = <WardrobeItem>[];
     if (wantsDress) {
       for (final item in sorted) {
@@ -196,12 +216,17 @@ class _StyleMeScreenState extends State<StyleMeScreen> {
       if (shoes != null && accessory != null) break;
     }
     if (shoes != null && !look.any((i) => i.id == shoes!.id)) look.add(shoes);
-    if (accessory != null && !look.any((i) => i.id == accessory!.id)) look.add(accessory);
-    return look.take(4).toList();
+    if (accessory != null && !look.any((i) => i.id == accessory!.id)) {
+      look.add(accessory);
+    }
+    return look.take(4).toList(growable: false);
   }
 
   List<String> _stringList(dynamic value) => value is List
-      ? value.map((item) => item.toString().trim()).where((item) => item.isNotEmpty).toList(growable: false)
+      ? value
+          .map((item) => item.toString().trim())
+          .where((item) => item.isNotEmpty)
+          .toList(growable: false)
       : const [];
 
   WardrobeItem? _find(String? id) {
@@ -225,33 +250,91 @@ class _StyleMeScreenState extends State<StyleMeScreen> {
   Widget _buildResult(List<WardrobeItem> look) {
     return Container(
       padding: const EdgeInsets.all(17),
-      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(21), border: Border.all(color: AppColors.border)),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(21),
+        border: Border.all(color: AppColors.border),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(children: [
-            const Expanded(child: Text('YOUR LOOK', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 1.05, color: AppColors.primary))),
-            if (_aiResult != null) Text('${_aiResult!.matchScore}% MATCH', style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, color: AppColors.premiumAccentDark)),
-          ]),
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'YOUR LOOK',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.05,
+                    color: AppColors.primary,
+                  ),
+                ),
+              ),
+              if (_aiResult != null)
+                Text(
+                  '${_aiResult!.matchScore}% MATCH',
+                  style: const TextStyle(
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.premiumAccentDark,
+                  ),
+                ),
+            ],
+          ),
           const SizedBox(height: 10),
           if (look.isEmpty)
-            const Text('I could not build a complete look from the pieces currently in your wardrobe.')
+            const Text(
+              'I could not build a complete look from the pieces currently in your wardrobe.',
+            )
           else
             GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: look.length,
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: .9),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+                childAspectRatio: .9,
+              ),
               itemBuilder: (_, index) {
                 final item = look[index];
                 return Container(
-                  decoration: BoxDecoration(borderRadius: BorderRadius.circular(17), border: Border.all(color: AppColors.border)),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(17),
+                    border: Border.all(color: AppColors.border),
+                  ),
                   clipBehavior: Clip.antiAlias,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(child: item.imageUrl.isEmpty ? const Center(child: Icon(Icons.checkroom_outlined, color: AppColors.primary)) : CachedNetworkImage(imageUrl: item.imageUrl, fit: BoxFit.cover, width: double.infinity)),
-                      Padding(padding: const EdgeInsets.all(9), child: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700))),
+                      Expanded(
+                        child: item.imageUrl.isEmpty
+                            ? const Center(
+                                child: Icon(
+                                  Icons.checkroom_outlined,
+                                  color: AppColors.primary,
+                                ),
+                              )
+                            : CachedNetworkImage(
+                                imageUrl: item.imageUrl,
+                                fit: BoxFit.cover,
+                                width: double.infinity,
+                              ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(9),
+                        child: Text(
+                          item.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 );
@@ -259,14 +342,35 @@ class _StyleMeScreenState extends State<StyleMeScreen> {
             ),
           if (_aiResult?.explanation.isNotEmpty == true) ...[
             const SizedBox(height: 15),
-            Text(_aiResult!.explanation, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.45)),
+            Text(
+              _aiResult!.explanation,
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.textSecondary,
+                height: 1.45,
+              ),
+            ),
           ],
           const SizedBox(height: 16),
-          Row(children: [
-            Expanded(child: OutlinedButton.icon(onPressed: _styling ? null : _styleMe, icon: const Icon(Icons.refresh_rounded), label: const Text('Try Another'))),
-            const SizedBox(width: 9),
-            Expanded(child: FilledButton.icon(onPressed: look.isEmpty ? null : _save, icon: const Icon(Icons.bookmark_add_outlined), label: const Text('Save Look'))),
-          ]),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _styling ? null : _styleMe,
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Try Another'),
+                ),
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: look.isEmpty ? null : _save,
+                  icon: const Icon(Icons.bookmark_add_outlined),
+                  label: const Text('Save Look'),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -280,7 +384,9 @@ class _StyleMeScreenState extends State<StyleMeScreen> {
     try {
       await FirestoreService.saveOutfitLook(
         uid: uid,
-        occasion: _occasionController.text.trim().isEmpty ? 'Everyday' : _occasionController.text.trim(),
+        occasion: _occasionController.text.trim().isEmpty
+            ? 'Everyday'
+            : _occasionController.text.trim(),
         itemIds: look.map((e) => e.id).toList(growable: false),
         matchScore: _aiResult?.matchScore ?? 0,
         season: profile?.season ?? 'Unknown',
@@ -306,14 +412,35 @@ class _StyleMeScreenState extends State<StyleMeScreen> {
         backgroundColor: AppColors.background,
         elevation: 0,
         scrolledUnderElevation: 0,
-        leading: IconButton(icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18), onPressed: () => Navigator.pop(context)),
-        title: const Text('Style Me', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-        actions: [IconButton(tooltip: 'Open AI Stylist chat', onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AIStylistScreen())), icon: const Icon(Icons.chat_bubble_outline_rounded))],
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text(
+          'Style Me',
+          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+        ),
+        actions: [
+          IconButton(
+            tooltip: 'Open AI Stylist chat',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const AIStylistScreen()),
+            ),
+            icon: const Icon(Icons.chat_bubble_outline_rounded),
+          ),
+        ],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _wardrobe.isEmpty
-              ? EmptyState(icon: Icons.checkroom_outlined, title: 'Add a few wardrobe pieces first', description: 'Style Me only recommends pieces you actually own.', ctaLabel: 'Open Wardrobe', onCta: () => Navigator.pop(context))
+              ? EmptyState(
+                  icon: Icons.checkroom_outlined,
+                  title: 'Add a few wardrobe pieces first',
+                  description: 'Style Me only recommends pieces you actually own.',
+                  ctaLabel: 'Open Wardrobe',
+                  onCta: () => Navigator.pop(context),
+                )
               : SingleChildScrollView(
                   padding: const EdgeInsets.fromLTRB(20, 10, 20, 34),
                   child: Column(
@@ -321,31 +448,105 @@ class _StyleMeScreenState extends State<StyleMeScreen> {
                     children: [
                       Container(
                         padding: const EdgeInsets.fromLTRB(21, 20, 21, 22),
-                        decoration: BoxDecoration(color: AppColors.primaryDark, borderRadius: BorderRadius.circular(28)),
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryDark,
+                          borderRadius: BorderRadius.circular(28),
+                        ),
                         child: const Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('VYEA  /  STYLE ME', style: TextStyle(color: AppColors.peach, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: 1.45)),
+                            Text(
+                              'VYEA  /  STYLE ME',
+                              style: TextStyle(
+                                color: AppColors.peach,
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 1.45,
+                              ),
+                            ),
                             SizedBox(height: 18),
-                            Text('Dress for the moment.\nUse what you own.', style: TextStyle(color: Colors.white, fontSize: 30, height: 1.02, fontWeight: FontWeight.w800, letterSpacing: -1)),
+                            Text(
+                              'Dress for the moment.\nUse what you own.',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 30,
+                                height: 1.02,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -1,
+                              ),
+                            ),
                             SizedBox(height: 9),
-                            Text('Tell VYEA where you are going and the feeling you want. Your wardrobe, palette and preferences do the rest.', style: TextStyle(color: Colors.white70, fontSize: 12.5, height: 1.45)),
+                            Text(
+                              'Tell VYEA where you are going and the feeling you want. Your wardrobe, palette and preferences do the rest.',
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 12.5,
+                                height: 1.45,
+                              ),
+                            ),
                           ],
                         ),
                       ),
                       const SizedBox(height: 18),
-                      const Text('WHAT ARE YOU DRESSING FOR?', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.25, color: AppColors.textMuted)),
+                      const Text(
+                        'WHAT ARE YOU DRESSING FOR?',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1.25,
+                          color: AppColors.textMuted,
+                        ),
+                      ),
                       const SizedBox(height: 9),
                       Container(
                         padding: const EdgeInsets.fromLTRB(15, 4, 10, 4),
-                        decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface,
+                          borderRadius: BorderRadius.circular(22),
+                          border: Border.all(color: AppColors.border),
+                        ),
                         child: Row(
                           children: [
-                            const Icon(Icons.edit_note_rounded, color: AppColors.primary, size: 22),
+                            const Icon(
+                              Icons.edit_note_rounded,
+                              color: AppColors.primary,
+                              size: 22,
+                            ),
                             const SizedBox(width: 7),
-                            Expanded(child: TextField(controller: _occasionController, minLines: 1, maxLines: 3, textInputAction: TextInputAction.done, onSubmitted: (_) => _styleMe(), decoration: const InputDecoration(hintText: 'Dinner, work, holiday, date night…', border: InputBorder.none, isDense: true))),
+                            Expanded(
+                              child: TextField(
+                                controller: _occasionController,
+                                minLines: 1,
+                                maxLines: 3,
+                                textInputAction: TextInputAction.done,
+                                onSubmitted: (_) => _styleMe(),
+                                decoration: const InputDecoration(
+                                  hintText: 'Dinner, work, holiday, date night…',
+                                  border: InputBorder.none,
+                                  isDense: true,
+                                ),
+                              ),
+                            ),
                             const SizedBox(width: 6),
-                            Material(color: AppColors.primary, borderRadius: BorderRadius.circular(16), child: InkWell(onTap: _styling ? null : _styleMe, borderRadius: BorderRadius.circular(16), child: SizedBox(width: 48, height: 48, child: Icon(_styling ? Icons.hourglass_top_rounded : Icons.arrow_upward_rounded, color: Colors.white, size: 20))),
+                            Material(
+                              color: AppColors.primary,
+                              borderRadius: BorderRadius.circular(16),
+                              child: InkWell(
+                                onTap: _styling ? null : _styleMe,
+                                borderRadius: BorderRadius.circular(16),
+                                child: SizedBox(
+                                  width: 48,
+                                  height: 48,
+                                  child: Icon(
+                                    _styling
+                                        ? Icons.hourglass_top_rounded
+                                        : Icons.arrow_upward_rounded,
+                                    color: Colors.white,
+                                    size: 20,
+                                  ),
+                                ),
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -356,24 +557,77 @@ class _StyleMeScreenState extends State<StyleMeScreen> {
                           scrollDirection: Axis.horizontal,
                           itemCount: _ideas.length,
                           separatorBuilder: (_, __) => const SizedBox(width: 7),
-                          itemBuilder: (_, index) => ActionChip(label: Text(_ideas[index]), onPressed: _styling ? null : () => setState(() => _occasionController.text = _ideas[index])),
+                          itemBuilder: (_, index) => ActionChip(
+                            label: Text(_ideas[index]),
+                            onPressed: _styling
+                                ? null
+                                : () => setState(
+                                      () => _occasionController.text = _ideas[index],
+                                    ),
+                          ),
                         ),
                       ),
                       const SizedBox(height: 20),
                       Container(
                         padding: const EdgeInsets.all(15),
-                        decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.border)),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: AppColors.border),
+                        ),
                         child: Row(
                           children: [
-                            Container(width: 40, height: 40, decoration: const BoxDecoration(color: AppColors.secondary, shape: BoxShape.circle), child: const Icon(Icons.checkroom_outlined, color: AppColors.primary, size: 20)),
+                            Container(
+                              width: 40,
+                              height: 40,
+                              decoration: const BoxDecoration(
+                                color: AppColors.secondary,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.checkroom_outlined,
+                                color: AppColors.primary,
+                                size: 20,
+                              ),
+                            ),
                             const SizedBox(width: 11),
-                            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('YOUR STYLE CONTEXT', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1.1)), const SizedBox(height: 4), Text('${_wardrobe.length} pieces · ${_styles.isEmpty ? 'preferences' : _styles.take(2).join(' · ')}', style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.35))])),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'YOUR STYLE CONTEXT',
+                                    style: TextStyle(
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: 1.1,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    '${_wardrobe.length} pieces · ${_styles.isEmpty ? 'preferences' : _styles.take(2).join(' · ')}',
+                                    style: const TextStyle(
+                                      color: AppColors.textSecondary,
+                                      fontSize: 11.5,
+                                      height: 1.35,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ],
                         ),
                       ),
                       if (_status.isNotEmpty) ...[
                         const SizedBox(height: 16),
-                        Text(_status, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.4)),
+                        Text(
+                          _status,
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 11.5,
+                            height: 1.4,
+                          ),
+                        ),
                       ],
                       if (_aiResult != null || _localLook.isNotEmpty) ...[
                         const SizedBox(height: 22),
