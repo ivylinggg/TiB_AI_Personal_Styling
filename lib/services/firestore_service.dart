@@ -178,22 +178,56 @@ class FirestoreService {
     return _resultFromData(snapshot.docs.first.data());
   }
 
+  // Each customer's wardrobe is physically stored under that customer's UID.
+  // Never expose a shared/global wardrobe collection here.
   static CollectionReference<Map<String, dynamic>> _wardrobe(String uid) => _db.collection('users').doc(uid).collection('wardrobe');
 
   static Future<String> addWardrobeItem(WardrobeItem item) async {
-    final ref = await _wardrobe(item.userId).add(item.toMap());
+    final uid = item.userId.trim();
+    if (uid.isEmpty) throw ArgumentError('A wardrobe item must belong to a signed-in user.');
+    if (uid != item.userId) throw ArgumentError('Wardrobe ownership is invalid.');
+    final ref = await _wardrobe(uid).add(item.toMap());
     return ref.id;
   }
 
   static Future<List<WardrobeItem>> getWardrobeItems(String uid) async {
-    final snapshot = await _wardrobe(uid).orderBy('createdAt', descending: true).get();
-    return snapshot.docs.map(WardrobeItem.fromFirestore).toList();
+    final ownerUid = uid.trim();
+    if (ownerUid.isEmpty) return const [];
+    final snapshot = await _wardrobe(ownerUid).orderBy('createdAt', descending: true).get();
+    return snapshot.docs
+        .map(WardrobeItem.fromFirestore)
+        .where((item) => item.userId.isEmpty || item.userId == ownerUid)
+        .toList();
   }
 
-  static Stream<List<WardrobeItem>> watchWardrobeItems(String uid) => _wardrobe(uid).orderBy('createdAt', descending: true).snapshots().map((snapshot) => snapshot.docs.map(WardrobeItem.fromFirestore).toList());
+  static Stream<List<WardrobeItem>> watchWardrobeItems(String uid) {
+    final ownerUid = uid.trim();
+    if (ownerUid.isEmpty) return const Stream<List<WardrobeItem>>.empty();
+    return _wardrobe(ownerUid)
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map(WardrobeItem.fromFirestore)
+            .where((item) => item.userId.isEmpty || item.userId == ownerUid)
+            .toList());
+  }
 
-  static Future<void> updateWardrobeItem(String uid, String itemId, Map<String, dynamic> data) async => _wardrobe(uid).doc(itemId).update(data);
-  static Future<void> deleteWardrobeItem(String uid, String itemId) async => _wardrobe(uid).doc(itemId).delete();
+  static Future<void> updateWardrobeItem(String uid, String itemId, Map<String, dynamic> data) async {
+    final ownerUid = uid.trim();
+    final cleanId = itemId.trim();
+    if (ownerUid.isEmpty || cleanId.isEmpty) throw ArgumentError('Invalid wardrobe ownership or item ID.');
+    final safeData = Map<String, dynamic>.from(data);
+    safeData.remove('userId');
+    safeData.remove('imageUrl');
+    await _wardrobe(ownerUid).doc(cleanId).update(safeData);
+  }
+
+  static Future<void> deleteWardrobeItem(String uid, String itemId) async {
+    final ownerUid = uid.trim();
+    final cleanId = itemId.trim();
+    if (ownerUid.isEmpty || cleanId.isEmpty) throw ArgumentError('Invalid wardrobe ownership or item ID.');
+    await _wardrobe(ownerUid).doc(cleanId).delete();
+  }
 
   static Future<String> saveOutfitLook({required String uid, required String occasion, required List<String> itemIds, required int matchScore, required String season, String? title, String? notes}) async {
     final sanitizedItemIds = itemIds.map((id) => id.trim()).where((id) => id.isNotEmpty).toSet().toList();
