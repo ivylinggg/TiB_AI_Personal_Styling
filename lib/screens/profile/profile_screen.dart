@@ -63,7 +63,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (mounted) {
         setState(() {
           isLoading = false;
-          loadError = 'No signed-in customer is available.';
+          loadError = isPreview ? 'No customer was selected for preview.' : 'No signed-in user was found.';
         });
       }
       return;
@@ -229,7 +229,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _identityPanel() {
     final result = analysis;
     final hasAnalysis = result != null;
-    final season = hasAnalysis ? result.season : 'Colour profile pending';
+    final season = hasAnalysis ? result!.season : 'Colour profile pending';
     final undertone = hasAnalysis ? result.undertone : 'Not analysed';
     final face = hasAnalysis ? result.faceShape : 'Not analysed';
     final reasons = result?.colourReasons ?? const <String>[];
@@ -254,7 +254,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ...reasons.take(3).map((reason) => Padding(padding: const EdgeInsets.only(bottom: 5), child: Text('• $reason', style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.35)))),
         ],
         const SizedBox(height: 14),
-        OutlinedButton.icon(onPressed: hasAnalysis ? () => openAnalysisResult(result) : openColourAnalysis, icon: Icon(hasAnalysis ? Icons.insights_outlined : Icons.camera_alt_outlined, size: 18), label: Text(hasAnalysis ? 'View full colour profile' : 'Start colour analysis')),
+        OutlinedButton.icon(onPressed: hasAnalysis ? () => openAnalysisResult(result!) : openColourAnalysis, icon: Icon(hasAnalysis ? Icons.insights_outlined : Icons.camera_alt_outlined, size: 18), label: Text(hasAnalysis ? 'View full colour profile' : 'Start colour analysis')),
       ]),
     );
   }
