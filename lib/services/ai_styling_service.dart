@@ -48,6 +48,109 @@ class AiStylingService {
 
   static const Duration _requestTimeout = Duration(seconds: 20);
 
+  /// Outfit grammar used by both AI Outfit and VYEA Personal Stylist.
+  ///
+  /// A top requires a bottom (trousers/skirt/etc. represented by Bottoms or
+  /// Skirts). A dress is a one-piece garment and therefore cannot be paired
+  /// with a bottom. Suits are also one complete garment family and should not
+  /// be combined with a dress or another bottom. Jackets are layering pieces
+  /// and may sit over either a top+bottom combination or a dress.
+  static const Map<String, Set<String>> _compatibleCategories = {
+    'Tops': {'Bottoms', 'Skirts'},
+    'Bottoms': {'Tops', 'Jackets'},
+    'Skirts': {'Tops', 'Jackets'},
+    'Dresses': {'Shoes', 'Accessories', 'Jackets'},
+    'Suits': {'Shoes', 'Accessories', 'Tops', 'Jackets'},
+    'Jackets': {'Tops', 'Bottoms', 'Skirts', 'Dresses', 'Suits'},
+    'Shoes': {'Tops', 'Bottoms', 'Skirts', 'Dresses', 'Suits', 'Jackets'},
+    'Accessories': {'Tops', 'Bottoms', 'Skirts', 'Dresses', 'Suits', 'Jackets', 'Shoes'},
+  };
+
+  static bool areCategoriesCompatible(String first, String second) {
+    final a = first.trim();
+    final b = second.trim();
+    if (a.isEmpty || b.isEmpty) return false;
+    if (a == b) return a == 'Shoes' || a == 'Accessories' || a == 'Jackets';
+    return _compatibleCategories[a]?.contains(b) == true ||
+        _compatibleCategories[b]?.contains(a) == true;
+  }
+
+  static List<WardrobeItem> sanitizeLook(
+    List<WardrobeItem> items, {
+    WardrobeItem? selectedItem,
+  }) {
+    final unique = <String, WardrobeItem>{};
+    for (final item in items) {
+      if (item.id.trim().isEmpty) continue;
+      unique[item.id] = item;
+    }
+
+    final candidates = unique.values.toList(growable: false);
+    if (candidates.isEmpty) return const [];
+
+    final selected = selectedItem;
+    final result = <WardrobeItem>[];
+
+    // One-piece garments are exclusive with separate bottoms.
+    final hasDress = candidates.any((item) => item.category == 'Dresses');
+    final hasBottom = candidates.any((item) =>
+        item.category == 'Bottoms' || item.category == 'Skirts');
+
+    if (hasDress) {
+      final dress = selected?.category == 'Dresses'
+          ? selected
+          : candidates.firstWhere((item) => item.category == 'Dresses');
+      result.add(dress);
+      for (final category in ['Jackets', 'Shoes', 'Accessories']) {
+        final item = candidates.firstWhere(
+          (candidate) =>
+              candidate.category == category &&
+              areCategoriesCompatible(dress.category, candidate.category),
+          orElse: () => _emptyItem,
+        );
+        if (item.id.isNotEmpty && !result.any((entry) => entry.id == item.id)) {
+          result.add(item);
+        }
+      }
+      return result.take(4).toList(growable: false);
+    }
+
+    // Two-piece route: Top + Bottom/Skirt, with optional jacket/shoes/accessory.
+    final top = selected?.category == 'Tops'
+        ? selected
+        : candidates.cast<WardrobeItem?>().firstWhere(
+              (item) => item?.category == 'Tops',
+              orElse: () => null,
+            );
+    final bottom = selected?.category == 'Bottoms' || selected?.category == 'Skirts'
+        ? selected
+        : candidates.cast<WardrobeItem?>().firstWhere(
+              (item) => item?.category == 'Bottoms' || item?.category == 'Skirts',
+              orElse: () => null,
+            );
+
+    if (top != null && bottom != null) {
+      result.add(top);
+      result.add(bottom);
+    } else if (selected != null && selected.category == 'Suits') {
+      result.add(selected);
+    } else {
+      // Do not manufacture an invalid outfit from unrelated pieces.
+      return candidates.take(2).toList(growable: false);
+    }
+
+    final baseCategories = result.map((item) => item.category).toSet();
+    for (final candidate in candidates) {
+      if (result.length >= 4 || result.any((item) => item.id == candidate.id)) continue;
+      if (baseCategories.any((category) =>
+          areCategoriesCompatible(category, candidate.category))) {
+        result.add(candidate);
+      }
+    }
+
+    return result.take(4).toList(growable: false);
+  }
+
   static Future<AiStylingResult?> getRecommendation({
     required ColourAnalysisResult profile,
     required List<WardrobeItem> wardrobe,
@@ -65,6 +168,7 @@ class AiStylingService {
 
     final ownedWardrobe = wardrobe
         .where((item) => item.userId.isEmpty || item.userId == requestUid)
+        .where((item) => _knownCategory(item.category))
         .toList(growable: false);
     if (ownedWardrobe.isEmpty) return null;
 
@@ -95,6 +199,7 @@ class AiStylingService {
               'preferences': _cleanStrings(preferences, limit: 8),
               'occasion': cleanOccasion,
               'personalBrand': personalBrand,
+              'outfitRules': _outfitRulesPayload(),
               if (safeSelectedItem != null)
                 'selectedItem': _wardrobePayload(safeSelectedItem),
             }),
@@ -123,15 +228,97 @@ class AiStylingService {
         accessoryId: _validWardrobeId(data['accessoryId'], allowedIds),
         lookTitle: _readOptionalText(data['lookTitle'] ?? data['title']),
         colourDirection: _readOptionalText(data['colourDirection'] ?? data['colourStory']),
-        stylingNotes: _readStringList(data['stylingNotes'] ?? data['notes'] ?? data['tips'], limit: 6),
+        stylingNotes: _readStringList(
+          data['stylingNotes'] ?? data['notes'] ?? data['tips'],
+          limit: 6,
+        ),
       );
 
-      if (!result.hasAnyItems && result.explanation.isEmpty) return null;
-      return result;
+      final rawLook = [
+        _findById(ownedWardrobe, result.topId),
+        _findById(ownedWardrobe, result.bottomId),
+        _findById(ownedWardrobe, result.shoesId),
+        _findById(ownedWardrobe, result.accessoryId),
+      ].whereType<WardrobeItem>().toList(growable: false);
+      final sanitizedLook = sanitizeLook(rawLook, selectedItem: safeSelectedItem);
+
+      if (sanitizedLook.isEmpty && result.explanation.isEmpty) return null;
+
+      return AiStylingResult(
+        explanation: result.explanation,
+        topId: _idForCategory(sanitizedLook, 'Tops'),
+        bottomId: _idForFirstCategories(sanitizedLook, const {'Bottoms', 'Skirts'}),
+        shoesId: _idForCategory(sanitizedLook, 'Shoes'),
+        accessoryId: _idForCategory(sanitizedLook, 'Accessories'),
+        lookTitle: result.lookTitle,
+        colourDirection: result.colourDirection,
+        stylingNotes: result.stylingNotes,
+      );
     } catch (_) {
       return null;
     }
   }
+
+  static bool _knownCategory(String category) =>
+      const {'Tops', 'Bottoms', 'Dresses', 'Suits', 'Jackets', 'Skirts', 'Shoes', 'Accessories'}
+          .contains(category.trim());
+
+  static Map<String, dynamic> _outfitRulesPayload() => {
+        'noDressWithBottom': true,
+        'topRequiresBottomOrSkirt': true,
+        'dressIsOnePiece': true,
+        'suitIsOnePieceFamily': true,
+        'jacketIsLayeringPiece': true,
+        'allowedCategories': const [
+          'Tops',
+          'Bottoms',
+          'Dresses',
+          'Suits',
+          'Jackets',
+          'Skirts',
+          'Shoes',
+          'Accessories',
+        ],
+      };
+
+  static WardrobeItem? _findById(List<WardrobeItem> items, String? id) {
+    if (id == null || id.isEmpty) return null;
+    for (final item in items) {
+      if (item.id == id) return item;
+    }
+    return null;
+  }
+
+  static String? _idForCategory(List<WardrobeItem> items, String category) {
+    for (final item in items) {
+      if (item.category == category) return item.id;
+    }
+    return null;
+  }
+
+  static String? _idForFirstCategories(
+    List<WardrobeItem> items,
+    Set<String> categories,
+  ) {
+    for (final item in items) {
+      if (categories.contains(item.category)) return item.id;
+    }
+    return null;
+  }
+
+  static final WardrobeItem _emptyItem = WardrobeItem(
+    id: '',
+    userId: '',
+    imageUrl: '',
+    name: '',
+    category: '',
+    colour: '',
+    style: '',
+    season: '',
+    isFavourite: false,
+    notes: '',
+    createdAt: null,
+  );
 
   static Future<Map<String, dynamic>> _loadPersonalBrand(String uid) async {
     try {
