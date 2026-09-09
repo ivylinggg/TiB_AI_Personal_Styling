@@ -233,7 +233,9 @@ class _AIStylistScreenState extends State<AIStylistScreen>
   WardrobeItem? _find(String? id) {
     if (id == null) return null;
     for (final item in _wardrobe) {
-      if (item.id == id) return item;
+      if (item.id == id) {
+        return item;
+      }
     }
     return null;
   }
@@ -386,6 +388,52 @@ class _AIStylistScreenState extends State<AIStylistScreen>
       ],
     );
   }
+
+  Widget _userBubble(String text) => Align(
+        alignment: Alignment.centerRight,
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 300),
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
+          decoration: BoxDecoration(
+            color: AppColors.primary,
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(17),
+              topRight: Radius.circular(17),
+              bottomLeft: Radius.circular(17),
+              bottomRight: Radius.circular(5),
+            ),
+          ),
+          child: Text(
+            text,
+            style: const TextStyle(color: Colors.white, fontSize: 11.5, height: 1.35),
+          ),
+        ),
+      );
+
+  Widget _typingBubble() => Align(
+        alignment: Alignment.centerLeft,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(17),
+              topRight: Radius.circular(17),
+              bottomLeft: Radius.circular(5),
+              bottomRight: Radius.circular(17),
+            ),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: const [
+              SizedBox(width: 15, height: 15, child: CircularProgressIndicator(strokeWidth: 2)),
+              SizedBox(width: 8),
+              Text('VYEA is styling…', style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary, fontWeight: FontWeight.w600)),
+            ],
+          ),
+        ),
+      );
 
   Widget _errorCard() => Container(
         padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
@@ -656,6 +704,6 @@ class _AIStylistScreenState extends State<AIStylistScreen>
   }
 
   void _openSavedLooks() {
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Open Saved Looks from the main AI Studio.')));
+    Navigator.pop(context);
   }
 }
