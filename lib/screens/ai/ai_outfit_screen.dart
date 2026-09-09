@@ -7,6 +7,7 @@ import '../../core/constants/app_colors.dart';
 import '../../models/colour_analysis_result.dart';
 import '../../models/wardrobe_item.dart';
 import '../../providers/analysis_provider.dart';
+import '../../providers/personal_style_provider.dart';
 import '../../services/ai_styling_service.dart';
 import '../../services/firestore_service.dart';
 import '../../services/style_preference_service.dart';
@@ -30,6 +31,7 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
   String _occasion = 'Dinner';
   List<WardrobeItem> _wardrobe = const [];
   List<WardrobeItem> _look = const [];
+  AiStylingResult? _aiResult;
   bool _loading = true;
   bool _styling = false;
   bool _generated = false;
@@ -58,6 +60,8 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
     if (_refreshingFromLifecycle || _styling) return;
     _refreshingFromLifecycle = true;
     try {
+      final provider = context.read<PersonalStyleProvider>();
+      await provider.refresh(force: true);
       await _loadWardrobe(showLoading: false);
     } finally {
       _refreshingFromLifecycle = false;
@@ -85,14 +89,25 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
       setState(() => _loading = true);
     }
     try {
-      final items = await FirestoreService.getWardrobeItems(uid);
+      final provider = context.read<PersonalStyleProvider>();
+      await provider.refresh(force: true);
+      final items = provider.wardrobe;
       if (!mounted) return;
       setState(() {
-        _wardrobe = items;
+        _wardrobe = List<WardrobeItem>.from(items);
         _loading = false;
       });
     } catch (_) {
-      if (mounted) setState(() => _loading = false);
+      try {
+        final items = await FirestoreService.getWardrobeItems(uid);
+        if (!mounted) return;
+        setState(() {
+          _wardrobe = items;
+          _loading = false;
+        });
+      } catch (_) {
+        if (mounted) setState(() => _loading = false);
+      }
     }
   }
 
@@ -114,7 +129,7 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
     return score;
   }
 
-  List<WardrobeItem> _buildLook(ColourAnalysisResult profile) {
+  List<WardrobeItem> _buildFallbackLook(ColourAnalysisResult profile) {
     final sorted = [..._wardrobe]..sort((a, b) => _score(b, profile).compareTo(_score(a, profile)));
     final categories = _occasion == 'Dinner' || _occasion == 'Date'
         ? ['Dresses', 'Shoes', 'Accessories']
@@ -177,15 +192,17 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
   Future<void> _generate(ColourAnalysisResult profile) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null || _styling || _wardrobe.isEmpty) return;
+    final requestUid = uid;
     setState(() {
       _generation++;
       _savedLook = false;
       _styling = true;
       _generated = true;
       _look = const [];
+      _aiResult = null;
     });
     try {
-      final prefs = await StylePreferenceService.getStylePreferences(uid);
+      final prefs = await StylePreferenceService.getStylePreferences(requestUid);
       final styles = List<String>.from(prefs?['styles'] ?? const []);
       final preferences = List<String>.from(prefs?['preferences'] ?? const []);
       final aiResult = await AiStylingService.getRecommendation(
@@ -195,24 +212,22 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
         preferences: preferences,
         occasion: _occasion,
       );
-      if (!mounted) return;
+      final currentUid = FirebaseAuth.instance.currentUser?.uid;
+      if (!mounted || currentUid != requestUid) return;
       if (aiResult != null) {
-        final aiLook = [
-          _findWardrobeItem(aiResult.topId),
-          _findWardrobeItem(aiResult.bottomId),
-          _findWardrobeItem(aiResult.shoesId),
-          _findWardrobeItem(aiResult.accessoryId),
-        ].whereType<WardrobeItem>().toList();
+        final aiLook = aiResult.itemIds.map(_findWardrobeItem).whereType<WardrobeItem>().toList();
         setState(() {
+          _aiResult = aiResult;
           _look = aiLook;
           _styling = false;
         });
         return;
       }
     } catch (_) {}
-    if (!mounted) return;
+    final currentUid = FirebaseAuth.instance.currentUser?.uid;
+    if (!mounted || currentUid != requestUid) return;
     setState(() {
-      _look = _buildLook(profile);
+      _look = _buildFallbackLook(profile);
       _styling = false;
     });
     _showFeedback('AI is unavailable right now — I used your wardrobe match instead.');
@@ -289,7 +304,10 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
 
   @override
   Widget build(BuildContext context) {
-    final profile = context.watch<AnalysisProvider>().result;
+    final analysis = context.watch<AnalysisProvider>();
+    final personal = context.watch<PersonalStyleProvider>();
+    final profile = analysis.result ?? personal.colourAnalysis;
+    final hasContext = profile != null || personal.hasColourProfile;
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -300,7 +318,8 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
         scrolledUnderElevation: 0,
         actions: [
           IconButton(
-            onPressed: () => _loadWardrobe(),
+            tooltip: 'Refresh wardrobe',
+            onPressed: _loadWardrobe,
             icon: const Icon(Icons.refresh_rounded),
           ),
         ],
@@ -310,21 +329,26 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
           : ListView(
               padding: const EdgeInsets.fromLTRB(20, 10, 20, 34),
               children: [
-                _hero(profile),
+                _hero(profile, personal),
                 const SizedBox(height: 22),
+                if (!hasContext) ...[
+                  _contextCard(),
+                  const SizedBox(height: 18),
+                ],
                 _occasionSection(),
                 const SizedBox(height: 22),
                 _generateButton(profile),
                 if (_generated) ...[
                   const SizedBox(height: 28),
-                  _result(profile, _look),
+                  _result(profile, _look, personal),
                 ],
               ],
             ),
     );
   }
 
-  Widget _hero(ColourAnalysisResult? profile) {
+  Widget _hero(ColourAnalysisResult? profile, PersonalStyleProvider personal) {
+    final colour = profile?.season ?? personal.colourAnalysis?.season ?? 'Colour';
     return Container(
       padding: const EdgeInsets.fromLTRB(21, 21, 21, 23),
       decoration: BoxDecoration(
@@ -334,11 +358,11 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          const Row(
             children: [
-              const Expanded(
+              Expanded(
                 child: Text(
-                  'VYEA  /  AI OUTFIT',
+                  'VYEA  /  PERSONAL OUTFIT',
                   style: TextStyle(
                     color: AppColors.peach,
                     fontSize: 9.5,
@@ -347,21 +371,9 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
                   ),
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: .10),
-                  borderRadius: BorderRadius.circular(9),
-                ),
-                child: const Text(
-                  'PERSONAL LOOK',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 7.3,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: .8,
-                  ),
-                ),
+              Text(
+                'AI STUDIO',
+                style: TextStyle(color: Colors.white54, fontSize: 8.5, fontWeight: FontWeight.w900, letterSpacing: 1),
               ),
             ],
           ),
@@ -379,14 +391,14 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
           const SizedBox(height: 9),
           Text(
             profile == null
-                ? 'Complete your colour profile first.'
-                : 'Built around your ${profile.season} palette and the pieces you already own.',
+                ? 'Add your Colour Analysis to make recommendations more personal.'
+                : 'Built around your ${profile.season} palette, personal proportions and the pieces you already own.',
             style: const TextStyle(color: Colors.white70, fontSize: 12.5, height: 1.45),
           ),
           const SizedBox(height: 17),
           Row(
             children: [
-              _heroStat(Icons.palette_outlined, profile?.season ?? 'Colour', 'palette'),
+              _heroStat(Icons.palette_outlined, colour, 'palette'),
               const SizedBox(width: 8),
               _heroStat(Icons.checkroom_outlined, '${_wardrobe.length}', 'pieces'),
               const SizedBox(width: 8),
@@ -430,6 +442,29 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
     );
   }
 
+  Widget _contextCard() {
+    return Container(
+      padding: const EdgeInsets.all(17),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.insights_outlined, color: AppColors.primary),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Text(
+              'Your wardrobe is ready. Add Colour Analysis for stronger personalised recommendations.',
+              style: TextStyle(color: AppColors.textSecondary, height: 1.4, fontSize: 12.2),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _occasionSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -454,6 +489,7 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
                   _generated = false;
                   _savedLook = false;
                   _look = const [];
+                  _aiResult = null;
                 }),
                 borderRadius: BorderRadius.circular(19),
                 child: AnimatedContainer(
@@ -502,7 +538,7 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
               )
             : const Icon(Icons.auto_awesome_rounded),
         label: Text(
-          _styling ? 'Putting your look together…' : _generated ? 'Create another look' : 'Create my outfit',
+          _styling ? 'Styling your look…' : _generated ? 'Create another look' : 'Create my outfit',
         ),
         style: FilledButton.styleFrom(
           backgroundColor: AppColors.peach,
@@ -514,160 +550,237 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
     );
   }
 
-  Widget _result(ColourAnalysisResult? profile, List<WardrobeItem> look) {
+  Widget _result(ColourAnalysisResult? profile, List<WardrobeItem> look, PersonalStyleProvider personal) {
     if (profile == null) return _message('Complete Colour Analysis to personalise your outfit.');
-    if (_styling) return _message('Looking through your wardrobe and matching your profile…');
+    if (_styling) return _message('Looking through your wardrobe, colour profile and personal style…');
     if (_wardrobe.isEmpty) return _message('Add a few pieces to My Wardrobe first.');
-    if (look.isEmpty) return _message('I could not find a complete combination yet. Try adding tops, bottoms and shoes.');
-    final match = _matchScore(profile, look);
+    if (look.isEmpty) return _message('I could not build a complete look from this wardrobe yet. Add a few versatile pieces and try again.');
+
+    final title = _aiResult?.displayTitle ?? 'A look built for ${_occasion.toLowerCase()}';
+    final direction = _aiResult?.colourDirection;
+    final notes = _aiResult?.stylingNotes ?? const <String>[];
+    final explanation = _aiResult?.explanation ?? 'A balanced wardrobe match based on your profile and the pieces you already own.';
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
             const Expanded(
-              child: Text(
-                'YOUR PERSONAL LOOK',
-                style: TextStyle(fontSize: 11, color: AppColors.primary, fontWeight: FontWeight.w800, letterSpacing: 1.1),
-              ),
+              child: Text('YOUR LOOK', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.25, color: AppColors.textMuted)),
             ),
-            _scorePill(match),
+            if (_aiResult != null)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                decoration: BoxDecoration(
+                  color: AppColors.peach.withValues(alpha: .38),
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                child: const Text('AI MATCHED', style: TextStyle(fontSize: 7.5, fontWeight: FontWeight.w900, letterSpacing: .8)),
+              ),
           ],
         ),
-        const SizedBox(height: 11),
+        const SizedBox(height: 10),
         Container(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
             color: AppColors.surface,
             borderRadius: BorderRadius.circular(24),
             border: Border.all(color: AppColors.border),
           ),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              SizedBox(
-                height: 225,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: look.length,
-                  separatorBuilder: (_, _) => const SizedBox(width: 10),
-                  itemBuilder: (_, index) => _itemCard(look[index]),
+              Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+              const SizedBox(height: 6),
+              Text(explanation, style: const TextStyle(fontSize: 12.5, color: AppColors.textSecondary, height: 1.45)),
+              if (direction != null) ...[
+                const SizedBox(height: 13),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.palette_outlined, size: 17, color: AppColors.primary),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(direction, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textPrimary, height: 1.35))),
+                  ],
                 ),
-              ),
-              const SizedBox(height: 13),
-              _whyItWorks(profile, look),
-              const SizedBox(height: 12),
-              _feedbackActions(look, profile),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  const Icon(Icons.event_outlined, color: AppColors.primary, size: 16),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: _savingLook ? null : () => _saveCurrentLook(profile, look),
-                      icon: _savingLook
-                          ? const SizedBox(
-                              width: 15,
-                              height: 15,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : Icon(_savedLook ? Icons.bookmark_rounded : Icons.bookmark_border_rounded, size: 17),
-                      label: Text(_savedLook ? 'Saved to Looks' : 'Save this look'),
-                    ),
-                  ),
-                ],
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: look.length,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            mainAxisSpacing: 11,
+            crossAxisSpacing: 11,
+            childAspectRatio: .82,
+          ),
+          itemBuilder: (_, index) => _lookCard(look[index], index),
+        ),
+        if (notes.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          _notesCard(notes),
+        ],
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.primaryDark,
+            borderRadius: BorderRadius.circular(22),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.auto_awesome_outlined, color: Colors.white70, size: 18),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  personal.hasWardrobe ? 'Built from your personal wardrobe and style context.' : 'Built from the wardrobe pieces currently available.',
+                  style: const TextStyle(color: Colors.white70, fontSize: 11.5, height: 1.4),
+                ),
               ),
             ],
           ),
         ),
+        const SizedBox(height: 14),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _savingLook ? null : () => _saveCurrentLook(profile, look),
+                icon: Icon(_savedLook ? Icons.bookmark_rounded : Icons.bookmark_border_rounded),
+                label: Text(_savingLook ? 'Saving…' : _savedLook ? 'Saved' : 'Save look'),
+                style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(50), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: FilledButton.icon(
+                onPressed: _styling ? null : () => _generate(profile),
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Try another'),
+                style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(50), backgroundColor: AppColors.primaryDark, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+              ),
+            ),
+          ],
+        ),
       ],
     );
   }
 
-  Widget _scorePill(int score) {
+  Widget _notesCard(List<String> notes) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 15, 16, 13),
       decoration: BoxDecoration(
-        color: AppColors.secondary,
-        borderRadius: BorderRadius.circular(999),
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.border),
       ),
-      child: Text(
-        '$score% match',
-        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: AppColors.primary),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('STYLE NOTES', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: 1.1, color: AppColors.textMuted)),
+          const SizedBox(height: 8),
+          ...notes.map((note) => Padding(
+                padding: const EdgeInsets.only(bottom: 7),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Padding(padding: EdgeInsets.only(top: 5), child: Icon(Icons.circle, size: 5, color: AppColors.primary)),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(note, style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondary, height: 1.35))),
+                  ],
+                ),
+              )),
+        ],
       ),
     );
   }
 
-  Widget _itemCard(WardrobeItem item) {
-    return SizedBox(
-      width: 158,
+  Widget _lookCard(WardrobeItem item, int index) {
+    final loved = _lovedLookIds.contains(item.id);
+    final disliked = _dislikedLookIds.contains(item.id);
+    final caption = _categoryLabel(item.category, index);
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.border),
+      ),
+      clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(17),
-              child: item.imageUrl.isEmpty
-                  ? Container(
-                      width: double.infinity,
-                      color: AppColors.surfaceMuted,
-                      child: const Center(child: Icon(Icons.checkroom_outlined, color: AppColors.primary)),
-                    )
-                  : CachedNetworkImage(
-                      imageUrl: item.imageUrl,
-                      fit: BoxFit.cover,
-                      width: double.infinity,
-                      placeholder: (_, _) => Container(color: AppColors.surfaceMuted),
-                      errorWidget: (_, _, _) => Container(
-                        color: AppColors.surfaceMuted,
-                        child: const Center(child: Icon(Icons.broken_image_outlined, color: AppColors.textMuted)),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                if (item.imageUrl.isNotEmpty)
+                  CachedNetworkImage(
+                    imageUrl: item.imageUrl,
+                    fit: BoxFit.cover,
+                    placeholder: (_, _) => const Center(child: CircularProgressIndicator(strokeWidth: 1.5)),
+                    errorWidget: (_, _, _) => const Center(child: Icon(Icons.checkroom_outlined, size: 30, color: AppColors.textMuted)),
+                  )
+                else
+                  const Center(child: Icon(Icons.checkroom_outlined, size: 30, color: AppColors.textMuted)),
+                Positioned(
+                  top: 8,
+                  left: 8,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
+                    decoration: BoxDecoration(color: Colors.black.withValues(alpha: .52), borderRadius: BorderRadius.circular(8)),
+                    child: Text(caption, style: const TextStyle(color: Colors.white, fontSize: 7.8, fontWeight: FontWeight.w900, letterSpacing: .7)),
+                  ),
+                ),
+                Positioned(
+                  top: 6,
+                  right: 5,
+                  child: Row(
+                    children: [
+                      _feedbackIcon(
+                        icon: liked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                        active: loved,
+                        onPressed: () => setState(() {
+                          if (loved) {
+                            _lovedLookIds.remove(item.id);
+                          } else {
+                            _lovedLookIds.add(item.id);
+                            _dislikedLookIds.remove(item.id);
+                          }
+                        }),
                       ),
-                    ),
+                      _feedbackIcon(
+                        icon: Icons.close_rounded,
+                        active: disliked,
+                        onPressed: () => setState(() {
+                          if (disliked) {
+                            _dislikedLookIds.remove(item.id);
+                          } else {
+                            _dislikedLookIds.add(item.id);
+                            _lovedLookIds.remove(item.id);
+                          }
+                        }),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 7),
-          Text(
-            item.name,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            '${item.category} · ${item.colour}',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: AppColors.textMuted, fontSize: 10.5),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _whyItWorks(ColourAnalysisResult profile, List<WardrobeItem> look) {
-    final seasonHits = look.where((item) => item.season.toLowerCase().contains(profile.season.toLowerCase())).length;
-    final colourHits = look.where((item) {
-      final text = '${item.colour} ${item.style}'.toLowerCase();
-      return profile.colours.any((c) => text.contains(c.toLowerCase()));
-    }).length;
-    final reason = seasonHits > 0 || colourHits > 0
-        ? 'Chosen to work with your ${profile.season} palette and the pieces you already own.'
-        : 'Balanced around the selected occasion using pieces from your wardrobe.';
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.secondary.withValues(alpha: .45),
-        borderRadius: BorderRadius.circular(17),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(Icons.auto_awesome_rounded, color: AppColors.primary, size: 18),
-          const SizedBox(width: 9),
-          Expanded(
-            child: Text(
-              reason,
-              style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.4),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(11, 10, 11, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(item.name.isEmpty ? 'Wardrobe piece' : item.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+                const SizedBox(height: 3),
+                Text('${item.colour} · ${item.style}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 9.5, color: AppColors.textMuted)),
+              ],
             ),
           ),
         ],
@@ -675,38 +788,32 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
     );
   }
 
-  Widget _feedbackActions(List<WardrobeItem> look, ColourAnalysisResult profile) {
-    return Row(
-      children: [
-        Expanded(
-          child: OutlinedButton.icon(
-            onPressed: () => setState(() {
-              for (final item in look) {
-                _lovedLookIds.add(item.id);
-                _dislikedLookIds.remove(item.id);
-              }
-            }),
-            icon: const Icon(Icons.favorite_border_rounded, size: 17),
-            label: const Text('Love this'),
-          ),
-        ),
-        const SizedBox(width: 9),
-        Expanded(
-          child: OutlinedButton.icon(
-            onPressed: () {
-              setState(() {
-                for (final item in look) {
-                  _dislikedLookIds.add(item.id);
-                  _lovedLookIds.remove(item.id);
-                }
-              });
-              _generate(profile);
-            },
-            icon: const Icon(Icons.refresh_rounded, size: 17),
-            label: const Text('Try another'),
-          ),
-        ),
-      ],
+  Widget _feedbackIcon({required IconData icon, required bool active, required VoidCallback onPressed}) {
+    return IconButton(
+      onPressed: onPressed,
+      constraints: const BoxConstraints.tightFor(width: 32, height: 32),
+      padding: EdgeInsets.zero,
+      icon: Icon(icon, size: 16, color: active ? AppColors.peach : Colors.white),
+      style: IconButton.styleFrom(backgroundColor: Colors.black.withValues(alpha: .40)),
     );
+  }
+
+  String _categoryLabel(String category, int index) {
+    switch (category) {
+      case 'Tops':
+        return 'TOP';
+      case 'Bottoms':
+        return 'BOTTOM';
+      case 'Dresses':
+        return 'DRESS';
+      case 'Shoes':
+        return 'SHOES';
+      case 'Accessories':
+        return 'ACCESSORY';
+      case 'Jackets':
+        return 'LAYER';
+      default:
+        return 'PIECE ${index + 1}';
+    }
   }
 }
