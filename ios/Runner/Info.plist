@@ -36,6 +36,17 @@
 	<string>VYEA may save photos to your photo library when needed for your styling experience.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>VYEA uses your photo library so you can choose photos for Colour Analysis, your profile, and wardrobe items.</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.494434706372-m3o2bvqoqac6e4fjeg7uuc65cn5a53ul</string>
+			</array>
+		</dict>
+	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
