@@ -1,4 +1,3 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -6,9 +5,9 @@ import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
 import '../../providers/analysis_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../services/firestore_service.dart';
 import '../../services/notification_service.dart';
 import '../../services/preview_context.dart';
-import '../../services/firestore_service.dart';
 import '../admin/admin_main_screen.dart';
 import '../ai/ai_hub_screen.dart';
 import '../analysis/analysis_screen.dart';
@@ -42,35 +41,48 @@ class _MainScreenState extends State<MainScreen> {
     const ProfileScreen(),
   ];
 
-  String? get _authUid => context.read<AuthProvider>().uid ?? FirebaseAuth.instance.currentUser?.uid;
+  String? get _authUid => context.read<AuthProvider>().uid;
 
   @override
   void initState() {
     super.initState();
-    _scheduleNotificationSetup();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _primePersonalContext());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _scheduleNotificationSetup();
+      _primePersonalContext();
+    });
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _scheduleNotificationSetup();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _scheduleNotificationSetup();
+    });
   }
 
   void _scheduleNotificationSetup() {
     final uid = _authUid;
     if (uid == null || widget.adminPreview || _notificationUid == uid) return;
     _notificationUid = uid;
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted) return;
+    _initializeNotifications(uid);
+  }
+
+  Future<void> _initializeNotifications(String uid) async {
+    try {
       await NotificationService.initializePushNotifications();
+      if (!mounted) return;
+      final currentUid = context.read<AuthProvider>().uid;
+      if (currentUid != uid) return;
       await NotificationService.ensureWelcomeNotification(uid);
-    });
+    } catch (_) {
+      // Notifications are non-critical and must never block the app shell.
+    }
   }
 
   Future<void> _primePersonalContext() async {
     final uid = _authUid;
-    if (uid == null || widget.adminPreview || !mounted) return;
+    if (uid == null || widget.adminPreview) return;
     try {
       final analysisProvider = context.read<AnalysisProvider>();
       await Future.wait([
@@ -78,7 +90,7 @@ class _MainScreenState extends State<MainScreen> {
         FirestoreService.getPersonalStyleContext(uid),
       ]);
     } catch (_) {
-      // Individual screens retain their own resilient loading behavior.
+      // Individual screens keep their own resilient loading behavior.
     }
   }
 
@@ -108,8 +120,14 @@ class _MainScreenState extends State<MainScreen> {
         title: const Text('Log out?'),
         content: const Text('You can sign back in anytime to continue your styling journey.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Log out')),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Log out'),
+          ),
         ],
       ),
     );
@@ -118,7 +136,8 @@ class _MainScreenState extends State<MainScreen> {
     setState(() => _loggingOut = true);
     try {
       await NotificationService.resetForAccountChange();
-      await context.read<AnalysisProvider>().clear(clearAccountContext: true);
+      if (!mounted) return;
+      context.read<AnalysisProvider>().clear(clearAccountContext: true);
       await context.read<AuthProvider>().signOut();
     } finally {
       if (mounted) setState(() => _loggingOut = false);
@@ -127,41 +146,74 @@ class _MainScreenState extends State<MainScreen> {
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const LoginScreen()),
-      (route) => false,
+      (_) => false,
     );
   }
 
   Future<void> _showNotifications() async {
     final uid = _authUid;
     if (uid == null || widget.adminPreview || _loggingOut) return;
+
     await NotificationService.ensureWelcomeNotification(uid);
-    if (!mounted) return;
+    if (!mounted || context.read<AuthProvider>().uid != uid) return;
+
     await showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
-      builder: (_) => SafeArea(
+      isScrollControlled: true,
+      builder: (sheetContext) => SafeArea(
         child: StreamBuilder<List<VyeaNotification>>(
           stream: NotificationService.stream(uid),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const SizedBox(height: 260, child: Center(child: CircularProgressIndicator(strokeWidth: 2)));
+              return const SizedBox(
+                height: 260,
+                child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+              );
+            }
+            if (snapshot.hasError) {
+              return const SizedBox(
+                height: 220,
+                child: Center(child: Text('Notifications are temporarily unavailable.')),
+              );
             }
             final items = snapshot.data ?? const <VyeaNotification>[];
             return SizedBox(
               height: MediaQuery.sizeOf(context).height * .7,
               child: items.isEmpty
                   ? const Center(child: Text('No notifications yet'))
-                  : ListView.builder(
-                      padding: const EdgeInsets.all(20),
+                  : ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
                       itemCount: items.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
                       itemBuilder: (_, index) {
                         final item = items[index];
                         return ListTile(
-                          leading: const Icon(Icons.notifications_none_rounded),
-                          title: Text(item.title),
-                          subtitle: Text(item.body),
-                          trailing: item.read ? null : const Icon(Icons.circle, size: 8),
-                          onTap: item.read ? null : () => NotificationService.markRead(uid, item.id),
+                          contentPadding: const EdgeInsets.symmetric(vertical: 6),
+                          leading: CircleAvatar(
+                            backgroundColor: item.read ? AppColors.surfaceMuted : AppColors.primarySoft,
+                            child: Icon(
+                              item.read
+                                  ? Icons.notifications_none_rounded
+                                  : Icons.notifications_active_outlined,
+                              color: AppColors.primaryDark,
+                              size: 19,
+                            ),
+                          ),
+                          title: Text(
+                            item.title,
+                            style: TextStyle(fontWeight: item.read ? FontWeight.w600 : FontWeight.w800),
+                          ),
+                          subtitle: Padding(
+                            padding: const EdgeInsets.only(top: 3),
+                            child: Text(item.body),
+                          ),
+                          trailing: item.read
+                              ? null
+                              : const Icon(Icons.circle, size: 7, color: AppColors.primary),
+                          onTap: item.read
+                              ? null
+                              : () => NotificationService.markRead(uid, item.id),
                         );
                       },
                     ),
@@ -176,6 +228,7 @@ class _MainScreenState extends State<MainScreen> {
     final auth = context.watch<AuthProvider>();
     final name = auth.displayName?.trim();
     final greeting = name?.isNotEmpty == true ? 'Hi, $name' : 'Welcome back';
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 10),
       child: Container(
@@ -190,7 +243,10 @@ class _MainScreenState extends State<MainScreen> {
             Container(
               width: 42,
               height: 42,
-              decoration: const BoxDecoration(color: AppColors.secondary, shape: BoxShape.circle),
+              decoration: const BoxDecoration(
+                color: AppColors.secondary,
+                shape: BoxShape.circle,
+              ),
               child: const Icon(Icons.auto_awesome_rounded, color: AppColors.primary),
             ),
             const SizedBox(width: 12),
@@ -198,21 +254,46 @@ class _MainScreenState extends State<MainScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('VYEA', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: 2.6, color: AppColors.brown)),
+                  const Text(
+                    'VYEA',
+                    style: TextStyle(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 2.6,
+                      color: AppColors.brown,
+                    ),
+                  ),
                   const SizedBox(height: 2),
-                  Text(greeting, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800)),
+                  Text(
+                    greeting,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800),
+                  ),
                 ],
               ),
             ),
             if (widget.adminPreview)
-              IconButton(onPressed: _returnToAdmin, tooltip: 'Return to Admin', icon: const Icon(Icons.admin_panel_settings_outlined)),
+              IconButton(
+                onPressed: _returnToAdmin,
+                tooltip: 'Return to Admin',
+                icon: const Icon(Icons.admin_panel_settings_outlined),
+              ),
             if (!widget.adminPreview) ...[
-              IconButton(onPressed: _showNotifications, tooltip: 'Notifications', icon: const Icon(Icons.notifications_none_rounded)),
+              IconButton(
+                onPressed: _showNotifications,
+                tooltip: 'Notifications',
+                icon: const Icon(Icons.notifications_none_rounded),
+              ),
               IconButton(
                 onPressed: _loggingOut ? null : _logout,
                 tooltip: 'Log out',
                 icon: _loggingOut
-                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
                     : const Icon(Icons.logout_rounded),
               ),
             ],
@@ -238,13 +319,20 @@ class _MainScreenState extends State<MainScreen> {
                   opacity: animation,
                   child: SlideTransition(
                     position: animation.drive(
-                      Tween<Offset>(begin: Offset(direction * .03, .01), end: Offset.zero)
-                          .chain(CurveTween(curve: Curves.easeOutCubic)),
+                      Tween<Offset>(
+                        begin: Offset(direction * .03, .01),
+                        end: Offset.zero,
+                      ).chain(
+                        CurveTween(curve: Curves.easeOutCubic),
+                      ),
                     ),
                     child: child,
                   ),
                 ),
-                child: KeyedSubtree(key: ValueKey(_selectedIndex), child: _pages[_selectedIndex]),
+                child: KeyedSubtree(
+                  key: ValueKey(_selectedIndex),
+                  child: _pages[_selectedIndex],
+                ),
               ),
             ),
           ],
@@ -266,12 +354,36 @@ class _MainScreenState extends State<MainScreen> {
             indicatorColor: AppColors.primarySoft,
             onDestinationSelected: _selectTab,
             destinations: const [
-              NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home_rounded), label: 'Home'),
-              NavigationDestination(icon: Icon(Icons.palette_outlined), selectedIcon: Icon(Icons.palette_rounded), label: 'Colour'),
-              NavigationDestination(icon: Icon(Icons.auto_awesome_outlined), selectedIcon: Icon(Icons.auto_awesome_rounded), label: 'Style'),
-              NavigationDestination(icon: Icon(Icons.checkroom_outlined), selectedIcon: Icon(Icons.checkroom_rounded), label: 'Wardrobe'),
-              NavigationDestination(icon: Icon(Icons.forum_outlined), selectedIcon: Icon(Icons.forum_rounded), label: 'Forum'),
-              NavigationDestination(icon: Icon(Icons.person_outline_rounded), selectedIcon: Icon(Icons.person_rounded), label: 'Profile'),
+              NavigationDestination(
+                icon: Icon(Icons.home_outlined),
+                selectedIcon: Icon(Icons.home_rounded),
+                label: 'Home',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.palette_outlined),
+                selectedIcon: Icon(Icons.palette_rounded),
+                label: 'Colour',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.auto_awesome_outlined),
+                selectedIcon: Icon(Icons.auto_awesome_rounded),
+                label: 'Style',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.checkroom_outlined),
+                selectedIcon: Icon(Icons.checkroom_rounded),
+                label: 'Wardrobe',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.forum_outlined),
+                selectedIcon: Icon(Icons.forum_rounded),
+                label: 'Forum',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.person_outline_rounded),
+                selectedIcon: Icon(Icons.person_rounded),
+                label: 'Profile',
+              ),
             ],
           ),
         ),
