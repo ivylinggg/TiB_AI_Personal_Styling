@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'core/session/tib_session.dart';
+import 'core/state/personal_style_provider.dart';
 import 'core/theme/dark_theme.dart';
 import 'core/theme/light_theme.dart';
 import 'providers/analysis_provider.dart';
@@ -21,6 +22,7 @@ class TibApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider<AuthProvider>(create: (_) => AuthProvider()),
         ChangeNotifierProvider<TibSession>(create: (_) => TibSession()),
+        ChangeNotifierProvider<PersonalStyleProvider>(create: (_) => PersonalStyleProvider()),
         ChangeNotifierProvider<AnalysisProvider>(create: (_) => AnalysisProvider()),
         ChangeNotifierProvider<ThemeProvider>.value(value: themeProvider),
         ChangeNotifierProvider<PreviewContext>(create: (_) => PreviewContext()),
