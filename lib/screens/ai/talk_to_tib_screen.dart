@@ -17,7 +17,7 @@ class _TalkToTibScreenState extends State<TalkToTibScreen> {
   final ScrollController _scroll = ScrollController();
   final List<_ChatMessage> _messages = [
     const _ChatMessage(
-      text: 'Hi! I’m VYEA. Ask me about your colours, wardrobe, proportions or styling.',
+      text: 'Hi! I’m VYEA. Ask me about your colours, wardrobe, proportions or what to wear next.',
       fromUser: false,
     ),
   ];
@@ -25,9 +25,9 @@ class _TalkToTibScreenState extends State<TalkToTibScreen> {
 
   static const _prompts = [
     'What colours suit me?',
-    'How should I dress for work?',
-    'Help me with my proportions',
-    'What can VYEA do?',
+    'Style my wardrobe for work',
+    'What suits my proportions?',
+    'Build me a date look',
   ];
 
   @override
@@ -42,19 +42,25 @@ class _TalkToTibScreenState extends State<TalkToTibScreen> {
     if (text.isEmpty || _sending) return;
 
     _composer.clear();
+    FocusScope.of(context).unfocus();
     setState(() {
       _messages.add(_ChatMessage(text: text, fromUser: true));
       _sending = true;
     });
     _scrollToBottom();
 
-    await Future<void>.delayed(const Duration(milliseconds: 350));
-    final reply = TalkToTibBotService.automatedReply(text) ??
-        'That’s a great question. I can help with everyday styling. For advice that needs a human stylist’s judgement, use Live Consultant below.';
+    final reply = await TalkToTibBotService.reply(text);
 
     if (!mounted) return;
     setState(() {
-      _messages.add(_ChatMessage(text: reply, fromUser: false));
+      _messages.add(
+        _ChatMessage(
+          text: reply.text,
+          fromUser: false,
+          aiGenerated: reply.isAiGenerated,
+          escalated: reply.shouldEscalate,
+        ),
+      );
       _sending = false;
     });
     _scrollToBottom();
@@ -65,7 +71,7 @@ class _TalkToTibScreenState extends State<TalkToTibScreen> {
       if (!_scroll.hasClients) return;
       _scroll.animateTo(
         _scroll.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 250),
+        duration: const Duration(milliseconds: 280),
         curve: Curves.easeOut,
       );
     });
@@ -155,7 +161,7 @@ class _TalkToTibScreenState extends State<TalkToTibScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'YOUR STYLE CONVERSATION',
+                  'PERSONAL STYLE CHAT',
                   style: TextStyle(
                     color: AppColors.peach,
                     fontSize: 8.8,
@@ -174,7 +180,7 @@ class _TalkToTibScreenState extends State<TalkToTibScreen> {
                 ),
                 SizedBox(height: 3),
                 Text(
-                  'Get a quick answer, then move into your personal look.',
+                  'VYEA can now use your saved styling context when it is available.',
                   style: TextStyle(
                     color: Colors.white70,
                     fontSize: 10.5,
@@ -191,7 +197,7 @@ class _TalkToTibScreenState extends State<TalkToTibScreen> {
               borderRadius: BorderRadius.circular(9),
             ),
             child: const Text(
-              'LIVE',
+              'AI',
               style: TextStyle(
                 color: Colors.white70,
                 fontSize: 7.5,
@@ -210,7 +216,7 @@ class _TalkToTibScreenState extends State<TalkToTibScreen> {
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
-        constraints: const BoxConstraints(maxWidth: 330),
+        constraints: const BoxConstraints(maxWidth: 340),
         margin: const EdgeInsets.only(bottom: 11),
         padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
         decoration: BoxDecoration(
@@ -227,18 +233,32 @@ class _TalkToTibScreenState extends State<TalkToTibScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (!isUser)
-              const Padding(
-                padding: EdgeInsets.only(bottom: 5),
-                child: Text(
-                  'VYEA',
-                  style: TextStyle(
-                    color: AppColors.brown,
-                    fontSize: 8.5,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.1,
+              Row(
+                children: [
+                  const Text(
+                    'VYEA',
+                    style: TextStyle(
+                      color: AppColors.brown,
+                      fontSize: 8.5,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.1,
+                    ),
                   ),
-                ),
+                  if (message.aiGenerated) ...[
+                    const SizedBox(width: 7),
+                    const Text(
+                      'PERSONALISED',
+                      style: TextStyle(
+                        color: AppColors.textMuted,
+                        fontSize: 7.5,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: .8,
+                      ),
+                    ),
+                  ],
+                ],
               ),
+            if (!isUser) const SizedBox(height: 5),
             Text(
               message.text,
               style: TextStyle(
@@ -247,6 +267,23 @@ class _TalkToTibScreenState extends State<TalkToTibScreen> {
                 color: isUser ? Colors.white : AppColors.textPrimary,
               ),
             ),
+            if (message.escalated) ...[
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                onPressed: _openLiveConsultancy,
+                icon: const Icon(Icons.support_agent_rounded, size: 16),
+                label: const Text('Chat with a Live Consultant'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primary,
+                  side: const BorderSide(color: AppColors.primarySoft),
+                  padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+                  visualDensity: VisualDensity.compact,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -266,7 +303,7 @@ class _TalkToTibScreenState extends State<TalkToTibScreen> {
         child: ListView.separated(
           scrollDirection: Axis.horizontal,
           itemCount: _prompts.length,
-          separatorBuilder: (_, _) => const SizedBox(width: 7),
+          separatorBuilder: (_, __) => const SizedBox(width: 7),
           itemBuilder: (_, index) => ActionChip(
             label: Text(
               _prompts[index],
@@ -343,7 +380,7 @@ class _TalkToTibScreenState extends State<TalkToTibScreen> {
                 ),
                 const SizedBox(width: 8),
                 Material(
-                  color: AppColors.primary,
+                  color: _sending ? AppColors.primary.withValues(alpha: .45) : AppColors.primary,
                   borderRadius: BorderRadius.circular(17),
                   child: InkWell(
                     onTap: _sending ? null : _send,
@@ -352,8 +389,8 @@ class _TalkToTibScreenState extends State<TalkToTibScreen> {
                       width: 50,
                       height: 52,
                       child: Icon(
-                        Icons.arrow_upward_rounded,
-                        color: _sending ? Colors.white54 : Colors.white,
+                        _sending ? Icons.hourglass_top_rounded : Icons.arrow_upward_rounded,
+                        color: Colors.white,
                       ),
                     ),
                   ),
@@ -380,6 +417,13 @@ class _TalkToTibScreenState extends State<TalkToTibScreen> {
 class _ChatMessage {
   final String text;
   final bool fromUser;
+  final bool aiGenerated;
+  final bool escalated;
 
-  const _ChatMessage({required this.text, required this.fromUser});
+  const _ChatMessage({
+    required this.text,
+    required this.fromUser,
+    this.aiGenerated = false,
+    this.escalated = false,
+  });
 }
