@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -40,7 +41,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   int wardrobeFavouriteCount = 0;
   int savedLookCount = 0;
 
-  String? get activeUid => context.read<PreviewContext>().customerUid;
+  String? get activeUid {
+    final previewUid = context.read<PreviewContext>().customerUid;
+    if (previewUid != null && previewUid.isNotEmpty) return previewUid;
+    return FirebaseAuth.instance.currentUser?.uid;
+  }
+
   bool get isPreview => context.read<PreviewContext>().isCustomerPreview;
 
   @override
@@ -57,7 +63,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (mounted) {
         setState(() {
           isLoading = false;
-          loadError = 'No customer was selected for preview.';
+          loadError = 'No signed-in customer is available.';
         });
       }
       return;
@@ -285,17 +291,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _toolTile(String title, String subtitle, IconData icon, VoidCallback onTap) => Card(elevation: 0, margin: EdgeInsets.zero, color: AppColors.surface, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18), side: const BorderSide(color: AppColors.border)), child: InkWell(borderRadius: BorderRadius.circular(18), onTap: isPreview && title == 'Colour Analysis' ? null : onTap, child: Padding(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(icon, size: 23), const Spacer(), Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900)), const SizedBox(height: 3), Text(subtitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.5))]))));
 
   Widget _preferencesCard() => Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    if (styles.isNotEmpty || preferences.isNotEmpty) Wrap(spacing: 7, runSpacing: 7, children: [
-      ...styles.map((value) => StyleChip(label: value, selected: true)),
-      ...preferences.map((value) => StyleChip(label: value, selected: false)),
-    ]) else const Text('No style preferences saved yet.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-    const SizedBox(height: 12),
-    Align(alignment: Alignment.centerRight, child: TextButton.icon(onPressed: isPreview ? null : openStylePreferences, icon: const Icon(Icons.tune_rounded, size: 18), label: Text(isPreview ? 'Read only in preview' : 'Edit preferences'))),
-  ]));
+    if (styles.isEmpty && preferences.isEmpty) ...[
+      const Text('No style preferences saved yet.', style: TextStyle(color: AppColors.textSecondary, fontSize: 11.5)),
+    ] else ...[
+      if (styles.isNotEmpty) ...[
+        const Text('Style direction', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 8),
+        Wrap(spacing: 7, runSpacing: 7, children: styles.map((style) => StyleChip(label: style, selected: true)).toList()),
+      ],
+      if (preferences.isNotEmpty) ...[
+        if (styles.isNotEmpty) const SizedBox(height: 14),
+        const Text('Preferences', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 8),
+        Wrap(spacing: 7, runSpacing: 7, children: preferences.map((preference) => StyleChip(label: preference, selected: false)).toList()),
+      ],
+    ],
+    const SizedBox(height: 14),
+    Align(alignment: Alignment.centerLeft, child: OutlinedButton.icon(onPressed: isPreview ? null : openStylePreferences, icon: const Icon(Icons.tune_rounded, size: 17), label: Text(isPreview ? 'Preview only' : 'Edit preferences'))),
+  ]);
 
-  Widget _accountSection() => Container(decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border)), child: Column(children: [
-    ListTile(leading: const Icon(Icons.settings_outlined), title: const Text('Settings'), subtitle: Text(isPreview ? 'Unavailable during Customer Preview' : 'App and account settings'), trailing: const Icon(Icons.chevron_right_rounded), onTap: isPreview ? null : openSettings),
-    const Divider(height: 1),
-    ListTile(leading: const Icon(Icons.admin_panel_settings_outlined), title: const Text('Preview mode'), subtitle: Text(isPreview ? 'Read-only view of ${user!.name}' : 'Customer profile view')),
+  Widget _accountSection() => Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border)), child: Column(children: [
+    if (!isPreview) ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.settings_outlined), title: const Text('Settings', style: TextStyle(fontWeight: FontWeight.w800)), subtitle: const Text('App and account controls'), trailing: const Icon(Icons.chevron_right_rounded), onTap: openSettings),
+    if (!isPreview) const Divider(height: 1),
+    ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.shield_outlined), title: const Text('Privacy & security', style: TextStyle(fontWeight: FontWeight.w800)), subtitle: Text(isPreview ? 'Admin preview mode' : 'Your account stays protected'), trailing: const Icon(Icons.chevron_right_rounded), onTap: () {}),
   ]));
 }
