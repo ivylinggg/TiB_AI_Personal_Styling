@@ -135,7 +135,7 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
                   final categoryMatches = _category == 'All' || item.category == _category;
                   final colourMatches = _colour == 'All' || item.colour == _colour;
                   final favouriteMatches = !_showFavouritesOnly || item.isFavourite;
-                  final searchMatches = query.isEmpty || item.name.toLowerCase().contains(query) || item.category.toLowerCase().contains(query) || item.colour.toLowerCase().contains(query) || item.style.toLowerCase().contains(query);
+                  final searchMatches = query.isEmpty || item.name.toLowerCase().contains(query) || item.category.toLowerCase().contains(query) || item.colour.toLowerCase().contains(query) || item.style.toLowerCase().contains(query) || item.season.toLowerCase().contains(query);
                   return categoryMatches && colourMatches && favouriteMatches && searchMatches;
                 }).toList();
                 if (_sort == 'Name A–Z') {
@@ -146,6 +146,7 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
                   filtered.sort((a, b) => (b.isFavourite ? 1 : 0).compareTo(a.isFavourite ? 1 : 0));
                 }
                 final hasActiveFilters = _category != 'All' || _colour != 'All' || _showFavouritesOnly || query.isNotEmpty;
+                final paletteCount = items.where((item) => _matchesPalette(item, wantedColours)).length;
                 return RefreshIndicator(
                   onRefresh: () async => setState(() {}),
                   child: CustomScrollView(
@@ -153,7 +154,7 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
                     slivers: [
                       SliverToBoxAdapter(child: _reveal(_headerReveal, _buildHeader(uid, items.length))),
                       if (items.isNotEmpty) SliverToBoxAdapter(child: _reveal(_summaryReveal, _buildSummaryRow(items))),
-                      if (_isPremium && items.isNotEmpty) SliverToBoxAdapter(child: _reveal(_summaryReveal, _buildPremiumInsightCard(items))),
+                      if (_isPremium && items.isNotEmpty) SliverToBoxAdapter(child: _reveal(_summaryReveal, _buildPremiumInsightCard(items, paletteCount, wantedColours))),
                       SliverToBoxAdapter(child: _reveal(_browseReveal, Padding(padding: const EdgeInsets.fromLTRB(20, 14, 20, 0), child: _buildSearchAndFilterBar(hasActiveFilters)))),
                       if (hasActiveFilters) SliverToBoxAdapter(child: Padding(padding: const EdgeInsets.fromLTRB(20, 8, 20, 0), child: _buildActiveFilters(query, filtered.length, items.length))),
                       if (_filtersExpanded) SliverToBoxAdapter(child: _reveal(_browseReveal, _buildFilterPanel())),
@@ -390,7 +391,7 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
         ),
       );
 
-  Widget _buildPremiumInsightCard(List<WardrobeItem> items) {
+  Widget _buildPremiumInsightCard(List<WardrobeItem> items, int paletteCount, List<String> wantedColours) {
     final categoryCounts = <String, int>{};
     final colourCounts = <String, int>{};
     for (final item in items) {
@@ -410,6 +411,7 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
       return bestKey;
     }
     final favouriteCount = items.where((item) => item.isFavourite).length;
+    final paletteText = wantedColours.isEmpty ? 'Run Colour Analysis to unlock palette matching.' : '$paletteCount of ${items.length} pieces match your personal palette.';
     return Padding(
       padding: const EdgeInsets.fromLTRB(18, 2, 18, 12),
       child: Container(
@@ -426,7 +428,9 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
             Expanded(child: _insightStat('Top colour', mostCommon(colourCounts))),
           ]),
           const SizedBox(height: 9),
-          Text('Most saved category: ${mostCommon(categoryCounts)}', style: const TextStyle(color: AppColors.premiumAccentDark, fontSize: 12, fontWeight: FontWeight.w600)),
+          Text('Most used category: ${mostCommon(categoryCounts)}', style: const TextStyle(color: AppColors.premiumAccentDark, fontSize: 12, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 4),
+          Text(paletteText, style: const TextStyle(color: AppColors.premiumAccentDark, fontSize: 11.5, height: 1.35)),
         ]),
       ),
     );
@@ -452,9 +456,7 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
     final counts = <String, int>{};
     for (final category in _categoryOptions) {
       final count = items.where((item) => item.category == category).length;
-      if (count > 0) {
-        counts[category] = count;
-      }
+      if (count > 0) counts[category] = count;
     }
     if (counts.isEmpty) return const SizedBox.shrink();
     return Padding(
@@ -462,9 +464,7 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
       child: Wrap(
         spacing: 8,
         runSpacing: 8,
-        children: counts.entries
-            .map((entry) => Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(AppRadius.full), border: Border.all(color: AppColors.border)), child: Row(mainAxisSize: MainAxisSize.min, children: [Text('${entry.value}', style: const TextStyle(color: _brown, fontWeight: FontWeight.w800, fontSize: 13)), const SizedBox(width: 5), Text(entry.key, style: const TextStyle(color: _muted, fontSize: 12, fontWeight: FontWeight.w600))])))
-            .toList(),
+        children: counts.entries.map((entry) => Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(AppRadius.full), border: Border.all(color: AppColors.border)), child: Row(mainAxisSize: MainAxisSize.min, children: [Text('${entry.value}', style: const TextStyle(color: _brown, fontWeight: FontWeight.w800, fontSize: 13)), const SizedBox(width: 5), Text(entry.key, style: const TextStyle(color: _muted, fontSize: 12, fontWeight: FontWeight.w600))]))).toList(),
       ),
     );
   }
@@ -501,8 +501,11 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
 
   bool _matchesPalette(WardrobeItem item, List<String> wantedColours) {
     if (wantedColours.isEmpty) return false;
-    final itemColour = item.colour.toLowerCase();
-    return wantedColours.any((colour) => colour.contains(itemColour) || itemColour.contains(colour));
+    final itemColour = item.colour.toLowerCase().trim();
+    return wantedColours.any((colour) {
+      final normalized = colour.toLowerCase().trim();
+      return normalized == itemColour || normalized.contains(itemColour) || itemColour.contains(normalized);
+    });
   }
 
   Widget _buildItemCard(WardrobeItem item, String uid, int index, List<String> wantedColours) {
@@ -551,7 +554,7 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
                           decoration: BoxDecoration(color: AppColors.background.withValues(alpha: .94), borderRadius: BorderRadius.circular(AppRadius.full)),
-                          child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.check_circle_rounded, size: 11, color: AppColors.success), SizedBox(width: 3), Text('Match', style: TextStyle(color: AppColors.success, fontSize: 9.5, fontWeight: FontWeight.w800))]),
+                          child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.check_circle_rounded, size: 11, color: AppColors.success), SizedBox(width: 3), Text('Palette match', style: TextStyle(color: AppColors.success, fontSize: 9.5, fontWeight: FontWeight.w800))]),
                         ),
                       ),
                   ],
@@ -684,9 +687,7 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
           decoration: _fieldDecoration(label),
           items: values.map((value) => DropdownMenuItem<String>(value: value, child: Text(value))).toList(),
           onChanged: (value) {
-            if (value != null) {
-              onChanged(value);
-            }
+            if (value != null) onChanged(value);
           },
         ),
       );
@@ -832,9 +833,7 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
                 ),
               ),
             );
-            if (picked != null) {
-              setSheetState(() => newImage = picked);
-            }
+            if (picked != null) setSheetState(() => newImage = picked);
           }
 
           Future<void> save() async {
