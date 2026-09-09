@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -7,9 +8,8 @@ import 'mlkit_service.dart';
 
 /// Persistent identity context for TiB's personal AI fitting room.
 ///
-/// The profile is stored locally and keyed by the authenticated account so a
-/// device shared by multiple users cannot accidentally reuse another user's
-/// Virtual You data.
+/// Every local value is namespaced by the authenticated Firebase UID so one
+/// account on a shared device can never reuse another account's model data.
 class TibModelProfile {
   const TibModelProfile({
     this.facePath,
@@ -60,7 +60,7 @@ class TibModelProfile {
 
   Map<String, dynamic> get personalIdentityData => {
         'modelType': 'personal_tib_model',
-        'modelVersion': 7,
+        'modelVersion': 8,
         'faceShape': faceShape,
         'bodyShape': bodyShape,
         'heightCm': height,
@@ -100,9 +100,25 @@ class TibModelService {
   static const shapeKey = 'tib_model_body_shape';
   static const faceShapeKey = 'tib_model_face_shape';
   static const versionKey = 'tib_model_profile_version';
-  static const accountKey = 'tib_model_account_uid';
 
-  static String _key(String base, String uid) => '${base}_$uid';
+  static String _key(String base, String uid) => '${base}_${uid.trim()}';
+
+  /// Returns the currently authenticated Firebase account UID.
+  static Future<String?> currentUserId() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid.trim();
+    return uid == null || uid.isEmpty ? null : uid;
+  }
+
+  /// Load TiB model for an explicit account, or the current account.
+  static Future<TibModelProfile> loadForUser([String? uid]) async {
+    final accountUid = (uid ?? await currentUserId())?.trim();
+    if (accountUid == null || accountUid.isEmpty) return _emptyProfile();
+    return load(uid: accountUid);
+  }
+
+  static Future<String> _legacyIndependentKey(String base) async {
+    return base;
+  }
 
   static String calculateBodyShape({
     required double bust,
@@ -186,16 +202,7 @@ class TibModelService {
   static Future<TibModelProfile> load({String? uid}) async {
     final prefs = await SharedPreferences.getInstance();
     final accountUid = uid?.trim();
-    if (accountUid == null || accountUid.isEmpty) {
-      // Unscoped legacy data is intentionally treated as unavailable. This
-      // prevents one account from inheriting another account's local model.
-      return _emptyProfile();
-    }
-
-    final storedAccount = prefs.getString(accountKey);
-    if (storedAccount != null && storedAccount.isNotEmpty && storedAccount != accountUid) {
-      return _emptyProfile();
-    }
+    if (accountUid == null || accountUid.isEmpty) return _emptyProfile();
 
     final facePath = prefs.getString(_key(faceKey, accountUid));
     final bodyPath = prefs.getString(_key(bodyKey, accountUid));
@@ -248,16 +255,34 @@ class TibModelService {
     String? faceShape,
   }) async {
     final accountUid = uid.trim();
-    if (accountUid.isEmpty) throw Exception('Please login to save your Personal TiB Model.');
-    if (bodyPath == null || bodyPath.trim().isEmpty) {
+    if (accountUid.isEmpty) {
+      throw Exception('Please login to save your Personal TiB Model.');
+    }
+
+    final currentUid = await currentUserId();
+    if (currentUid != accountUid) {
+      throw Exception('Your session changed. Please reopen your Personal TiB Model.');
+    }
+    if (facePath.trim().isEmpty || !File(facePath).existsSync()) {
+      throw Exception('A valid face photo is required to build your Personal TiB Model.');
+    }
+    if (bodyPath == null || bodyPath.trim().isEmpty || !File(bodyPath).existsSync()) {
       throw Exception('A clear full-body photo is required to build your Personal TiB Model.');
+    }
+    if (weight <= 0 || height <= 0 || bust <= 0 || waist <= 0 || hips <= 0) {
+      throw Exception('Please enter valid body measurements.');
     }
 
     final prefs = await SharedPreferences.getInstance();
     final bodyShape = calculateBodyShape(bust: bust, waist: waist, hips: hips);
     final scannedFaceShape = faceShape ?? await scanFaceShape(File(facePath));
 
-    await prefs.setString(accountKey, accountUid);
+    for (final previousUid in _knownAccountUids(prefs)) {
+      if (previousUid != accountUid) {
+        await _removeUserKeys(prefs, previousUid);
+      }
+    }
+
     await prefs.setString(_key(faceKey, accountUid), facePath);
     await prefs.setString(_key(bodyKey, accountUid), bodyPath);
     await prefs.setDouble(_key(weightKey, accountUid), weight);
@@ -267,14 +292,35 @@ class TibModelService {
     await prefs.setDouble(_key(hipsKey, accountUid), hips);
     await prefs.setString(_key(shapeKey, accountUid), bodyShape);
     await prefs.setString(_key(faceShapeKey, accountUid), scannedFaceShape);
-    await prefs.setInt(versionKey, 7);
+    await prefs.setInt(_key(versionKey, accountUid), 8);
+
+    // Marker is account-specific and contains no shared/global profile data.
+    await prefs.setString(_key('tib_model_active', accountUid), '1');
   }
 
   static Future<void> clear({String? uid}) async {
-    final prefs = await SharedPreferences.getInstance();
-    final accountUid = uid?.trim();
+    final accountUid = (uid ?? await currentUserId())?.trim();
     if (accountUid == null || accountUid.isEmpty) return;
+    final prefs = await SharedPreferences.getInstance();
+    await _removeUserKeys(prefs, accountUid);
+  }
 
+  static Set<String> _knownAccountUids(SharedPreferences prefs) {
+    final result = <String>{};
+    for (final key in prefs.getKeys()) {
+      const marker = 'tib_model_active_';
+      if (key.startsWith(marker)) {
+        final uid = key.substring(marker.length).trim();
+        if (uid.isNotEmpty) result.add(uid);
+      }
+    }
+    return result;
+  }
+
+  static Future<void> _removeUserKeys(
+    SharedPreferences prefs,
+    String uid,
+  ) async {
     for (final key in [
       faceKey,
       bodyKey,
@@ -285,12 +331,10 @@ class TibModelService {
       hipsKey,
       shapeKey,
       faceShapeKey,
+      versionKey,
+      'tib_model_active',
     ]) {
-      await prefs.remove(_key(key, accountUid));
-    }
-    await prefs.remove(versionKey);
-    if (prefs.getString(accountKey) == accountUid) {
-      await prefs.remove(accountKey);
+      await prefs.remove(_key(key, uid));
     }
   }
 
