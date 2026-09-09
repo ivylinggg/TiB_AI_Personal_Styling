@@ -26,13 +26,6 @@ class TalkToTibBotService {
 
   static const Duration _timeout = Duration(seconds: 18);
 
-  /// Personalised conversation entry point.
-  ///
-  /// The service first tries the authenticated user's live AI styling backend
-  /// with a strict snapshot of their own profile, colour analysis, TiB model,
-  /// wardrobe and style preferences. When the backend is unavailable, the
-  /// deterministic FAQ layer remains available. Unknown/high-context questions
-  /// are explicitly escalated instead of fabricating an answer.
   static Future<TalkToTibReply> reply(String input) async {
     final question = input.trim();
     if (question.isEmpty) {
@@ -46,9 +39,7 @@ class TalkToTibBotService {
     }
 
     final automated = automatedReply(question);
-    if (automated != null) {
-      return TalkToTibReply(text: automated);
-    }
+    if (automated != null) return TalkToTibReply(text: automated);
 
     return const TalkToTibReply(
       text: 'That sounds like something I should understand in more context before advising you. Tap “Chat with a Live Consultant” and our team can help with a personalised recommendation.',
@@ -75,16 +66,14 @@ class TalkToTibBotService {
         TibModelService.loadForUser(uid),
       ], eagerError: false);
 
-      final colour = results[0] as ColourAnalysisResult?;
+      final colour = results[0] is ColourAnalysisResult ? results[0] as ColourAnalysisResult : null;
       final preferences = results[1] is Map
           ? Map<String, dynamic>.from(results[1] as Map)
           : <String, dynamic>{};
       final wardrobe = results[2] is List<WardrobeItem>
           ? List<WardrobeItem>.from(results[2] as List<WardrobeItem>)
           : const <WardrobeItem>[];
-      final tibModel = results[3] is TibModelProfile
-          ? results[3] as TibModelProfile
-          : null;
+      final tibModel = results[3] is TibModelProfile ? results[3] as TibModelProfile : null;
 
       final response = await http
           .post(
@@ -167,26 +156,46 @@ class TalkToTibBotService {
 
   static Future<ColourAnalysisResult?> _loadColour(String uid) async {
     try {
-      return await _latestColour(uid);
+      final snapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('analysis')
+          .orderBy('createdAt', descending: true)
+          .limit(1)
+          .get();
+      if (snapshot.docs.isEmpty) return null;
+
+      final data = snapshot.docs.first.data();
+      return ColourAnalysisResult(
+        season: (data['season'] ?? '').toString(),
+        undertone: (data['undertone'] ?? '').toString(),
+        brightness: (data['brightness'] ?? '').toString(),
+        contrast: (data['contrast'] ?? '').toString(),
+        imageUrl: (data['imageUrl'] ?? '').toString(),
+        colours: _stringList(data['colours']),
+        faceShape: (data['faceShape'] ?? 'Unknown').toString(),
+        faceShapeDescription: (data['faceShapeDescription'] ?? '').toString(),
+        faceMeasurements: _doubleMap(data['faceMeasurements']),
+        faceStylingGuidance: _stringList(data['faceStylingGuidance']),
+        colourReasons: _stringList(data['colourReasons']),
+      );
     } catch (_) {
       return null;
     }
   }
 
-  static Future<ColourAnalysisResult?> _latestColour(String uid) async {
-    return await _getLatestColourAnalysis(uid);
+  static Map<String, double> _doubleMap(dynamic value) {
+    if (value is! Map) return const {};
+    final output = <String, double>{};
+    value.forEach((key, raw) {
+      if (raw is num) output[key.toString()] = raw.toDouble();
+    });
+    return output;
   }
 
-  static Future<ColourAnalysisResult?> _getLatestColourAnalysis(String uid) async {
-    final snapshot = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .collection('analysis')
-        .orderBy('createdAt', descending: true)
-        .limit(1)
-        .get();
-    if (snapshot.docs.isEmpty) return null;
-    return ColourAnalysisResult.fromFirestore(snapshot.docs.first);
+  static List<String> _stringList(dynamic value) {
+    if (value is! List) return const [];
+    return value.map((item) => item.toString().trim()).where((item) => item.isNotEmpty).toList(growable: false);
   }
 
   static Future<Map<String, dynamic>> _loadPreferences(String uid) async {
@@ -229,29 +238,11 @@ class TalkToTibBotService {
         .toList(growable: false);
   }
 
-  /// Lightweight deterministic FAQ layer retained as a resilient fallback.
   static String? automatedReply(String input) {
     final q = _normalise(input);
     if (q.isEmpty) return null;
 
-    if (_matches(q, [
-      'which outfit is better',
-      'which dress is better',
-      'which one should i wear',
-      'which one suits me better',
-      'does this outfit suit me',
-      'does this dress suit me',
-      'should i buy this',
-      'should i buy this outfit',
-      'does this fit me',
-      'why does this outfit look wrong',
-      'i hate how this looks',
-      'i need a second opinion',
-      'i need personal advice',
-      'personalised advice',
-      'personalized advice',
-      'difficult styling decision',
-    ])) {
+    if (_matches(q, ['which outfit is better', 'which dress is better', 'which one should i wear', 'which one suits me better', 'does this outfit suit me', 'does this dress suit me', 'should i buy this', 'should i buy this outfit', 'does this fit me', 'why does this outfit look wrong', 'i hate how this looks', 'i need a second opinion', 'i need personal advice', 'personalised advice', 'personalized advice', 'difficult styling decision'])) {
       return 'That sounds like a personal styling decision where context really matters. I don’t want to give you a generic answer 🤍 Tap “Chat with a Live Consultant” and our team can look at your situation and give you a personalised recommendation.';
     }
 
@@ -327,6 +318,5 @@ class TalkToTibBotService {
         .trim();
   }
 
-  static bool _matches(String value, List<String> keywords) =>
-      keywords.any(value.contains);
+  static bool _matches(String value, List<String> keywords) => keywords.any(value.contains);
 }
