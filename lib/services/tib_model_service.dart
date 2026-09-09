@@ -7,9 +7,9 @@ import 'mlkit_service.dart';
 
 /// Persistent identity context for TiB's personal AI fitting room.
 ///
-/// This is the user's real-person profile: face reference, full-body
-/// reference and measured proportions. It is deliberately kept separate
-/// from wardrobe data so every generated look starts from the same person.
+/// The profile is stored locally and keyed by the authenticated account so a
+/// device shared by multiple users cannot accidentally reuse another user's
+/// Virtual You data.
 class TibModelProfile {
   const TibModelProfile({
     this.facePath,
@@ -38,10 +38,6 @@ class TibModelProfile {
   File? get faceFile => facePath == null ? null : File(facePath!);
   File? get bodyFile => bodyPath == null ? null : File(bodyPath!);
 
-  /// Stable numerical context for the AI fitting room.
-  ///
-  /// Both the canonical `*Cm/*Kg` names and the short legacy names are sent
-  /// because the Apps Script backend accepts both while projects migrate.
   Map<String, dynamic> get measurementData => {
         'weightKg': weight,
         'heightCm': height,
@@ -62,11 +58,9 @@ class TibModelProfile {
         },
       };
 
-  /// Identity context deliberately describes the person rather than the
-  /// selected outfit. This is the persistent "Virtual You" contract.
   Map<String, dynamic> get personalIdentityData => {
         'modelType': 'personal_tib_model',
-        'modelVersion': 6,
+        'modelVersion': 7,
         'faceShape': faceShape,
         'bodyShape': bodyShape,
         'heightCm': height,
@@ -106,6 +100,9 @@ class TibModelService {
   static const shapeKey = 'tib_model_body_shape';
   static const faceShapeKey = 'tib_model_face_shape';
   static const versionKey = 'tib_model_profile_version';
+  static const accountKey = 'tib_model_account_uid';
+
+  static String _key(String base, String uid) => '${base}_$uid';
 
   static String calculateBodyShape({
     required double bust,
@@ -186,19 +183,31 @@ class TibModelService {
     );
   }
 
-  static Future<TibModelProfile> load() async {
+  static Future<TibModelProfile> load({String? uid}) async {
     final prefs = await SharedPreferences.getInstance();
-    final facePath = prefs.getString(faceKey);
-    final bodyPath = prefs.getString(bodyKey);
+    final accountUid = uid?.trim();
+    if (accountUid == null || accountUid.isEmpty) {
+      // Unscoped legacy data is intentionally treated as unavailable. This
+      // prevents one account from inheriting another account's local model.
+      return _emptyProfile();
+    }
+
+    final storedAccount = prefs.getString(accountKey);
+    if (storedAccount != null && storedAccount.isNotEmpty && storedAccount != accountUid) {
+      return _emptyProfile();
+    }
+
+    final facePath = prefs.getString(_key(faceKey, accountUid));
+    final bodyPath = prefs.getString(_key(bodyKey, accountUid));
     final faceExists = facePath != null && File(facePath).existsSync();
     final bodyExists = bodyPath != null && File(bodyPath).existsSync();
-    final weight = prefs.getDouble(weightKey);
-    final height = prefs.getDouble(heightKey);
-    final bust = prefs.getDouble(bustKey);
-    final waist = prefs.getDouble(waistKey);
-    final hips = prefs.getDouble(hipsKey);
-    final savedShape = prefs.getString(shapeKey);
-    final savedFaceShape = prefs.getString(faceShapeKey);
+    final weight = prefs.getDouble(_key(weightKey, accountUid));
+    final height = prefs.getDouble(_key(heightKey, accountUid));
+    final bust = prefs.getDouble(_key(bustKey, accountUid));
+    final waist = prefs.getDouble(_key(waistKey, accountUid));
+    final hips = prefs.getDouble(_key(hipsKey, accountUid));
+    final savedShape = prefs.getString(_key(shapeKey, accountUid));
+    final savedFaceShape = prefs.getString(_key(faceShapeKey, accountUid));
     final measurementsComplete = weight != null &&
         height != null &&
         bust != null &&
@@ -213,8 +222,6 @@ class TibModelService {
         ? calculateBodyShape(bust: bust, waist: waist, hips: hips)
         : (savedShape ?? 'Not measured');
 
-    final complete = faceExists && bodyExists && measurementsComplete;
-
     return TibModelProfile(
       facePath: faceExists ? facePath : null,
       bodyPath: bodyExists ? bodyPath : null,
@@ -225,11 +232,12 @@ class TibModelService {
       hips: hips ?? 0,
       bodyShape: bodyShape,
       faceShape: savedFaceShape ?? 'Not scanned',
-      isComplete: complete,
+      isComplete: faceExists && bodyExists && measurementsComplete,
     );
   }
 
   static Future<void> save({
+    required String uid,
     required String facePath,
     String? bodyPath,
     required double weight,
@@ -239,34 +247,34 @@ class TibModelService {
     required double hips,
     String? faceShape,
   }) async {
+    final accountUid = uid.trim();
+    if (accountUid.isEmpty) throw Exception('Please login to save your Personal TiB Model.');
     if (bodyPath == null || bodyPath.trim().isEmpty) {
-      throw Exception(
-        'A clear full-body photo is required to build your Personal TiB Model.',
-      );
+      throw Exception('A clear full-body photo is required to build your Personal TiB Model.');
     }
 
     final prefs = await SharedPreferences.getInstance();
-    final bodyShape = calculateBodyShape(
-      bust: bust,
-      waist: waist,
-      hips: hips,
-    );
-    final scannedFaceShape =
-        faceShape ?? await scanFaceShape(File(facePath));
-    await prefs.setString(faceKey, facePath);
-    await prefs.setString(bodyKey, bodyPath);
-    await prefs.setDouble(weightKey, weight);
-    await prefs.setDouble(heightKey, height);
-    await prefs.setDouble(bustKey, bust);
-    await prefs.setDouble(waistKey, waist);
-    await prefs.setDouble(hipsKey, hips);
-    await prefs.setString(shapeKey, bodyShape);
-    await prefs.setString(faceShapeKey, scannedFaceShape);
-    await prefs.setInt(versionKey, 6);
+    final bodyShape = calculateBodyShape(bust: bust, waist: waist, hips: hips);
+    final scannedFaceShape = faceShape ?? await scanFaceShape(File(facePath));
+
+    await prefs.setString(accountKey, accountUid);
+    await prefs.setString(_key(faceKey, accountUid), facePath);
+    await prefs.setString(_key(bodyKey, accountUid), bodyPath);
+    await prefs.setDouble(_key(weightKey, accountUid), weight);
+    await prefs.setDouble(_key(heightKey, accountUid), height);
+    await prefs.setDouble(_key(bustKey, accountUid), bust);
+    await prefs.setDouble(_key(waistKey, accountUid), waist);
+    await prefs.setDouble(_key(hipsKey, accountUid), hips);
+    await prefs.setString(_key(shapeKey, accountUid), bodyShape);
+    await prefs.setString(_key(faceShapeKey, accountUid), scannedFaceShape);
+    await prefs.setInt(versionKey, 7);
   }
 
-  static Future<void> clear() async {
+  static Future<void> clear({String? uid}) async {
     final prefs = await SharedPreferences.getInstance();
+    final accountUid = uid?.trim();
+    if (accountUid == null || accountUid.isEmpty) return;
+
     for (final key in [
       faceKey,
       bodyKey,
@@ -277,9 +285,25 @@ class TibModelService {
       hipsKey,
       shapeKey,
       faceShapeKey,
-      versionKey,
     ]) {
-      await prefs.remove(key);
+      await prefs.remove(_key(key, accountUid));
+    }
+    await prefs.remove(versionKey);
+    if (prefs.getString(accountKey) == accountUid) {
+      await prefs.remove(accountKey);
     }
   }
+
+  static TibModelProfile _emptyProfile() => const TibModelProfile(
+        facePath: null,
+        bodyPath: null,
+        weight: 0,
+        height: 0,
+        bust: 0,
+        waist: 0,
+        hips: 0,
+        bodyShape: 'Not measured',
+        faceShape: 'Not scanned',
+        isComplete: false,
+      );
 }
