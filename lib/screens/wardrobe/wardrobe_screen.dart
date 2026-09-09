@@ -460,13 +460,27 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
       if (count > 0) counts[category] = count;
     }
     if (counts.isEmpty) return const SizedBox.shrink();
+    final chips = counts.entries.map<Widget>((entry) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(AppRadius.full),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('${entry.value}', style: const TextStyle(color: _brown, fontWeight: FontWeight.w800, fontSize: 13)),
+            const SizedBox(width: 5),
+            Text(entry.key, style: const TextStyle(color: _muted, fontSize: 12, fontWeight: FontWeight.w600)),
+          ],
+        ),
+      );
+    }).toList();
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: counts.entries.map((entry) => Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(AppRadius.full), border: Border.all(color: AppColors.border)), child: Row(mainAxisSize: MainAxisSize.min, children: [Text('${entry.value}', style: const TextStyle(color: _brown, fontWeight: FontWeight.w800, fontSize: 13)), const SizedBox(width: 5), Text(entry.key, style: const TextStyle(color: _muted, fontSize: 12, fontWeight: FontWeight.w600))])).toList(),
-      ),
+      child: Wrap(spacing: 8, runSpacing: 8, children: chips),
     );
   }
 
@@ -812,7 +826,7 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
                   Expanded(child: FilledButton.icon(onPressed: () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (_) => AIStylistScreen(selectedItem: item))); }, icon: const Icon(Icons.auto_awesome_rounded), label: const Text('Style this'), style: FilledButton.styleFrom(backgroundColor: _brown))),
                 ]),
                 const SizedBox(height: 10),
-                SizedBox(width: double.infinity, child: TextButton.icon(onPressed: () => _confirmDelete(item, uid), icon: const Icon(Icons.delete_outline), label: const Text('Remove from wardrobe'), style: TextButton.styleFrom(foregroundColor: AppColors.error))),
+                SizedBox(width: double.infinity, child: TextButton.icon(onPressed: () => _confirmDelete(item, uid), icon: const Icon(Icons.delete_outline_rounded), label: const Text('Remove this piece'), style: TextButton.styleFrom(foregroundColor: Colors.redAccent))),
               ],
             ),
           ),
@@ -864,9 +878,9 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Edit wardrobe piece', style: TextStyle(color: _text, fontSize: 21, fontWeight: FontWeight.w700)),
+                    const Text('Edit this piece', style: TextStyle(color: _text, fontSize: 21, fontWeight: FontWeight.w700)),
                     const SizedBox(height: 15),
-                    ClipRRect(borderRadius: BorderRadius.circular(AppRadius.lg), child: item.imageUrl.isEmpty ? Container(height: 190, color: _soft, child: Icon(_categoryIcon(category), size: 46, color: _brown)) : CachedNetworkImage(imageUrl: item.imageUrl, height: 190, width: double.infinity, fit: BoxFit.cover)),
+                    ClipRRect(borderRadius: BorderRadius.circular(AppRadius.lg), child: Image.network(item.imageUrl, height: 190, width: double.infinity, fit: BoxFit.cover)),
                     const SizedBox(height: 15),
                     TextField(controller: nameController, decoration: _fieldDecoration('Name')),
                     const SizedBox(height: 12),
@@ -877,7 +891,15 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
                     const SizedBox(height: 4),
                     TextField(controller: notesController, maxLines: 2, decoration: _fieldDecoration('Notes (optional)')),
                     const SizedBox(height: 16),
-                    SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: saving ? null : save, icon: saving ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.background)) : const Icon(Icons.check_rounded), label: Text(saving ? 'Saving...' : 'Save changes'), style: FilledButton.styleFrom(backgroundColor: _brown, minimumSize: const Size.fromHeight(52)))),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: saving ? null : save,
+                        icon: saving ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.background)) : const Icon(Icons.save_outlined),
+                        label: Text(saving ? 'Saving...' : 'Save changes'),
+                        style: FilledButton.styleFrom(backgroundColor: _brown, minimumSize: const Size.fromHeight(52)),
+                      ),
+                    ),
                   ],
                 ),
               ),
