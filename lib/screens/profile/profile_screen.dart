@@ -125,13 +125,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         backgroundColor: AppColors.background,
         elevation: 0,
         titleSpacing: 20,
-        title: const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('VYEA', style: TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 2.8)),
-            Text('Your profile', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800)),
-          ],
-        ),
+        title: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('VYEA', style: TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 2.8)),
+          Text('Your profile', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800)),
+        ]),
         actions: [
           IconButton(onPressed: isLoading ? null : loadProfile, icon: const Icon(Icons.refresh_rounded)),
           if (!isPreview) IconButton(onPressed: openSettings, icon: const Icon(Icons.settings_outlined)),
@@ -156,7 +153,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
       );
     }
-
     return RefreshIndicator(
       onRefresh: loadProfile,
       child: ListView(
@@ -189,14 +185,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _sectionLabel(String title, String subtitle) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(title, style: const TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: 1.35)),
-      const SizedBox(height: 5),
-      Text(subtitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.4)),
-    ],
-  );
+  Widget _sectionLabel(String title, String subtitle) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    Text(title, style: const TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: 1.35)),
+    const SizedBox(height: 5),
+    Text(subtitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.4)),
+  ]);
 
   Widget _identityHero() {
     final displayName = user!.name.trim().isEmpty ? 'Customer' : user!.name.trim();
@@ -242,6 +235,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final undertone = hasAnalysis ? result.undertone : 'Not analysed';
     final face = hasAnalysis ? result.faceShape : 'Not analysed';
     final reasons = result?.colourReasons ?? const <String>[];
+    final value = result?.brightness.trim();
+    final contrast = result?.contrast.trim();
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.border)),
@@ -251,8 +246,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         Wrap(spacing: 7, runSpacing: 7, children: [
           StyleChip(label: 'Undertone: $undertone', selected: hasAnalysis),
           StyleChip(label: 'Face: $face', selected: hasAnalysis),
-          if (result?.brightness.trim().isNotEmpty == true) StyleChip(label: 'Value: ${result.brightness}', selected: true),
-          if (result?.contrast.trim().isNotEmpty == true) StyleChip(label: 'Contrast: ${result.contrast}', selected: true),
+          if (value != null && value.isNotEmpty) StyleChip(label: 'Value: $value', selected: true),
+          if (contrast != null && contrast.isNotEmpty) StyleChip(label: 'Contrast: $contrast', selected: true),
         ]),
         if (reasons.isNotEmpty) ...[
           const SizedBox(height: 14),
@@ -261,7 +256,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ...reasons.take(3).map((reason) => Padding(padding: const EdgeInsets.only(bottom: 5), child: Text('• $reason', style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.35)))),
         ],
         const SizedBox(height: 14),
-        OutlinedButton.icon(onPressed: hasAnalysis ? () => openAnalysisResult(result) : openColourAnalysis, icon: Icon(hasAnalysis ? Icons.insights_outlined : Icons.camera_alt_outlined, size: 18), label: Text(hasAnalysis ? 'View full colour profile' : 'Start colour analysis')),
+        OutlinedButton.icon(onPressed: hasAnalysis && result != null ? () => openAnalysisResult(result) : openColourAnalysis, icon: Icon(hasAnalysis ? Icons.insights_outlined : Icons.camera_alt_outlined, size: 18), label: Text(hasAnalysis ? 'View full colour profile' : 'Start colour analysis')),
       ]),
     );
   }
@@ -288,44 +283,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _toolGrid() => GridView.count(
-    crossAxisCount: 2, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: 1.55,
-    children: [
-      _toolTile('Wardrobe', 'Manage your pieces', Icons.checkroom_outlined, openWardrobe),
-      _toolTile('Saved Looks', 'Your outfit library', Icons.bookmark_border_rounded, openSavedLooks),
-      _toolTile('AI Stylist', 'Style with VYEA', Icons.auto_awesome_outlined, openAIStylist),
-      _toolTile('Colour Analysis', 'Understand your palette', Icons.palette_outlined, analysis == null ? openColourAnalysis : () => openAnalysisResult(analysis!)),
-    ],
-  );
+  Widget _toolGrid() => GridView.count(crossAxisCount: 2, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: 1.55, children: [
+    _toolTile('Wardrobe', 'Manage your pieces', Icons.checkroom_outlined, openWardrobe),
+    _toolTile('Saved Looks', 'Your outfit library', Icons.bookmark_border_rounded, openSavedLooks),
+    _toolTile('AI Stylist', 'Style with VYEA', Icons.auto_awesome_outlined, openAIStylist),
+    _toolTile('Colour Analysis', 'Understand your palette', Icons.palette_outlined, analysis == null ? openColourAnalysis : () => openAnalysisResult(analysis!)),
+  ]);
 
-  Widget _toolTile(String title, String subtitle, IconData icon, VoidCallback onTap) => Card(
-    elevation: 0, margin: EdgeInsets.zero, color: AppColors.surface,
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18), side: const BorderSide(color: AppColors.border)),
-    child: InkWell(borderRadius: BorderRadius.circular(18), onTap: isPreview && title == 'Colour Analysis' ? null : onTap, child: Padding(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(icon, size: 23), const Spacer(), Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900)), const SizedBox(height: 3), Text(subtitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.5))]))),
-  );
+  Widget _toolTile(String title, String subtitle, IconData icon, VoidCallback onTap) => Card(elevation: 0, margin: EdgeInsets.zero, color: AppColors.surface, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18), side: const BorderSide(color: AppColors.border)), child: InkWell(borderRadius: BorderRadius.circular(18), onTap: isPreview && title == 'Colour Analysis' ? null : onTap, child: Padding(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(icon, size: 23), const Spacer(), Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900)), const SizedBox(height: 3), Text(subtitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.5))]))));
 
-  Widget _preferencesCard() => Container(
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border)),
-    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      if (styles.isNotEmpty || preferences.isNotEmpty)
-        Wrap(spacing: 7, runSpacing: 7, children: [
-          ...styles.map((value) => StyleChip(label: value, selected: true)),
-          ...preferences.map((value) => StyleChip(label: value, selected: false)),
-        ])
-      else
-        const Text('No style preferences saved yet.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-      const SizedBox(height: 12),
-      Align(alignment: Alignment.centerRight, child: TextButton.icon(onPressed: isPreview ? null : openStylePreferences, icon: const Icon(Icons.tune_rounded, size: 18), label: Text(isPreview ? 'Read only in preview' : 'Edit preferences'))),
-    ]),
-  );
+  Widget _preferencesCard() => Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    if (styles.isNotEmpty || preferences.isNotEmpty) Wrap(spacing: 7, runSpacing: 7, children: [
+      ...styles.map((value) => StyleChip(label: value, selected: true)),
+      ...preferences.map((value) => StyleChip(label: value, selected: false)),
+    ]) else const Text('No style preferences saved yet.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+    const SizedBox(height: 12),
+    Align(alignment: Alignment.centerRight, child: TextButton.icon(onPressed: isPreview ? null : openStylePreferences, icon: const Icon(Icons.tune_rounded, size: 18), label: Text(isPreview ? 'Read only in preview' : 'Edit preferences'))),
+  ]));
 
-  Widget _accountSection() => Container(
-    decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border)),
-    child: Column(children: [
-      ListTile(leading: const Icon(Icons.settings_outlined), title: const Text('Settings'), subtitle: Text(isPreview ? 'Unavailable during Customer Preview' : 'App and account settings'), trailing: const Icon(Icons.chevron_right_rounded), onTap: isPreview ? null : openSettings),
-      const Divider(height: 1),
-      ListTile(leading: const Icon(Icons.admin_panel_settings_outlined), title: const Text('Preview mode'), subtitle: Text(isPreview ? 'Read-only view of ${user!.name}' : 'Customer profile view')),
-    ]),
-  );
+  Widget _accountSection() => Container(decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border)), child: Column(children: [
+    ListTile(leading: const Icon(Icons.settings_outlined), title: const Text('Settings'), subtitle: Text(isPreview ? 'Unavailable during Customer Preview' : 'App and account settings'), trailing: const Icon(Icons.chevron_right_rounded), onTap: isPreview ? null : openSettings),
+    const Divider(height: 1),
+    ListTile(leading: const Icon(Icons.admin_panel_settings_outlined), title: const Text('Preview mode'), subtitle: Text(isPreview ? 'Read-only view of ${user!.name}' : 'Customer profile view')),
+  ]));
 }
