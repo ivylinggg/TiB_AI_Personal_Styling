@@ -132,40 +132,56 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
     return score;
   }
 
-  List<WardrobeItem> _buildLook(ColourAnalysisResult profile) {
+  List<WardrobeItem> _fallbackLook(ColourAnalysisResult profile) {
     final sorted = [..._wardrobe]
       ..sort((a, b) => _score(b, profile).compareTo(_score(a, profile)));
-    final categories = _occasion == 'Dinner' || _occasion == 'Date'
-        ? ['Dresses', 'Shoes', 'Accessories']
-        : ['Tops', 'Bottoms', 'Shoes', 'Accessories'];
-    final rotated = [...sorted];
-    if (rotated.length > 1 && _generation > 1) {
-      final offset = (_generation - 1) % rotated.length;
-      final head = rotated.sublist(offset)..addAll(rotated.sublist(0, offset));
-      rotated
-        ..clear()
-        ..addAll(head);
-    }
     final result = <WardrobeItem>[];
     final used = <String>{};
-    for (final category in categories) {
-      final matches = rotated.where((item) => item.category == category && !used.contains(item.id));
-      if (matches.isNotEmpty) {
-        final item = matches.first;
+
+    WardrobeItem? pick(bool Function(WardrobeItem item) test) {
+      for (final item in sorted) {
+        if (!used.contains(item.id) && test(item)) return item;
+      }
+      return null;
+    }
+
+    final onePiece = pick((item) => item.category == 'Dresses' || item.category == 'Suits');
+    final hasTop = sorted.any((item) => item.category == 'Tops');
+    final hasBottom = sorted.any((item) => item.category == 'Bottoms' || item.category == 'Skirts');
+
+    if (onePiece != null && !hasTop && !hasBottom) {
+      result.add(onePiece);
+      used.add(onePiece.id);
+    } else if (hasTop && hasBottom) {
+      final top = pick((item) => item.category == 'Tops');
+      final bottom = pick((item) => item.category == 'Bottoms' || item.category == 'Skirts');
+      if (top != null && bottom != null) {
+        result.add(top);
+        used.add(top.id);
+        result.add(bottom);
+        used.add(bottom.id);
+      }
+    } else if (onePiece != null) {
+      result.add(onePiece);
+      used.add(onePiece.id);
+    }
+
+    final baseCategories = result.map((item) => item.category).toSet();
+    for (final item in sorted) {
+      if (result.length >= 4 || used.contains(item.id)) continue;
+      if (item.category == 'Shoes' || item.category == 'Accessories') {
+        result.add(item);
+        used.add(item.id);
+      } else if (item.category == 'Jackets' &&
+          (baseCategories.contains('Dresses') ||
+              baseCategories.contains('Tops') ||
+              baseCategories.contains('Suits'))) {
         result.add(item);
         used.add(item.id);
       }
     }
-    if (result.length < 2) {
-      for (final item in rotated) {
-        if (!used.contains(item.id)) {
-          result.add(item);
-          used.add(item.id);
-        }
-        if (result.length == 4) break;
-      }
-    }
-    return result.take(4).toList();
+
+    return result.take(4).toList(growable: false);
   }
 
   WardrobeItem? _findWardrobeItem(String? id) {
@@ -212,9 +228,10 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
           _findWardrobeItem(aiResult.shoesId),
           _findWardrobeItem(aiResult.accessoryId),
         ].whereType<WardrobeItem>().toList();
-        if (aiLook.isNotEmpty || aiResult.explanation.isNotEmpty) {
+        final safeLook = AiStylingService.sanitizeLook(aiLook);
+        if (safeLook.isNotEmpty || aiResult.explanation.isNotEmpty) {
           setState(() {
-            _look = aiLook;
+            _look = safeLook;
             _aiResult = aiResult;
             _styling = false;
           });
@@ -225,11 +242,11 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
 
     if (!mounted || FirebaseAuth.instance.currentUser?.uid != uid) return;
     setState(() {
-      _look = _buildLook(profile);
+      _look = _fallbackLook(profile);
       _aiResult = null;
       _styling = false;
     });
-    _showFeedback('AI is unavailable right now — I used your wardrobe match instead.');
+    _showFeedback('AI is unavailable right now — I used a valid wardrobe combination instead.');
   }
 
   Future<void> _saveCurrentLook(ColourAnalysisResult profile, List<WardrobeItem> look) async {
@@ -284,7 +301,9 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
         _dislikedLookIds.remove(item.id);
       }
     });
-    _showFeedback(_lovedLookIds.contains(item.id) ? 'Noted — I’ll favour pieces like this.' : 'Preference updated.');
+    _showFeedback(_lovedLookIds.contains(item.id)
+        ? 'Noted — I’ll favour pieces like this.'
+        : 'Preference updated.');
   }
 
   void _toggleDislike(WardrobeItem item) {
@@ -296,7 +315,9 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
         _lovedLookIds.remove(item.id);
       }
     });
-    _showFeedback(_dislikedLookIds.contains(item.id) ? 'Got it — I’ll avoid this piece in the next look.' : 'Preference updated.');
+    _showFeedback(_dislikedLookIds.contains(item.id)
+        ? 'Got it — I’ll avoid this piece in the next look.'
+        : 'Preference updated.');
   }
 
   String _categoryLabel(String category, int index) {
@@ -305,8 +326,14 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
         return 'TOP';
       case 'Bottoms':
         return 'BOTTOM';
+      case 'Skirts':
+        return 'SKIRT';
       case 'Dresses':
         return 'DRESS';
+      case 'Suits':
+        return 'SUIT';
+      case 'Jackets':
+        return 'LAYER';
       case 'Shoes':
         return 'SHOES';
       case 'Accessories':
@@ -530,12 +557,12 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
     if (profile == null) return _message('Complete Colour Analysis to personalise your outfit.');
     if (_styling) return _message('Looking through your wardrobe, colour profile and personal style…');
     if (_wardrobe.isEmpty) return _message('Add a few pieces to My Wardrobe first.');
-    if (look.isEmpty) return _message('I could not build a look from this wardrobe yet. Add a few versatile pieces and try again.');
+    if (look.isEmpty) return _message('I could not build a valid outfit from this wardrobe yet. Add complementary pieces such as a top + bottom/skirt, or a dress with shoes.');
 
     final title = _aiResult?.lookTitle ?? 'A look built for ${_occasion.toLowerCase()}';
     final direction = _aiResult?.colourDirection;
     final notes = _aiResult?.stylingNotes ?? const <String>[];
-    final explanation = _aiResult?.explanation ?? 'A balanced wardrobe match based on your profile and the pieces you already own.';
+    final explanation = _aiResult?.explanation ?? 'A balanced wardrobe match using compatible garment categories from your wardrobe.';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -591,11 +618,11 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(color: AppColors.primaryDark, borderRadius: BorderRadius.circular(22)),
-          child: Row(
+          child: const Row(
             children: [
-              const Icon(Icons.auto_awesome_outlined, color: Colors.white70, size: 18),
-              const SizedBox(width: 10),
-              Expanded(child: Text('Built from your personal wardrobe, colour profile and styling context.', style: const TextStyle(color: Colors.white70, fontSize: 11.5, height: 1.4))),
+              Icon(Icons.auto_awesome_outlined, color: Colors.white70, size: 18),
+              SizedBox(width: 10),
+              Expanded(child: Text('Each look keeps one-piece garments separate from bottoms: Tops pair with Bottoms or Skirts, while Dresses stay one-piece.', style: TextStyle(color: Colors.white70, fontSize: 11.5, height: 1.4))),
             ],
           ),
         ),
@@ -666,23 +693,26 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
               fit: StackFit.expand,
               children: [
                 if (item.imageUrl.isNotEmpty)
-                  CachedNetworkImage(
-                    imageUrl: item.imageUrl,
-                    fit: BoxFit.cover,
-                    placeholder: (_, __) => const Center(child: CircularProgressIndicator(strokeWidth: 2)),
-                    errorWidget: (_, __, ___) => const Center(child: Icon(Icons.checkroom_outlined, size: 30)),
-                  )
+                  CachedNetworkImage(imageUrl: item.imageUrl, fit: BoxFit.cover)
                 else
-                  const Center(child: Icon(Icons.checkroom_outlined, size: 30)),
-                Positioned(top: 8, left: 8, child: Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5), decoration: BoxDecoration(color: Colors.black.withValues(alpha: .58), borderRadius: BorderRadius.circular(8)), child: Text(caption, style: const TextStyle(color: Colors.white, fontSize: 7.5, fontWeight: FontWeight.w900, letterSpacing: .8)))),
+                  Container(color: AppColors.surfaceMuted, child: const Icon(Icons.checkroom_outlined, color: AppColors.primary, size: 30)),
                 Positioned(
-                  right: 8,
-                  top: 8,
+                  left: 9,
+                  top: 9,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                    decoration: BoxDecoration(color: Colors.black.withValues(alpha: .50), borderRadius: BorderRadius.circular(9)),
+                    child: Text(caption, style: const TextStyle(color: Colors.white, fontSize: 7.5, fontWeight: FontWeight.w900, letterSpacing: .8)),
+                  ),
+                ),
+                Positioned(
+                  right: 6,
+                  top: 6,
                   child: Row(
                     children: [
-                      _feedbackIcon(Icons.favorite_rounded, loved, () => _toggleLove(item)),
-                      const SizedBox(width: 5),
-                      _feedbackIcon(Icons.close_rounded, disliked, () => _toggleDislike(item)),
+                      _feedbackButton(Icons.thumb_up_alt_outlined, loved, () => _toggleLove(item)),
+                      const SizedBox(width: 3),
+                      _feedbackButton(Icons.thumb_down_alt_outlined, disliked, () => _toggleDislike(item)),
                     ],
                   ),
                 ),
@@ -690,13 +720,13 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
             ),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+            padding: const EdgeInsets.fromLTRB(11, 10, 11, 11),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(item.name.isEmpty ? item.category : item.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+                Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
                 const SizedBox(height: 3),
-                Text('${item.colour} · ${item.style}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10.5, color: AppColors.textSecondary)),
+                Text('${item.colour} · ${item.style}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 9.5, color: AppColors.textMuted)),
               ],
             ),
           ),
@@ -705,16 +735,16 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
     );
   }
 
-  Widget _feedbackIcon(IconData icon, bool active, VoidCallback onTap) {
+  Widget _feedbackButton(IconData icon, bool selected, VoidCallback onPressed) {
     return Material(
-      color: Colors.black.withValues(alpha: .58),
-      borderRadius: BorderRadius.circular(10),
+      color: Colors.black.withValues(alpha: .46),
+      borderRadius: BorderRadius.circular(9),
       child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(9),
         child: Padding(
           padding: const EdgeInsets.all(6),
-          child: Icon(icon, size: 15, color: active ? AppColors.peach : Colors.white),
+          child: Icon(icon, color: selected ? AppColors.peach : Colors.white, size: 14),
         ),
       ),
     );
