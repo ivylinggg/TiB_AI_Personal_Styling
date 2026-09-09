@@ -12,8 +12,6 @@ import '../../services/style_preference_service.dart';
 import '../../services/tib_style_journey_service.dart';
 import '../../services/today_recommendation_service.dart';
 import '../../widgets/colour_swatch.dart';
-import '../ai/ai_stylist_screen.dart';
-import '../wardrobe/wardrobe_screen.dart';
 import 'tib_style_journey_screen.dart';
 
 class DashboardDesignedScreen extends StatefulWidget {
@@ -31,9 +29,6 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
   bool _challengeCompleted = false;
   bool _completingChallenge = false;
   bool _refreshingFromLifecycle = false;
-  bool _loadingContext = false;
-  bool _dashboardLoaded = false;
-  String? _loadedUid;
   List<String> _stylePreferences = const [];
   int _wardrobeCount = 0;
   int _savedLookCount = 0;
@@ -57,7 +52,7 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
     _journeyReveal = _stage(0.30, 0.76);
     _taskReveal = _stage(0.52, 1.00);
     _revealController.forward();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadDashboard(force: true));
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadDashboard());
   }
 
   Animation<double> _stage(double begin, double end) => CurvedAnimation(
@@ -89,18 +84,16 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
 
   Future<void> _refreshWhenResumed() async {
     if (!mounted || _refreshingFromLifecycle) return;
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return;
-
     _refreshingFromLifecycle = true;
     try {
-      // Only refresh persistent context when the app actually returns to the
-      // foreground. Do not rebuild the whole dashboard on every provider tick.
       final provider = context.read<AnalysisProvider>();
-      await provider.loadLatestResult(uid);
-      await _loadPersonalContext(uid, force: true);
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid != null) {
+        await provider.loadLatestResult(uid);
+        await _loadPersonalContext(uid);
+      }
       if (!mounted) return;
-      _loadDashboard(uid: uid, force: true);
+      _loadDashboard();
     } finally {
       _refreshingFromLifecycle = false;
     }
@@ -113,19 +106,14 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
     super.dispose();
   }
 
-  Future<void> _loadPersonalContext(String uid, {bool force = false}) async {
-    if (!force && (_loadingContext || _loadedUid == uid)) return;
-    if (_loadingContext) return;
-
-    _loadingContext = true;
+  Future<void> _loadPersonalContext(String uid) async {
     try {
       final results = await Future.wait<dynamic>([
         StylePreferenceService.getStylePreferences(uid),
         FirestoreService.getWardrobeItems(uid),
         FirestoreService.getSavedOutfitLooks(uid),
       ]);
-      if (!mounted || FirebaseAuth.instance.currentUser?.uid != uid) return;
-
+      if (!mounted) return;
       final preferences = results[0] as Map<String, dynamic>?;
       final wardrobe = results[1] as List;
       final savedLooks = results[2] as List;
@@ -133,68 +121,53 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
         _stylePreferences = List<String>.from(preferences?['styles'] ?? const []);
         _wardrobeCount = wardrobe.length;
         _savedLookCount = savedLooks.length;
-        _loadedUid = uid;
       });
     } catch (_) {
-      // Secondary dashboard context is optional. Keep the page usable.
-    } finally {
-      _loadingContext = false;
+      // Keep the dashboard usable even when secondary context is unavailable.
     }
   }
 
-  void _loadDashboard({String? uid, bool force = false}) {
+  void _loadDashboard() {
     if (!mounted) return;
-    final currentUid = uid ?? FirebaseAuth.instance.currentUser?.uid;
-    if (currentUid == null) {
-      if (_dashboardLoaded || _recommendationFuture != null) {
-        setState(() {
-          _dashboardLoaded = false;
-          _recommendationFuture = null;
-          _challengeFuture = null;
-          _journeyFuture = null;
-        });
-      }
-      return;
-    }
-
-    if (!force && _dashboardLoaded && _loadedUid == currentUid) return;
-
     final provider = context.read<AnalysisProvider>();
+    final uid = FirebaseAuth.instance.currentUser?.uid;
     final analysis = provider.result;
     _recommendationFuture = TodayRecommendationService.getRecommendation(
       analysis: analysis,
       personalStyle: _stylePreferences.isEmpty ? null : _stylePreferences.take(3).join(', '),
-      wardrobe: const [],
     );
-    _challengeFuture = DailyChallengeService.personalizedToday(
-      currentUid,
-      analysis: analysis,
-    );
-    _journeyFuture = TibStyleJourneyService.load(currentUid);
-    _dashboardLoaded = true;
-    _loadCompletion(currentUid);
-    _loadPersonalContext(currentUid);
+    if (uid != null) {
+      _challengeFuture = DailyChallengeService.personalizedToday(
+        uid,
+        analysis: analysis,
+      );
+      _journeyFuture = TibStyleJourneyService.load(uid);
+      _loadCompletion(uid);
+      _loadPersonalContext(uid);
+    } else {
+      _challengeFuture = null;
+      _journeyFuture = null;
+      _stylePreferences = const [];
+      _wardrobeCount = 0;
+      _savedLookCount = 0;
+    }
     setState(() {});
   }
 
   Future<void> _loadCompletion(String uid) async {
-    try {
-      final completed = await DailyChallengeService.isCompleted(uid);
-      if (!mounted || FirebaseAuth.instance.currentUser?.uid != uid) return;
-      setState(() => _challengeCompleted = completed);
-    } catch (_) {
-      // Optional engagement state should never interrupt the dashboard.
-    }
+    final completed = await DailyChallengeService.isCompleted(uid);
+    if (!mounted) return;
+    setState(() => _challengeCompleted = completed);
   }
 
   Future<void> _refresh(AnalysisProvider provider) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid != null) {
       await provider.loadLatestResult(uid);
-      await _loadPersonalContext(uid, force: true);
-      if (!mounted) return;
-      _loadDashboard(uid: uid, force: true);
+      await _loadPersonalContext(uid);
     }
+    if (!mounted) return;
+    _loadDashboard();
   }
 
   Future<void> _completeChallenge() async {
@@ -209,7 +182,7 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
         uid,
         challenge: challenge,
       );
-      if (!mounted || FirebaseAuth.instance.currentUser?.uid != uid) return;
+      if (!mounted) return;
       setState(() {
         _challengeCompleted = completed || _challengeCompleted;
         _completingChallenge = false;
@@ -236,24 +209,15 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
             children: [
               _reveal(_heroReveal, _buildWelcome(result)),
               const SizedBox(height: 24),
-              _sectionHeading(
-                'YOUR STYLE TODAY',
-                'A quick read on what feels like you.',
-              ),
+              _sectionHeading('YOUR STYLE TODAY', 'A quick read on what feels like you.'),
               const SizedBox(height: 12),
               _reveal(_profileReveal, _colourProfileCard(result)),
               const SizedBox(height: 22),
-              _sectionHeading(
-                'YOUR JOURNEY',
-                'Keep building your personal style.',
-              ),
+              _sectionHeading('YOUR JOURNEY', 'Keep building your personal style.'),
               const SizedBox(height: 12),
               _reveal(_journeyReveal, _styleJourneyCard()),
               const SizedBox(height: 22),
-              _sectionHeading(
-                'ONE SMALL STYLE MOVE',
-                'A simple task for today.',
-              ),
+              _sectionHeading('ONE SMALL STYLE MOVE', 'A simple task for today.'),
               const SizedBox(height: 12),
               _reveal(_taskReveal, _todayTaskCard()),
             ],
@@ -267,24 +231,9 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          title,
-          style: const TextStyle(
-            color: AppColors.textPrimary,
-            fontSize: 10,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 1.4,
-          ),
-        ),
+        Text(title, style: const TextStyle(color: AppColors.textPrimary, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.4)),
         const SizedBox(height: 4),
-        Text(
-          subtitle,
-          style: const TextStyle(
-            color: AppColors.textSecondary,
-            fontSize: 12.5,
-            height: 1.35,
-          ),
-        ),
+        Text(subtitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12.5, height: 1.35)),
       ],
     );
   }
@@ -292,279 +241,86 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
   Widget _buildWelcome(ColourAnalysisResult? result) {
     final user = FirebaseAuth.instance.currentUser;
     final displayName = user?.displayName?.trim();
-    final greeting = displayName?.isNotEmpty == true
-        ? 'Good to see you, ${displayName!}.'
-        : 'Good to see you.';
-
+    final greeting = displayName?.isNotEmpty == true ? 'Good to see you, ${displayName!}.' : 'Good to see you.';
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(22, 20, 22, 20),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Expanded(
-                child: Text(
-                  'VYEA',
-                  style: TextStyle(
-                    color: AppColors.brown,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 3.6,
-                  ),
-                ),
-              ),
-              Container(
-                width: 34,
-                height: 34,
-                decoration: const BoxDecoration(
-                  color: AppColors.secondary,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.auto_awesome_rounded,
-                  size: 17,
-                  color: AppColors.primary,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 22),
-          Text(
-            greeting,
-            style: const TextStyle(
-              color: AppColors.primaryDark,
-              fontSize: 29,
-              height: 1.03,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.9,
-            ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Your wardrobe, colours and personal taste — brought together in one place.',
-            style: TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 12.8,
-              height: 1.5,
-            ),
-          ),
-          if (_stylePreferences.isNotEmpty || _wardrobeCount > 0 || _savedLookCount > 0) ...[
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(11),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceMuted,
-                borderRadius: BorderRadius.circular(17),
-                border: Border.all(color: AppColors.border),
-              ),
-              child: Row(
-                children: [
-                  Expanded(child: _contextMetric('${_stylePreferences.length}', 'style choices')),
-                  _contextDivider(),
-                  Expanded(child: _contextMetric('$_wardrobeCount', 'wardrobe pieces')),
-                  _contextDivider(),
-                  Expanded(child: _contextMetric('$_savedLookCount', 'saved looks')),
-                ],
-              ),
-            ),
-          ],
-          const SizedBox(height: 18),
-          FutureBuilder<TodayRecommendation>(
-            future: _recommendationFuture,
-            builder: (context, snapshot) {
-              final data = snapshot.data;
-              if (data == null || data.style.isEmpty) {
-                return const SizedBox.shrink();
-              }
-              final colour = data.colour == '—' ? 'Your palette' : data.colour;
-              return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceMuted,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: Row(
-                  children: [
-                    const Text(
-                      'TODAY',
-                      style: TextStyle(
-                        color: AppColors.textMuted,
-                        fontSize: 9,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: .9,
-                      ),
-                    ),
-                    const SizedBox(width: 9),
-                    Expanded(
-                      child: Text(
-                        data.style,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppColors.primaryDark,
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    ColourSwatch(
-                      name: colour == 'Your palette' ? 'Neutral' : colour,
-                      size: 24,
-                    ),
-                  ],
-                ),
-              );
-            },
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(28), border: Border.all(color: AppColors.border)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Expanded(child: Text('VYEA', style: TextStyle(color: AppColors.brown, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 3.6))),
+          Container(width: 34, height: 34, decoration: const BoxDecoration(color: AppColors.secondary, shape: BoxShape.circle), child: const Icon(Icons.auto_awesome_rounded, size: 17, color: AppColors.primary)),
+        ]),
+        const SizedBox(height: 22),
+        Text(greeting, style: const TextStyle(color: AppColors.primaryDark, fontSize: 29, height: 1.03, fontWeight: FontWeight.w800, letterSpacing: -0.9)),
+        const SizedBox(height: 8),
+        const Text('Your wardrobe, colours and personal taste — brought together in one place.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12.8, height: 1.5)),
+        if (_stylePreferences.isNotEmpty || _wardrobeCount > 0 || _savedLookCount > 0) ...[
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(11),
+            decoration: BoxDecoration(color: AppColors.surfaceMuted, borderRadius: BorderRadius.circular(17), border: Border.all(color: AppColors.border)),
+            child: Row(children: [
+              Expanded(child: _contextMetric('${_stylePreferences.length}', 'style choices')),
+              _contextDivider(),
+              Expanded(child: _contextMetric('$_wardrobeCount', 'wardrobe pieces')),
+              _contextDivider(),
+              Expanded(child: _contextMetric('$_savedLookCount', 'saved looks')),
+            ]),
           ),
         ],
-      ),
+        const SizedBox(height: 18),
+        FutureBuilder<TodayRecommendation>(
+          future: _recommendationFuture,
+          builder: (context, snapshot) {
+            final data = snapshot.data;
+            if (data == null || data.style.isEmpty) return const SizedBox.shrink();
+            final colour = data.colour == '—' ? 'Your palette' : data.colour;
+            return Container(
+              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+              decoration: BoxDecoration(color: AppColors.surfaceMuted, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
+              child: Row(children: [
+                const Text('TODAY', style: TextStyle(color: AppColors.textMuted, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: .9)),
+                const SizedBox(width: 9),
+                Expanded(child: Text(data.style, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.primaryDark, fontSize: 12.5, fontWeight: FontWeight.w800))),
+                const SizedBox(width: 8),
+                ColourSwatch(name: colour == 'Your palette' ? 'Neutral' : colour, size: 24),
+              ]),
+            );
+          },
+        ),
+      ]),
     );
   }
 
-  Widget _contextMetric(String value, String label) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: const TextStyle(
-            color: AppColors.primary,
-            fontSize: 15,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            color: AppColors.textSecondary,
-            fontSize: 8.5,
-          ),
-        ),
-      ],
-    );
-  }
-
+  Widget _contextMetric(String value, String label) => Column(children: [Text(value, style: const TextStyle(color: AppColors.primary, fontSize: 15, fontWeight: FontWeight.w900)), const SizedBox(height: 2), Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.textSecondary, fontSize: 8.5))]);
   Widget _contextDivider() => Container(width: 1, height: 27, color: AppColors.border);
 
-  Widget _card({
-    required Widget child,
-    EdgeInsets padding = const EdgeInsets.all(19),
-  }) {
-    return Container(
-      padding: padding,
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: child,
-    );
-  }
+  Widget _card({required Widget child, EdgeInsets padding = const EdgeInsets.all(19)}) => Container(padding: padding, decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)), child: child);
 
   Widget _colourProfileCard(ColourAnalysisResult? result) {
     if (result == null) {
-      return _card(
-        padding: const EdgeInsets.fromLTRB(18, 18, 18, 17),
-        child: Row(
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: const BoxDecoration(
-                color: AppColors.secondary,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.palette_outlined, color: AppColors.primary),
-            ),
-            const SizedBox(width: 13),
-            const Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Discover your colours',
-                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
-                  ),
-                  SizedBox(height: 4),
-                  Text(
-                    'Complete your colour analysis to unlock your personal palette.',
-                    style: TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 11.8,
-                      height: 1.4,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
-          ],
-        ),
-      );
+      return _card(padding: const EdgeInsets.fromLTRB(18, 18, 18, 17), child: Row(children: [
+        Container(width: 48, height: 48, decoration: const BoxDecoration(color: AppColors.secondary, shape: BoxShape.circle), child: const Icon(Icons.palette_outlined, color: AppColors.primary)),
+        const SizedBox(width: 13),
+        const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Discover your colours', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)), SizedBox(height: 4), Text('Complete your colour analysis to unlock your personal palette.', style: TextStyle(color: AppColors.textSecondary, fontSize: 11.8, height: 1.4))])),
+      ]));
     }
-
-    return _card(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 62,
-            height: 62,
-            decoration: BoxDecoration(
-              gradient: AppGradients.season(result.season),
-              borderRadius: BorderRadius.circular(19),
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'COLOUR PROFILE',
-                  style: TextStyle(
-                    color: AppColors.textMuted,
-                    fontSize: 9,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '${result.season} • ${result.undertone}',
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  '${result.brightness} value • ${result.contrast} contrast',
-                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.8),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: result.colours
-                      .take(5)
-                      .map((colour) => ColourSwatch(name: colour, size: 24))
-                      .toList(),
-                ),
-              ],
-            ),
-          ),
+    return _card(child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Container(width: 62, height: 62, decoration: BoxDecoration(gradient: AppGradients.season(result.season), borderRadius: BorderRadius.circular(19))),
+      const SizedBox(width: 14),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Text('COLOUR PROFILE', style: TextStyle(color: AppColors.textMuted, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1.1)),
+        const SizedBox(height: 5),
+        Text(result.season, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900)),
+        const SizedBox(height: 4),
+        Text('${result.undertone} · ${result.brightness} · ${result.contrast}', style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.8)),
+        if (result.faceShape != 'Unknown') ...[
+          const SizedBox(height: 5),
+          Text('Face shape · ${result.faceShape}', style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.8, fontWeight: FontWeight.w700)),
         ],
-      ),
-    );
+      ])),
+    ]));
   }
 
   Widget _styleJourneyCard() {
@@ -572,89 +328,28 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
       future: _journeyFuture,
       builder: (context, snapshot) {
         final journey = snapshot.data;
-        if (journey == null) {
-          return _card(
-            child: Row(
-              children: [
-                Container(
-                  width: 46,
-                  height: 46,
-                  decoration: const BoxDecoration(
-                    color: AppColors.secondary,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.auto_awesome_rounded, color: AppColors.primary),
-                ),
-                const SizedBox(width: 12),
-                const Expanded(
-                  child: Text(
-                    'Your style journey will grow as you use VYEA.',
-                    style: TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 12,
-                      height: 1.4,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          );
-        }
-
-        final unlocked = journey.badges.where((badge) => badge.unlocked).length;
-        return Container(
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: AppColors.border),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 46,
-                    height: 46,
-                    decoration: const BoxDecoration(
-                      gradient: AppGradients.primary,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.auto_awesome_rounded, color: Colors.white),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Level ${journey.level} · ${journey.levelTitle}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
-                        const SizedBox(height: 3),
-                        Text('${journey.points} XP · ${journey.streak} day streak · ${journey.completedChallenges} challenges', style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.5)),
-                      ],
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TibStyleJourneyScreen())),
-                    child: const Text('View'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 15),
-              Row(children: [const Text('NEXT LEVEL', style: TextStyle(color: AppColors.textMuted, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: .9)), const Spacer(), Text(journey.nextLevelPoints > journey.currentLevelPoints ? '${journey.points} / ${journey.nextLevelPoints} XP' : 'MAX LEVEL', style: const TextStyle(color: AppColors.primary, fontSize: 9.5, fontWeight: FontWeight.w900))]),
-              const SizedBox(height: 7),
-              ClipRRect(borderRadius: BorderRadius.circular(99), child: LinearProgressIndicator(value: journey.progress, minHeight: 8, backgroundColor: AppColors.secondary, valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary))),
-              const SizedBox(height: 14),
-              Row(children: [const Text('BADGES', style: TextStyle(color: AppColors.textMuted, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: .9)), const Spacer(), Text('$unlocked / ${journey.badges.length} unlocked', style: const TextStyle(color: AppColors.textSecondary, fontSize: 9.5, fontWeight: FontWeight.w700))]),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 7,
-                runSpacing: 7,
-                children: journey.badges.map((badge) => Container(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7), decoration: BoxDecoration(color: badge.unlocked ? AppColors.secondary : AppColors.surfaceMuted, borderRadius: BorderRadius.circular(13), border: Border.all(color: AppColors.border)), child: Row(mainAxisSize: MainAxisSize.min, children: [Text(badge.icon, style: const TextStyle(fontSize: 13)), const SizedBox(width: 5), Text(badge.title, style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, color: badge.unlocked ? AppColors.textPrimary : AppColors.textMuted))]))).toList(),
-              ),
-            ],
-          ),
-        );
+        if (journey == null) return _card(child: const Row(children: [CircularProgressIndicator(strokeWidth: 2), SizedBox(width: 12), Expanded(child: Text('Loading your style journey...', style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5)))]));
+        return _card(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Container(width: 46, height: 46, decoration: const BoxDecoration(gradient: AppGradients.primary, shape: BoxShape.circle), child: const Icon(Icons.auto_awesome_rounded, color: Colors.white)),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Level ${journey.level} · ${journey.levelTitle}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
+              const SizedBox(height: 3),
+              Text('${journey.points} XP · ${journey.streak} day streak · ${journey.completedChallenges} challenges', style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.5)),
+            ])),
+          ]),
+          const SizedBox(height: 16),
+          Row(children: [const Text('NEXT LEVEL', style: TextStyle(color: AppColors.textMuted, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: .9)), const Spacer(), Text(journey.nextLevelPoints > journey.currentLevelPoints ? '${journey.points} / ${journey.nextLevelPoints} XP' : 'MAX LEVEL', style: const TextStyle(color: AppColors.primary, fontSize: 9.5, fontWeight: FontWeight.w900))]),
+          const SizedBox(height: 7),
+          ClipRRect(borderRadius: BorderRadius.circular(99), child: LinearProgressIndicator(value: journey.progress, minHeight: 8, backgroundColor: AppColors.secondary, valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary))),
+          const SizedBox(height: 15),
+          Row(children: [const Text('BADGES', style: TextStyle(color: AppColors.textMuted, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: .9)), const Spacer(), Text('${journey.badges.where((badge) => badge.unlocked).length} / ${journey.badges.length} unlocked', style: const TextStyle(color: AppColors.textSecondary, fontSize: 9.5, fontWeight: FontWeight.w700))]),
+          const SizedBox(height: 9),
+          Wrap(spacing: 7, runSpacing: 7, children: journey.badges.map((badge) => Container(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7), decoration: BoxDecoration(color: badge.unlocked ? AppColors.secondary : AppColors.surfaceMuted, borderRadius: BorderRadius.circular(13), border: Border.all(color: AppColors.border)), child: Row(mainAxisSize: MainAxisSize.min, children: [Text(badge.icon, style: const TextStyle(fontSize: 13)), const SizedBox(width: 5), Text(badge.title, style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, color: badge.unlocked ? AppColors.textPrimary : AppColors.textMuted))]))).toList()),
+          const SizedBox(height: 13),
+          SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TibStyleJourneyScreen())), icon: const Icon(Icons.insights_outlined, size: 17), label: const Text('View style journey'))),
+        ]));
       },
     );
   }
@@ -664,74 +359,18 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
       future: _challengeFuture,
       builder: (context, snapshot) {
         final challenge = snapshot.data;
-        if (challenge == null) {
-          return _card(
-            child: const Row(
-              children: [
-                Icon(Icons.auto_awesome_outlined, color: AppColors.primary),
-                SizedBox(width: 11),
-                Expanded(child: Text('Your daily style move will appear here.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.4))),
-              ],
-            ),
-          );
-        }
-
-        return _card(
-          padding: const EdgeInsets.fromLTRB(18, 18, 18, 17),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: const BoxDecoration(
-                      color: AppColors.secondary,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.checkroom_outlined, color: AppColors.primary),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(challenge.category.toUpperCase(), style: const TextStyle(color: AppColors.textMuted, fontSize: 8.5, fontWeight: FontWeight.w900, letterSpacing: 1)),
-                        const SizedBox(height: 4),
-                        Text(challenge.title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
-                        const SizedBox(height: 4),
-                        Text(challenge.description, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.4)),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceMuted,
-                      borderRadius: BorderRadius.circular(99),
-                      border: Border.all(color: AppColors.border),
-                    ),
-                    child: Text('+${challenge.points} XP', style: const TextStyle(color: AppColors.primary, fontSize: 9.5, fontWeight: FontWeight.w900)),
-                  ),
-                  const Spacer(),
-                  FilledButton.icon(
-                    onPressed: _challengeCompleted || _completingChallenge ? null : _completeChallenge,
-                    icon: Icon(_challengeCompleted ? Icons.check_rounded : Icons.done_outline_rounded, size: 17),
-                    label: Text(_challengeCompleted ? 'Completed' : _completingChallenge ? 'Saving…' : 'Complete'),
-                    style: FilledButton.styleFrom(backgroundColor: AppColors.primaryDark, minimumSize: const Size(0, 44)),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        );
+        if (challenge == null) return _card(child: const Row(children: [CircularProgressIndicator(strokeWidth: 2), SizedBox(width: 12), Expanded(child: Text('Finding a small styling move for today...', style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5)))]));
+        return _card(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Container(width: 44, height: 44, decoration: const BoxDecoration(color: AppColors.secondary, shape: BoxShape.circle), child: const Icon(Icons.checkroom_outlined, color: AppColors.primary)),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(challenge.title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900)), const SizedBox(height: 3), Text('${challenge.category} · ${challenge.points} XP', style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.5, fontWeight: FontWeight.w700))])),
+          ]),
+          const SizedBox(height: 12),
+          Text(challenge.description, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.45)),
+          const SizedBox(height: 14),
+          SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: _challengeCompleted || _completingChallenge ? null : _completeChallenge, icon: Icon(_challengeCompleted ? Icons.check_rounded : Icons.auto_awesome_rounded, size: 17), label: Text(_challengeCompleted ? 'Completed today' : (_completingChallenge ? 'Saving...' : 'Mark as done')), style: FilledButton.styleFrom(backgroundColor: AppColors.primaryDark))),
+        ]));
       },
     );
   }
