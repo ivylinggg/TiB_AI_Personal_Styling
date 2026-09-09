@@ -7,7 +7,6 @@ import '../../core/constants/app_colors.dart';
 import '../../models/colour_analysis_result.dart';
 import '../../models/wardrobe_item.dart';
 import '../../providers/analysis_provider.dart';
-import '../../providers/personal_style_provider.dart';
 import '../../services/ai_styling_service.dart';
 import '../../services/firestore_service.dart';
 import '../../services/style_preference_service.dart';
@@ -41,6 +40,7 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
   bool _savedLook = false;
   bool _savingLook = false;
   bool _refreshingFromLifecycle = false;
+  String _loadedUid = '';
 
   @override
   void initState() {
@@ -51,17 +51,13 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      _refreshWhenResumed();
-    }
+    if (state == AppLifecycleState.resumed) _refreshWhenResumed();
   }
 
   Future<void> _refreshWhenResumed() async {
     if (_refreshingFromLifecycle || _styling) return;
     _refreshingFromLifecycle = true;
     try {
-      final provider = context.read<PersonalStyleProvider>();
-      await provider.refresh(force: true);
       await _loadWardrobe(showLoading: false);
     } finally {
       _refreshingFromLifecycle = false;
@@ -75,39 +71,46 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
   }
 
   Future<void> _loadWardrobe({bool showLoading = true}) async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) {
+    final uid = FirebaseAuth.instance.currentUser?.uid.trim();
+    if (uid == null || uid.isEmpty) {
       if (mounted) {
         setState(() {
+          _loadedUid = '';
           _loading = false;
           _wardrobe = const [];
+          _look = const [];
+          _aiResult = null;
+          _generated = false;
         });
       }
       return;
     }
-    if (showLoading && mounted) {
-      setState(() => _loading = true);
-    }
-    try {
-      final provider = context.read<PersonalStyleProvider>();
-      await provider.refresh(force: true);
-      final items = provider.wardrobe;
-      if (!mounted) return;
+
+    if (_loadedUid.isNotEmpty && _loadedUid != uid && mounted) {
       setState(() {
-        _wardrobe = List<WardrobeItem>.from(items);
+        _wardrobe = const [];
+        _look = const [];
+        _aiResult = null;
+        _generated = false;
+        _savedLook = false;
+        _lovedLookIds.clear();
+        _dislikedLookIds.clear();
+      });
+    }
+
+    _loadedUid = uid;
+    if (showLoading && mounted) setState(() => _loading = true);
+
+    try {
+      final items = await FirestoreService.getWardrobeItems(uid);
+      if (!mounted || FirebaseAuth.instance.currentUser?.uid != uid) return;
+      setState(() {
+        _wardrobe = items;
         _loading = false;
       });
     } catch (_) {
-      try {
-        final items = await FirestoreService.getWardrobeItems(uid);
-        if (!mounted) return;
-        setState(() {
-          _wardrobe = items;
-          _loading = false;
-        });
-      } catch (_) {
-        if (mounted) setState(() => _loading = false);
-      }
+      if (!mounted || FirebaseAuth.instance.currentUser?.uid != uid) return;
+      setState(() => _loading = false);
     }
   }
 
@@ -129,16 +132,16 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
     return score;
   }
 
-  List<WardrobeItem> _buildFallbackLook(ColourAnalysisResult profile) {
-    final sorted = [..._wardrobe]..sort((a, b) => _score(b, profile).compareTo(_score(a, profile)));
+  List<WardrobeItem> _buildLook(ColourAnalysisResult profile) {
+    final sorted = [..._wardrobe]
+      ..sort((a, b) => _score(b, profile).compareTo(_score(a, profile)));
     final categories = _occasion == 'Dinner' || _occasion == 'Date'
         ? ['Dresses', 'Shoes', 'Accessories']
         : ['Tops', 'Bottoms', 'Shoes', 'Accessories'];
     final rotated = [...sorted];
     if (rotated.length > 1 && _generation > 1) {
       final offset = (_generation - 1) % rotated.length;
-      final head = rotated.sublist(offset);
-      head.addAll(rotated.sublist(0, offset));
+      final head = rotated.sublist(offset)..addAll(rotated.sublist(0, offset));
       rotated
         ..clear()
         ..addAll(head);
@@ -146,13 +149,11 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
     final result = <WardrobeItem>[];
     final used = <String>{};
     for (final category in categories) {
-      final match = rotated.firstWhere(
-        (item) => item.category == category && !used.contains(item.id),
-        orElse: () => _emptyItem,
-      );
-      if (match.id.isNotEmpty) {
-        result.add(match);
-        used.add(match.id);
+      final matches = rotated.where((item) => item.category == category && !used.contains(item.id));
+      if (matches.isNotEmpty) {
+        final item = matches.first;
+        result.add(item);
+        used.add(item.id);
       }
     }
     if (result.length < 2) {
@@ -167,20 +168,6 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
     return result.take(4).toList();
   }
 
-  static WardrobeItem get _emptyItem => const WardrobeItem(
-        id: '',
-        userId: '',
-        name: '',
-        category: '',
-        colour: '',
-        style: '',
-        season: '',
-        imageUrl: '',
-        isFavourite: false,
-        notes: '',
-        createdAt: null,
-      );
-
   WardrobeItem? _findWardrobeItem(String? id) {
     if (id == null || id.isEmpty) return null;
     for (final item in _wardrobe) {
@@ -190,9 +177,9 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
   }
 
   Future<void> _generate(ColourAnalysisResult profile) async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null || _styling || _wardrobe.isEmpty) return;
-    final requestUid = uid;
+    final uid = FirebaseAuth.instance.currentUser?.uid.trim();
+    if (uid == null || uid.isEmpty || uid != _loadedUid || _styling || _wardrobe.isEmpty) return;
+
     setState(() {
       _generation++;
       _savedLook = false;
@@ -201,8 +188,11 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
       _look = const [];
       _aiResult = null;
     });
+
     try {
-      final prefs = await StylePreferenceService.getStylePreferences(requestUid);
+      final prefs = await StylePreferenceService.getStylePreferences(uid);
+      if (!mounted || FirebaseAuth.instance.currentUser?.uid != uid) return;
+
       final styles = List<String>.from(prefs?['styles'] ?? const []);
       final preferences = List<String>.from(prefs?['preferences'] ?? const []);
       final aiResult = await AiStylingService.getRecommendation(
@@ -212,34 +202,44 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
         preferences: preferences,
         occasion: _occasion,
       );
-      final currentUid = FirebaseAuth.instance.currentUser?.uid;
-      if (!mounted || currentUid != requestUid) return;
+
+      if (!mounted || FirebaseAuth.instance.currentUser?.uid != uid) return;
+
       if (aiResult != null) {
-        final aiLook = aiResult.itemIds.map(_findWardrobeItem).whereType<WardrobeItem>().toList();
-        setState(() {
-          _aiResult = aiResult;
-          _look = aiLook;
-          _styling = false;
-        });
-        return;
+        final aiLook = [
+          _findWardrobeItem(aiResult.topId),
+          _findWardrobeItem(aiResult.bottomId),
+          _findWardrobeItem(aiResult.shoesId),
+          _findWardrobeItem(aiResult.accessoryId),
+        ].whereType<WardrobeItem>().toList();
+        if (aiLook.isNotEmpty || aiResult.explanation.isNotEmpty) {
+          setState(() {
+            _look = aiLook;
+            _aiResult = aiResult;
+            _styling = false;
+          });
+          return;
+        }
       }
     } catch (_) {}
-    final currentUid = FirebaseAuth.instance.currentUser?.uid;
-    if (!mounted || currentUid != requestUid) return;
+
+    if (!mounted || FirebaseAuth.instance.currentUser?.uid != uid) return;
     setState(() {
-      _look = _buildFallbackLook(profile);
+      _look = _buildLook(profile);
+      _aiResult = null;
       _styling = false;
     });
     _showFeedback('AI is unavailable right now — I used your wardrobe match instead.');
   }
 
   Future<void> _saveCurrentLook(ColourAnalysisResult profile, List<WardrobeItem> look) async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null || look.isEmpty || _savingLook) return;
+    final uid = FirebaseAuth.instance.currentUser?.uid.trim();
+    if (uid == null || uid.isEmpty || uid != _loadedUid || look.isEmpty || _savingLook) return;
     if (_savedLook) {
       _showFeedback('This look is already saved.');
       return;
     }
+
     setState(() => _savingLook = true);
     try {
       final matchScore = _matchScore(profile, look);
@@ -250,7 +250,7 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
         matchScore: matchScore,
         season: profile.season,
       );
-      if (!mounted) return;
+      if (!mounted || FirebaseAuth.instance.currentUser?.uid != uid) return;
       setState(() {
         _savedLook = true;
         _savingLook = false;
@@ -273,6 +273,47 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
       if (item.isFavourite) total += 5;
     }
     return (total / look.length).round().clamp(0, 100);
+  }
+
+  void _toggleLove(WardrobeItem item) {
+    setState(() {
+      if (_lovedLookIds.contains(item.id)) {
+        _lovedLookIds.remove(item.id);
+      } else {
+        _lovedLookIds.add(item.id);
+        _dislikedLookIds.remove(item.id);
+      }
+    });
+    _showFeedback(_lovedLookIds.contains(item.id) ? 'Noted — I’ll favour pieces like this.' : 'Preference updated.');
+  }
+
+  void _toggleDislike(WardrobeItem item) {
+    setState(() {
+      if (_dislikedLookIds.contains(item.id)) {
+        _dislikedLookIds.remove(item.id);
+      } else {
+        _dislikedLookIds.add(item.id);
+        _lovedLookIds.remove(item.id);
+      }
+    });
+    _showFeedback(_dislikedLookIds.contains(item.id) ? 'Got it — I’ll avoid this piece in the next look.' : 'Preference updated.');
+  }
+
+  String _categoryLabel(String category, int index) {
+    switch (category) {
+      case 'Tops':
+        return 'TOP';
+      case 'Bottoms':
+        return 'BOTTOM';
+      case 'Dresses':
+        return 'DRESS';
+      case 'Shoes':
+        return 'SHOES';
+      case 'Accessories':
+        return 'ACCESSORY';
+      default:
+        return index == 0 ? 'KEY PIECE' : 'DETAIL';
+    }
   }
 
   void _showFeedback(String message) {
@@ -304,10 +345,7 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
 
   @override
   Widget build(BuildContext context) {
-    final analysis = context.watch<AnalysisProvider>();
-    final personal = context.watch<PersonalStyleProvider>();
-    final profile = analysis.result ?? personal.colourAnalysis;
-    final hasContext = profile != null || personal.hasColourProfile;
+    final profile = context.watch<AnalysisProvider>().result;
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -329,10 +367,10 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
           : ListView(
               padding: const EdgeInsets.fromLTRB(20, 10, 20, 34),
               children: [
-                _hero(profile, personal),
+                _hero(profile),
                 const SizedBox(height: 22),
-                if (!hasContext) ...[
-                  _contextCard(),
+                if (profile == null) ...[
+                  _message('Complete Colour Analysis to unlock stronger personal outfit recommendations.'),
                   const SizedBox(height: 18),
                 ],
                 _occasionSection(),
@@ -340,15 +378,14 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
                 _generateButton(profile),
                 if (_generated) ...[
                   const SizedBox(height: 28),
-                  _result(profile, _look, personal),
+                  _result(profile, _look),
                 ],
               ],
             ),
     );
   }
 
-  Widget _hero(ColourAnalysisResult? profile, PersonalStyleProvider personal) {
-    final colour = profile?.season ?? personal.colourAnalysis?.season ?? 'Colour';
+  Widget _hero(ColourAnalysisResult? profile) {
     return Container(
       padding: const EdgeInsets.fromLTRB(21, 21, 21, 23),
       decoration: BoxDecoration(
@@ -363,42 +400,28 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
               Expanded(
                 child: Text(
                   'VYEA  /  PERSONAL OUTFIT',
-                  style: TextStyle(
-                    color: AppColors.peach,
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.45,
-                  ),
+                  style: TextStyle(color: AppColors.peach, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: 1.45),
                 ),
               ),
-              Text(
-                'AI STUDIO',
-                style: TextStyle(color: Colors.white54, fontSize: 8.5, fontWeight: FontWeight.w900, letterSpacing: 1),
-              ),
+              Text('AI STUDIO', style: TextStyle(color: Colors.white54, fontSize: 8.5, fontWeight: FontWeight.w900, letterSpacing: 1)),
             ],
           ),
           const SizedBox(height: 18),
           const Text(
             'Your next look,\nmade personal.',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 30,
-              height: 1.02,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -1,
-            ),
+            style: TextStyle(color: Colors.white, fontSize: 30, height: 1.02, fontWeight: FontWeight.w800, letterSpacing: -1),
           ),
           const SizedBox(height: 9),
           Text(
             profile == null
                 ? 'Add your Colour Analysis to make recommendations more personal.'
-                : 'Built around your ${profile.season} palette, personal proportions and the pieces you already own.',
+                : 'Built around your ${profile.season} palette, face guidance and the pieces you already own.',
             style: const TextStyle(color: Colors.white70, fontSize: 12.5, height: 1.45),
           ),
           const SizedBox(height: 17),
           Row(
             children: [
-              _heroStat(Icons.palette_outlined, colour, 'palette'),
+              _heroStat(Icons.palette_outlined, profile?.season ?? 'Colour', 'palette'),
               const SizedBox(width: 8),
               _heroStat(Icons.checkroom_outlined, '${_wardrobe.length}', 'pieces'),
               const SizedBox(width: 8),
@@ -414,10 +437,7 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
     return Expanded(
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 10),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: .08),
-          borderRadius: BorderRadius.circular(15),
-        ),
+        decoration: BoxDecoration(color: Colors.white.withValues(alpha: .08), borderRadius: BorderRadius.circular(15)),
         child: Row(
           children: [
             Icon(icon, color: Colors.white70, size: 15),
@@ -426,12 +446,7 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    value,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.w800),
-                  ),
+                  Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.w800)),
                   Text(label, style: const TextStyle(color: Colors.white54, fontSize: 8.5)),
                 ],
               ),
@@ -442,44 +457,18 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
     );
   }
 
-  Widget _contextCard() {
-    return Container(
-      padding: const EdgeInsets.all(17),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.insights_outlined, color: AppColors.primary),
-          const SizedBox(width: 12),
-          const Expanded(
-            child: Text(
-              'Your wardrobe is ready. Add Colour Analysis for stronger personalised recommendations.',
-              style: TextStyle(color: AppColors.textSecondary, height: 1.4, fontSize: 12.2),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _occasionSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'CHOOSE THE MOMENT',
-          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.25, color: AppColors.textMuted),
-        ),
+        const Text('CHOOSE THE MOMENT', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.25, color: AppColors.textMuted)),
         const SizedBox(height: 9),
         SizedBox(
           height: 88,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: _occasions.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 9),
+            separatorBuilder: (_, __) => const SizedBox(width: 9),
             itemBuilder: (_, index) {
               final item = _occasions[index];
               final selected = _occasion == item.$1;
@@ -506,14 +495,7 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
                     children: [
                       Icon(item.$2, color: selected ? Colors.white : AppColors.primary, size: 19),
                       const Spacer(),
-                      Text(
-                        item.$1,
-                        style: TextStyle(
-                          color: selected ? Colors.white : AppColors.textPrimary,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
+                      Text(item.$1, style: TextStyle(color: selected ? Colors.white : AppColors.textPrimary, fontSize: 11, fontWeight: FontWeight.w800)),
                     ],
                   ),
                 ),
@@ -531,15 +513,9 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
       child: FilledButton.icon(
         onPressed: profile == null || _wardrobe.isEmpty || _styling ? null : () => _generate(profile),
         icon: _styling
-            ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
+            ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
             : const Icon(Icons.auto_awesome_rounded),
-        label: Text(
-          _styling ? 'Styling your look…' : _generated ? 'Create another look' : 'Create my outfit',
-        ),
+        label: Text(_styling ? 'Styling your look…' : _generated ? 'Create another look' : 'Create my outfit'),
         style: FilledButton.styleFrom(
           backgroundColor: AppColors.peach,
           foregroundColor: AppColors.charcoal,
@@ -550,13 +526,13 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
     );
   }
 
-  Widget _result(ColourAnalysisResult? profile, List<WardrobeItem> look, PersonalStyleProvider personal) {
+  Widget _result(ColourAnalysisResult? profile, List<WardrobeItem> look) {
     if (profile == null) return _message('Complete Colour Analysis to personalise your outfit.');
     if (_styling) return _message('Looking through your wardrobe, colour profile and personal style…');
     if (_wardrobe.isEmpty) return _message('Add a few pieces to My Wardrobe first.');
-    if (look.isEmpty) return _message('I could not build a complete look from this wardrobe yet. Add a few versatile pieces and try again.');
+    if (look.isEmpty) return _message('I could not build a look from this wardrobe yet. Add a few versatile pieces and try again.');
 
-    final title = _aiResult?.displayTitle ?? 'A look built for ${_occasion.toLowerCase()}';
+    final title = _aiResult?.lookTitle ?? 'A look built for ${_occasion.toLowerCase()}';
     final direction = _aiResult?.colourDirection;
     final notes = _aiResult?.stylingNotes ?? const <String>[];
     final explanation = _aiResult?.explanation ?? 'A balanced wardrobe match based on your profile and the pieces you already own.';
@@ -566,16 +542,11 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
       children: [
         Row(
           children: [
-            const Expanded(
-              child: Text('YOUR LOOK', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.25, color: AppColors.textMuted)),
-            ),
+            const Expanded(child: Text('YOUR LOOK', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.25, color: AppColors.textMuted))),
             if (_aiResult != null)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                decoration: BoxDecoration(
-                  color: AppColors.peach.withValues(alpha: .38),
-                  borderRadius: BorderRadius.circular(9),
-                ),
+                decoration: BoxDecoration(color: AppColors.peach.withValues(alpha: .38), borderRadius: BorderRadius.circular(9)),
                 child: const Text('AI MATCHED', style: TextStyle(fontSize: 7.5, fontWeight: FontWeight.w900, letterSpacing: .8)),
               ),
           ],
@@ -583,11 +554,7 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
         const SizedBox(height: 10),
         Container(
           padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: AppColors.border),
-          ),
+          decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(24), border: Border.all(color: AppColors.border)),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -613,12 +580,7 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           itemCount: look.length,
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            mainAxisSpacing: 11,
-            crossAxisSpacing: 11,
-            childAspectRatio: .82,
-          ),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, mainAxisSpacing: 11, crossAxisSpacing: 11, childAspectRatio: .82),
           itemBuilder: (_, index) => _lookCard(look[index], index),
         ),
         if (notes.isNotEmpty) ...[
@@ -628,20 +590,12 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
         const SizedBox(height: 16),
         Container(
           padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppColors.primaryDark,
-            borderRadius: BorderRadius.circular(22),
-          ),
+          decoration: BoxDecoration(color: AppColors.primaryDark, borderRadius: BorderRadius.circular(22)),
           child: Row(
             children: [
               const Icon(Icons.auto_awesome_outlined, color: Colors.white70, size: 18),
               const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  personal.hasWardrobe ? 'Built from your personal wardrobe and style context.' : 'Built from the wardrobe pieces currently available.',
-                  style: const TextStyle(color: Colors.white70, fontSize: 11.5, height: 1.4),
-                ),
-              ),
+              Expanded(child: Text('Built from your personal wardrobe, colour profile and styling context.', style: const TextStyle(color: Colors.white70, fontSize: 11.5, height: 1.4))),
             ],
           ),
         ),
@@ -675,11 +629,7 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(16, 15, 16, 13),
-      decoration: BoxDecoration(
-        color: AppColors.background,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.border),
-      ),
+      decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.border)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -706,11 +656,7 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
     final disliked = _dislikedLookIds.contains(item.id);
     final caption = _categoryLabel(item.category, index);
     return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.border),
-      ),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.border)),
       clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -723,49 +669,20 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
                   CachedNetworkImage(
                     imageUrl: item.imageUrl,
                     fit: BoxFit.cover,
-                    placeholder: (_, _) => const Center(child: CircularProgressIndicator(strokeWidth: 1.5)),
-                    errorWidget: (_, _, _) => const Center(child: Icon(Icons.checkroom_outlined, size: 30, color: AppColors.textMuted)),
+                    placeholder: (_, __) => const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                    errorWidget: (_, __, ___) => const Center(child: Icon(Icons.checkroom_outlined, size: 30)),
                   )
                 else
-                  const Center(child: Icon(Icons.checkroom_outlined, size: 30, color: AppColors.textMuted)),
+                  const Center(child: Icon(Icons.checkroom_outlined, size: 30)),
+                Positioned(top: 8, left: 8, child: Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5), decoration: BoxDecoration(color: Colors.black.withValues(alpha: .58), borderRadius: BorderRadius.circular(8)), child: Text(caption, style: const TextStyle(color: Colors.white, fontSize: 7.5, fontWeight: FontWeight.w900, letterSpacing: .8)))),
                 Positioned(
+                  right: 8,
                   top: 8,
-                  left: 8,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
-                    decoration: BoxDecoration(color: Colors.black.withValues(alpha: .52), borderRadius: BorderRadius.circular(8)),
-                    child: Text(caption, style: const TextStyle(color: Colors.white, fontSize: 7.8, fontWeight: FontWeight.w900, letterSpacing: .7)),
-                  ),
-                ),
-                Positioned(
-                  top: 6,
-                  right: 5,
                   child: Row(
                     children: [
-                      _feedbackIcon(
-                        icon: liked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                        active: loved,
-                        onPressed: () => setState(() {
-                          if (loved) {
-                            _lovedLookIds.remove(item.id);
-                          } else {
-                            _lovedLookIds.add(item.id);
-                            _dislikedLookIds.remove(item.id);
-                          }
-                        }),
-                      ),
-                      _feedbackIcon(
-                        icon: Icons.close_rounded,
-                        active: disliked,
-                        onPressed: () => setState(() {
-                          if (disliked) {
-                            _dislikedLookIds.remove(item.id);
-                          } else {
-                            _dislikedLookIds.add(item.id);
-                            _lovedLookIds.remove(item.id);
-                          }
-                        }),
-                      ),
+                      _feedbackIcon(Icons.favorite_rounded, loved, () => _toggleLove(item)),
+                      const SizedBox(width: 5),
+                      _feedbackIcon(Icons.close_rounded, disliked, () => _toggleDislike(item)),
                     ],
                   ),
                 ),
@@ -773,13 +690,13 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
             ),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(11, 10, 11, 12),
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(item.name.isEmpty ? 'Wardrobe piece' : item.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+                Text(item.name.isEmpty ? item.category : item.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
                 const SizedBox(height: 3),
-                Text('${item.colour} · ${item.style}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 9.5, color: AppColors.textMuted)),
+                Text('${item.colour} · ${item.style}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10.5, color: AppColors.textSecondary)),
               ],
             ),
           ),
@@ -788,32 +705,18 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
     );
   }
 
-  Widget _feedbackIcon({required IconData icon, required bool active, required VoidCallback onPressed}) {
-    return IconButton(
-      onPressed: onPressed,
-      constraints: const BoxConstraints.tightFor(width: 32, height: 32),
-      padding: EdgeInsets.zero,
-      icon: Icon(icon, size: 16, color: active ? AppColors.peach : Colors.white),
-      style: IconButton.styleFrom(backgroundColor: Colors.black.withValues(alpha: .40)),
+  Widget _feedbackIcon(IconData icon, bool active, VoidCallback onTap) {
+    return Material(
+      color: Colors.black.withValues(alpha: .58),
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Padding(
+          padding: const EdgeInsets.all(6),
+          child: Icon(icon, size: 15, color: active ? AppColors.peach : Colors.white),
+        ),
+      ),
     );
-  }
-
-  String _categoryLabel(String category, int index) {
-    switch (category) {
-      case 'Tops':
-        return 'TOP';
-      case 'Bottoms':
-        return 'BOTTOM';
-      case 'Dresses':
-        return 'DRESS';
-      case 'Shoes':
-        return 'SHOES';
-      case 'Accessories':
-        return 'ACCESSORY';
-      case 'Jackets':
-        return 'LAYER';
-      default:
-        return 'PIECE ${index + 1}';
-    }
   }
 }
