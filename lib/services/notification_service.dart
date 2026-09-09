@@ -46,6 +46,7 @@ class NotificationService {
   static StreamSubscription<String>? _tokenSubscription;
   static StreamSubscription<RemoteMessage>? _foregroundSubscription;
   static String? _initializedUid;
+  static final Set<String> _welcomeChecks = <String>{};
 
   static CollectionReference<Map<String, dynamic>> _notifications(String uid) =>
       _db.collection('users').doc(uid).collection('notifications');
@@ -79,8 +80,11 @@ class NotificationService {
         }
       });
 
+      // Do not persist an incoming foreground push again as a Firestore
+      // notification. It is already a notification event and duplicating it
+      // here can make the in-app notification feed appear to loop/repeat.
       _foregroundSubscription = FirebaseMessaging.onMessage.listen((message) {
-        unawaited(_saveForegroundNotification(user.uid, message));
+        if (message.notification == null && message.data.isEmpty) return;
       });
 
       _initializedUid = user.uid;
@@ -119,30 +123,6 @@ class NotificationService {
     }
   }
 
-  static Future<void> _saveForegroundNotification(
-    String uid,
-    RemoteMessage message,
-  ) async {
-    final title = message.notification?.title ??
-        message.data['title']?.toString() ??
-        'VYEA update';
-    final body = message.notification?.body ?? message.data['body']?.toString() ?? '';
-    if (title.trim().isEmpty && body.trim().isEmpty) return;
-
-    try {
-      await _notifications(uid).add({
-        'title': title.trim().isEmpty ? 'VYEA update' : title.trim(),
-        'body': body.trim(),
-        'type': message.data['type']?.toString() ?? 'push',
-        'read': false,
-        'createdAt': FieldValue.serverTimestamp(),
-        'messageId': message.messageId,
-      });
-    } catch (_) {
-      // The foreground event should never crash the app if Firestore is offline.
-    }
-  }
-
   static Stream<List<VyeaNotification>> stream(String uid) {
     if (uid.trim().isEmpty) return const Stream.empty();
     return _notifications(uid).limit(50).snapshots().map((snapshot) {
@@ -165,10 +145,15 @@ class NotificationService {
   }
 
   static Future<void> ensureWelcomeNotification(String uid) async {
-    if (uid.trim().isEmpty) return;
+    if (uid.trim().isEmpty || _welcomeChecks.contains(uid)) return;
+    _welcomeChecks.add(uid);
+
     try {
+      // The welcome item is only a one-time bootstrap. Once checked during
+      // this app session, navigation/rebuilds must never trigger another read.
       final existing = await _notifications(uid).limit(1).get();
       if (existing.docs.isNotEmpty) return;
+
       await _notifications(uid).add({
         'title': 'Welcome to VYEA',
         'body': 'Your personal styling space is ready. Explore your wardrobe and discover a look that feels like you.',
@@ -177,7 +162,9 @@ class NotificationService {
         'createdAt': FieldValue.serverTimestamp(),
       });
     } catch (_) {
-      // Notifications are non-critical; keep the rest of the dashboard usable.
+      // Allow another attempt only when the first request genuinely failed.
+      _welcomeChecks.remove(uid);
+      // Notifications are non-critical; keep the rest of the app usable.
     }
   }
 
