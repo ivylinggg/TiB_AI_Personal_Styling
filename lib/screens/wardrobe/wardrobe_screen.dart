@@ -14,6 +14,7 @@ import '../../providers/analysis_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../services/image_picker_service.dart';
 import '../../services/storage_service.dart';
+import '../../services/wardrobe_image_validation_service.dart';
 import '../../widgets/colour_swatch.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/premium_badge.dart';
@@ -33,7 +34,7 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
   static const _text = AppColors.textPrimary;
   static const _muted = AppColors.textSecondary;
 
-  static const _categoryOptions = ['Tops', 'Bottoms', 'Dresses', 'Suits', 'Jackets', 'Skirts', 'Shoes', 'Accessories'];
+  static const _categoryOptions = WardrobeImageValidationService.allowedCategories;
   static const _colourOptions = ['Black', 'White', 'Beige', 'Brown', 'Pink', 'Red', 'Orange', 'Yellow', 'Green', 'Blue', 'Purple', 'Neutral'];
   static const _styleOptions = ['Everyday', 'Minimal', 'Elegant', 'Casual', 'Smart Casual', 'Feminine', 'Trendy'];
   static const _seasonOptions = ['All seasons', 'Spring', 'Summer', 'Autumn', 'Winter'];
@@ -464,7 +465,7 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
       child: Wrap(
         spacing: 8,
         runSpacing: 8,
-        children: counts.entries.map((entry) => Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(AppRadius.full), border: Border.all(color: AppColors.border)), child: Row(mainAxisSize: MainAxisSize.min, children: [Text('${entry.value}', style: const TextStyle(color: _brown, fontWeight: FontWeight.w800, fontSize: 13)), const SizedBox(width: 5), Text(entry.key, style: const TextStyle(color: _muted, fontSize: 12, fontWeight: FontWeight.w600))]))).toList(),
+        children: counts.entries.map((entry) => Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(AppRadius.full), border: Border.all(color: AppColors.border)), child: Row(mainAxisSize: MainAxisSize.min, children: [Text('${entry.value}', style: const TextStyle(color: _brown, fontWeight: FontWeight.w800, fontSize: 13)), const SizedBox(width: 5), Text(entry.key, style: const TextStyle(color: _muted, fontSize: 12, fontWeight: FontWeight.w600))])).toList(),
       ),
     );
   }
@@ -591,7 +592,7 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
             children: [
               const Text('Add to Your Wardrobe', style: TextStyle(color: _text, fontSize: 21, fontWeight: FontWeight.w700)),
               const SizedBox(height: 8),
-              const Text('A clear photo works best. You can add the details after choosing it.', style: TextStyle(color: _muted, height: 1.4)),
+              const Text('Only clothing and fashion accessories are accepted. Clear photos of a single wearable item work best.', style: TextStyle(color: _muted, height: 1.4)),
               const SizedBox(height: 20),
               Row(children: [
                 Expanded(child: _photoSourceTile(icon: Icons.camera_alt_outlined, label: 'Camera', onTap: () async { final image = await ImagePickerService.pickCamera(); if (!context.mounted) return; Navigator.pop(context, image); })),
@@ -604,7 +605,19 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
       ),
     );
     if (image == null || !mounted) return;
+    final rejection = await WardrobeImageValidationService.validate(image);
+    if (!mounted) return;
+    if (rejection != null) {
+      _showWardrobePhotoRejected(rejection);
+      return;
+    }
     await _showItemForm(uid, image);
+  }
+
+  void _showWardrobePhotoRejected(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message), behavior: SnackBarBehavior.floating, action: SnackBarAction(label: 'Choose again', onPressed: () { final currentUid = _uid; if (currentUid != null) _showAddItem(currentUid); })));
   }
 
   Future<void> _showItemForm(String uid, File image) async {
@@ -627,6 +640,14 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
             if (nameController.text.trim().isEmpty || saving) return;
             setSheetState(() => saving = true);
             try {
+              final rejection = await WardrobeImageValidationService.validate(image, category: category);
+              if (rejection != null) {
+                if (sheetContext.mounted) {
+                  setSheetState(() => saving = false);
+                  ScaffoldMessenger.of(sheetContext).showSnackBar(SnackBar(content: Text(rejection), behavior: SnackBarBehavior.floating));
+                }
+                return;
+              }
               final imageUrl = await StorageService.uploadWardrobeImage(uid: uid, image: image);
               await FirestoreService.addWardrobeItem(WardrobeItem(id: '', userId: uid, imageUrl: imageUrl, name: nameController.text.trim(), category: category, colour: colour, style: style, season: season, isFavourite: false, notes: notesController.text.trim(), createdAt: null));
               if (sheetContext.mounted) Navigator.pop(sheetContext);
@@ -662,7 +683,7 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
                       child: FilledButton.icon(
                         onPressed: saving ? null : save,
                         icon: saving ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.background)) : const Icon(Icons.check_rounded),
-                        label: Text(saving ? 'Saving...' : 'Save to My Wardrobe'),
+                        label: Text(saving ? 'Checking & Saving...' : 'Save to My Wardrobe'),
                         style: FilledButton.styleFrom(backgroundColor: _brown, minimumSize: const Size.fromHeight(52)),
                       ),
                     ),
@@ -791,7 +812,7 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
                   Expanded(child: FilledButton.icon(onPressed: () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (_) => AIStylistScreen(selectedItem: item))); }, icon: const Icon(Icons.auto_awesome_rounded), label: const Text('Style this'), style: FilledButton.styleFrom(backgroundColor: _brown))),
                 ]),
                 const SizedBox(height: 10),
-                SizedBox(width: double.infinity, child: TextButton.icon(onPressed: () => _confirmDelete(item, uid), icon: const Icon(Icons.delete_outline), label: const Text('Delete'), style: TextButton.styleFrom(foregroundColor: AppColors.error))),
+                SizedBox(width: double.infinity, child: TextButton.icon(onPressed: () => _confirmDelete(item, uid), icon: const Icon(Icons.delete_outline_rounded), label: const Text('Remove from wardrobe'))),
               ],
             ),
           ),
@@ -804,11 +825,10 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
     final nameController = TextEditingController(text: item.name);
     final notesController = TextEditingController(text: item.notes);
     var category = _categoryOptions.contains(item.category) ? item.category : _categoryOptions.first;
-    var colour = _colourOptions.contains(item.colour) ? item.colour : _colourOptions.last;
+    var colour = _colourOptions.contains(item.colour) ? item.colour : 'Neutral';
     var style = _styleOptions.contains(item.style) ? item.style : _styleOptions.first;
     var season = _seasonOptions.contains(item.season) ? item.season : _seasonOptions.first;
     var saving = false;
-    File? newImage;
 
     await showModalBottomSheet<void>(
       context: context,
@@ -817,35 +837,21 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
       backgroundColor: _cream,
       builder: (sheetContext) => StatefulBuilder(
         builder: (context, setSheetState) {
-          Future<void> pickNewPhoto() async {
-            final picked = await showModalBottomSheet<File?>(
-              context: context,
-              showDragHandle: true,
-              backgroundColor: _cream,
-              builder: (pickContext) => SafeArea(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 25),
-                  child: Row(children: [
-                    Expanded(child: _photoSourceTile(icon: Icons.camera_alt_outlined, label: 'Camera', onTap: () async { final image = await ImagePickerService.pickCamera(); if (!pickContext.mounted) return; Navigator.pop(pickContext, image); })),
-                    const SizedBox(width: 12),
-                    Expanded(child: _photoSourceTile(icon: Icons.photo_outlined, label: 'Gallery', onTap: () async { final image = await ImagePickerService.pickGallery(); if (!pickContext.mounted) return; Navigator.pop(pickContext, image); })),
-                  ]),
-                ),
-              ),
-            );
-            if (picked != null) setSheetState(() => newImage = picked);
-          }
-
           Future<void> save() async {
             if (nameController.text.trim().isEmpty || saving) return;
             setSheetState(() => saving = true);
             try {
-              var imageUrl = item.imageUrl;
-              if (newImage != null) imageUrl = await StorageService.uploadWardrobeImage(uid: uid, image: newImage!);
-              await FirestoreService.updateWardrobeItem(uid, item.id, {'imageUrl': imageUrl, 'name': nameController.text.trim(), 'category': category, 'colour': colour, 'style': style, 'season': season, 'notes': notesController.text.trim()});
+              await FirestoreService.updateWardrobeItem(uid, item.id, {
+                'name': nameController.text.trim(),
+                'category': category,
+                'colour': colour,
+                'style': style,
+                'season': season,
+                'notes': notesController.text.trim(),
+              });
               if (sheetContext.mounted) Navigator.pop(sheetContext);
             } catch (_) {
-              if (sheetContext.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not save your changes. Please try again.')));
+              if (sheetContext.mounted) ScaffoldMessenger.of(sheetContext).showSnackBar(const SnackBar(content: Text('Could not update this piece. Please try again.')));
             } finally {
               if (sheetContext.mounted) setSheetState(() => saving = false);
             }
@@ -860,26 +866,7 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
                   children: [
                     const Text('Edit this piece', style: TextStyle(color: _text, fontSize: 21, fontWeight: FontWeight.w700)),
                     const SizedBox(height: 15),
-                    GestureDetector(
-                      onTap: pickNewPhoto,
-                      child: Stack(
-                        children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(AppRadius.lg),
-                            child: SizedBox(
-                              height: 190,
-                              width: double.infinity,
-                              child: newImage != null
-                                  ? Image.file(newImage!, fit: BoxFit.cover)
-                                  : item.imageUrl.isEmpty
-                                      ? Container(color: _soft, child: Icon(_categoryIcon(item.category), size: 40, color: _brown))
-                                      : CachedNetworkImage(imageUrl: item.imageUrl, fit: BoxFit.cover),
-                            ),
-                          ),
-                          Positioned(right: 10, bottom: 10, child: Material(color: AppColors.background.withValues(alpha: .92), shape: const CircleBorder(), child: const Padding(padding: EdgeInsets.all(8), child: Icon(Icons.edit_outlined, size: 18, color: _brown)))),
-                        ],
-                      ),
-                    ),
+                    ClipRRect(borderRadius: BorderRadius.circular(AppRadius.lg), child: Image.network(item.imageUrl, height: 190, width: double.infinity, fit: BoxFit.cover)),
                     const SizedBox(height: 15),
                     TextField(controller: nameController, decoration: _fieldDecoration('Name')),
                     const SizedBox(height: 12),
@@ -890,15 +877,7 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
                     const SizedBox(height: 4),
                     TextField(controller: notesController, maxLines: 2, decoration: _fieldDecoration('Notes (optional)')),
                     const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton.icon(
-                        onPressed: saving ? null : save,
-                        icon: saving ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.background)) : const Icon(Icons.check_rounded),
-                        label: Text(saving ? 'Saving...' : 'Save changes'),
-                        style: FilledButton.styleFrom(backgroundColor: _brown, minimumSize: const Size.fromHeight(52)),
-                      ),
-                    ),
+                    SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: saving ? null : save, icon: const Icon(Icons.save_outlined), label: Text(saving ? 'Saving...' : 'Save changes'), style: FilledButton.styleFrom(backgroundColor: _brown, minimumSize: const Size.fromHeight(52)))),
                   ],
                 ),
               ),
