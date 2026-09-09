@@ -29,11 +29,17 @@ class _AiStyleMeScreenState extends State<AiStyleMeScreen> {
   List<WardrobeItem> _look = const [];
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() {
+    super.initState();
+    _load();
+  }
 
   Future<void> _load() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) { if (mounted) setState(() => _loading = false); return; }
+    if (uid == null) {
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
     try {
       final results = await Future.wait<dynamic>([
         FirestoreService.getWardrobeItems(uid),
@@ -41,25 +47,46 @@ class _AiStyleMeScreenState extends State<AiStyleMeScreen> {
         FirestoreService.getLatestColourAnalysis(uid),
       ]);
       if (!mounted || FirebaseAuth.instance.currentUser?.uid != uid) return;
-      final prefs = results[1] is Map<String, dynamic> ? results[1] as Map<String, dynamic> : <String, dynamic>{};
-      final items = results[0] is List<WardrobeItem> ? List<WardrobeItem>.from(results[0] as List<WardrobeItem>) : <WardrobeItem>[];
+      final prefs = results[1] is Map<String, dynamic>
+          ? results[1] as Map<String, dynamic>
+          : <String, dynamic>{};
+      final items = results[0] is List<WardrobeItem>
+          ? List<WardrobeItem>.from(results[0] as List<WardrobeItem>)
+          : <WardrobeItem>[];
       setState(() {
-        _wardrobe = items.where((item) => item.userId.isEmpty || item.userId == uid).toList(growable: false);
+        _wardrobe = items
+            .where((item) => item.userId.isEmpty || item.userId == uid)
+            .toList(growable: false);
         _styles = _stringList(prefs['styles']);
         _preferences = _stringList(prefs['preferences']);
         _analysis = results[2] as ColourAnalysisResult?;
         _loading = false;
       });
-    } catch (_) { if (mounted) setState(() => _loading = false); }
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   Future<void> _styleMe() async {
     if (_busy) return;
-    if (_wardrobe.isEmpty) { _show('Add wardrobe pieces before asking TiB to style you.'); return; }
-    if (_analysis == null) { _show('Complete Colour Analysis first so TiB can personalise the look.'); return; }
+    if (_wardrobe.isEmpty) {
+      _show('Add wardrobe pieces before asking TiB to style you.');
+      return;
+    }
+    if (_analysis == null) {
+      _show('Complete Colour Analysis first so TiB can personalise the look.');
+      return;
+    }
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) { _show('Please sign in again.'); return; }
-    setState(() { _busy = true; _result = null; _look = const []; });
+    if (uid == null) {
+      _show('Please sign in again.');
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _result = null;
+      _look = const [];
+    });
     try {
       final result = await AiStylingService.getRecommendation(
         uid: uid,
@@ -75,21 +102,41 @@ class _AiStyleMeScreenState extends State<AiStyleMeScreen> {
         _show('TiB could not reach the AI stylist right now. Try again in a moment.');
         return;
       }
-      final ids = <String?>[result.topId, result.bottomId, result.dressId, result.suitId, result.jacketId, result.shoesId, result.accessoryId];
+      final ids = <String?>[
+        result.topId,
+        result.bottomId,
+        result.dressId,
+        result.suitId,
+        result.jacketId,
+        result.shoesId,
+        result.accessoryId,
+      ];
       final picked = ids.whereType<String>().map(_find).whereType<WardrobeItem>().toList(growable: false);
-      setState(() { _result = result; _look = picked; _busy = false; });
+      setState(() {
+        _result = result;
+        _look = picked;
+        _busy = false;
+      });
     } catch (_) {
-      if (mounted) { setState(() => _busy = false); _show('TiB could not build your look right now.'); }
+      if (mounted) {
+        setState(() => _busy = false);
+        _show('TiB could not build your look right now.');
+      }
     }
   }
 
   WardrobeItem? _find(String id) {
-    for (final item in _wardrobe) { if (item.id == id) return item; }
+    for (final item in _wardrobe) {
+      if (item.id == id) return item;
+    }
     return null;
   }
 
   List<String> _stringList(dynamic value) => value is List
-      ? value.map((item) => item.toString().trim()).where((item) => item.isNotEmpty).toList(growable: false)
+      ? value
+          .map((item) => item.toString().trim())
+          .where((item) => item.isNotEmpty)
+          .toList(growable: false)
       : const [];
 
   void _show(String message) {
@@ -111,12 +158,16 @@ class _AiStyleMeScreenState extends State<AiStyleMeScreen> {
         notes: _result?.stylingNotes.join(' • '),
       );
       _show('Look saved to Saved Looks.');
-    } catch (_) { _show('Could not save this look right now.'); }
+    } catch (_) {
+      _show('Could not save this look right now.');
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    if (_loading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(title: const Text('Let TiB Style Me')),
@@ -125,19 +176,63 @@ class _AiStyleMeScreenState extends State<AiStyleMeScreen> {
         children: [
           Container(
             padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(26), border: Border.all(color: AppColors.border)),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(26),
+              border: Border.all(color: AppColors.border),
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Your AI Personal Stylist', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
+                const Text(
+                  'Your AI Personal Stylist',
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
+                ),
                 const SizedBox(height: 7),
-                const Text('TiB styles only from pieces you already own, using your colour profile and saved preferences.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.45)),
+                const Text(
+                  'TiB styles only from pieces you already own, using your colour profile and saved preferences.',
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.45),
+                ),
                 const SizedBox(height: 18),
-                const Text('WHAT ARE YOU DRESSING FOR?', style: TextStyle(fontSize: 9, letterSpacing: 1.2, fontWeight: FontWeight.w900, color: AppColors.textMuted)),
+                const Text(
+                  'WHAT ARE YOU DRESSING FOR?',
+                  style: TextStyle(fontSize: 9, letterSpacing: 1.2, fontWeight: FontWeight.w900, color: AppColors.textMuted),
+                ),
                 const SizedBox(height: 9),
-                Wrap(spacing: 7, runSpacing: 7, children: occasions.map((value) => ChoiceChip(label: Text(value), selected: _occasion == value, onSelected: _busy ? null : (_) => setState(() { _occasion = value; _result = null; _look = const []; }))).toList()),
+                Wrap(
+                  spacing: 7,
+                  runSpacing: 7,
+                  children: occasions
+                      .map(
+                        (value) => ChoiceChip(
+                          label: Text(value),
+                          selected: _occasion == value,
+                          onSelected: _busy
+                              ? null
+                              : (_) => setState(() {
+                                    _occasion = value;
+                                    _result = null;
+                                    _look = const [];
+                                  }),
+                        ),
+                      )
+                      .toList(growable: false),
+                ),
                 const SizedBox(height: 16),
-                SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: _busy ? null : _styleMe, icon: _busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.auto_awesome_rounded), label: Text(_busy ? 'Styling you…' : 'Create My Look')),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: _busy ? null : _styleMe,
+                    icon: _busy
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.auto_awesome_rounded),
+                    label: Text(_busy ? 'Styling you…' : 'Create My Look'),
+                  ),
+                ),
               ],
             ),
           ),
@@ -145,43 +240,115 @@ class _AiStyleMeScreenState extends State<AiStyleMeScreen> {
             const SizedBox(height: 18),
             Container(
               padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(26), border: Border.all(color: AppColors.border)),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(children: [const Expanded(child: Text('YOUR AI LOOK', style: TextStyle(fontSize: 11, letterSpacing: 1.2, fontWeight: FontWeight.w900))), Text('${_result!.matchScore}% MATCH', style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: AppColors.primary))]),
-                const SizedBox(height: 13),
-                if (_look.isEmpty)
-                  const Text('TiB returned an explanation but no complete wardrobe match was available.')
-                else
-                  GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: _look.length,
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: .9),
-                    itemBuilder: (_, index) {
-                      final item = _look[index];
-                      return Container(
-                        decoration: BoxDecoration(borderRadius: BorderRadius.circular(17), border: Border.all(color: AppColors.border)),
-                        clipBehavior: Clip.antiAlias,
-                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Expanded(child: item.imageUrl.isEmpty ? const Center(child: Icon(Icons.checkroom_outlined, color: AppColors.primary)) : CachedNetworkImage(imageUrl: item.imageUrl, fit: BoxFit.cover, width: double.infinity)),
-                          Padding(padding: const EdgeInsets.all(9), child: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700))),
-                        ]),
-                      );
-                    },
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(26),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'YOUR AI LOOK',
+                          style: TextStyle(fontSize: 11, letterSpacing: 1.2, fontWeight: FontWeight.w900),
+                        ),
+                      ),
+                      Text(
+                        '${_result!.matchScore}% MATCH',
+                        style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: AppColors.primary),
+                      ),
+                    ],
                   ),
-                if (_result!.explanation.isNotEmpty) ...[
+                  const SizedBox(height: 13),
+                  if (_look.isEmpty)
+                    const Text('TiB returned an explanation but no complete wardrobe match was available.')
+                  else
+                    GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: _look.length,
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        crossAxisSpacing: 10,
+                        mainAxisSpacing: 10,
+                        childAspectRatio: .9,
+                      ),
+                      itemBuilder: (_, index) {
+                        final item = _look[index];
+                        return Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(17),
+                            border: Border.all(color: AppColors.border),
+                          ),
+                          clipBehavior: Clip.antiAlias,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: item.imageUrl.isEmpty
+                                    ? const Center(
+                                        child: Icon(
+                                          Icons.checkroom_outlined,
+                                          color: AppColors.primary,
+                                        ),
+                                      )
+                                    : CachedNetworkImage(
+                                        imageUrl: item.imageUrl,
+                                        fit: BoxFit.cover,
+                                        width: double.infinity,
+                                      ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.all(9),
+                                child: Text(
+                                  item.name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  if (_result!.explanation.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    const Text(
+                      'WHY THIS LOOK WORKS',
+                      style: TextStyle(fontSize: 9, letterSpacing: 1.1, fontWeight: FontWeight.w900, color: AppColors.textMuted),
+                    ),
+                    const SizedBox(height: 7),
+                    Text(
+                      _result!.explanation,
+                      style: const TextStyle(fontSize: 12, height: 1.5),
+                    ),
+                  ],
                   const SizedBox(height: 16),
-                  const Text('WHY THIS LOOK WORKS', style: TextStyle(fontSize: 9, letterSpacing: 1.1, fontWeight: FontWeight.w900, color: AppColors.textMuted)),
-                  const SizedBox(height: 7),
-                  Text(_result!.explanation, style: const TextStyle(fontSize: 12, height: 1.5)),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _busy ? null : _styleMe,
+                          icon: const Icon(Icons.refresh_rounded),
+                          label: const Text('Try Another'),
+                        ),
+                      ),
+                      const SizedBox(width: 9),
+                      Expanded(
+                        child: FilledButton.icon(
+                          onPressed: _look.isEmpty ? null : _save,
+                          icon: const Icon(Icons.bookmark_add_outlined),
+                          label: const Text('Save Look'),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
-                const SizedBox(height: 16),
-                Row(children: [
-                  Expanded(child: OutlinedButton.icon(onPressed: _busy ? null : _styleMe, icon: const Icon(Icons.refresh_rounded), label: const Text('Try Another'))),
-                  const SizedBox(width: 9),
-                  Expanded(child: FilledButton.icon(onPressed: _look.isEmpty ? null : _save, icon: const Icon(Icons.bookmark_add_outlined), label: const Text('Save Look'))),
-                ]),
-              ]),
+              ),
             ),
           ],
         ],
