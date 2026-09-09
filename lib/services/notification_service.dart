@@ -53,8 +53,7 @@ class NotificationService {
 
   static Future<void> initializePushNotifications() async {
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-    if (_initializedUid == user.uid) return;
+    if (user == null || _initializedUid == user.uid) return;
 
     await _tokenSubscription?.cancel();
     await _foregroundSubscription?.cancel();
@@ -75,21 +74,18 @@ class NotificationService {
       await _syncToken(user.uid);
 
       _tokenSubscription = _messaging.onTokenRefresh.listen((token) {
-        if (token.trim().isNotEmpty) {
-          unawaited(_storeDeviceToken(user.uid, token));
-        }
+        if (token.trim().isEmpty) return;
+        final currentUid = FirebaseAuth.instance.currentUser?.uid;
+        if (currentUid != user.uid) return;
+        unawaited(_storeDeviceToken(user.uid, token));
       });
 
-      // Do not persist an incoming foreground push again as a Firestore
-      // notification. It is already a notification event and duplicating it
-      // here can make the in-app notification feed appear to loop/repeat.
-      _foregroundSubscription = FirebaseMessaging.onMessage.listen((message) {
-        if (message.notification == null && message.data.isEmpty) return;
-      });
-
+      // Foreground messages are handled by the OS/UI layer. Do not mirror
+      // them into Firestore, otherwise the in-app feed duplicates push events.
+      _foregroundSubscription = FirebaseMessaging.onMessage.listen((_) {});
       _initializedUid = user.uid;
     } catch (_) {
-      // Push notifications are optional and must not block app startup.
+      // Push is optional and must never block app startup.
     }
   }
 
@@ -119,7 +115,7 @@ class NotificationService {
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
     } catch (_) {
-      // Never block or crash the app because token persistence is unavailable.
+      // Token persistence is non-critical.
     }
   }
 
@@ -140,6 +136,7 @@ class NotificationService {
     if (uid.trim().isEmpty) return Stream.value(0);
     return _notifications(uid)
         .where('read', isEqualTo: false)
+        .limit(50)
         .snapshots()
         .map((snapshot) => snapshot.docs.length);
   }
@@ -149,8 +146,6 @@ class NotificationService {
     _welcomeChecks.add(uid);
 
     try {
-      // The welcome item is only a one-time bootstrap. Once checked during
-      // this app session, navigation/rebuilds must never trigger another read.
       final existing = await _notifications(uid).limit(1).get();
       if (existing.docs.isNotEmpty) return;
 
@@ -162,9 +157,7 @@ class NotificationService {
         'createdAt': FieldValue.serverTimestamp(),
       });
     } catch (_) {
-      // Allow another attempt only when the first request genuinely failed.
       _welcomeChecks.remove(uid);
-      // Notifications are non-critical; keep the rest of the app usable.
     }
   }
 
@@ -172,9 +165,7 @@ class NotificationService {
     if (uid.trim().isEmpty || notificationId.trim().isEmpty) return;
     try {
       await _notifications(uid).doc(notificationId).update({'read': true});
-    } catch (_) {
-      // Ignore transient notification update failures.
-    }
+    } catch (_) {}
   }
 
   static Future<void> markAllRead(String uid) async {
@@ -190,8 +181,6 @@ class NotificationService {
         batch.update(doc.reference, {'read': true});
       }
       await batch.commit();
-    } catch (_) {
-      // Ignore transient notification update failures.
-    }
+    } catch (_) {}
   }
 }
