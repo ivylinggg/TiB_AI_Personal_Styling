@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_gradients.dart';
@@ -22,6 +21,18 @@ class CreateTibModelScreen extends StatefulWidget {
 class _CreateTibModelScreenState extends State<CreateTibModelScreen> {
   File? _facePhoto;
   File? _bodyPhoto;
+  TibModelProfile _profile = const TibModelProfile(
+    facePath: null,
+    bodyPath: null,
+    weight: 0,
+    height: 0,
+    bust: 0,
+    waist: 0,
+    hips: 0,
+    bodyShape: 'Not measured',
+    faceShape: 'Not scanned',
+    isComplete: false,
+  );
   bool _busy = false;
   String _status = '';
   String _calculatedShape = 'Not measured';
@@ -72,6 +83,7 @@ class _CreateTibModelScreenState extends State<CreateTibModelScreen> {
     final profile = await TibModelService.loadForUser();
     if (!mounted) return;
     setState(() {
+      _profile = profile;
       _facePhoto = profile.faceFile;
       _bodyPhoto = profile.bodyFile;
       if (profile.weight > 0) _weightController.text = _format(profile.weight);
@@ -191,6 +203,7 @@ class _CreateTibModelScreenState extends State<CreateTibModelScreen> {
       final profile = await TibModelService.loadForUser(uid);
       if (!mounted) return;
       setState(() {
+        _profile = profile;
         _calculatedShape = profile.bodyShape;
         _calculatedFaceShape = profile.faceShape;
         _status = 'Your TiB Model profile is ready · ${profile.bodyShape} · ${profile.faceShape}.';
@@ -334,6 +347,25 @@ class _CreateTibModelScreenState extends State<CreateTibModelScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final previewProfile = TibModelProfile(
+      facePath: _facePhoto?.path ?? _profile.facePath,
+      bodyPath: _bodyPhoto?.path ?? _profile.bodyPath,
+      weight: _number(_weightController) ?? _profile.weight,
+      height: _number(_heightController) ?? _profile.height,
+      bust: _number(_bustController) ?? _profile.bust,
+      waist: _number(_waistController) ?? _profile.waist,
+      hips: _number(_hipsController) ?? _profile.hips,
+      bodyShape: _calculatedShape,
+      faceShape: _calculatedFaceShape,
+      isComplete: _facePhoto != null &&
+          _bodyPhoto != null &&
+          (_number(_weightController) ?? 0) > 0 &&
+          (_number(_heightController) ?? 0) > 0 &&
+          (_number(_bustController) ?? 0) > 0 &&
+          (_number(_waistController) ?? 0) > 0 &&
+          (_number(_hipsController) ?? 0) > 0,
+    );
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -406,9 +438,9 @@ class _CreateTibModelScreenState extends State<CreateTibModelScreen> {
                 ),
               ),
               const SizedBox(height: 18),
-              const TibAvatarGenerationCard(),
+              TibAvatarGenerationCard(profile: previewProfile),
               const SizedBox(height: 14),
-              const TibVirtualModelPreview(),
+              TibVirtualModelPreview(model: previewProfile),
             ],
           ),
         ),
