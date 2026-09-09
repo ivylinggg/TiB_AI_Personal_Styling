@@ -44,9 +44,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   String? get activeUid {
     final previewUid = context.read<PreviewContext>().customerUid;
-    return previewUid?.isNotEmpty == true
-        ? previewUid
-        : FirebaseAuth.instance.currentUser?.uid;
+    return previewUid?.isNotEmpty == true ? previewUid : FirebaseAuth.instance.currentUser?.uid;
   }
 
   bool get isPreview => context.read<PreviewContext>().isCustomerPreview;
@@ -294,9 +292,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         padding: const EdgeInsets.all(24),
         child: EmptyState(
           icon: Icons.cloud_off_rounded,
-          title: isPreview
-              ? 'Customer profile is unavailable'
-              : 'Could not load your profile',
+          title: isPreview ? 'Customer profile is unavailable' : 'Could not load your profile',
           description: loadError ??
               (isPreview
                   ? 'This customer account does not have a readable profile document yet.'
@@ -375,15 +371,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
 
   Widget identityHero() {
-    final name = user?.name.trim().isNotEmpty == true
-        ? user!.name.trim()
-        : 'VYEA User';
+    final name = user?.name.trim().isNotEmpty == true ? user!.name.trim() : 'VYEA User';
     final authEmail = FirebaseAuth.instance.currentUser?.email?.trim() ?? '';
-    final email = user?.email.trim().isNotEmpty == true
-        ? user!.email.trim()
-        : authEmail;
-    final photoUrl = user?.photoUrl?.trim() ??
-        FirebaseAuth.instance.currentUser?.photoURL?.trim() ?? '';
+    final email = user?.email.trim().isNotEmpty == true ? user!.email.trim() : authEmail;
+    final photoUrl = user?.photoUrl?.trim() ?? FirebaseAuth.instance.currentUser?.photoURL?.trim() ?? '';
 
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
@@ -399,9 +390,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               CircleAvatar(
                 radius: 39,
                 backgroundColor: AppColors.secondary,
-                backgroundImage: photoUrl.isNotEmpty
-                    ? CachedNetworkImageProvider(photoUrl)
-                    : null,
+                backgroundImage: photoUrl.isNotEmpty ? CachedNetworkImageProvider(photoUrl) : null,
                 child: photoUrl.isNotEmpty
                     ? null
                     : const Icon(
@@ -535,19 +524,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget metric(String value, String label) => Column(
         children: [
-          Text(
-            value,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
-          ),
+          Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
           const SizedBox(height: 3),
-          Text(
-            label,
-            style: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 9.5,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
+          Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 9.5)),
         ],
       );
 
@@ -559,15 +538,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget identityPanel(ColourAnalysisResult? analysis) {
     final hasAnalysis = analysis != null;
-    final season = analysis?.season.trim().isNotEmpty == true
-        ? analysis!.season.trim()
-        : 'Not analysed yet';
-    final faceShape = analysis?.faceShape.trim().isNotEmpty == true
-        ? analysis!.faceShape.trim()
-        : 'Not analysed yet';
-    final undertone = analysis?.undertone.trim().isNotEmpty == true
-        ? analysis!.undertone.trim()
-        : 'Unknown';
+    final season = analysis?.season.trim().isNotEmpty == true ? analysis!.season : 'Unknown';
+    final undertone = analysis?.undertone.trim().isNotEmpty == true ? analysis!.undertone : 'Unknown';
+    final faceShape = analysis?.faceShape.trim().isNotEmpty == true ? analysis!.faceShape : 'Unknown';
     final reasons = analysis?.colourReasons ?? const <String>[];
 
     return Container(
@@ -606,10 +579,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           if (reasons.isNotEmpty) ...[
             const SizedBox(height: 14),
-            const Text(
-              'Why this suits you',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
-            ),
+            const Text('Why this suits you', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
             const SizedBox(height: 7),
             ...reasons.take(3).map(
                   (reason) => Padding(
@@ -628,13 +598,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(height: 14),
           OutlinedButton.icon(
             onPressed: hasAnalysis ? () => openAnalysisResult(analysis) : openColourAnalysis,
-            icon: Icon(
-              hasAnalysis ? Icons.insights_outlined : Icons.camera_alt_outlined,
-              size: 18,
-            ),
-            label: Text(
-              hasAnalysis ? 'View full colour profile' : 'Start colour analysis',
-            ),
+            icon: Icon(hasAnalysis ? Icons.insights_outlined : Icons.camera_alt_outlined, size: 18),
+            label: Text(hasAnalysis ? 'View full colour profile' : 'Start colour analysis'),
           ),
         ],
       ),
@@ -643,15 +608,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget styleJourneyCard() {
     final journey = styleJourney;
-    final completion = journey == null
-        ? 0.0
-        : journey.progress.clamp(0.0, 1.0).toDouble();
-    final title = journey == null
-        ? 'Build your personal style'
-        : '${journey.levelTitle} · Level ${journey.level}';
+    final completion = journey == null ? 0.0 : journey.progress.clamp(0.0, 1.0).toDouble();
+    final title = journey == null ? 'Build your personal style' : journey.levelTitle;
     final subtitle = journey == null
         ? 'Complete more of your style profile to make VYEA smarter.'
-        : '${journey.points} XP · ${journey.completedChallenges} challenges · ${journey.streak} day streak';
+        : 'Level ${journey.level} · ${journey.points} XP · ${journey.completedChallenges} challenge${journey.completedChallenges == 1 ? '' : 's'} completed';
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -667,120 +628,81 @@ class _ProfileScreenState extends State<ProfileScreen> {
             children: [
               const Icon(Icons.route_rounded, color: AppColors.primaryDark),
               const SizedBox(width: 9),
-              Expanded(
-                child: Text(
-                  title,
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
-                ),
-              ),
-              Text(
-                '${(completion * 100).round()}%',
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900),
-              ),
+              Expanded(child: Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900))),
+              Text('${(completion * 100).round()}%', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900)),
             ],
           ),
           const SizedBox(height: 9),
-          Text(
-            subtitle,
-            style: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 11.5,
-              height: 1.4,
-            ),
-          ),
+          Text(subtitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.4)),
           const SizedBox(height: 14),
           ClipRRect(
             borderRadius: BorderRadius.circular(99),
             child: LinearProgressIndicator(value: completion, minHeight: 7),
           ),
-          if (journey != null) ...[
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                const Icon(Icons.workspace_premium_outlined, size: 16),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    '${journey.badges.where((badge) => badge.unlocked).length}/${journey.badges.length} badges unlocked',
-                    style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700),
-                  ),
-                ),
-                Text(
-                  journey.nextLevelPoints <= journey.currentLevelPoints
-                      ? 'Top level'
-                      : '${journey.nextLevelPoints - journey.points} XP to next',
-                  style: const TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 10,
-                  ),
-                ),
-              ],
+          const SizedBox(height: 14),
+          if (journey != null && journey.badges.isNotEmpty)
+            Wrap(
+              spacing: 7,
+              runSpacing: 7,
+              children: journey.badges.take(4).map((badge) {
+                return StyleChip(
+                  label: '${badge.icon} ${badge.title}',
+                  selected: badge.unlocked,
+                );
+              }).toList(),
+            )
+          else
+            const Text(
+              'Your progress will appear here as you build your style habits.',
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 11.5),
             ),
-          ],
         ],
       ),
     );
   }
 
   Widget toolGrid() => GridView.count(
-        crossAxisCount: 2,
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
+        crossAxisCount: 2,
         crossAxisSpacing: 10,
         mainAxisSpacing: 10,
-        childAspectRatio: 1.12,
+        childAspectRatio: 1.35,
         children: [
-          toolTile('Wardrobe', 'Your pieces', Icons.checkroom_rounded, openWardrobe),
-          toolTile('AI Stylist', 'Build a look', Icons.auto_awesome_rounded, openAIStylist),
-          toolTile('Saved Looks', 'Your favourites', Icons.bookmark_outline_rounded, openSavedLooks),
-          toolTile(
-            'Colour Analysis',
-            'Your palette',
-            Icons.palette_outlined,
-            openColourAnalysis,
-          ),
+          toolTile('Wardrobe', 'Organise the pieces you own.', Icons.checkroom_outlined, openWardrobe),
+          toolTile('Style Me', 'Ask VYEA to build a look.', Icons.auto_awesome_outlined, openAIStylist),
+          toolTile('Saved Looks', 'Revisit looks you loved.', Icons.bookmark_border_rounded, openSavedLooks),
+          toolTile('Colour Analysis', 'Review your personal palette.', Icons.palette_outlined, openColourAnalysis),
         ],
       );
 
-  Widget toolTile(String title, String subtitle, IconData icon, VoidCallback onTap) =>
-      Card(
-        elevation: 0,
-        color: AppColors.surface,
-        margin: EdgeInsets.zero,
-        shape: RoundedRectangleBorder(
+  Widget toolTile(String title, String subtitle, IconData icon, VoidCallback onTap) => Container(
+        decoration: BoxDecoration(
+          color: AppColors.surface,
           borderRadius: BorderRadius.circular(18),
-          side: const BorderSide(color: AppColors.border),
+          border: Border.all(color: AppColors.border),
         ),
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(18),
           child: Padding(
-            padding: const EdgeInsets.all(15),
+            padding: const EdgeInsets.all(14),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
-                  width: 40,
-                  height: 40,
+                  width: 38,
+                  height: 38,
                   decoration: BoxDecoration(
                     color: AppColors.secondary,
-                    borderRadius: BorderRadius.circular(13),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(icon, color: AppColors.primaryDark),
+                  child: Icon(icon, color: AppColors.primaryDark, size: 20),
                 ),
                 const Spacer(),
-                Text(
-                  title,
-                  style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w900),
-                ),
+                Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
                 const SizedBox(height: 3),
-                Text(
-                  subtitle,
-                  style: const TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 10.5,
-                  ),
-                ),
+                Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.5, height: 1.3)),
               ],
             ),
           ),
@@ -803,7 +725,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 runSpacing: 7,
                 children: [
                   ...styles.map((value) => StyleChip(label: value, selected: true)),
-                  ...preferences.map((value) => StyleChip(label: value)),
+                  ...preferences.map((value) => StyleChip(label: value, selected: true)),
                 ],
               )
             else
@@ -834,21 +756,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
           children: [
             ListTile(
               leading: const Icon(Icons.settings_outlined),
-              title: const Text('Settings'),
-              subtitle: const Text('Notifications and account controls'),
+              title: const Text('App Settings'),
+              subtitle: Text(isPreview ? 'Disabled while previewing a customer' : 'Notifications, appearance and account settings'),
               trailing: const Icon(Icons.chevron_right_rounded),
               enabled: !isPreview,
               onTap: isPreview ? null : openSettings,
             ),
             const Divider(height: 1),
             ListTile(
-              leading: const Icon(Icons.shield_outlined),
-              title: Text(isPreview ? 'Customer preview mode' : 'Account secured'),
-              subtitle: Text(
-                isPreview
-                    ? 'You are viewing this customer without changing your admin account.'
-                    : 'Your profile data is scoped to your signed-in account.',
-              ),
+              leading: const Icon(Icons.privacy_tip_outlined),
+              title: const Text('Profile visibility'),
+              subtitle: Text(isPreview ? 'Read-only customer preview' : 'Your personal styling data stays connected to your account'),
+              trailing: Icon(isPreview ? Icons.visibility_outlined : Icons.verified_user_outlined),
             ),
           ],
         ),
