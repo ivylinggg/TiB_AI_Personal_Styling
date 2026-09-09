@@ -33,12 +33,11 @@ class AiStylingResult {
   bool get hasAnyItems =>
       topId != null || bottomId != null || shoesId != null || accessoryId != null;
 
-  List<String> get itemIds => [
-        topId,
-        bottomId,
-        shoesId,
-        accessoryId,
-      ].whereType<String>().toSet().toList();
+  List<String> get itemIds => [topId, bottomId, shoesId, accessoryId]
+      .whereType<String>()
+      .where((id) => id.isNotEmpty)
+      .toSet()
+      .toList(growable: false);
 }
 
 class AiStylingService {
@@ -78,26 +77,24 @@ class AiStylingService {
       final personalBrand = await _loadPersonalBrand(requestUid);
       final tibModel = await TibModelService.loadForUser(requestUid);
 
-      final payload = <String, dynamic>{
-        'action': 'aiStyling',
-        'uid': requestUid,
-        'idToken': idToken,
-        'profile': _profilePayload(profile),
-        'tibModel': _tibModelPayload(tibModel, profile),
-        'wardrobe': ownedWardrobe.map(_wardrobePayload).toList(growable: false),
-        'styles': _cleanStrings(styles, limit: 8),
-        'preferences': _cleanStrings(preferences, limit: 8),
-        'occasion': cleanOccasion,
-        'personalBrand': personalBrand,
-        if (safeSelectedItem != null)
-          'selectedItem': _wardrobePayload(safeSelectedItem),
-      };
-
       final response = await http
           .post(
             Uri.parse(GoogleDriveConfig.uploadUrl),
             headers: const {'Content-Type': 'application/json'},
-            body: jsonEncode(payload),
+            body: jsonEncode({
+              'action': 'aiStyling',
+              'uid': requestUid,
+              'idToken': idToken,
+              'profile': _profilePayload(profile),
+              'tibModel': _tibModelPayload(tibModel, profile),
+              'wardrobe': ownedWardrobe.map(_wardrobePayload).toList(growable: false),
+              'styles': _cleanStrings(styles, limit: 8),
+              'preferences': _cleanStrings(preferences, limit: 8),
+              'occasion': cleanOccasion,
+              'personalBrand': personalBrand,
+              if (safeSelectedItem != null)
+                'selectedItem': _wardrobePayload(safeSelectedItem),
+            }),
           )
           .timeout(_requestTimeout);
 
@@ -122,13 +119,8 @@ class AiStylingService {
         shoesId: _validWardrobeId(data['shoesId'], allowedIds),
         accessoryId: _validWardrobeId(data['accessoryId'], allowedIds),
         lookTitle: _readOptionalText(data['lookTitle'] ?? data['title']),
-        colourDirection: _readOptionalText(
-          data['colourDirection'] ?? data['colourStory'],
-        ),
-        stylingNotes: _readStringList(
-          data['stylingNotes'] ?? data['notes'] ?? data['tips'],
-          limit: 6,
-        ),
+        colourDirection: _readOptionalText(data['colourDirection'] ?? data['colourStory']),
+        stylingNotes: _readStringList(data['stylingNotes'] ?? data['notes'] ?? data['tips'], limit: 6),
       );
 
       if (!result.hasAnyItems && result.explanation.isEmpty) return null;
@@ -140,14 +132,9 @@ class AiStylingService {
 
   static Future<Map<String, dynamic>> _loadPersonalBrand(String uid) async {
     try {
-      final snapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .get();
+      final snapshot = await FirebaseFirestore.instance.collection('users').doc(uid).get();
       final raw = snapshot.data()?['personalBrand'];
-      return raw is Map
-          ? Map<String, dynamic>.from(raw)
-          : <String, dynamic>{};
+      return raw is Map ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
     } catch (_) {
       return <String, dynamic>{};
     }
@@ -172,15 +159,9 @@ class AiStylingService {
         },
       };
 
-  static Map<String, dynamic> _tibModelPayload(
-    TibModelProfile model,
-    ColourAnalysisResult profile,
-  ) {
-    final payload = <String, dynamic>{
-      'scannedFaceShape': profile.faceShape,
-    };
+  static Map<String, dynamic> _tibModelPayload(TibModelProfile model, ColourAnalysisResult profile) {
+    final payload = <String, dynamic>{'scannedFaceShape': profile.faceShape};
     if (!model.isComplete) return payload;
-
     payload.addAll({
       'faceShape': model.faceShape,
       'bodyShape': model.bodyShape,
@@ -203,10 +184,7 @@ class AiStylingService {
         'isFavourite': item.isFavourite,
       };
 
-  static List<String> _cleanStrings(
-    List<String> values, {
-    required int limit,
-  }) => values
+  static List<String> _cleanStrings(List<String> values, {required int limit}) => values
       .map((value) => value.trim())
       .where((value) => value.isNotEmpty)
       .toSet()
@@ -220,8 +198,7 @@ class AiStylingService {
     return Map<String, dynamic>.from(decoded);
   }
 
-  static String _readText(dynamic value) =>
-      value is String ? value.trim() : '';
+  static String _readText(dynamic value) => value is String ? value.trim() : '';
 
   static String? _readOptionalText(dynamic value) {
     final text = _readText(value);
