@@ -41,8 +41,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   int wardrobeFavouriteCount = 0;
   int savedLookCount = 0;
 
-  String? get activeUid => Provider.of<PreviewContext>(context, listen: false).customerUid;
-  bool get isPreview => Provider.of<PreviewContext>(context, listen: false).isCustomerPreview;
+  String? get activeUid {
+    final previewUid = context.read<PreviewContext>().customerUid;
+    return previewUid?.isNotEmpty == true ? previewUid : null;
+  }
+
+  bool get isPreview => context.read<PreviewContext>().isCustomerPreview;
 
   @override
   void initState() {
@@ -55,7 +59,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> loadProfile() async {
     final uid = activeUid;
     if (uid == null || uid.isEmpty) {
-      if (mounted) setState(() => isLoading = false);
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+          loadError = 'No customer was selected for preview.';
+        });
+      }
       return;
     }
 
@@ -100,6 +109,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } catch (_) {}
   }
 
+  Future<void> openEditProfile() async {
+    if (isPreview || user == null) return;
+    await showDialog<void>(
+      context: context,
+      builder: (_) => const AlertDialog(
+        title: Text('Profile editing'),
+        content: Text('Profile editing is available in Customer mode.'),
+      ),
+    );
+  }
+
   void openSettings() => Navigator.push(
         context,
         MaterialPageRoute(builder: (_) => const SettingsScreen()),
@@ -125,9 +145,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         MaterialPageRoute(builder: (_) => const AnalysisScreen()),
       );
 
-  void openAnalysisResult(ColourAnalysisResult value) => Navigator.push(
+  void openAnalysisResult(ColourAnalysisResult result) => Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => AnalysisResultScreen(result: value)),
+        MaterialPageRoute(builder: (_) => AnalysisResultScreen(result: result)),
       );
 
   Future<void> openStylePreferences() async {
@@ -189,7 +209,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         padding: const EdgeInsets.all(24),
         child: EmptyState(
           icon: Icons.cloud_off_rounded,
-          title: 'Customer profile is unavailable',
+          title: isPreview ? 'Customer profile is unavailable' : 'Could not load your profile',
           description: loadError ?? 'The selected customer data could not be loaded.',
           ctaLabel: 'Try Again',
           onCta: loadProfile,
@@ -284,15 +304,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               CircleAvatar(
                 radius: 39,
                 backgroundColor: AppColors.secondary,
-                backgroundImage: photoUrl.isNotEmpty
-                    ? CachedNetworkImageProvider(photoUrl)
-                    : null,
+                backgroundImage: photoUrl.isNotEmpty ? CachedNetworkImageProvider(photoUrl) : null,
                 child: photoUrl.isEmpty
-                    ? const Icon(
-                        Icons.person_outline_rounded,
-                        size: 36,
-                        color: AppColors.primaryDark,
-                      )
+                    ? const Icon(Icons.person_outline_rounded, size: 36, color: AppColors.primaryDark)
                     : null,
               ),
               const SizedBox(width: 14),
@@ -300,13 +314,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      displayName,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w900),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            displayName,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w900),
+                          ),
+                        ),
+                        if (!isPreview)
+                          IconButton(
+                            onPressed: openEditProfile,
+                            icon: const Icon(Icons.edit_outlined, size: 19),
+                          ),
+                      ],
                     ),
-                    const SizedBox(height: 4),
                     Text(
                       email.isEmpty ? 'Email not available' : email,
                       maxLines: 2,
@@ -368,11 +392,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Expanded(
                   child: Text(
                     '${styles.length} styles · ${preferences.length} preferences saved',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                    ),
+                    style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700),
                   ),
                 ),
                 Text(
@@ -409,9 +429,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _identityPanel() {
     final result = analysis;
     final hasAnalysis = result != null;
-    final season = hasAnalysis ? result!.season : 'Colour profile pending';
-    final undertone = hasAnalysis ? result!.undertone : 'Not analysed';
-    final face = hasAnalysis ? result!.faceShape : 'Not analysed';
+    final season = hasAnalysis ? result.season : 'Colour profile pending';
+    final undertone = hasAnalysis ? result.undertone : 'Not analysed';
+    final face = hasAnalysis ? result.faceShape : 'Not analysed';
     final reasons = result?.colourReasons ?? const <String>[];
 
     return Container(
@@ -443,9 +463,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               StyleChip(label: 'Undertone: $undertone', selected: hasAnalysis),
               StyleChip(label: 'Face: $face', selected: hasAnalysis),
               if (result?.brightness.trim().isNotEmpty == true)
-                StyleChip(label: 'Value: ${result!.brightness}', selected: true),
+                StyleChip(label: 'Value: ${result.brightness}', selected: true),
               if (result?.contrast.trim().isNotEmpty == true)
-                StyleChip(label: 'Contrast: ${result!.contrast}', selected: true),
+                StyleChip(label: 'Contrast: ${result.contrast}', selected: true),
             ],
           ),
           if (reasons.isNotEmpty) ...[
@@ -468,7 +488,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ],
           const SizedBox(height: 14),
           OutlinedButton.icon(
-            onPressed: hasAnalysis ? () => openAnalysisResult(result!) : openColourAnalysis,
+            onPressed: hasAnalysis ? () => openAnalysisResult(result) : openColourAnalysis,
             icon: Icon(
               hasAnalysis ? Icons.insights_outlined : Icons.camera_alt_outlined,
               size: 18,
@@ -582,7 +602,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 const Spacer(),
                 Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900)),
                 const SizedBox(height: 3),
-                Text(subtitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.5)),
+                Text(
+                  subtitle,
+                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.5),
+                ),
               ],
             ),
           ),
@@ -627,7 +650,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
 
   Widget _accountSection() => Container(
-        padding: const EdgeInsets.symmetric(vertical: 6),
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(18),
@@ -638,18 +660,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ListTile(
               leading: const Icon(Icons.settings_outlined),
               title: const Text('Settings'),
-              subtitle: const Text('App preferences and account controls'),
-              enabled: !isPreview,
+              subtitle: Text(isPreview ? 'Unavailable during Customer Preview' : 'App and account settings'),
+              trailing: const Icon(Icons.chevron_right_rounded),
               onTap: isPreview ? null : openSettings,
             ),
+            const Divider(height: 1),
             ListTile(
               leading: const Icon(Icons.admin_panel_settings_outlined),
               title: const Text('Preview mode'),
-              subtitle: Text(
-                isPreview
-                    ? 'You are viewing this customer as an administrator.'
-                    : 'Standard customer profile mode.',
-              ),
+              subtitle: Text(isPreview ? 'Read-only view of ${user!.name}' : 'Customer profile view'),
             ),
           ],
         ),
