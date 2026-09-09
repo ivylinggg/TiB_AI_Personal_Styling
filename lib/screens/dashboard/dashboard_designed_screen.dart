@@ -31,6 +31,9 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
   bool _challengeCompleted = false;
   bool _completingChallenge = false;
   bool _refreshingFromLifecycle = false;
+  bool _loadingContext = false;
+  bool _dashboardLoaded = false;
+  String? _loadedUid;
   List<String> _stylePreferences = const [];
   int _wardrobeCount = 0;
   int _savedLookCount = 0;
@@ -54,7 +57,7 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
     _journeyReveal = _stage(0.30, 0.76);
     _taskReveal = _stage(0.52, 1.00);
     _revealController.forward();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadDashboard());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadDashboard(force: true));
   }
 
   Animation<double> _stage(double begin, double end) => CurvedAnimation(
@@ -86,16 +89,18 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
 
   Future<void> _refreshWhenResumed() async {
     if (!mounted || _refreshingFromLifecycle) return;
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
     _refreshingFromLifecycle = true;
     try {
+      // Only refresh persistent context when the app actually returns to the
+      // foreground. Do not rebuild the whole dashboard on every provider tick.
       final provider = context.read<AnalysisProvider>();
-      final uid = FirebaseAuth.instance.currentUser?.uid;
-      if (uid != null) {
-        await provider.loadLatestResult(uid);
-        await _loadPersonalContext(uid);
-      }
+      await provider.loadLatestResult(uid);
+      await _loadPersonalContext(uid, force: true);
       if (!mounted) return;
-      _loadDashboard();
+      _loadDashboard(uid: uid, force: true);
     } finally {
       _refreshingFromLifecycle = false;
     }
@@ -108,14 +113,19 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
     super.dispose();
   }
 
-  Future<void> _loadPersonalContext(String uid) async {
+  Future<void> _loadPersonalContext(String uid, {bool force = false}) async {
+    if (!force && (_loadingContext || _loadedUid == uid)) return;
+    if (_loadingContext) return;
+
+    _loadingContext = true;
     try {
       final results = await Future.wait<dynamic>([
         StylePreferenceService.getStylePreferences(uid),
         FirestoreService.getWardrobeItems(uid),
         FirestoreService.getSavedOutfitLooks(uid),
       ]);
-      if (!mounted) return;
+      if (!mounted || FirebaseAuth.instance.currentUser?.uid != uid) return;
+
       final preferences = results[0] as Map<String, dynamic>?;
       final wardrobe = results[1] as List;
       final savedLooks = results[2] as List;
@@ -123,53 +133,68 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
         _stylePreferences = List<String>.from(preferences?['styles'] ?? const []);
         _wardrobeCount = wardrobe.length;
         _savedLookCount = savedLooks.length;
+        _loadedUid = uid;
       });
     } catch (_) {
-      // Keep the dashboard usable even when secondary context is unavailable.
+      // Secondary dashboard context is optional. Keep the page usable.
+    } finally {
+      _loadingContext = false;
     }
   }
 
-  void _loadDashboard() {
+  void _loadDashboard({String? uid, bool force = false}) {
     if (!mounted) return;
+    final currentUid = uid ?? FirebaseAuth.instance.currentUser?.uid;
+    if (currentUid == null) {
+      if (_dashboardLoaded || _recommendationFuture != null) {
+        setState(() {
+          _dashboardLoaded = false;
+          _recommendationFuture = null;
+          _challengeFuture = null;
+          _journeyFuture = null;
+        });
+      }
+      return;
+    }
+
+    if (!force && _dashboardLoaded && _loadedUid == currentUid) return;
+
     final provider = context.read<AnalysisProvider>();
-    final uid = FirebaseAuth.instance.currentUser?.uid;
     final analysis = provider.result;
     _recommendationFuture = TodayRecommendationService.getRecommendation(
       analysis: analysis,
       personalStyle: _stylePreferences.isEmpty ? null : _stylePreferences.take(3).join(', '),
+      wardrobe: const [],
     );
-    if (uid != null) {
-      _challengeFuture = DailyChallengeService.personalizedToday(
-        uid,
-        analysis: analysis,
-      );
-      _journeyFuture = TibStyleJourneyService.load(uid);
-      _loadCompletion(uid);
-      _loadPersonalContext(uid);
-    } else {
-      _challengeFuture = null;
-      _journeyFuture = null;
-      _stylePreferences = const [];
-      _wardrobeCount = 0;
-      _savedLookCount = 0;
-    }
+    _challengeFuture = DailyChallengeService.personalizedToday(
+      currentUid,
+      analysis: analysis,
+    );
+    _journeyFuture = TibStyleJourneyService.load(currentUid);
+    _dashboardLoaded = true;
+    _loadCompletion(currentUid);
+    _loadPersonalContext(currentUid);
     setState(() {});
   }
 
   Future<void> _loadCompletion(String uid) async {
-    final completed = await DailyChallengeService.isCompleted(uid);
-    if (!mounted) return;
-    setState(() => _challengeCompleted = completed);
+    try {
+      final completed = await DailyChallengeService.isCompleted(uid);
+      if (!mounted || FirebaseAuth.instance.currentUser?.uid != uid) return;
+      setState(() => _challengeCompleted = completed);
+    } catch (_) {
+      // Optional engagement state should never interrupt the dashboard.
+    }
   }
 
   Future<void> _refresh(AnalysisProvider provider) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid != null) {
       await provider.loadLatestResult(uid);
-      await _loadPersonalContext(uid);
+      await _loadPersonalContext(uid, force: true);
+      if (!mounted) return;
+      _loadDashboard(uid: uid, force: true);
     }
-    if (!mounted) return;
-    _loadDashboard();
   }
 
   Future<void> _completeChallenge() async {
@@ -184,7 +209,7 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
         uid,
         challenge: challenge,
       );
-      if (!mounted) return;
+      if (!mounted || FirebaseAuth.instance.currentUser?.uid != uid) return;
       setState(() {
         _challengeCompleted = completed || _challengeCompleted;
         _completingChallenge = false;
@@ -510,260 +535,122 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
                   'COLOUR PROFILE',
                   style: TextStyle(
                     color: AppColors.textMuted,
-                    fontSize: 9.5,
+                    fontSize: 9,
                     fontWeight: FontWeight.w900,
-                    letterSpacing: 1.1,
+                    letterSpacing: 1,
                   ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${result.season} • ${result.undertone}',
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
                 ),
                 const SizedBox(height: 5),
                 Text(
-                  result.season,
-                  style: const TextStyle(
-                    fontSize: 21,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.primaryDark,
-                  ),
+                  '${result.brightness} value • ${result.contrast} contrast',
+                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.8),
                 ),
-                const SizedBox(height: 5),
-                Text(
-                  '${result.undertone} · ${result.brightness} · ${result.contrast}',
-                  style: const TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 11.5,
-                  ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: result.colours
+                      .take(5)
+                      .map((colour) => ColourSwatch(name: colour, size: 24))
+                      .toList(),
                 ),
-                if (_stylePreferences.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    'Style direction: ${_stylePreferences.take(2).join(' · ')}',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.primary,
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-                if (result.colours.isNotEmpty) ...[
-                  const SizedBox(height: 11),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: result.colours
-                        .take(5)
-                        .map((name) => ColourSwatch(name: name, size: 25))
-                        .toList(),
-                  ),
-                ],
               ],
             ),
           ),
-          const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
         ],
       ),
     );
   }
 
   Widget _styleJourneyCard() {
-    if (_journeyFuture == null) return _loadingCard('STYLE JOURNEY');
     return FutureBuilder<TibStyleJourney>(
       future: _journeyFuture,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return _loadingCard('STYLE JOURNEY');
-        }
         final journey = snapshot.data;
-        if (journey == null) return _loadingCard('STYLE JOURNEY');
-        final progress = journey.progress.clamp(0.0, 1.0);
-        return _card(
-          padding: const EdgeInsets.fromLTRB(18, 18, 18, 17),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const TibStyleJourneyScreen(),
+        if (journey == null) {
+          return _card(
+            child: Row(
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: const BoxDecoration(
+                    color: AppColors.secondary,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.auto_awesome_rounded, color: AppColors.primary),
                 ),
-              ),
-              borderRadius: BorderRadius.circular(16),
-              child: Padding(
-                padding: const EdgeInsets.all(2),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Expanded(
-                          child: Text(
-                            'STYLE JOURNEY',
-                            style: TextStyle(
-                              color: AppColors.textMuted,
-                              fontSize: 9.5,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 1.1,
-                            ),
-                          ),
-                        ),
-                        Text(
-                          'Level ${journey.level}',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.primaryDark,
-                          ),
-                        ),
-                      ],
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    'Your style journey will grow as you use VYEA.',
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                      height: 1.4,
                     ),
-                    const SizedBox(height: 9),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            journey.levelTitle,
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.primaryDark,
-                            ),
-                          ),
-                        ),
-                        Text(
-                          '${journey.points} XP',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.brown,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(99),
-                      child: LinearProgressIndicator(
-                        value: progress,
-                        minHeight: 7,
-                        backgroundColor: AppColors.surfaceMuted,
-                        valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Text('${journey.completedChallenges} completed', style: const TextStyle(color: AppColors.textSecondary, fontSize: 10)),
-                        const Spacer(),
-                        Text('${journey.streak} day streak', style: const TextStyle(color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.w700)),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 7,
-                      runSpacing: 7,
-                      children: journey.badges.take(3).map((badge) => _badgeChip(badge)).toList(),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
+              ],
             ),
+          );
+        }
+
+        final unlocked = journey.badges.where((badge) => badge.unlocked).length;
+        return Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: AppColors.border),
           ),
-        );
-      },
-    );
-  }
-
-  Widget _badgeChip(TibBadge badge) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
-      decoration: BoxDecoration(
-        color: badge.unlocked ? AppColors.secondary : AppColors.surfaceMuted,
-        borderRadius: BorderRadius.circular(99),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Text(
-        '${badge.icon} ${badge.title}',
-        style: TextStyle(
-          color: badge.unlocked ? AppColors.primaryDark : AppColors.textMuted,
-          fontSize: 9.5,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
-    );
-  }
-
-  Widget _todayTaskCard() {
-    if (_challengeFuture == null) return _loadingCard('TODAY');
-    return FutureBuilder<DailyChallenge>(
-      future: _challengeFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) return _loadingCard('TODAY');
-        final challenge = snapshot.data;
-        if (challenge == null) return _loadingCard('TODAY');
-        return _card(
-          padding: const EdgeInsets.fromLTRB(18, 18, 18, 17),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
                   Container(
-                    width: 40,
-                    height: 40,
-                    decoration: const BoxDecoration(color: AppColors.secondary, shape: BoxShape.circle),
-                    child: const Icon(Icons.auto_awesome_rounded, color: AppColors.primary),
+                    width: 46,
+                    height: 46,
+                    decoration: const BoxDecoration(
+                      gradient: AppGradients.primary,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.auto_awesome_rounded, color: Colors.white),
                   ),
-                  const SizedBox(width: 11),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(challenge.title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                        Text('Level ${journey.level} · ${journey.levelTitle}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
                         const SizedBox(height: 3),
-                        Text('${challenge.points} XP · ${challenge.description}', style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.35)),
+                        Text('${journey.points} XP · ${journey.streak} day streak · ${journey.completedChallenges} challenges', style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.5)),
                       ],
                     ),
                   ),
-                ],
-              ),
-              const SizedBox(height: 13),
-              Text(
-                _challengeCompleted ? 'Completed for today. Your progress has been updated.' : 'A small styling move can make tomorrow feel easier too.',
-                style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.45),
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: _challengeCompleted || _completingChallenge ? null : _completeChallenge,
-                  icon: Icon(_challengeCompleted ? Icons.check_rounded : Icons.done_outline_rounded, size: 17),
-                  label: Text(_challengeCompleted ? 'Completed Today' : _completingChallenge ? 'Saving progress…' : 'Complete Today’s Move'),
-                ),
-              ),
-              const SizedBox(height: 9),
-              Row(
-                children: [
-                  Text('$_wardrobeCount wardrobe pieces', style: const TextStyle(color: AppColors.textMuted, fontSize: 9.5)),
-                  const SizedBox(width: 8),
-                  Text('·', style: const TextStyle(color: AppColors.textMuted, fontSize: 10)),
-                  const SizedBox(width: 8),
-                  Text('$_savedLookCount saved looks', style: const TextStyle(color: AppColors.textMuted, fontSize: 9.5)),
-                  const Spacer(),
                   TextButton(
-                    onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AIStylistScreen())),
-                    child: const Text('Style with VYEA'),
+                    onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TibStyleJourneyScreen())),
+                    child: const Text('View'),
                   ),
                 ],
               ),
-              const SizedBox(height: 2),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton.icon(
-                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const WardrobeScreen())),
-                  icon: const Icon(Icons.checkroom_outlined, size: 16),
-                  label: const Text('Open Wardrobe'),
-                ),
+              const SizedBox(height: 15),
+              Row(children: [const Text('NEXT LEVEL', style: TextStyle(color: AppColors.textMuted, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: .9)), const Spacer(), Text(journey.nextLevelPoints > journey.currentLevelPoints ? '${journey.points} / ${journey.nextLevelPoints} XP' : 'MAX LEVEL', style: const TextStyle(color: AppColors.primary, fontSize: 9.5, fontWeight: FontWeight.w900))]),
+              const SizedBox(height: 7),
+              ClipRRect(borderRadius: BorderRadius.circular(99), child: LinearProgressIndicator(value: journey.progress, minHeight: 8, backgroundColor: AppColors.secondary, valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary))),
+              const SizedBox(height: 14),
+              Row(children: [const Text('BADGES', style: TextStyle(color: AppColors.textMuted, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: .9)), const Spacer(), Text('$unlocked / ${journey.badges.length} unlocked', style: const TextStyle(color: AppColors.textSecondary, fontSize: 9.5, fontWeight: FontWeight.w700))]),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 7,
+                runSpacing: 7,
+                children: journey.badges.map((badge) => Container(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7), decoration: BoxDecoration(color: badge.unlocked ? AppColors.secondary : AppColors.surfaceMuted, borderRadius: BorderRadius.circular(13), border: Border.all(color: AppColors.border)), child: Row(mainAxisSize: MainAxisSize.min, children: [Text(badge.icon, style: const TextStyle(fontSize: 13)), const SizedBox(width: 5), Text(badge.title, style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, color: badge.unlocked ? AppColors.textPrimary : AppColors.textMuted))]))).toList(),
               ),
             ],
           ),
@@ -772,15 +659,80 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen>
     );
   }
 
-  Widget _loadingCard(String label) {
-    return _card(
-      child: Row(
-        children: [
-          const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
-          const SizedBox(width: 11),
-          Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.1, color: AppColors.textMuted)),
-        ],
-      ),
+  Widget _todayTaskCard() {
+    return FutureBuilder<DailyChallenge>(
+      future: _challengeFuture,
+      builder: (context, snapshot) {
+        final challenge = snapshot.data;
+        if (challenge == null) {
+          return _card(
+            child: const Row(
+              children: [
+                Icon(Icons.auto_awesome_outlined, color: AppColors.primary),
+                SizedBox(width: 11),
+                Expanded(child: Text('Your daily style move will appear here.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.4))),
+              ],
+            ),
+          );
+        }
+
+        return _card(
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 17),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: const BoxDecoration(
+                      color: AppColors.secondary,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.checkroom_outlined, color: AppColors.primary),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(challenge.category.toUpperCase(), style: const TextStyle(color: AppColors.textMuted, fontSize: 8.5, fontWeight: FontWeight.w900, letterSpacing: 1)),
+                        const SizedBox(height: 4),
+                        Text(challenge.title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
+                        const SizedBox(height: 4),
+                        Text(challenge.description, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.4)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceMuted,
+                      borderRadius: BorderRadius.circular(99),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: Text('+${challenge.points} XP', style: const TextStyle(color: AppColors.primary, fontSize: 9.5, fontWeight: FontWeight.w900)),
+                  ),
+                  const Spacer(),
+                  FilledButton.icon(
+                    onPressed: _challengeCompleted || _completingChallenge ? null : _completeChallenge,
+                    icon: Icon(_challengeCompleted ? Icons.check_rounded : Icons.done_outline_rounded, size: 17),
+                    label: Text(_challengeCompleted ? 'Completed' : _completingChallenge ? 'Saving…' : 'Complete'),
+                    style: FilledButton.styleFrom(backgroundColor: AppColors.primaryDark, minimumSize: const Size(0, 44)),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
