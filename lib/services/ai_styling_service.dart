@@ -36,9 +36,8 @@ class AiStylingResult {
 }
 
 /// Sends the authenticated user's personal styling context to the AI backend.
-///
-/// The backend is treated as untrusted output: every returned wardrobe ID must
-/// belong to the exact wardrobe snapshot supplied for this request.
+/// Backend output is always constrained to the wardrobe snapshot belonging to
+/// the current Firebase user.
 class AiStylingService {
   AiStylingService._();
 
@@ -59,18 +58,22 @@ class AiStylingService {
     final cleanOccasion = occasion.trim();
     if (cleanOccasion.isEmpty) return null;
 
+    final ownedWardrobe = wardrobe
+        .where((item) => item.userId.isEmpty || item.userId == requestUid)
+        .toList(growable: false);
+    if (ownedWardrobe.isEmpty) return null;
+
+    final safeSelectedItem = selectedItem != null &&
+            ownedWardrobe.any((item) => item.id == selectedItem.id)
+        ? selectedItem
+        : null;
+
     try {
       final idToken = await user.getIdToken();
       if (idToken == null || idToken.isEmpty) return null;
 
       final personalBrand = await _loadPersonalBrand(requestUid);
-      final tibModel = await TibModelService.load();
-
-      // Never trust a selected item from a different account/navigation state.
-      final safeSelectedItem = selectedItem != null &&
-              wardrobe.any((item) => item.id == selectedItem.id && item.userId == requestUid)
-          ? selectedItem
-          : null;
+      final tibModel = await TibModelService.loadForUser(requestUid);
 
       final payload = <String, dynamic>{
         'action': 'aiStyling',
@@ -78,18 +81,14 @@ class AiStylingService {
         'idToken': idToken,
         'profile': _profilePayload(profile),
         'tibModel': _tibModelPayload(tibModel, profile),
-        'wardrobe': wardrobe
-            .where((item) => item.userId.isEmpty || item.userId == requestUid)
-            .map(_wardrobePayload)
-            .toList(growable: false),
+        'wardrobe': ownedWardrobe.map(_wardrobePayload).toList(growable: false),
         'styles': _cleanStrings(styles, limit: 8),
         'preferences': _cleanStrings(preferences, limit: 8),
         'occasion': cleanOccasion,
         'personalBrand': personalBrand,
-        if (safeSelectedItem != null) 'selectedItem': _wardrobePayload(safeSelectedItem),
+        if (safeSelectedItem != null)
+          'selectedItem': _wardrobePayload(safeSelectedItem),
       };
-
-      if ((payload['wardrobe'] as List).isEmpty) return null;
 
       final response = await http
           .post(
@@ -105,14 +104,13 @@ class AiStylingService {
       final data = _extractResponseMap(decoded);
       if (data == null || data['success'] != true) return null;
 
-      // Re-read authentication state before accepting a delayed response.
+      // Never apply a delayed answer to a different account after logout/login.
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser == null || currentUser.uid != requestUid) return null;
 
-      final allowedIds = wardrobe
-          .where((item) => item.userId.isEmpty || item.userId == requestUid)
-          .map((item) => item.id)
-          .where((id) => id.trim().isNotEmpty)
+      final allowedIds = ownedWardrobe
+          .map((item) => item.id.trim())
+          .where((id) => id.isNotEmpty)
           .toSet();
 
       final result = AiStylingResult(
@@ -137,7 +135,9 @@ class AiStylingService {
           .doc(uid)
           .get();
       final raw = snapshot.data()?['personalBrand'];
-      return raw is Map<String, dynamic> ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
+      return raw is Map
+          ? Map<String, dynamic>.from(raw)
+          : <String, dynamic>{};
     } catch (_) {
       return <String, dynamic>{};
     }
@@ -163,7 +163,7 @@ class AiStylingService {
       };
 
   static Map<String, dynamic> _tibModelPayload(
-    TibModel model,
+    TibModelProfile model,
     ColourAnalysisResult profile,
   ) {
     final payload = <String, dynamic>{
@@ -208,8 +208,7 @@ class AiStylingService {
     return Map<String, dynamic>.from(decoded);
   }
 
-  static String _readText(dynamic value) =>
-      value is String ? value.trim() : '';
+  static String _readText(dynamic value) => value is String ? value.trim() : '';
 
   static String? _validWardrobeId(dynamic value, Set<String> allowedIds) {
     if (value is! String) return null;
