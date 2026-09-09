@@ -30,7 +30,8 @@ class AiStylingResult {
     this.stylingNotes = const [],
   });
 
-  bool get hasAnyItems => topId != null || bottomId != null || shoesId != null || accessoryId != null;
+  bool get hasAnyItems =>
+      topId != null || bottomId != null || shoesId != null || accessoryId != null;
 
   List<String> get itemIds => [topId, bottomId, shoesId, accessoryId]
       .whereType<String>()
@@ -38,13 +39,17 @@ class AiStylingResult {
       .toSet()
       .toList(growable: false);
 
-  String get displayTitle => lookTitle == null || lookTitle!.trim().isEmpty ? 'Your personal look' : lookTitle!.trim();
+  String get displayTitle =>
+      lookTitle == null || lookTitle!.trim().isEmpty
+          ? 'Your personal look'
+          : lookTitle!.trim();
 }
 
 class AiStylingService {
   AiStylingService._();
 
   static const Duration _requestTimeout = Duration(seconds: 20);
+
   static const Set<String> _knownCategories = {
     'Tops',
     'Bottoms',
@@ -56,94 +61,154 @@ class AiStylingService {
     'Accessories',
   };
 
-  static List<WardrobeItem> sanitizeLook(List<WardrobeItem> items, {WardrobeItem? selectedItem}) {
+  /// Sanitises an AI/fallback selection into a physically coherent outfit.
+  ///
+  /// Supported outfit grammars:
+  /// 1. Tops + Bottoms/Skirts + optional Jacket + Shoes + Accessories
+  /// 2. Dresses + optional Jacket + Shoes + Accessories
+  /// 3. Suits + Shoes + Accessories
+  ///
+  /// A Dress can never coexist with Bottoms or Skirts. A Top cannot appear
+  /// without a Bottoms or Skirts partner. We also keep only one item from each
+  /// primary garment slot.
+  static List<WardrobeItem> sanitizeLook(
+    List<WardrobeItem> items, {
+    WardrobeItem? selectedItem,
+  }) {
     final unique = <String, WardrobeItem>{};
     for (final item in items) {
-      if (item.id.trim().isEmpty || !_knownCategories.contains(item.category.trim())) continue;
-      unique[item.id] = item;
+      final id = item.id.trim();
+      if (id.isEmpty || !_knownCategories.contains(item.category.trim())) {
+        continue;
+      }
+      unique[id] = item;
     }
+
     final candidates = unique.values.toList(growable: false);
     if (candidates.isEmpty) return const [];
 
-    final selected = selectedItem != null ? unique[selectedItem.id] : null;
+    final selected = selectedItem == null ? null : unique[selectedItem.id.trim()];
 
-    // Dress is a complete one-piece outfit base. Never add Bottoms/Skirts.
-    final dress = selected?.category == 'Dresses' ? selected : _first(candidates, 'Dresses');
-    if (dress != null) return _buildOnePiece(candidates, dress);
+    if (selected?.category == 'Dresses') {
+      return _buildOnePiece(candidates, selected!);
+    }
+    if (selected?.category == 'Suits') {
+      return _buildSuit(candidates, selected!);
+    }
 
-    // Suit is a complete outfit family. Never add a separate Bottoms/Skirts.
-    final suit = selected?.category == 'Suits' ? selected : _first(candidates, 'Suits');
-    if (suit != null) return _buildSuit(candidates, suit);
-
-    // Normal two-piece outfit: Top MUST have a Bottoms or Skirts partner.
-    final top = selected?.category == 'Tops' ? selected : _first(candidates, 'Tops');
+    final top = selected?.category == 'Tops'
+        ? selected
+        : _bestOf(candidates, 'Tops');
     final lower = selected?.category == 'Bottoms' || selected?.category == 'Skirts'
         ? selected
-        : _first(candidates, 'Bottoms') ?? _first(candidates, 'Skirts');
-    if (top == null || lower == null) return const [];
+        : _bestLower(candidates);
 
+    if (top != null && lower != null) {
+      return _buildTwoPiece(candidates, top, lower);
+    }
+
+    final dress = _bestOf(candidates, 'Dresses');
+    if (dress != null) return _buildOnePiece(candidates, dress);
+
+    final suit = _bestOf(candidates, 'Suits');
+    if (suit != null) return _buildSuit(candidates, suit);
+
+    return const [];
+  }
+
+  static List<WardrobeItem> _buildTwoPiece(
+    List<WardrobeItem> candidates,
+    WardrobeItem top,
+    WardrobeItem lower,
+  ) {
     final result = <WardrobeItem>[top, lower];
-    final used = {top.id, lower.id};
+    final used = <String>{top.id, lower.id};
+
     final jacket = _firstUnused(candidates, 'Jackets', used);
     if (jacket != null) {
       result.add(jacket);
       used.add(jacket.id);
     }
+
     final shoes = _firstUnused(candidates, 'Shoes', used);
     if (shoes != null) {
       result.add(shoes);
       used.add(shoes.id);
     }
-    if (result.length < 4) {
+
+    if (result.length < 5) {
       final accessory = _firstUnused(candidates, 'Accessories', used);
       if (accessory != null) result.add(accessory);
     }
-    return result.take(4).toList(growable: false);
+
+    return result.take(5).toList(growable: false);
   }
 
-  static List<WardrobeItem> _buildOnePiece(List<WardrobeItem> candidates, WardrobeItem piece) {
+  static List<WardrobeItem> _buildOnePiece(
+    List<WardrobeItem> candidates,
+    WardrobeItem piece,
+  ) {
     final result = <WardrobeItem>[piece];
-    final used = {piece.id};
+    final used = <String>{piece.id};
+
     final jacket = _firstUnused(candidates, 'Jackets', used);
     if (jacket != null) {
       result.add(jacket);
       used.add(jacket.id);
     }
+
     final shoes = _firstUnused(candidates, 'Shoes', used);
     if (shoes != null) {
       result.add(shoes);
       used.add(shoes.id);
     }
-    if (result.length < 4) {
+
+    if (result.length < 5) {
       final accessory = _firstUnused(candidates, 'Accessories', used);
       if (accessory != null) result.add(accessory);
     }
-    return result.take(4).toList(growable: false);
+
+    return result.take(5).toList(growable: false);
   }
 
-  static List<WardrobeItem> _buildSuit(List<WardrobeItem> candidates, WardrobeItem suit) {
+  static List<WardrobeItem> _buildSuit(
+    List<WardrobeItem> candidates,
+    WardrobeItem suit,
+  ) {
     final result = <WardrobeItem>[suit];
-    final used = {suit.id};
+    final used = <String>{suit.id};
+
     final shoes = _firstUnused(candidates, 'Shoes', used);
     if (shoes != null) {
       result.add(shoes);
       used.add(shoes.id);
     }
-    if (result.length < 4) {
-      final accessory = _firstUnused(candidates, 'Accessories', used);
-      if (accessory != null) result.add(accessory);
-    }
-    return result.take(4).toList(growable: false);
+
+    final accessory = _firstUnused(candidates, 'Accessories', used);
+    if (accessory != null) result.add(accessory);
+
+    return result.take(5).toList(growable: false);
   }
 
-  static WardrobeItem? _first(List<WardrobeItem> items, String category) {
+  static WardrobeItem? _bestOf(List<WardrobeItem> items, String category) {
     for (final item in items) {
       if (item.category == category) return item;
     }
     return null;
   }
 
-  static WardrobeItem? _firstUnused(List<WardrobeItem> items, String category, Set<String> used) {
+  static WardrobeItem? _bestLower(List<WardrobeItem> items) {
+    for (final item in items) {
+      if (item.category == 'Bottoms' || item.category == 'Skirts') return item;
+    }
+    return null;
+  }
+
+  static WardrobeItem? _firstUnused(
+    List<WardrobeItem> items,
+    String category,
+    Set<String> used,
+  ) {
     for (final item in items) {
       if (item.category == category && !used.contains(item.id)) return item;
     }
@@ -160,6 +225,7 @@ class AiStylingService {
   }) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null || wardrobe.isEmpty) return null;
+
     final requestUid = user.uid;
     final cleanOccasion = occasion.trim();
     if (cleanOccasion.isEmpty) return null;
@@ -171,13 +237,17 @@ class AiStylingService {
     if (ownedWardrobe.isEmpty) return null;
 
     final selectedId = selectedItem?.id.trim();
-    final safeSelectedItem = selectedId == null || selectedId.isEmpty ? null : _findById(ownedWardrobe, selectedId);
+    final safeSelectedItem = selectedId == null || selectedId.isEmpty
+        ? null
+        : _findById(ownedWardrobe, selectedId);
 
     try {
       final idToken = await user.getIdToken();
       if (idToken == null || idToken.isEmpty) return null;
+
       final personalBrand = await _loadPersonalBrand(requestUid);
       final tibModel = await TibModelService.loadForUser(requestUid);
+
       final response = await http
           .post(
             Uri.parse(GoogleDriveConfig.uploadUrl),
@@ -194,19 +264,26 @@ class AiStylingService {
               'occasion': cleanOccasion,
               'personalBrand': personalBrand,
               'outfitRules': _outfitRulesPayload(),
-              if (safeSelectedItem != null) 'selectedItem': _wardrobePayload(safeSelectedItem),
+              if (safeSelectedItem != null)
+                'selectedItem': _wardrobePayload(safeSelectedItem),
             }),
           )
           .timeout(_requestTimeout);
 
       if (response.statusCode < 200 || response.statusCode >= 300) return null;
+
       final decoded = jsonDecode(response.body);
       final data = _extractResponseMap(decoded);
       if (data == null || data['success'] != true) return null;
+
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser == null || currentUser.uid != requestUid) return null;
 
-      final allowedIds = ownedWardrobe.map((item) => item.id.trim()).where((id) => id.isNotEmpty).toSet();
+      final allowedIds = ownedWardrobe
+          .map((item) => item.id.trim())
+          .where((id) => id.isNotEmpty)
+          .toSet();
+
       final rawResult = AiStylingResult(
         explanation: _readText(data['explanation']),
         topId: _validWardrobeId(data['topId'], allowedIds),
@@ -214,8 +291,12 @@ class AiStylingService {
         shoesId: _validWardrobeId(data['shoesId'], allowedIds),
         accessoryId: _validWardrobeId(data['accessoryId'], allowedIds),
         lookTitle: _readOptionalText(data['lookTitle'] ?? data['title']),
-        colourDirection: _readOptionalText(data['colourDirection'] ?? data['colourStory']),
-        stylingNotes: _readStringList(data['stylingNotes'] ?? data['notes'] ?? data['tips'], limit: 6),
+        colourDirection:
+            _readOptionalText(data['colourDirection'] ?? data['colourStory']),
+        stylingNotes: _readStringList(
+          data['stylingNotes'] ?? data['notes'] ?? data['tips'],
+          limit: 6,
+        ),
       );
 
       final rawLook = [
@@ -224,13 +305,19 @@ class AiStylingService {
         _findById(ownedWardrobe, rawResult.shoesId),
         _findById(ownedWardrobe, rawResult.accessoryId),
       ].whereType<WardrobeItem>().toList(growable: false);
-      final sanitized = sanitizeLook(rawLook, selectedItem: safeSelectedItem);
+
+      final sanitized = sanitizeLook(
+        rawLook,
+        selectedItem: safeSelectedItem,
+      );
+
       if (sanitized.isEmpty && rawResult.explanation.isEmpty) return null;
 
       return AiStylingResult(
         explanation: rawResult.explanation,
         topId: _idForCategory(sanitized, 'Tops'),
-        bottomId: _idForFirstCategories(sanitized, const {'Bottoms', 'Skirts'}),
+        bottomId:
+            _idForFirstCategories(sanitized, const {'Bottoms', 'Skirts'}),
         shoesId: _idForCategory(sanitized, 'Shoes'),
         accessoryId: _idForCategory(sanitized, 'Accessories'),
         lookTitle: rawResult.lookTitle,
@@ -244,15 +331,28 @@ class AiStylingService {
 
   static Map<String, dynamic> _outfitRulesPayload() => {
         'noDressWithBottomOrSkirt': true,
-        'topMustPairWithBottomOrSkirt': true,
+        'topRequiresBottomOrSkirt': true,
         'dressIsOnePiece': true,
-        'suitIsOnePieceFamily': true,
-        'jacketIsLayeringPiece': true,
-        'neverMixDressWithSeparateLower': true,
+        'suitIsOnePiece': true,
+        'jacketIsLayerOnly': true,
+        'maxFiveItems': true,
         'allowedRoutes': const [
-          'Tops + Bottoms/Skirts + Jacket? + Shoes + Accessories?',
-          'Dresses + Jacket? + Shoes + Accessories?',
-          'Suits + Shoes + Accessories?',
+          'Tops + Bottoms',
+          'Tops + Skirts',
+          'Tops + Bottoms + Jacket',
+          'Tops + Skirts + Jacket',
+          'Tops + Bottoms + Shoes',
+          'Tops + Skirts + Shoes',
+          'Tops + Bottoms + Jacket + Shoes',
+          'Tops + Skirts + Jacket + Shoes',
+          'Tops + Bottoms + Jacket + Shoes + Accessories',
+          'Tops + Skirts + Jacket + Shoes + Accessories',
+          'Dresses + Shoes',
+          'Dresses + Jacket + Shoes',
+          'Dresses + Shoes + Accessories',
+          'Dresses + Jacket + Shoes + Accessories',
+          'Suits + Shoes',
+          'Suits + Shoes + Accessories',
         ],
       };
 
@@ -271,7 +371,10 @@ class AiStylingService {
     return null;
   }
 
-  static String? _idForFirstCategories(List<WardrobeItem> items, Set<String> categories) {
+  static String? _idForFirstCategories(
+    List<WardrobeItem> items,
+    Set<String> categories,
+  ) {
     for (final item in items) {
       if (categories.contains(item.category)) return item.id;
     }
@@ -280,9 +383,12 @@ class AiStylingService {
 
   static Future<Map<String, dynamic>> _loadPersonalBrand(String uid) async {
     try {
-      final snapshot = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      final snapshot =
+          await FirebaseFirestore.instance.collection('users').doc(uid).get();
       final raw = snapshot.data()?['personalBrand'];
-      return raw is Map ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
+      return raw is Map
+          ? Map<String, dynamic>.from(raw)
+          : <String, dynamic>{};
     } catch (_) {
       return <String, dynamic>{};
     }
@@ -308,13 +414,17 @@ class AiStylingService {
         },
       };
 
-  static Map<String, dynamic> _tibModelPayload(TibModelProfile model, ColourAnalysisResult profile) {
+  static Map<String, dynamic> _tibModelPayload(
+    TibModelProfile model,
+    ColourAnalysisResult profile,
+  ) {
     final payload = <String, dynamic>{
       'scannedFaceShape': profile.faceShape,
       'hasPersonalModel': model.isComplete,
       'personalIdentity': model.personalIdentityData,
     };
     if (!model.isComplete) return payload;
+
     payload.addAll({
       'faceShape': model.faceShape,
       'bodyShape': model.bodyShape,
@@ -338,12 +448,13 @@ class AiStylingService {
         'isFavourite': item.isFavourite,
       };
 
-  static List<String> _cleanStrings(List<String> values, {required int limit}) => values
-      .map((value) => value.trim())
-      .where((value) => value.isNotEmpty)
-      .toSet()
-      .take(limit)
-      .toList(growable: false);
+  static List<String> _cleanStrings(List<String> values, {required int limit}) =>
+      values
+          .map((value) => value.trim())
+          .where((value) => value.isNotEmpty)
+          .toSet()
+          .take(limit)
+          .toList(growable: false);
 
   static Map<String, dynamic>? _extractResponseMap(dynamic decoded) {
     if (decoded is! Map) return null;
@@ -353,6 +464,7 @@ class AiStylingService {
   }
 
   static String _readText(dynamic value) => value is String ? value.trim() : '';
+
   static String? _readOptionalText(dynamic value) {
     final text = _readText(value);
     return text.isEmpty ? null : text;
@@ -360,7 +472,12 @@ class AiStylingService {
 
   static List<String> _readStringList(dynamic value, {required int limit}) {
     if (value is! List) return const [];
-    return value.map((item) => item.toString().trim()).where((item) => item.isNotEmpty).toSet().take(limit).toList(growable: false);
+    return value
+        .map((item) => item.toString().trim())
+        .where((item) => item.isNotEmpty)
+        .toSet()
+        .take(limit)
+        .toList(growable: false);
   }
 
   static String? _validWardrobeId(dynamic value, Set<String> allowedIds) {
