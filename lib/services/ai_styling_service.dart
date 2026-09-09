@@ -16,13 +16,33 @@ class AiStylingResult {
   final String? shoesId;
   final String? accessoryId;
 
-  const AiStylingResult({required this.explanation, required this.topId, required this.bottomId, required this.shoesId, required this.accessoryId});
+  const AiStylingResult({
+    required this.explanation,
+    required this.topId,
+    required this.bottomId,
+    required this.shoesId,
+    required this.accessoryId,
+  });
+
+  bool get hasAnyItems =>
+      topId != null || bottomId != null || shoesId != null || accessoryId != null;
+
+  List<String> get itemIds => [
+        topId,
+        bottomId,
+        shoesId,
+        accessoryId,
+      ].whereType<String>().toSet().toList();
 }
 
-/// Sends the user's observed personal-colour traits, face shape, wardrobe and
-/// preferences to the existing AI styling backend.
+/// Sends the authenticated user's personal styling context to the AI backend.
+///
+/// The backend is treated as untrusted output: every returned wardrobe ID must
+/// belong to the exact wardrobe snapshot supplied for this request.
 class AiStylingService {
   AiStylingService._();
+
+  static const Duration _requestTimeout = Duration(seconds: 20);
 
   static Future<AiStylingResult?> getRecommendation({
     required ColourAnalysisResult profile,
@@ -32,114 +52,168 @@ class AiStylingService {
     required String occasion,
     WardrobeItem? selectedItem,
   }) async {
-    if (wardrobe.isEmpty) return null;
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null || wardrobe.isEmpty) return null;
+
+    final requestUid = user.uid;
+    final cleanOccasion = occasion.trim();
+    if (cleanOccasion.isEmpty) return null;
 
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return null;
       final idToken = await user.getIdToken();
       if (idToken == null || idToken.isEmpty) return null;
 
-      Map<String, dynamic> personalBrand = const {};
-      try {
-        final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
-        final raw = userDoc.data()?['personalBrand'];
-        if (raw is Map<String, dynamic>) personalBrand = raw;
-      } catch (_) {}
-
+      final personalBrand = await _loadPersonalBrand(requestUid);
       final tibModel = await TibModelService.load();
-      final scannedFaceShape = profile.faceShape != 'Unknown' ? profile.faceShape : '';
-      final tibContext = <String, dynamic>{
-        if (tibModel.isComplete) ...{
-          'faceShape': tibModel.faceShape,
-          'bodyShape': tibModel.bodyShape,
-          'weightKg': tibModel.weight,
-          'heightCm': tibModel.height,
-          'bustCm': tibModel.bust,
-          'waistCm': tibModel.waist,
-          'hipsCm': tibModel.hips,
-        },
-        if (scannedFaceShape.isNotEmpty) 'scannedFaceShape': scannedFaceShape,
+
+      // Never trust a selected item from a different account/navigation state.
+      final safeSelectedItem = selectedItem != null &&
+              wardrobe.any((item) => item.id == selectedItem.id && item.userId == requestUid)
+          ? selectedItem
+          : null;
+
+      final payload = <String, dynamic>{
+        'action': 'aiStyling',
+        'uid': requestUid,
+        'idToken': idToken,
+        'profile': _profilePayload(profile),
+        'tibModel': _tibModelPayload(tibModel, profile),
+        'wardrobe': wardrobe
+            .where((item) => item.userId.isEmpty || item.userId == requestUid)
+            .map(_wardrobePayload)
+            .toList(growable: false),
+        'styles': _cleanStrings(styles, limit: 8),
+        'preferences': _cleanStrings(preferences, limit: 8),
+        'occasion': cleanOccasion,
+        'personalBrand': personalBrand,
+        if (safeSelectedItem != null) 'selectedItem': _wardrobePayload(safeSelectedItem),
       };
 
-      final role = personalBrand['role'] is String ? (personalBrand['role'] as String).trim() : '';
-      final impressions = personalBrand['impressions'] is List
-          ? (personalBrand['impressions'] as List).whereType<String>().map((value) => value.trim()).where((value) => value.isNotEmpty).take(4).toList()
-          : const <String>[];
-      final statement = personalBrand['statement'] is String ? (personalBrand['statement'] as String).trim() : '';
-      final brandContext = <String>[];
-      if (role.isNotEmpty) brandContext.add('Role: $role');
-      if (impressions.isNotEmpty) brandContext.add('Desired impression: ${impressions.join(', ')}');
-      if (statement.isNotEmpty) brandContext.add('Personal brand statement: $statement');
-      final enrichedOccasion = brandContext.isEmpty ? occasion : '$occasion\n\nPersonal Brand context:\n${brandContext.join('\n')}';
+      if ((payload['wardrobe'] as List).isEmpty) return null;
 
-      final response = await http.post(
-        Uri.parse(GoogleDriveConfig.uploadUrl),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'action': 'aiStyling',
-          'uid': user.uid,
-          'idToken': idToken,
-          'profile': {
-            'season': profile.season,
-            'undertone': profile.undertone,
-            'brightness': profile.brightness,
-            'contrast': profile.contrast,
-            'colours': profile.colours,
-            'colourReasons': profile.colourReasons,
-            'faceShape': profile.faceShape,
-            'personalColour': {
-              'undertone': profile.undertone,
-              'value': profile.brightness,
-              'contrast': profile.contrast,
-              'recommendedColours': profile.colours,
-              'analysisReasons': profile.colourReasons,
-            },
-          },
-          'tibModel': tibContext,
-          'wardrobe': wardrobe.map((item) => {
-            'id': item.id,
-            'name': item.name,
-            'category': item.category,
-            'colour': item.colour,
-            'style': item.style,
-            'season': item.season,
-            'isFavourite': item.isFavourite,
-          }).toList(),
-          'styles': styles,
-          'preferences': preferences,
-          'occasion': enrichedOccasion,
-          'personalBrand': personalBrand,
-          if (selectedItem != null)
-            'selectedItem': {
-              'id': selectedItem.id,
-              'name': selectedItem.name,
-              'category': selectedItem.category,
-              'colour': selectedItem.colour,
-              'style': selectedItem.style,
-              'season': selectedItem.season,
-            },
-        }),
-      ).timeout(const Duration(seconds: 20));
+      final response = await http
+          .post(
+            Uri.parse(GoogleDriveConfig.uploadUrl),
+            headers: const {'Content-Type': 'application/json'},
+            body: jsonEncode(payload),
+          )
+          .timeout(_requestTimeout);
 
-      if (response.statusCode != 200) return null;
+      if (response.statusCode < 200 || response.statusCode >= 300) return null;
+
       final decoded = jsonDecode(response.body);
-      if (decoded is! Map<String, dynamic> || decoded['success'] != true) return null;
-      final explanation = decoded['explanation'] is String ? (decoded['explanation'] as String).trim() : '';
-      String? asId(dynamic value) => value is String && value.trim().isNotEmpty ? value.trim() : null;
-      final wardrobeIds = wardrobe.map((item) => item.id).toSet();
-      String? validId(dynamic value) {
-        final id = asId(value);
-        return id != null && wardrobeIds.contains(id) ? id : null;
-      }
-      final topId = validId(decoded['topId']);
-      final bottomId = validId(decoded['bottomId']);
-      final shoesId = validId(decoded['shoesId']);
-      final accessoryId = validId(decoded['accessoryId']);
-      if (explanation.isEmpty && topId == null && bottomId == null && shoesId == null && accessoryId == null) return null;
-      return AiStylingResult(explanation: explanation, topId: topId, bottomId: bottomId, shoesId: shoesId, accessoryId: accessoryId);
+      final data = _extractResponseMap(decoded);
+      if (data == null || data['success'] != true) return null;
+
+      // Re-read authentication state before accepting a delayed response.
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser == null || currentUser.uid != requestUid) return null;
+
+      final allowedIds = wardrobe
+          .where((item) => item.userId.isEmpty || item.userId == requestUid)
+          .map((item) => item.id)
+          .where((id) => id.trim().isNotEmpty)
+          .toSet();
+
+      final result = AiStylingResult(
+        explanation: _readText(data['explanation']),
+        topId: _validWardrobeId(data['topId'], allowedIds),
+        bottomId: _validWardrobeId(data['bottomId'], allowedIds),
+        shoesId: _validWardrobeId(data['shoesId'], allowedIds),
+        accessoryId: _validWardrobeId(data['accessoryId'], allowedIds),
+      );
+
+      if (!result.hasAnyItems && result.explanation.isEmpty) return null;
+      return result;
     } catch (_) {
       return null;
     }
+  }
+
+  static Future<Map<String, dynamic>> _loadPersonalBrand(String uid) async {
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
+      final raw = snapshot.data()?['personalBrand'];
+      return raw is Map<String, dynamic> ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
+    } catch (_) {
+      return <String, dynamic>{};
+    }
+  }
+
+  static Map<String, dynamic> _profilePayload(ColourAnalysisResult profile) => {
+        'season': profile.season,
+        'undertone': profile.undertone,
+        'brightness': profile.brightness,
+        'contrast': profile.contrast,
+        'colours': profile.colours,
+        'colourReasons': profile.colourReasons,
+        'faceShape': profile.faceShape,
+        'faceShapeDescription': profile.faceShapeDescription,
+        'faceStylingGuidance': profile.faceStylingGuidance,
+        'personalColour': {
+          'undertone': profile.undertone,
+          'value': profile.brightness,
+          'contrast': profile.contrast,
+          'recommendedColours': profile.colours,
+          'analysisReasons': profile.colourReasons,
+        },
+      };
+
+  static Map<String, dynamic> _tibModelPayload(
+    TibModel model,
+    ColourAnalysisResult profile,
+  ) {
+    final payload = <String, dynamic>{
+      'scannedFaceShape': profile.faceShape,
+    };
+    if (!model.isComplete) return payload;
+
+    payload.addAll({
+      'faceShape': model.faceShape,
+      'bodyShape': model.bodyShape,
+      'weightKg': model.weight,
+      'heightCm': model.height,
+      'bustCm': model.bust,
+      'waistCm': model.waist,
+      'hipsCm': model.hips,
+    });
+    return payload;
+  }
+
+  static Map<String, dynamic> _wardrobePayload(WardrobeItem item) => {
+        'id': item.id,
+        'name': item.name,
+        'category': item.category,
+        'colour': item.colour,
+        'style': item.style,
+        'season': item.season,
+        'isFavourite': item.isFavourite,
+      };
+
+  static List<String> _cleanStrings(List<String> values, {required int limit}) =>
+      values
+          .map((value) => value.trim())
+          .where((value) => value.isNotEmpty)
+          .toSet()
+          .take(limit)
+          .toList(growable: false);
+
+  static Map<String, dynamic>? _extractResponseMap(dynamic decoded) {
+    if (decoded is! Map) return null;
+    final nested = decoded['data'];
+    if (nested is Map) return Map<String, dynamic>.from(nested);
+    return Map<String, dynamic>.from(decoded);
+  }
+
+  static String _readText(dynamic value) =>
+      value is String ? value.trim() : '';
+
+  static String? _validWardrobeId(dynamic value, Set<String> allowedIds) {
+    if (value is! String) return null;
+    final id = value.trim();
+    return id.isEmpty || !allowedIds.contains(id) ? null : id;
   }
 }
