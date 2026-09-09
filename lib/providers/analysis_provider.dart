@@ -1,7 +1,7 @@
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 
 import '../models/colour_analysis_result.dart';
 import '../services/colour_analysis_service.dart';
@@ -15,6 +15,7 @@ class AnalysisProvider extends ChangeNotifier {
   ColourAnalysisResult? _result;
   bool _isLoading = false;
   bool _isLoadingSavedResult = false;
+  String _loadedUid = '';
   String _status = 'No image selected';
   String? _errorMessage;
   bool _isPremium = false;
@@ -26,21 +27,42 @@ class AnalysisProvider extends ChangeNotifier {
   String get status => _status;
   String? get errorMessage => _errorMessage;
   bool get isPremium => _isPremium;
+  String get loadedUid => _loadedUid;
 
+  /// Loads only the analysis belonging to [uid]. Changing accounts clears the
+  /// previous user's in-memory result before reading the new user's data.
   Future<void> loadLatestResult(String uid) async {
-    if (uid.trim().isEmpty) return;
+    final cleanUid = uid.trim();
+    if (cleanUid.isEmpty) return;
 
+    if (_loadedUid.isNotEmpty && _loadedUid != cleanUid) {
+      _selectedImage = null;
+      _result = null;
+      _errorMessage = null;
+      _status = 'No image selected';
+      _isPremium = false;
+      notifyListeners();
+    }
+
+    if (_loadedUid == cleanUid && _result != null) return;
+
+    _loadedUid = cleanUid;
     _isLoadingSavedResult = true;
     notifyListeners();
 
     try {
-      final latest = await FirestoreService.getLatestColourAnalysis(uid);
-      if (latest != null) _result = latest;
+      final latest = await FirestoreService.getLatestColourAnalysis(cleanUid);
+      // Never apply an asynchronous response after the account has changed.
+      if (_loadedUid != cleanUid) return;
+      _result = latest;
+      _status = latest == null ? 'No saved analysis yet' : 'Saved colour profile loaded';
     } catch (_) {
-      // Best-effort background load.
+      if (_loadedUid != cleanUid) return;
     } finally {
-      _isLoadingSavedResult = false;
-      notifyListeners();
+      if (_loadedUid == cleanUid) {
+        _isLoadingSavedResult = false;
+        notifyListeners();
+      }
     }
   }
 
@@ -53,28 +75,30 @@ class AnalysisProvider extends ChangeNotifier {
   }
 
   Future<bool> analyse({required String uid}) async {
+    final cleanUid = uid.trim();
     final image = _selectedImage;
 
     if (image == null) {
       _setError('Please select an image first.');
       return false;
     }
-
-    if (uid.trim().isEmpty) {
+    if (cleanUid.isEmpty) {
       _setError('Please login before starting an analysis.');
       return false;
     }
 
+    _loadedUid = cleanUid;
     _isLoading = true;
     _errorMessage = null;
-    _status = 'Checking Premium access...';
+    _status = 'Checking your profile...';
     notifyListeners();
 
     try {
       final userSnapshot = await FirebaseFirestore.instance
           .collection('users')
-          .doc(uid)
+          .doc(cleanUid)
           .get();
+      if (_loadedUid != cleanUid) return false;
 
       _isPremium = userSnapshot.data()?['isPremium'] == true;
       _status = _isPremium ? 'Premium access active. Detecting face...' : 'Detecting face...';
@@ -87,12 +111,12 @@ class AnalysisProvider extends ChangeNotifier {
 
     try {
       final faces = await MlKitService.detectFace(image);
+      if (_loadedUid != cleanUid) return false;
 
       if (faces.isEmpty) {
         _setError('No face was detected. Please use a clear front-facing photo.');
         return false;
       }
-
       if (faces.length > 1) {
         _setError('Please use a photo with only one face.');
         return false;
@@ -105,76 +129,87 @@ class AnalysisProvider extends ChangeNotifier {
         image: image,
         faces: faces,
       );
+      if (_loadedUid != cleanUid) return false;
 
-      _status = 'Face shape detected. Uploading image...';
+      _status = 'Face shape detected. Analysing your personal colours...';
+      notifyListeners();
+
+      // Analyse the local image before uploading it. This keeps an invalid
+      ///ambiguous analysis from becoming a permanent user asset.
+      final localColourResult = await ColourAnalysisService.analyse(
+        image: image,
+        imageUrl: '',
+      );
+      if (_loadedUid != cleanUid) return false;
+
+      _status = 'Uploading your analysis photo...';
       notifyListeners();
 
       final imageUrl = await StorageService.uploadAnalysisImage(
-        uid: uid,
+        uid: cleanUid,
         image: image,
       );
-
-      _status = _isPremium
-          ? 'Analysing your personal colours with Premium insights...'
-          : 'Analysing your personal colours...';
-      notifyListeners();
-
-      final colourResult = await ColourAnalysisService.analyse(
-        image: image,
-        imageUrl: imageUrl,
-      );
+      if (_loadedUid != cleanUid) return false;
 
       final analysisResult = ColourAnalysisResult(
-        season: colourResult.season,
-        undertone: colourResult.undertone,
-        brightness: colourResult.brightness,
-        contrast: colourResult.contrast,
+        season: localColourResult.season,
+        undertone: localColourResult.undertone,
+        brightness: localColourResult.brightness,
+        contrast: localColourResult.contrast,
         imageUrl: imageUrl,
-        colours: colourResult.colours,
+        colours: localColourResult.colours,
         faceShape: faceShape.shape,
         faceShapeDescription: faceShape.description,
         faceMeasurements: faceShape.measurements,
         faceStylingGuidance: faceShape.stylingGuidance,
-        colourReasons: colourResult.colourReasons,
+        colourReasons: localColourResult.colourReasons,
       );
 
       _status = 'Saving your personal colour & face profile...';
       notifyListeners();
 
       await FirestoreService.saveAnalysisResult(
-        uid: uid,
+        uid: cleanUid,
         result: analysisResult,
       );
+      if (_loadedUid != cleanUid) return false;
 
       try {
         await FirestoreService.updateColourProfile(
-          uid: uid,
+          uid: cleanUid,
           colourSeason: analysisResult.season,
           skinTone: '${analysisResult.brightness} ${analysisResult.undertone}'.trim(),
         );
       } catch (_) {
-        // Ignore profile-sync failure after analysis has been saved.
+        // Analysis itself is already safely saved under the owner's UID.
       }
 
       _result = analysisResult;
       _status = 'Personal colour & face analysis completed successfully';
       return true;
     } catch (e) {
+      if (_loadedUid != cleanUid) return false;
       _setError('Analysis failed: $e');
       return false;
     } finally {
-      _isLoading = false;
-      notifyListeners();
+      if (_loadedUid == cleanUid) {
+        _isLoading = false;
+        notifyListeners();
+      }
     }
   }
 
-  void clear() {
+  void clear({bool clearAccountContext = false}) {
     _selectedImage = null;
     _result = null;
     _isLoading = false;
     _isLoadingSavedResult = false;
     _status = 'No image selected';
     _errorMessage = null;
+    if (clearAccountContext) {
+      _loadedUid = '';
+      _isPremium = false;
+    }
     notifyListeners();
   }
 
