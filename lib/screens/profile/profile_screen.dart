@@ -23,7 +23,6 @@ import 'settings_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
-
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
@@ -41,12 +40,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   int wardrobeFavouriteCount = 0;
   int savedLookCount = 0;
 
-  String? get activeUid {
-    final previewUid = context.read<PreviewContext>().customerUid;
-    if (previewUid != null && previewUid.isNotEmpty) return previewUid;
-    return null;
-  }
-
+  String? get activeUid => context.read<PreviewContext>().customerUid;
   bool get isPreview => context.read<PreviewContext>().isCustomerPreview;
 
   @override
@@ -110,42 +104,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } catch (_) {}
   }
 
-  void openSettings() => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const SettingsScreen()),
-      );
-
-  void openWardrobe() => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const WardrobeScreen()),
-      );
-
-  void openAIStylist() => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const AIStylistScreen()),
-      );
-
-  void openSavedLooks() => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const SavedLooksScreen()),
-      );
-
-  void openColourAnalysis() => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const AnalysisScreen()),
-      );
-
-  void openAnalysisResult(ColourAnalysisResult result) => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => AnalysisResultScreen(result: result)),
-      );
+  void openSettings() => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
+  void openWardrobe() => Navigator.push(context, MaterialPageRoute(builder: (_) => const WardrobeScreen()));
+  void openAIStylist() => Navigator.push(context, MaterialPageRoute(builder: (_) => const AIStylistScreen()));
+  void openSavedLooks() => Navigator.push(context, MaterialPageRoute(builder: (_) => const SavedLooksScreen()));
+  void openColourAnalysis() => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalysisScreen()));
+  void openAnalysisResult(ColourAnalysisResult result) => Navigator.push(context, MaterialPageRoute(builder: (_) => AnalysisResultScreen(result: result)));
 
   Future<void> openStylePreferences() async {
     if (isPreview) return;
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const StylePreferencesScreen()),
-    );
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => const StylePreferencesScreen()));
     await loadProfile();
   }
 
@@ -160,31 +128,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
         title: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'VYEA',
-              style: TextStyle(
-                color: AppColors.primary,
-                fontSize: 12,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 2.8,
-              ),
-            ),
-            Text(
-              'Your profile',
-              style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800),
-            ),
+            Text('VYEA', style: TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 2.8)),
+            Text('Your profile', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800)),
           ],
         ),
         actions: [
-          IconButton(
-            onPressed: isLoading ? null : loadProfile,
-            icon: const Icon(Icons.refresh_rounded),
-          ),
-          if (!isPreview)
-            IconButton(
-              onPressed: openSettings,
-              icon: const Icon(Icons.settings_outlined),
-            ),
+          IconButton(onPressed: isLoading ? null : loadProfile, icon: const Icon(Icons.refresh_rounded)),
+          if (!isPreview) IconButton(onPressed: openSettings, icon: const Icon(Icons.settings_outlined)),
           const SizedBox(width: 8),
         ],
       ),
@@ -240,13 +190,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _sectionLabel(String title, String subtitle) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: const TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: 1.35)),
-          const SizedBox(height: 5),
-          Text(subtitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.4)),
-        ],
-      );
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(title, style: const TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: 1.35)),
+      const SizedBox(height: 5),
+      Text(subtitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.4)),
+    ],
+  );
 
   Widget _identityHero() {
     final displayName = user!.name.trim().isEmpty ? 'Customer' : user!.name.trim();
@@ -255,49 +205,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
       decoration: BoxDecoration(gradient: AppGradients.soft, borderRadius: BorderRadius.circular(AppRadius.xl), border: Border.all(color: AppColors.border)),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 39,
-                backgroundColor: AppColors.secondary,
-                backgroundImage: photoUrl.isNotEmpty ? CachedNetworkImageProvider(photoUrl) : null,
-                child: photoUrl.isEmpty ? const Icon(Icons.person_outline_rounded, size: 36, color: AppColors.primaryDark) : null,
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(child: Text(displayName, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w900))),
-                        if (!isPreview) IconButton(onPressed: () {}, icon: const Icon(Icons.edit_outlined, size: 19)),
-                      ],
-                    ),
-                    Text(email.isEmpty ? 'Email not available' : email, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5)),
-                    const SizedBox(height: 8),
-                    Row(children: [Icon(isPremium ? Icons.auto_awesome_rounded : Icons.person_outline_rounded, size: 14), const SizedBox(width: 5), Text(isPremium ? 'Premium member' : 'Free member', style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.5, fontWeight: FontWeight.w800))]),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border)),
-            child: Row(children: [Expanded(child: _metric('$wardrobeCount', 'Wardrobe')), _metricDivider(), Expanded(child: _metric('$savedLookCount', 'Saved looks')), _metricDivider(), Expanded(child: _metric('$wardrobeFavouriteCount', 'Favourites'))]),
-          ),
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
-            decoration: BoxDecoration(color: AppColors.primaryDark, borderRadius: BorderRadius.circular(17)),
-            child: Row(children: [const Icon(Icons.auto_awesome_rounded, size: 17, color: AppColors.peach), const SizedBox(width: 8), Expanded(child: Text('${styles.length} styles · ${preferences.length} preferences saved', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700))), Text(isPremium ? 'PERSONAL+' : 'PERSONAL', style: const TextStyle(color: Colors.white70, fontSize: 8.5, fontWeight: FontWeight.w900, letterSpacing: .9))]),
-          ),
-        ],
-      ),
+      child: Column(children: [
+        Row(children: [
+          CircleAvatar(radius: 39, backgroundColor: AppColors.secondary, backgroundImage: photoUrl.isNotEmpty ? CachedNetworkImageProvider(photoUrl) : null, child: photoUrl.isEmpty ? const Icon(Icons.person_outline_rounded, size: 36, color: AppColors.primaryDark) : null),
+          const SizedBox(width: 14),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [Expanded(child: Text(displayName, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w900))), if (!isPreview) IconButton(onPressed: () {}, icon: const Icon(Icons.edit_outlined, size: 19))]),
+            Text(email.isEmpty ? 'Email not available' : email, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5)),
+            const SizedBox(height: 8),
+            Row(children: [Icon(isPremium ? Icons.auto_awesome_rounded : Icons.person_outline_rounded, size: 14), const SizedBox(width: 5), Text(isPremium ? 'Premium member' : 'Free member', style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.5, fontWeight: FontWeight.w800))]),
+          ])),
+        ]),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border)),
+          child: Row(children: [Expanded(child: _metric('$wardrobeCount', 'Wardrobe')), _metricDivider(), Expanded(child: _metric('$savedLookCount', 'Saved looks')), _metricDivider(), Expanded(child: _metric('$wardrobeFavouriteCount', 'Favourites'))]),
+        ),
+        const SizedBox(height: 10),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+          decoration: BoxDecoration(color: AppColors.primaryDark, borderRadius: BorderRadius.circular(17)),
+          child: Row(children: [const Icon(Icons.auto_awesome_rounded, size: 17, color: AppColors.peach), const SizedBox(width: 8), Expanded(child: Text('${styles.length} styles · ${preferences.length} preferences saved', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700))), Text(isPremium ? 'PERSONAL+' : 'PERSONAL', style: const TextStyle(color: Colors.white70, fontSize: 8.5, fontWeight: FontWeight.w900, letterSpacing: .9))]),
+        ),
+      ]),
     );
   }
 
@@ -330,11 +261,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ...reasons.take(3).map((reason) => Padding(padding: const EdgeInsets.only(bottom: 5), child: Text('• $reason', style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.35)))),
         ],
         const SizedBox(height: 14),
-        OutlinedButton.icon(
-          onPressed: hasAnalysis ? () => openAnalysisResult(result) : openColourAnalysis,
-          icon: Icon(hasAnalysis ? Icons.insights_outlined : Icons.camera_alt_outlined, size: 18),
-          label: Text(hasAnalysis ? 'View full colour profile' : 'Start colour analysis'),
-        ),
+        OutlinedButton.icon(onPressed: hasAnalysis ? () => openAnalysisResult(result) : openColourAnalysis, icon: Icon(hasAnalysis ? Icons.insights_outlined : Icons.camera_alt_outlined, size: 18), label: Text(hasAnalysis ? 'View full colour profile' : 'Start colour analysis')),
       ]),
     );
   }
@@ -362,82 +289,43 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _toolGrid() => GridView.count(
-        crossAxisCount: 2,
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        crossAxisSpacing: 10,
-        mainAxisSpacing: 10,
-        childAspectRatio: 1.55,
-        children: [
-          _toolTile('Wardrobe', 'Manage your pieces', Icons.checkroom_outlined, openWardrobe),
-          _toolTile('Saved Looks', 'Your outfit library', Icons.bookmark_border_rounded, openSavedLooks),
-          _toolTile('AI Stylist', 'Style with VYEA', Icons.auto_awesome_outlined, openAIStylist),
-          _toolTile('Colour Analysis', 'Understand your palette', Icons.palette_outlined, analysis == null ? openColourAnalysis : () => openAnalysisResult(analysis)),
-        ],
-      );
+    crossAxisCount: 2, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: 1.55,
+    children: [
+      _toolTile('Wardrobe', 'Manage your pieces', Icons.checkroom_outlined, openWardrobe),
+      _toolTile('Saved Looks', 'Your outfit library', Icons.bookmark_border_rounded, openSavedLooks),
+      _toolTile('AI Stylist', 'Style with VYEA', Icons.auto_awesome_outlined, openAIStylist),
+      _toolTile('Colour Analysis', 'Understand your palette', Icons.palette_outlined, analysis == null ? openColourAnalysis : () => openAnalysisResult(analysis!)),
+    ],
+  );
 
   Widget _toolTile(String title, String subtitle, IconData icon, VoidCallback onTap) => Card(
-        elevation: 0,
-        margin: EdgeInsets.zero,
-        color: AppColors.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18), side: const BorderSide(color: AppColors.border)),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(18),
-          onTap: isPreview && title == 'Colour Analysis' ? null : onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Icon(icon, size: 23),
-              const Spacer(),
-              Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900)),
-              const SizedBox(height: 3),
-              Text(subtitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.5)),
-            ]),
-          ),
-        ),
-      );
+    elevation: 0, margin: EdgeInsets.zero, color: AppColors.surface,
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18), side: const BorderSide(color: AppColors.border)),
+    child: InkWell(borderRadius: BorderRadius.circular(18), onTap: isPreview && title == 'Colour Analysis' ? null : onTap, child: Padding(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(icon, size: 23), const Spacer(), Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900)), const SizedBox(height: 3), Text(subtitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.5))]))),
+  );
 
   Widget _preferencesCard() => Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border)),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          if (styles.isNotEmpty || preferences.isNotEmpty)
-            Wrap(spacing: 7, runSpacing: 7, children: [
-              ...styles.map((value) => StyleChip(label: value, selected: true)),
-              ...preferences.map((value) => StyleChip(label: value, selected: false)),
-            ])
-          else
-            const Text('No style preferences saved yet.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-          const SizedBox(height: 12),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton.icon(
-              onPressed: isPreview ? null : openStylePreferences,
-              icon: const Icon(Icons.tune_rounded, size: 18),
-              label: Text(isPreview ? 'Read only in preview' : 'Edit preferences'),
-            ),
-          ),
-        ]),
-      );
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border)),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      if (styles.isNotEmpty || preferences.isNotEmpty)
+        Wrap(spacing: 7, runSpacing: 7, children: [
+          ...styles.map((value) => StyleChip(label: value, selected: true)),
+          ...preferences.map((value) => StyleChip(label: value, selected: false)),
+        ])
+      else
+        const Text('No style preferences saved yet.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+      const SizedBox(height: 12),
+      Align(alignment: Alignment.centerRight, child: TextButton.icon(onPressed: isPreview ? null : openStylePreferences, icon: const Icon(Icons.tune_rounded, size: 18), label: Text(isPreview ? 'Read only in preview' : 'Edit preferences'))),
+    ]),
+  );
 
   Widget _accountSection() => Container(
-        decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border)),
-        child: Column(
-          children: [
-            ListTile(
-              leading: const Icon(Icons.settings_outlined),
-              title: const Text('Settings'),
-              subtitle: Text(isPreview ? 'Unavailable during Customer Preview' : 'App and account settings'),
-              trailing: const Icon(Icons.chevron_right_rounded),
-              onTap: isPreview ? null : openSettings,
-            ),
-            const Divider(height: 1),
-            ListTile(
-              leading: const Icon(Icons.admin_panel_settings_outlined),
-              title: const Text('Preview mode'),
-              subtitle: Text(isPreview ? 'Read-only view of ${user!.name}' : 'Customer profile view'),
-            ),
-          ],
-        ),
-      );
+    decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border)),
+    child: Column(children: [
+      ListTile(leading: const Icon(Icons.settings_outlined), title: const Text('Settings'), subtitle: Text(isPreview ? 'Unavailable during Customer Preview' : 'App and account settings'), trailing: const Icon(Icons.chevron_right_rounded), onTap: isPreview ? null : openSettings),
+      const Divider(height: 1),
+      ListTile(leading: const Icon(Icons.admin_panel_settings_outlined), title: const Text('Preview mode'), subtitle: Text(isPreview ? 'Read-only view of ${user!.name}' : 'Customer profile view')),
+    ]),
+  );
 }
