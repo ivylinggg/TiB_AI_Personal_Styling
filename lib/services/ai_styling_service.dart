@@ -38,6 +38,9 @@ class AiStylingResult {
       .where((id) => id.isNotEmpty)
       .toSet()
       .toList(growable: false);
+
+  String get displayTitle =>
+      lookTitle == null || lookTitle!.trim().isEmpty ? 'Your personal look' : lookTitle!.trim();
 }
 
 class AiStylingService {
@@ -149,6 +152,7 @@ class AiStylingService {
         'colourReasons': profile.colourReasons,
         'faceShape': profile.faceShape,
         'faceShapeDescription': profile.faceShapeDescription,
+        'faceMeasurements': profile.faceMeasurements,
         'faceStylingGuidance': profile.faceStylingGuidance,
         'personalColour': {
           'undertone': profile.undertone,
@@ -159,8 +163,15 @@ class AiStylingService {
         },
       };
 
-  static Map<String, dynamic> _tibModelPayload(TibModelProfile model, ColourAnalysisResult profile) {
-    final payload = <String, dynamic>{'scannedFaceShape': profile.faceShape};
+  static Map<String, dynamic> _tibModelPayload(
+    TibModelProfile model,
+    ColourAnalysisResult profile,
+  ) {
+    final payload = <String, dynamic>{
+      'scannedFaceShape': profile.faceShape,
+      'hasPersonalModel': model.isComplete,
+      'personalIdentity': model.personalIdentityData,
+    };
     if (!model.isComplete) return payload;
     payload.addAll({
       'faceShape': model.faceShape,
@@ -170,6 +181,7 @@ class AiStylingService {
       'bustCm': model.bust,
       'waistCm': model.waist,
       'hipsCm': model.hips,
+      'measurementData': model.measurementData,
     });
     return payload;
   }
