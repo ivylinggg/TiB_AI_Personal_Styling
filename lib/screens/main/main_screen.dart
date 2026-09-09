@@ -4,8 +4,11 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../providers/analysis_provider.dart';
+import '../../providers/auth_provider.dart';
 import '../../services/notification_service.dart';
 import '../../services/preview_context.dart';
+import '../../services/firestore_service.dart';
 import '../admin/admin_main_screen.dart';
 import '../ai/ai_hub_screen.dart';
 import '../analysis/analysis_screen.dart';
@@ -28,6 +31,7 @@ class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
   int _previousIndex = 0;
   String? _notificationUid;
+  bool _loggingOut = false;
 
   late final List<Widget> _pages = [
     const DashboardDesignedScreen(),
@@ -38,12 +42,13 @@ class _MainScreenState extends State<MainScreen> {
     const ProfileScreen(),
   ];
 
-  String? get _authUid => FirebaseAuth.instance.currentUser?.uid;
+  String? get _authUid => context.read<AuthProvider>().uid ?? FirebaseAuth.instance.currentUser?.uid;
 
   @override
   void initState() {
     super.initState();
     _scheduleNotificationSetup();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _primePersonalContext());
   }
 
   @override
@@ -61,6 +66,20 @@ class _MainScreenState extends State<MainScreen> {
       await NotificationService.initializePushNotifications();
       await NotificationService.ensureWelcomeNotification(uid);
     });
+  }
+
+  Future<void> _primePersonalContext() async {
+    final uid = _authUid;
+    if (uid == null || widget.adminPreview || !mounted) return;
+    try {
+      final analysisProvider = context.read<AnalysisProvider>();
+      await Future.wait([
+        analysisProvider.loadLatestResult(uid),
+        FirestoreService.getPersonalStyleContext(uid),
+      ]);
+    } catch (_) {
+      // Individual screens retain their own resilient loading behavior.
+    }
   }
 
   void _selectTab(int index) {
@@ -82,6 +101,7 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Future<void> _logout() async {
+    if (_loggingOut) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -94,8 +114,16 @@ class _MainScreenState extends State<MainScreen> {
       ),
     );
     if (confirmed != true || !mounted) return;
-    await NotificationService.resetForAccountChange();
-    await FirebaseAuth.instance.signOut();
+
+    setState(() => _loggingOut = true);
+    try {
+      await NotificationService.resetForAccountChange();
+      await context.read<AnalysisProvider>().clear(clearAccountContext: true);
+      await context.read<AuthProvider>().signOut();
+    } finally {
+      if (mounted) setState(() => _loggingOut = false);
+    }
+
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const LoginScreen()),
@@ -105,7 +133,7 @@ class _MainScreenState extends State<MainScreen> {
 
   Future<void> _showNotifications() async {
     final uid = _authUid;
-    if (uid == null || widget.adminPreview) return;
+    if (uid == null || widget.adminPreview || _loggingOut) return;
     await NotificationService.ensureWelcomeNotification(uid);
     if (!mounted) return;
     await showModalBottomSheet<void>(
@@ -115,6 +143,9 @@ class _MainScreenState extends State<MainScreen> {
         child: StreamBuilder<List<VyeaNotification>>(
           stream: NotificationService.stream(uid),
           builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const SizedBox(height: 260, child: Center(child: CircularProgressIndicator(strokeWidth: 2)));
+            }
             final items = snapshot.data ?? const <VyeaNotification>[];
             return SizedBox(
               height: MediaQuery.sizeOf(context).height * .7,
@@ -129,6 +160,7 @@ class _MainScreenState extends State<MainScreen> {
                           leading: const Icon(Icons.notifications_none_rounded),
                           title: Text(item.title),
                           subtitle: Text(item.body),
+                          trailing: item.read ? null : const Icon(Icons.circle, size: 8),
                           onTap: item.read ? null : () => NotificationService.markRead(uid, item.id),
                         );
                       },
@@ -141,8 +173,8 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Widget _header() {
-    final user = FirebaseAuth.instance.currentUser;
-    final name = user?.displayName?.trim();
+    final auth = context.watch<AuthProvider>();
+    final name = auth.displayName?.trim();
     final greeting = name?.isNotEmpty == true ? 'Hi, $name' : 'Welcome back';
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 10),
@@ -176,7 +208,13 @@ class _MainScreenState extends State<MainScreen> {
               IconButton(onPressed: _returnToAdmin, tooltip: 'Return to Admin', icon: const Icon(Icons.admin_panel_settings_outlined)),
             if (!widget.adminPreview) ...[
               IconButton(onPressed: _showNotifications, tooltip: 'Notifications', icon: const Icon(Icons.notifications_none_rounded)),
-              IconButton(onPressed: _logout, tooltip: 'Log out', icon: const Icon(Icons.logout_rounded)),
+              IconButton(
+                onPressed: _loggingOut ? null : _logout,
+                tooltip: 'Log out',
+                icon: _loggingOut
+                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.logout_rounded),
+              ),
             ],
           ],
         ),
