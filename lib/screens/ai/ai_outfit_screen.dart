@@ -78,8 +78,8 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
     setState(() => _styling = true);
     try {
       final prefs = await StylePreferenceService.getStylePreferences(uid);
-      final styles = prefs == null ? const <String>[] : _stringList(prefs['styles']);
-      final preferences = prefs == null ? const <String>[] : _stringList(prefs['preferences']);
+      final styles = _stringList(prefs['styles']);
+      final preferences = _stringList(prefs['preferences']);
       if (!mounted || uid != _uid) return;
       final result = await AiStylingService.getRecommendation(
         uid: uid,
@@ -172,8 +172,8 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
     try {
       final profile = context.read<AnalysisProvider>().result;
       final prefs = await StylePreferenceService.getStylePreferences(uid);
-      final styles = prefs == null ? const <String>[] : _stringList(prefs['styles']);
-      final preferences = prefs == null ? const <String>[] : _stringList(prefs['preferences']);
+      final styles = _stringList(prefs['styles']);
+      final preferences = _stringList(prefs['preferences']);
       final anchors = _look.where((item) => item.category != 'Shoes').toList(growable: false);
       WardrobeItem replacement = candidates.first;
       if (profile != null) {
@@ -378,155 +378,68 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
         Expanded(child: Text(title, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900))),
         if (result != null) _matchBadge(result.matchScore),
       ]),
-      const SizedBox(height: 12),
-      SizedBox(
-        height: 360,
-        child: GridView.builder(
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: _look.length,
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, mainAxisSpacing: 10, crossAxisSpacing: 10, childAspectRatio: 0.77),
-          itemBuilder: (_, index) => _lookCard(_look[index]),
-        ),
-      ),
-      if (result?.colourDirection != null && result!.colourDirection!.isNotEmpty) ...[
-        const SizedBox(height: 16),
-        _message(result.colourDirection!),
+      const SizedBox(height: 10),
+      if (result?.explanation.isNotEmpty == true) ...[
+        Text(result!.explanation, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.45)),
+        const SizedBox(height: 12),
       ],
-      if (breakdown.isNotEmpty) ...[
-        const SizedBox(height: 16),
-        _breakdownCard(breakdown),
-      ],
+      if (breakdown.isNotEmpty) _breakdownCard(breakdown),
       if (notes.isNotEmpty) ...[
-        const SizedBox(height: 16),
-        _notesCard(notes),
+        const SizedBox(height: 12),
+        ...notes.take(4).map((note) => Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Padding(padding: EdgeInsets.only(top: 5), child: Icon(Icons.circle, size: 5, color: AppColors.primary)),
+                const SizedBox(width: 7),
+                Expanded(child: Text(note, style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondary, height: 1.35))),
+              ]),
+            )),
       ],
-      const SizedBox(height: 16),
-      _actionGrid(profile),
+      const SizedBox(height: 13),
+      GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: _look.length,
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: .82),
+        itemBuilder: (_, index) {
+          final item = _look[index];
+          final loved = _lovedItemIds.contains(item.id);
+          final disliked = _dislikedItemIds.contains(item.id);
+          return Container(
+            decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border)),
+            clipBehavior: Clip.antiAlias,
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(child: item.imageUrl.isEmpty ? const Center(child: Icon(Icons.checkroom_outlined, color: AppColors.primary)) : CachedNetworkImage(imageUrl: item.imageUrl, width: double.infinity, fit: BoxFit.cover)),
+              Padding(padding: const EdgeInsets.fromLTRB(9, 8, 9, 2), child: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800))),
+              Padding(padding: const EdgeInsets.fromLTRB(5, 0, 5, 4), child: Row(children: [
+                IconButton(onPressed: () => _feedback(item, true), visualDensity: VisualDensity.compact, icon: Icon(loved ? Icons.thumb_up_rounded : Icons.thumb_up_outlined, size: 17, color: loved ? AppColors.primary : null)),
+                IconButton(onPressed: () => _feedback(item, false), visualDensity: VisualDensity.compact, icon: Icon(disliked ? Icons.thumb_down_rounded : Icons.thumb_down_outlined, size: 17, color: disliked ? AppColors.error : null)),
+              ])),
+            ]),
+          );
+        },
+      ),
+      const SizedBox(height: 14),
+      Wrap(spacing: 8, runSpacing: 8, children: [
+        OutlinedButton.icon(onPressed: _styling ? null : () => _tryAnother(profile), icon: const Icon(Icons.shuffle_rounded), label: const Text('Try Another')),
+        OutlinedButton.icon(onPressed: _styling ? null : _restyleLook, icon: const Icon(Icons.auto_awesome_rounded), label: const Text('Restyle')),
+        OutlinedButton.icon(onPressed: _styling ? null : _changeShoes, icon: const Icon(Icons.directions_run_rounded), label: const Text('Change Shoes')),
+        FilledButton.icon(onPressed: _savedLook || _savingLook ? null : () => _saveLook(profile), icon: Icon(_savedLook ? Icons.bookmark_rounded : Icons.bookmark_border_rounded), label: Text(_savedLook ? 'Saved' : 'Save Look')),
+      ]),
     ]);
   }
 
-  Widget _actionGrid(ColourAnalysisResult profile) {
-    final actions = <({String label, IconData icon, VoidCallback? onTap})>[
-      (label: _savedLook ? 'Saved' : 'Save look', icon: _savedLook ? Icons.bookmark_rounded : Icons.bookmark_border_rounded, onTap: _savingLook ? null : () => _saveLook(profile)),
-      (label: 'Try another', icon: Icons.auto_awesome_outlined, onTap: _styling ? null : () => _tryAnother(profile)),
-      (label: 'Restyle', icon: Icons.refresh_rounded, onTap: _styling ? null : _restyleLook),
-      (label: 'Change shoes', icon: Icons.sports_rounded, onTap: _styling ? null : _changeShoes),
-    ];
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: actions.length,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, mainAxisSpacing: 10, crossAxisSpacing: 10, childAspectRatio: 2.5),
-      itemBuilder: (_, index) {
-        final action = actions[index];
-        return OutlinedButton.icon(
-          onPressed: action.onTap,
-          icon: Icon(action.icon, size: 17),
-          label: Text(action.label, maxLines: 1, overflow: TextOverflow.ellipsis),
-          style: OutlinedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
-        );
-      },
-    );
-  }
+  Widget _matchBadge(int score) => Container(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6), decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.circular(12)), child: Text('$score% MATCH', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: AppColors.primaryDark)));
 
-  Widget _matchBadge(int score) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-        decoration: BoxDecoration(color: AppColors.sage.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(17), border: Border.all(color: AppColors.sage.withValues(alpha: 0.35))),
-        child: Column(children: [
-          Text('$score%', style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900, color: AppColors.success)),
-          const Text('MATCH', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w800, letterSpacing: 0.8, color: AppColors.success)),
-        ]),
-      );
-
-  Widget _breakdownCard(Map<String, int> breakdown) {
-    const labels = {'colour': 'Colour', 'occasion': 'Occasion', 'style': 'Style', 'harmony': 'Harmony', 'personal': 'Personal'};
-    return Container(
-      padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.border)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Text('WHY THIS LOOK', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: 1.1, color: AppColors.textMuted)),
-        const SizedBox(height: 10),
-        ...breakdown.entries.map((entry) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(children: [
-                Expanded(child: Text(labels[entry.key] ?? entry.key, style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondary))),
-                Text('${entry.value}', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800)),
-              ]),
-            )),
-      ]),
-    );
-  }
-
-  Widget _notesCard(List<String> notes) => Container(
-        width: double.infinity,
-        padding: const EdgeInsets.fromLTRB(16, 15, 16, 13),
-        decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.border)),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('STYLE NOTES', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: 1.1, color: AppColors.textMuted)),
-          const SizedBox(height: 8),
-          ...notes.take(4).map((note) => Padding(
-                padding: const EdgeInsets.only(bottom: 7),
-                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  const Padding(padding: EdgeInsets.only(top: 5), child: Icon(Icons.circle, size: 5, color: AppColors.primary)),
-                  const SizedBox(width: 8),
-                  Expanded(child: Text(note, style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondary, height: 1.35))),
-                ]),
-              )),
-        ]),
-      );
-
-  Widget _lookCard(WardrobeItem item) {
-    final loved = _lovedItemIds.contains(item.id);
-    final disliked = _dislikedItemIds.contains(item.id);
-    return Container(
-      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.border)),
-      clipBehavior: Clip.antiAlias,
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Expanded(
-          child: Stack(fit: StackFit.expand, children: [
-            if (item.imageUrl.isNotEmpty) CachedNetworkImage(imageUrl: item.imageUrl, fit: BoxFit.cover) else Container(color: AppColors.surfaceMuted, child: const Icon(Icons.checkroom_outlined, color: AppColors.primary, size: 36)),
-            Positioned(top: 8, left: 8, child: Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5), decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.52), borderRadius: BorderRadius.circular(8)), child: Text(_categoryLabel(item.category), style: const TextStyle(color: Colors.white, fontSize: 7.5, fontWeight: FontWeight.w900, letterSpacing: 0.8)))),
-            Positioned(top: 5, right: 5, child: Row(children: [_feedbackButton(Icons.thumb_up_alt_outlined, loved, () => _feedback(item, true)), const SizedBox(width: 3), _feedbackButton(Icons.thumb_down_alt_outlined, disliked, () => _feedback(item, false))])),
-          ]),
-        ),
-        Padding(padding: const EdgeInsets.fromLTRB(11, 9, 11, 11), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)), const SizedBox(height: 3), Text('${item.colour} · ${item.style}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 9.5, color: AppColors.textSecondary))])),
-      ]),
-    );
-  }
-
-  String _categoryLabel(String category) {
-    switch (category) {
-      case 'Tops':
-        return 'TOP';
-      case 'Bottoms':
-        return 'BOTTOM';
-      case 'Dresses':
-        return 'DRESS';
-      case 'Suits':
-        return 'SUIT';
-      case 'Jackets':
-        return 'JACKET';
-      case 'Skirts':
-        return 'SKIRT';
-      case 'Shoes':
-        return 'SHOES';
-      case 'Accessories':
-        return 'ACCESSORY';
-      default:
-        return category.toUpperCase();
-    }
-  }
-
-  Widget _feedbackButton(IconData icon, bool active, VoidCallback onPressed) => Material(
-        color: Colors.black.withValues(alpha: 0.48),
-        borderRadius: BorderRadius.circular(9),
-        child: InkWell(onTap: onPressed, borderRadius: BorderRadius.circular(9), child: Padding(padding: const EdgeInsets.all(6), child: Icon(icon, size: 13, color: active ? Colors.white : Colors.white70))),
+  Widget _breakdownCard(Map<String, int> breakdown) => Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
+        child: Wrap(spacing: 6, runSpacing: 6, children: breakdown.entries.map((entry) => Chip(label: Text('${entry.key}: ${entry.value}'))).toList(growable: false)),
       );
 
   Widget _message(String text) => Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(17),
-        decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.border)),
-        child: Text(text, style: const TextStyle(color: AppColors.textSecondary, height: 1.4, fontSize: 12.5)),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border)),
+        child: Text(text, style: const TextStyle(color: AppColors.textSecondary, height: 1.4)),
       );
 }
