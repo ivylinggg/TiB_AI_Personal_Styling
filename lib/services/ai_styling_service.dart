@@ -62,8 +62,7 @@ class AiStylingService {
   };
 
   /// Converts an AI/fallback selection into a coherent outfit while keeping
-  /// the strongest wardrobe preferences, colour compatibility, style language,
-  /// season fit, and occasion relevance.
+  /// personal colour, season, style, preference, and occasion signals.
   static List<WardrobeItem> sanitizeLook(
     List<WardrobeItem> items, {
     WardrobeItem? selectedItem,
@@ -76,7 +75,9 @@ class AiStylingService {
     for (final item in items) {
       final id = item.id.trim();
       final category = item.category.trim();
-      if (id.isEmpty || !_knownCategories.contains(category)) continue;
+      if (id.isEmpty || !_knownCategories.contains(category)) {
+        continue;
+      }
       unique[id] = item;
     }
 
@@ -89,8 +90,7 @@ class AiStylingService {
 
     WardrobeItem? choose(String category, {Set<String> used = const {}}) {
       final pool = candidates
-          .where((item) =>
-              item.category == category && !used.contains(item.id))
+          .where((item) => item.category == category && !used.contains(item.id))
           .toList(growable: false);
       if (pool.isEmpty) return null;
       return _rankItems(
@@ -105,19 +105,13 @@ class AiStylingService {
     final selectedCategory = selected?.category;
 
     if (selectedCategory == 'Dresses') {
-      return _buildOnePiece(
-        candidates,
-        selected!,
-        choose,
-      );
+      return _buildOnePiece(candidates, selected!, choose);
     }
     if (selectedCategory == 'Suits') {
       return _buildSuit(candidates, selected!, choose);
     }
 
-    final top = selectedCategory == 'Tops'
-        ? selected
-        : choose('Tops');
+    final top = selectedCategory == 'Tops' ? selected : choose('Tops');
     final lower = selectedCategory == 'Bottoms' || selectedCategory == 'Skirts'
         ? selected
         : _bestLower(
@@ -129,12 +123,7 @@ class AiStylingService {
           );
 
     if (top != null && lower != null) {
-      return _buildTwoPiece(
-        candidates,
-        top,
-        lower,
-        choose,
-      );
+      return _buildTwoPiece(candidates, top, lower, choose);
     }
 
     final dress = choose('Dresses');
@@ -169,7 +158,9 @@ class AiStylingService {
 
     if (result.length < 5) {
       final accessory = choose('Accessories', used: used);
-      if (accessory != null) result.add(accessory);
+      if (accessory != null) {
+        result.add(accessory);
+      }
     }
 
     return result.take(5).toList(growable: false);
@@ -197,7 +188,9 @@ class AiStylingService {
 
     if (result.length < 5) {
       final accessory = choose('Accessories', used: used);
-      if (accessory != null) result.add(accessory);
+      if (accessory != null) {
+        result.add(accessory);
+      }
     }
 
     return result.take(5).toList(growable: false);
@@ -218,7 +211,9 @@ class AiStylingService {
     }
 
     final accessory = choose('Accessories', used: used);
-    if (accessory != null) result.add(accessory);
+    if (accessory != null) {
+      result.add(accessory);
+    }
 
     return result.take(5).toList(growable: false);
   }
@@ -269,17 +264,27 @@ class AiStylingService {
 
       if (item.isFavourite) score += 28;
       if (profileColours.any((target) =>
-          colour.contains(target) || target.contains(colour))) score += 24;
+          colour.contains(target) || target.contains(colour))) {
+        score += 24;
+      }
       if (season.isNotEmpty &&
           (itemSeason.contains(season) || season.contains(itemSeason))) {
         score += 14;
       }
-      if (cleanStyles.any((token) => combined.contains(token))) score += 16;
-      if (cleanPreferences.any((token) => combined.contains(token))) score += 12;
-      if (occasionTokens.any((token) => combined.contains(token))) score += 15;
+      if (cleanStyles.any((token) => combined.contains(token))) {
+        score += 16;
+      }
+      if (cleanPreferences.any((token) => combined.contains(token))) {
+        score += 12;
+      }
+      if (occasionTokens.any((token) => combined.contains(token))) {
+        score += 15;
+      }
 
-      if (combined.contains('black') || combined.contains('white') ||
-          combined.contains('navy') || combined.contains('beige')) {
+      if (combined.contains('black') ||
+          combined.contains('white') ||
+          combined.contains('navy') ||
+          combined.contains('beige')) {
         score += 2;
       }
 
