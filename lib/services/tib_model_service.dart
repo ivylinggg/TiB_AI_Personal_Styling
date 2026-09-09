@@ -116,10 +116,6 @@ class TibModelService {
     return load(uid: accountUid);
   }
 
-  static Future<String> _legacyIndependentKey(String base) async {
-    return base;
-  }
-
   static String calculateBodyShape({
     required double bust,
     required double waist,
@@ -293,8 +289,6 @@ class TibModelService {
     await prefs.setString(_key(shapeKey, accountUid), bodyShape);
     await prefs.setString(_key(faceShapeKey, accountUid), scannedFaceShape);
     await prefs.setInt(_key(versionKey, accountUid), 8);
-
-    // Marker is account-specific and contains no shared/global profile data.
     await prefs.setString(_key('tib_model_active', accountUid), '1');
   }
 
@@ -307,8 +301,8 @@ class TibModelService {
 
   static Set<String> _knownAccountUids(SharedPreferences prefs) {
     final result = <String>{};
+    const marker = 'tib_model_active_';
     for (final key in prefs.getKeys()) {
-      const marker = 'tib_model_active_';
       if (key.startsWith(marker)) {
         final uid = key.substring(marker.length).trim();
         if (uid.isNotEmpty) result.add(uid);
