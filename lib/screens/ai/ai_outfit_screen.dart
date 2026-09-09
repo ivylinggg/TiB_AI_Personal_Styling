@@ -104,10 +104,7 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
       final items = await FirestoreService.getWardrobeItems(uid);
       if (!mounted || FirebaseAuth.instance.currentUser?.uid != uid) return;
       setState(() {
-        _wardrobe = items
-            .where((item) => item.userId.isEmpty || item.userId == uid)
-            .where((item) => _isKnownCategory(item.category))
-            .toList(growable: false);
+        _wardrobe = items.where((item) => item.userId.isEmpty || item.userId == uid).toList(growable: false);
         _loading = false;
       });
     } catch (_) {
@@ -116,20 +113,16 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
     }
   }
 
-  bool _isKnownCategory(String category) => const {
-        'Tops', 'Bottoms', 'Dresses', 'Suits', 'Jackets', 'Skirts', 'Shoes', 'Accessories'
-      }.contains(category.trim());
-
   int _score(WardrobeItem item, ColourAnalysisResult profile) {
     var score = 0;
     final text = '${item.category} ${item.style} ${item.colour}'.toLowerCase();
     final occasion = _occasion.toLowerCase();
     if (item.isFavourite) score += 10;
-    if (_lovedLookIds.contains(item.id)) score += 16;
-    if (_dislikedLookIds.contains(item.id)) score -= 20;
+    if (_lovedLookIds.contains(item.id)) score += 18;
+    if (_dislikedLookIds.contains(item.id)) score -= 24;
     if (profile.colours.any((c) => text.contains(c.toLowerCase()))) score += 25;
     if (item.season.toLowerCase().contains(profile.season.toLowerCase())) score += 12;
-    if (occasion == 'work' && (text.contains('smart') || text.contains('elegant'))) score += 22;
+    if (occasion == 'work' && (text.contains('smart') || text.contains('elegant') || text.contains('formal'))) score += 22;
     if (occasion == 'date' && (text.contains('feminine') || text.contains('elegant') || text.contains('dress'))) score += 22;
     if (occasion == 'dinner' && (text.contains('elegant') || text.contains('dress') || text.contains('smart'))) score += 18;
     if ((occasion == 'cafe' || occasion == 'weekend') && (text.contains('casual') || text.contains('everyday'))) score += 18;
@@ -139,8 +132,7 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
   }
 
   List<WardrobeItem> _fallbackLook(ColourAnalysisResult profile) {
-    final sorted = [..._wardrobe]
-      ..sort((a, b) => _score(b, profile).compareTo(_score(a, profile)));
+    final sorted = [..._wardrobe]..sort((a, b) => _score(b, profile).compareTo(_score(a, profile)));
     final result = <WardrobeItem>[];
     final used = <String>{};
 
@@ -151,42 +143,43 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
       return null;
     }
 
-    // Build exactly one outfit family:
-    //   1) Top + Bottom/Skirt
-    //   2) Dress
-    //   3) Suit
-    // Jackets, shoes and accessories are optional supporting layers/details.
-    final top = pick((item) => item.category == 'Tops');
-    final bottom = pick((item) => item.category == 'Bottoms' || item.category == 'Skirts');
-    final dress = pick((item) => item.category == 'Dresses');
-    final suit = pick((item) => item.category == 'Suits');
+    final tops = sorted.where((item) => item.category == 'Tops').toList(growable: false);
+    final bottoms = sorted.where((item) => item.category == 'Bottoms').toList(growable: false);
+    final skirts = sorted.where((item) => item.category == 'Skirts').toList(growable: false);
+    final dresses = sorted.where((item) => item.category == 'Dresses').toList(growable: false);
+    final suits = sorted.where((item) => item.category == 'Suits').toList(growable: false);
 
-    if (top != null && bottom != null) {
-      result.add(top);
-      used.add(top.id);
-      result.add(bottom);
-      used.add(bottom.id);
-    } else if (dress != null) {
-      result.add(dress);
-      used.add(dress.id);
-    } else if (suit != null) {
-      result.add(suit);
-      used.add(suit.id);
+    final supportsTwoPiece = tops.isNotEmpty && (bottoms.isNotEmpty || skirts.isNotEmpty);
+    final dressCandidate = dresses.isEmpty ? null : dresses.first;
+    final suitCandidate = suits.isEmpty ? null : suits.first;
+
+    if (_occasion == 'Work' && suitCandidate != null && !supportsTwoPiece) {
+      result.add(suitCandidate);
+      used.add(suitCandidate.id);
+    } else if (supportsTwoPiece) {
+      final top = pick((item) => item.category == 'Tops');
+      final bottom = pick((item) => item.category == 'Bottoms' || item.category == 'Skirts');
+      if (top != null && bottom != null) {
+        result.add(top);
+        used.add(top.id);
+        result.add(bottom);
+        used.add(bottom.id);
+      }
+    } else if (dressCandidate != null) {
+      result.add(dressCandidate);
+      used.add(dressCandidate.id);
+    } else if (suitCandidate != null) {
+      result.add(suitCandidate);
+      used.add(suitCandidate.id);
     }
 
     final base = result.map((item) => item.category).toSet();
-    if (result.length < 4 && (base.contains('Tops') || base.contains('Dresses') || base.contains('Suits'))) {
-      final jacket = pick((item) => item.category == 'Jackets');
-      if (jacket != null) {
-        result.add(jacket);
-        used.add(jacket.id);
-      }
-    }
-
-    for (final category in ['Shoes', 'Accessories']) {
-      if (result.length >= 4) break;
-      final item = pick((candidate) => candidate.category == category);
-      if (item != null) {
+    for (final item in sorted) {
+      if (result.length >= 4 || used.contains(item.id)) continue;
+      final category = item.category;
+      final isAccessory = category == 'Shoes' || category == 'Accessories';
+      final isLayer = category == 'Jackets' && (base.contains('Tops') || base.contains('Bottoms') || base.contains('Skirts') || base.contains('Dresses') || base.contains('Suits'));
+      if (isAccessory || isLayer) {
         result.add(item);
         used.add(item.id);
       }
@@ -218,6 +211,7 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
     try {
       final prefs = await StylePreferenceService.getStylePreferences(uid);
       if (!mounted || FirebaseAuth.instance.currentUser?.uid != uid) return;
+
       final styles = List<String>.from(prefs?['styles'] ?? const []);
       final preferences = List<String>.from(prefs?['preferences'] ?? const []);
       final aiResult = await AiStylingService.getRecommendation(
@@ -227,6 +221,7 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
         preferences: preferences,
         occasion: _occasion,
       );
+
       if (!mounted || FirebaseAuth.instance.currentUser?.uid != uid) return;
 
       if (aiResult != null) {
@@ -235,7 +230,7 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
           _findWardrobeItem(aiResult.bottomId),
           _findWardrobeItem(aiResult.shoesId),
           _findWardrobeItem(aiResult.accessoryId),
-        ].whereType<WardrobeItem>().toList();
+        ].whereType<WardrobeItem>().toList(growable: false);
         final safeLook = AiStylingService.sanitizeLook(aiLook);
         if (safeLook.isNotEmpty || aiResult.explanation.isNotEmpty) {
           setState(() {
@@ -264,13 +259,15 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
       _showFeedback('This look is already saved.');
       return;
     }
+
     setState(() => _savingLook = true);
     try {
+      final matchScore = _matchScore(profile, look);
       await FirestoreService.saveOutfitLook(
         uid: uid,
         occasion: _occasion,
         itemIds: look.map((item) => item.id).where((id) => id.isNotEmpty).toList(),
-        matchScore: _matchScore(profile, look),
+        matchScore: matchScore,
         season: profile.season,
       );
       if (!mounted || FirebaseAuth.instance.currentUser?.uid != uid) return;
@@ -324,15 +321,24 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
 
   String _categoryLabel(String category, int index) {
     switch (category) {
-      case 'Tops': return 'TOP';
-      case 'Bottoms': return 'BOTTOM';
-      case 'Skirts': return 'SKIRT';
-      case 'Dresses': return 'DRESS';
-      case 'Suits': return 'SUIT';
-      case 'Jackets': return 'LAYER';
-      case 'Shoes': return 'SHOES';
-      case 'Accessories': return 'ACCESSORY';
-      default: return index == 0 ? 'KEY PIECE' : 'DETAIL';
+      case 'Tops':
+        return 'TOP';
+      case 'Bottoms':
+        return 'BOTTOM';
+      case 'Skirts':
+        return 'SKIRT';
+      case 'Dresses':
+        return 'DRESS';
+      case 'Suits':
+        return 'SUIT';
+      case 'Jackets':
+        return 'LAYER';
+      case 'Shoes':
+        return 'SHOES';
+      case 'Accessories':
+        return 'ACCESSORY';
+      default:
+        return index == 0 ? 'KEY PIECE' : 'DETAIL';
     }
   }
 
@@ -349,44 +355,39 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> with WidgetsBindingObse
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(title: const Text('AI Outfit', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)), centerTitle: true, backgroundColor: AppColors.background, elevation: 0, scrolledUnderElevation: 0, actions: [IconButton(tooltip: 'Refresh wardrobe', onPressed: _loadWardrobe, icon: const Icon(Icons.refresh_rounded))]),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : ListView(padding: const EdgeInsets.fromLTRB(20, 10, 20, 34), children: [
-              _hero(profile),
-              const SizedBox(height: 22),
-              if (profile == null) ...[_message('Complete Colour Analysis to unlock stronger personal outfit recommendations.'), const SizedBox(height: 18)],
-              _occasionSection(),
-              const SizedBox(height: 22),
-              _generateButton(profile),
-              if (_generated) ...[const SizedBox(height: 28), _result(profile, _look)],
-            ]),
+      body: _loading ? const Center(child: CircularProgressIndicator()) : ListView(padding: const EdgeInsets.fromLTRB(20, 10, 20, 34), children: [
+        _hero(profile),
+        const SizedBox(height: 22),
+        if (profile == null) ...[_message('Complete Colour Analysis to unlock stronger personal outfit recommendations.'), const SizedBox(height: 18)],
+        _occasionSection(),
+        const SizedBox(height: 22),
+        _generateButton(profile),
+        if (_generated) ...[const SizedBox(height: 28), _result(profile, _look)],
+      ]),
     );
   }
 
-  Widget _hero(ColourAnalysisResult? profile) => Container(
-        padding: const EdgeInsets.fromLTRB(21, 21, 21, 23),
-        decoration: BoxDecoration(color: AppColors.primaryDark, borderRadius: BorderRadius.circular(28)),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Row(children: [Expanded(child: Text('VYEA  /  PERSONAL OUTFIT', style: TextStyle(color: AppColors.peach, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: 1.45))), Text('AI STUDIO', style: TextStyle(color: Colors.white54, fontSize: 8.5, fontWeight: FontWeight.w900, letterSpacing: 1))]),
-          const SizedBox(height: 18),
-          const Text('Your next look,\nmade personal.', style: TextStyle(color: Colors.white, fontSize: 30, height: 1.02, fontWeight: FontWeight.w800, letterSpacing: -1)),
-          const SizedBox(height: 9),
-          Text(profile == null ? 'Add your Colour Analysis to make recommendations more personal.' : 'Built around your ${profile.season} palette, proportions and the pieces you already own.', style: const TextStyle(color: Colors.white70, fontSize: 12.5, height: 1.45)),
-          const SizedBox(height: 17),
-          Row(children: [_heroStat(Icons.palette_outlined, profile?.season ?? 'Colour', 'palette'), const SizedBox(width: 8), _heroStat(Icons.checkroom_outlined, '${_wardrobe.length}', 'pieces'), const SizedBox(width: 8), _heroStat(Icons.auto_awesome_outlined, _occasion, 'occasion')]),
-        ]),
-      );
+  Widget _hero(ColourAnalysisResult? profile) => Container(padding: const EdgeInsets.fromLTRB(21, 21, 21, 23), decoration: BoxDecoration(color: AppColors.primaryDark, borderRadius: BorderRadius.circular(28)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    const Row(children: [Expanded(child: Text('VYEA  /  PERSONAL OUTFIT', style: TextStyle(color: AppColors.peach, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: 1.45))), Text('AI STUDIO', style: TextStyle(color: Colors.white54, fontSize: 8.5, fontWeight: FontWeight.w900, letterSpacing: 1))]),
+    const SizedBox(height: 18),
+    const Text('Your next look,\nmade personal.', style: TextStyle(color: Colors.white, fontSize: 30, height: 1.02, fontWeight: FontWeight.w800, letterSpacing: -1)),
+    const SizedBox(height: 9),
+    Text(profile == null ? 'Add your Colour Analysis to make recommendations more personal.' : 'Built around your ${profile.season} palette, proportions and the pieces you already own.', style: const TextStyle(color: Colors.white70, fontSize: 12.5, height: 1.45)),
+    const SizedBox(height: 17),
+    Row(children: [_heroStat(Icons.palette_outlined, profile?.season ?? 'Colour', 'palette'), const SizedBox(width: 8), _heroStat(Icons.checkroom_outlined, '${_wardrobe.length}', 'pieces'), const SizedBox(width: 8), _heroStat(Icons.auto_awesome_outlined, _occasion, 'occasion')]),
+  ]));
 
   Widget _heroStat(IconData icon, String value, String label) => Expanded(child: Container(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 10), decoration: BoxDecoration(color: Colors.white.withValues(alpha: .08), borderRadius: BorderRadius.circular(15)), child: Row(children: [Icon(icon, color: Colors.white70, size: 15), const SizedBox(width: 6), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.w800)), Text(label, style: const TextStyle(color: Colors.white54, fontSize: 8.5))]))])));
 
   Widget _occasionSection() => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Text('CHOOSE THE MOMENT', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.25, color: AppColors.textMuted)),
-        const SizedBox(height: 9),
-        SizedBox(height: 88, child: ListView.separated(scrollDirection: Axis.horizontal, itemCount: _occasions.length, separatorBuilder: (_, __) => const SizedBox(width: 9), itemBuilder: (_, index) {
-          final item = _occasions[index];
-          final selected = _occasion == item.$1;
-          return InkWell(onTap: () => setState(() { _occasion = item.$1; _generated = false; _savedLook = false; _look = const []; _aiResult = null; }), borderRadius: BorderRadius.circular(19), child: AnimatedContainer(duration: const Duration(milliseconds: 180), width: 92, padding: const EdgeInsets.all(11), decoration: BoxDecoration(color: selected ? AppColors.primaryDark : AppColors.surface, borderRadius: BorderRadius.circular(19), border: Border.all(color: selected ? AppColors.primaryDark : AppColors.border)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(item.$2, color: selected ? Colors.white : AppColors.primary, size: 19), const Spacer(), Text(item.$1, style: TextStyle(color: selected ? Colors.white : AppColors.textPrimary, fontSize: 11, fontWeight: FontWeight.w800))])));
-        })));
+    const Text('CHOOSE THE MOMENT', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.25, color: AppColors.textMuted)),
+    const SizedBox(height: 9),
+    SizedBox(height: 88, child: ListView.separated(scrollDirection: Axis.horizontal, itemCount: _occasions.length, separatorBuilder: (_, __) => const SizedBox(width: 9), itemBuilder: (_, index) {
+      final item = _occasions[index];
+      final selected = _occasion == item.$1;
+      return InkWell(onTap: () => setState(() { _occasion = item.$1; _generated = false; _savedLook = false; _look = const []; _aiResult = null; }), borderRadius: BorderRadius.circular(19), child: AnimatedContainer(duration: const Duration(milliseconds: 180), width: 92, padding: const EdgeInsets.all(11), decoration: BoxDecoration(color: selected ? AppColors.primaryDark : AppColors.surface, borderRadius: BorderRadius.circular(19), border: Border.all(color: selected ? AppColors.primaryDark : AppColors.border)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(item.$2, color: selected ? Colors.white : AppColors.primary, size: 19), const Spacer(), Text(item.$1, style: TextStyle(color: selected ? Colors.white : AppColors.textPrimary, fontSize: 11, fontWeight: FontWeight.w800))])));
+    })),
+  ]);
 
   Widget _generateButton(ColourAnalysisResult? profile) => SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: profile == null || _wardrobe.isEmpty || _styling ? null : () => _generate(profile), icon: _styling ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.auto_awesome_rounded), label: Text(_styling ? 'Styling your look…' : _generated ? 'Create another look' : 'Create my outfit'), style: FilledButton.styleFrom(backgroundColor: AppColors.peach, foregroundColor: AppColors.charcoal, minimumSize: const Size.fromHeight(55), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(17)))));
 
