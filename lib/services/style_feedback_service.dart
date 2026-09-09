@@ -95,12 +95,13 @@ class StyleFeedbackService {
     final ids = itemIds.map((id) => id.trim()).where((id) => id.isNotEmpty).toSet().toList()..sort();
     if (uid == null || uid.isEmpty || ids.isEmpty) return;
     final generatedKey = ids.map(_safeKey).join('_');
-    await _feedbackCollection(uid).doc('generated_$generatedKey').set({
+    final payload = <String, dynamic>{
       'type': 'generated',
       'itemIds': ids,
       'occasion': occasion.trim(),
-      if (matchScore != null) 'matchScore': matchScore,
       'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+      ...?matchScore == null ? null : {'matchScore': matchScore},
+    };
+    await _feedbackCollection(uid).doc('generated_$generatedKey').set(payload, SetOptions(merge: true));
   }
 }
