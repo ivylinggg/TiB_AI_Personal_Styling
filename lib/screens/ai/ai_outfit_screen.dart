@@ -1,7 +1,7 @@
-import 'package:cached_network_image/cached_network_image.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../models/colour_analysis_result.dart';
@@ -20,7 +20,7 @@ class AIOutfitScreen extends StatefulWidget {
 
 class _AIOutfitScreenState extends State<AIOutfitScreen>
     with WidgetsBindingObserver {
-  static const _occasions = [
+  static const _occasions = <(String, IconData)>[
     ('Dinner', Icons.restaurant_outlined),
     ('Work', Icons.business_center_outlined),
     ('Cafe', Icons.local_cafe_outlined),
@@ -35,18 +35,24 @@ class _AIOutfitScreenState extends State<AIOutfitScreen>
   bool _loading = true;
   bool _styling = false;
   bool _generated = false;
-  final Set<String> _lovedLookIds = <String>{};
-  final Set<String> _dislikedLookIds = <String>{};
   bool _savedLook = false;
   bool _savingLook = false;
   bool _refreshingFromLifecycle = false;
   String _loadedUid = '';
+  final Set<String> _lovedLookIds = <String>{};
+  final Set<String> _dislikedLookIds = <String>{};
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _loadWardrobe();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
   @override
@@ -62,12 +68,6 @@ class _AIOutfitScreenState extends State<AIOutfitScreen>
     } finally {
       _refreshingFromLifecycle = false;
     }
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
   }
 
   Future<void> _loadWardrobe({bool showLoading = true}) async {
@@ -120,98 +120,106 @@ class _AIOutfitScreenState extends State<AIOutfitScreen>
     var score = 0;
     final text = '${item.category} ${item.style} ${item.colour}'.toLowerCase();
     final occasion = _occasion.toLowerCase();
+
     if (item.isFavourite) score += 10;
     if (_lovedLookIds.contains(item.id)) score += 18;
     if (_dislikedLookIds.contains(item.id)) score -= 24;
-    if (profile.colours.any((c) => text.contains(c.toLowerCase()))) score += 25;
+    if (profile.colours.any((colour) => text.contains(colour.toLowerCase()))) score += 25;
     if (item.season.toLowerCase().contains(profile.season.toLowerCase())) score += 12;
-    if (occasion == 'work' &&
-        (text.contains('smart') || text.contains('elegant') || text.contains('formal'))) {
-      score += 22;
+
+    switch (occasion) {
+      case 'work':
+        if (text.contains('smart') || text.contains('elegant') || text.contains('formal')) score += 22;
+        break;
+      case 'date':
+        if (text.contains('feminine') || text.contains('elegant') || text.contains('dress')) score += 22;
+        break;
+      case 'dinner':
+        if (text.contains('elegant') || text.contains('dress') || text.contains('smart')) score += 18;
+        break;
+      case 'cafe':
+      case 'weekend':
+        if (text.contains('casual') || text.contains('everyday')) score += 18;
+        break;
     }
-    if (occasion == 'date' &&
-        (text.contains('feminine') || text.contains('elegant') || text.contains('dress'))) {
-      score += 22;
-    }
-    if (occasion == 'dinner' &&
-        (text.contains('elegant') || text.contains('dress') || text.contains('smart'))) {
-      score += 18;
-    }
-    if ((occasion == 'cafe' || occasion == 'weekend') &&
-        (text.contains('casual') || text.contains('everyday'))) {
-      score += 18;
-    }
-    if (item.category == 'Shoes') score += 5;
-    if (item.category == 'Accessories') score += 3;
+
     return score;
   }
 
   List<WardrobeItem> _fallbackLook(ColourAnalysisResult profile) {
     final sorted = [..._wardrobe]
       ..sort((a, b) => _score(b, profile).compareTo(_score(a, profile)));
+
+    WardrobeItem? pick(String category, Set<String> used) {
+      for (final item in sorted) {
+        if (item.category == category && !used.contains(item.id)) return item;
+      }
+      return null;
+    }
+
+    WardrobeItem? pickLower(Set<String> used) {
+      for (final item in sorted) {
+        if ((item.category == 'Bottoms' || item.category == 'Skirts') && !used.contains(item.id)) {
+          return item;
+        }
+      }
+      return null;
+    }
+
+    final tops = sorted.where((item) => item.category == 'Tops');
+    final lowers = sorted.where((item) => item.category == 'Bottoms' || item.category == 'Skirts');
+    final dresses = sorted.where((item) => item.category == 'Dresses');
+    final suits = sorted.where((item) => item.category == 'Suits');
     final result = <WardrobeItem>[];
     final used = <String>{};
 
-    WardrobeItem? pick(bool Function(WardrobeItem item) test) {
-      for (final item in sorted) {
-        if (!used.contains(item.id) && test(item)) return item;
+    // Prefer a real two-piece when the wardrobe supports it.
+    if (tops.isNotEmpty && lowers.isNotEmpty) {
+      final top = pick('Tops', used);
+      final lower = pickLower(used);
+      if (top != null && lower != null) {
+        result.addAll([top, lower]);
+        used.addAll([top.id, lower.id]);
       }
-      return null;
     }
 
-    final tops = sorted.where((item) => item.category == 'Tops').toList(growable: false);
-    final bottoms = sorted.where((item) => item.category == 'Bottoms').toList(growable: false);
-    final skirts = sorted.where((item) => item.category == 'Skirts').toList(growable: false);
-    final dresses = sorted.where((item) => item.category == 'Dresses').toList(growable: false);
-    final suits = sorted.where((item) => item.category == 'Suits').toList(growable: false);
-    final jackets = sorted.where((item) => item.category == 'Jackets').toList(growable: false);
-    final shoes = sorted.where((item) => item.category == 'Shoes').toList(growable: false);
-    final accessories = sorted.where((item) => item.category == 'Accessories').toList(growable: false);
+    // Only use one-piece routes when a two-piece cannot be formed.
+    if (result.isEmpty) {
+      final onePiece = _occasion == 'Work' && suits.isNotEmpty
+          ? suits.first
+          : dresses.isNotEmpty
+              ? dresses.first
+              : suits.isNotEmpty
+                  ? suits.first
+                  : null;
+      if (onePiece == null) return const [];
+      result.add(onePiece);
+      used.add(onePiece.id);
+    }
 
-    final supportsTwoPiece = tops.isNotEmpty && (bottoms.isNotEmpty || skirts.isNotEmpty);
-    final useSuit = _occasion == 'Work' && suits.isNotEmpty && !supportsTwoPiece;
+    final baseHasTop = result.any((item) => item.category == 'Tops');
+    final baseHasOnePiece = result.any((item) => item.category == 'Dresses' || item.category == 'Suits');
 
-    if (useSuit) {
-      result.add(suits.first);
-      used.add(suits.first.id);
-    } else if (supportsTwoPiece) {
-      final top = pick((item) => item.category == 'Tops');
-      final bottom = pick((item) => item.category == 'Bottoms');
-      final skirt = pick((item) => item.category == 'Skirts');
-      final chosenBottom = bottom ?? skirt;
-      if (top != null && chosenBottom != null) {
-        result.add(top);
-        used.add(top.id);
-        result.add(chosenBottom);
-        used.add(chosenBottom.id);
+    if (result.length < 4 && (baseHasTop || baseHasOnePiece)) {
+      final jacket = pick('Jackets', used);
+      if (jacket != null) {
+        result.add(jacket);
+        used.add(jacket.id);
       }
-    } else if (dresses.isNotEmpty) {
-      result.add(dresses.first);
-      used.add(dresses.first.id);
-    } else if (suits.isNotEmpty) {
-      result.add(suits.first);
-      used.add(suits.first.id);
     }
 
-    final baseCategories = result.map((item) => item.category).toSet();
-    WardrobeItem? addBest(List<WardrobeItem> candidates) {
-      for (final item in candidates) {
-        if (used.contains(item.id)) continue;
-        result.add(item);
-        used.add(item.id);
-        return item;
+    if (result.length < 4) {
+      final shoes = pick('Shoes', used);
+      if (shoes != null) {
+        result.add(shoes);
+        used.add(shoes.id);
       }
-      return null;
     }
 
-    if (result.isNotEmpty && jackets.isNotEmpty &&
-        (baseCategories.contains('Tops') ||
-            baseCategories.contains('Dresses') ||
-            baseCategories.contains('Suits'))) {
-      addBest(jackets);
+    if (result.length < 4) {
+      final accessory = pick('Accessories', used);
+      if (accessory != null) result.add(accessory);
     }
-    if (result.length < 4 && shoes.isNotEmpty) addBest(shoes);
-    if (result.length < 4 && accessories.isNotEmpty) addBest(accessories);
 
     return AiStylingService.sanitizeLook(result).take(4).toList(growable: false);
   }
@@ -239,6 +247,7 @@ class _AIOutfitScreenState extends State<AIOutfitScreen>
     try {
       final prefs = await StylePreferenceService.getStylePreferences(uid);
       if (!mounted || FirebaseAuth.instance.currentUser?.uid != uid) return;
+
       final styles = List<String>.from(prefs?['styles'] ?? const []);
       final preferences = List<String>.from(prefs?['preferences'] ?? const []);
       final aiResult = await AiStylingService.getRecommendation(
@@ -250,15 +259,16 @@ class _AIOutfitScreenState extends State<AIOutfitScreen>
       );
 
       if (!mounted || FirebaseAuth.instance.currentUser?.uid != uid) return;
+
       if (aiResult != null) {
-        final aiLook = [
-          _findWardrobeItem(aiResult.topId),
-          _findWardrobeItem(aiResult.bottomId),
-          _findWardrobeItem(aiResult.shoesId),
-          _findWardrobeItem(aiResult.accessoryId),
+        final aiLook = <WardrobeItem>[
+          ...[_findWardrobeItem(aiResult.topId)],
+          ...[_findWardrobeItem(aiResult.bottomId)],
+          ...[_findWardrobeItem(aiResult.shoesId)],
+          ...[_findWardrobeItem(aiResult.accessoryId)],
         ].whereType<WardrobeItem>().toList(growable: false);
         final safeLook = AiStylingService.sanitizeLook(aiLook);
-        if (safeLook.isNotEmpty || aiResult.explanation.isNotEmpty) {
+        if (safeLook.isNotEmpty) {
           setState(() {
             _look = safeLook;
             _aiResult = aiResult;
@@ -285,15 +295,13 @@ class _AIOutfitScreenState extends State<AIOutfitScreen>
       _showFeedback('This look is already saved.');
       return;
     }
-
     setState(() => _savingLook = true);
     try {
-      final matchScore = _matchScore(profile, look);
       await FirestoreService.saveOutfitLook(
         uid: uid,
         occasion: _occasion,
         itemIds: look.map((item) => item.id).where((id) => id.isNotEmpty).toList(),
-        matchScore: matchScore,
+        matchScore: _matchScore(profile, look),
         season: profile.season,
       );
       if (!mounted || FirebaseAuth.instance.currentUser?.uid != uid) return;
@@ -330,9 +338,6 @@ class _AIOutfitScreenState extends State<AIOutfitScreen>
         _dislikedLookIds.remove(item.id);
       }
     });
-    _showFeedback(_lovedLookIds.contains(item.id)
-        ? 'Noted — I’ll favour pieces like this.'
-        : 'Preference updated.');
   }
 
   void _toggleDislike(WardrobeItem item) {
@@ -344,32 +349,6 @@ class _AIOutfitScreenState extends State<AIOutfitScreen>
         _lovedLookIds.remove(item.id);
       }
     });
-    _showFeedback(_dislikedLookIds.contains(item.id)
-        ? 'Got it — I’ll avoid this piece in the next look.'
-        : 'Preference updated.');
-  }
-
-  String _categoryLabel(String category, int index) {
-    switch (category) {
-      case 'Tops':
-        return 'TOP';
-      case 'Bottoms':
-        return 'BOTTOM';
-      case 'Skirts':
-        return 'SKIRT';
-      case 'Dresses':
-        return 'DRESS';
-      case 'Suits':
-        return 'SUIT';
-      case 'Jackets':
-        return 'LAYER';
-      case 'Shoes':
-        return 'SHOES';
-      case 'Accessories':
-        return 'ACCESSORY';
-      default:
-        return index == 0 ? 'KEY PIECE' : 'DETAIL';
-    }
   }
 
   void _showFeedback(String message) {
@@ -383,6 +362,20 @@ class _AIOutfitScreenState extends State<AIOutfitScreen>
     );
   }
 
+  String _categoryLabel(String category) {
+    switch (category) {
+      case 'Tops': return 'TOP';
+      case 'Bottoms': return 'BOTTOM';
+      case 'Skirts': return 'SKIRT';
+      case 'Dresses': return 'DRESS';
+      case 'Suits': return 'SUIT';
+      case 'Jackets': return 'LAYER';
+      case 'Shoes': return 'SHOES';
+      case 'Accessories': return 'ACCESSORY';
+      default: return 'ITEM';
+    }
+  }
+
   Widget _message(String text) {
     return Container(
       width: double.infinity,
@@ -392,10 +385,7 @@ class _AIOutfitScreenState extends State<AIOutfitScreen>
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppColors.border),
       ),
-      child: Text(
-        text,
-        style: const TextStyle(color: AppColors.textSecondary, height: 1.4, fontSize: 12.5),
-      ),
+      child: Text(text, style: const TextStyle(color: AppColors.textSecondary, height: 1.4, fontSize: 12.5)),
     );
   }
 
@@ -444,10 +434,7 @@ class _AIOutfitScreenState extends State<AIOutfitScreen>
   Widget _hero(ColourAnalysisResult? profile) {
     return Container(
       padding: const EdgeInsets.fromLTRB(21, 21, 21, 23),
-      decoration: BoxDecoration(
-        color: AppColors.primaryDark,
-        borderRadius: BorderRadius.circular(28),
-      ),
+      decoration: BoxDecoration(color: AppColors.primaryDark, borderRadius: BorderRadius.circular(28)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -493,10 +480,7 @@ class _AIOutfitScreenState extends State<AIOutfitScreen>
     return Expanded(
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 10),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: .08),
-          borderRadius: BorderRadius.circular(15),
-        ),
+        decoration: BoxDecoration(color: Colors.white.withValues(alpha: .08), borderRadius: BorderRadius.circular(15)),
         child: Row(
           children: [
             Icon(icon, color: Colors.white70, size: 15),
@@ -622,14 +606,11 @@ class _AIOutfitScreenState extends State<AIOutfitScreen>
               Text(explanation, style: const TextStyle(fontSize: 12.5, color: AppColors.textSecondary, height: 1.45)),
               if (direction != null) ...[
                 const SizedBox(height: 13),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(Icons.palette_outlined, size: 17, color: AppColors.primary),
-                    const SizedBox(width: 8),
-                    Expanded(child: Text(direction, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textPrimary, height: 1.35))),
-                  ],
-                ),
+                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  const Icon(Icons.palette_outlined, size: 17, color: AppColors.primary),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(direction, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textPrimary, height: 1.35))),
+                ]),
               ],
             ],
           ),
@@ -640,7 +621,7 @@ class _AIOutfitScreenState extends State<AIOutfitScreen>
           physics: const NeverScrollableScrollPhysics(),
           itemCount: look.length,
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, mainAxisSpacing: 11, crossAxisSpacing: 11, childAspectRatio: .82),
-          itemBuilder: (_, index) => _lookCard(look[index], index),
+          itemBuilder: (_, index) => _lookCard(look[index]),
         ),
         if (notes.isNotEmpty) ...[
           const SizedBox(height: 16),
@@ -710,7 +691,7 @@ class _AIOutfitScreenState extends State<AIOutfitScreen>
     );
   }
 
-  Widget _lookCard(WardrobeItem item, int index) {
+  Widget _lookCard(WardrobeItem item) {
     final loved = _lovedLookIds.contains(item.id);
     final disliked = _dislikedLookIds.contains(item.id);
     return Container(
@@ -733,7 +714,7 @@ class _AIOutfitScreenState extends State<AIOutfitScreen>
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
                     decoration: BoxDecoration(color: Colors.black.withValues(alpha: .52), borderRadius: BorderRadius.circular(8)),
-                    child: Text(_categoryLabel(item.category, index), style: const TextStyle(color: Colors.white, fontSize: 7.5, fontWeight: FontWeight.w900, letterSpacing: .8)),
+                    child: Text(_categoryLabel(item.category), style: const TextStyle(color: Colors.white, fontSize: 7.5, fontWeight: FontWeight.w900, letterSpacing: .8)),
                   ),
                 ),
                 Positioned(
