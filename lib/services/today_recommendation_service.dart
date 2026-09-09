@@ -5,7 +5,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 
 import '../models/colour_analysis_result.dart';
-import '../models/wardrobe_item.dart';
 
 class TodayRecommendation {
   final String style;
@@ -83,32 +82,37 @@ class TodayRecommendationService {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return fallback;
+
       final token = await user.getIdToken();
       if (token == null || token.isEmpty) return fallback;
 
       final profile = await _loadProfile(user.uid);
       final colour = _todayColour(analysis);
+      final cleanStyle = personalStyle?.trim() ?? '';
+      final cleanOccasion = occasion?.trim().isNotEmpty == true ? occasion!.trim() : 'Everyday';
+
       final profilePayload = <String, dynamic>{...profile};
-
-      void putIfPresent(String key, Object? value) {
-        if (value == null) return;
-        if (value is String && value.trim().isEmpty) return;
-        profilePayload[key] = value;
-      }
-
-      putIfPresent('bodyShape', bodyShape?.trim());
-      putIfPresent('faceShape', faceShape?.trim());
-      putIfPresent('weight', weight);
-      putIfPresent('height', height);
-      putIfPresent('bust', bust);
-      putIfPresent('waist', waist);
-      putIfPresent('hips', hips);
-      putIfPresent('personalStyle', personalStyle?.trim());
+      if (bodyShape != null && bodyShape.trim().isNotEmpty) profilePayload['bodyShape'] = bodyShape.trim();
+      if (faceShape != null && faceShape.trim().isNotEmpty) profilePayload['faceShape'] = faceShape.trim();
+      if (weight != null) profilePayload['weight'] = weight;
+      if (height != null) profilePayload['height'] = height;
+      if (bust != null) profilePayload['bust'] = bust;
+      if (waist != null) profilePayload['waist'] = waist;
+      if (hips != null) profilePayload['hips'] = hips;
+      if (cleanStyle.isNotEmpty) profilePayload['personalStyle'] = cleanStyle;
 
       final cleanWardrobe = wardrobe
           .where((item) => item['id']?.toString().trim().isNotEmpty == true)
-          .map((item) => Map<String, dynamic>.from(item))
-          .take(80)
+          .take(60)
+          .map((item) => <String, dynamic>{
+                'id': item['id'].toString().trim(),
+                'name': item['name']?.toString().trim() ?? '',
+                'category': item['category']?.toString().trim() ?? '',
+                'colour': item['colour']?.toString().trim() ?? '',
+                'style': item['style']?.toString().trim() ?? '',
+                'season': item['season']?.toString().trim() ?? '',
+                'isFavourite': item['isFavourite'] == true,
+              })
           .toList();
 
       final response = await http
@@ -119,7 +123,7 @@ class TodayRecommendationService {
               'action': 'todayRecommendation',
               'idToken': token,
               'todayColour': colour,
-              'occasion': occasion?.trim().isNotEmpty == true ? occasion!.trim() : 'Everyday',
+              'occasion': cleanOccasion,
               'profile': profilePayload,
               'colourAnalysis': analysis == null
                   ? null
@@ -128,28 +132,40 @@ class TodayRecommendationService {
                       'undertone': analysis.undertone,
                       'brightness': analysis.brightness,
                       'contrast': analysis.contrast,
-                      'colours': analysis.colours,
+                      'colours': analysis.colours.take(12).toList(),
+                      'faceShape': analysis.faceShape,
+                      'faceStylingGuidance': analysis.faceStylingGuidance.take(8).toList(),
                     },
               'wardrobe': cleanWardrobe,
             }),
           )
-          .timeout(const Duration(seconds: 20));
+          .timeout(const Duration(seconds: 18));
 
       if (response.statusCode < 200 || response.statusCode >= 300) return fallback;
+
       final decoded = jsonDecode(response.body);
       if (decoded is! Map<String, dynamic>) return fallback;
 
       final data = decoded['data'];
-      final payload = data is Map<String, dynamic> ? data : decoded;
-      if (payload['styleDirection'] == null && payload['recommendedColour'] == null && payload['outfitFormula'] == null) {
-        return fallback;
+      if (data is Map<String, dynamic>) {
+        return _sanitiseAiResponse(
+          TodayRecommendation.fromJson(data, fallbackColour: colour),
+          fallback,
+          colour,
+        );
       }
 
-      return _sanitiseAiResponse(
-        TodayRecommendation.fromJson(payload, fallbackColour: colour),
-        fallback,
-        colour,
-      );
+      if (decoded['styleDirection'] != null ||
+          decoded['recommendedColour'] != null ||
+          decoded['outfitFormula'] != null) {
+        return _sanitiseAiResponse(
+          TodayRecommendation.fromJson(decoded, fallbackColour: colour),
+          fallback,
+          colour,
+        );
+      }
+
+      return fallback;
     } catch (_) {
       return fallback;
     }
@@ -160,18 +176,18 @@ class TodayRecommendationService {
     TodayRecommendation fallback,
     String colour,
   ) {
-    if (recommendation.style.trim().isEmpty ||
-        recommendation.outfit.trim().isEmpty ||
-        recommendation.reason.trim().isEmpty) {
-      return fallback;
-    }
+    final style = recommendation.style.trim();
+    final outfit = recommendation.outfit.trim();
+    final reason = recommendation.reason.trim();
+
+    if (style.isEmpty || outfit.isEmpty || reason.isEmpty) return fallback;
 
     return TodayRecommendation(
-      style: recommendation.style.trim(),
+      style: style,
       tags: recommendation.tags,
-      colour: colour == '—' ? recommendation.colour.trim() : colour,
-      outfit: recommendation.outfit.trim(),
-      reason: recommendation.reason.trim(),
+      colour: colour == '—' ? recommendation.colour : colour,
+      outfit: outfit,
+      reason: reason,
       stylingTip: recommendation.stylingTip.trim(),
       isAiGenerated: true,
     );
@@ -186,7 +202,10 @@ class TodayRecommendationService {
     }
   }
 
-  static TodayRecommendation build({ColourAnalysisResult? analysis, String? personalStyle}) {
+  static TodayRecommendation build({
+    ColourAnalysisResult? analysis,
+    String? personalStyle,
+  }) {
     final colour = _todayColour(analysis);
     final key = colour.toLowerCase();
     final styleHint = personalStyle?.trim() ?? '';
@@ -200,6 +219,7 @@ class TodayRecommendationService {
         reason: 'A gentle colour story helps create a polished, feminine look without feeling overdone.',
       );
     }
+
     if (_contains(key, ['blue', 'navy', 'cobalt', 'teal', 'turquoise'])) {
       return TodayRecommendation(
         style: styleHint.isEmpty ? 'Smart Casual' : styleHint,
@@ -209,6 +229,7 @@ class TodayRecommendationService {
         reason: 'Cool tones pair naturally with clean silhouettes for an effortless but put-together look.',
       );
     }
+
     if (_contains(key, ['black', 'grey', 'gray', 'white', 'charcoal'])) {
       return TodayRecommendation(
         style: styleHint.isEmpty ? 'Minimal Chic' : styleHint,
@@ -218,6 +239,7 @@ class TodayRecommendationService {
         reason: 'A restrained palette lets your silhouette and styling details become the focus.',
       );
     }
+
     if (_contains(key, ['orange', 'yellow', 'coral', 'peach'])) {
       return TodayRecommendation(
         style: styleHint.isEmpty ? 'Bright & Playful' : styleHint,
@@ -227,6 +249,7 @@ class TodayRecommendationService {
         reason: 'A brighter colour works best when balanced with simple shapes and an easy silhouette.',
       );
     }
+
     if (_contains(key, ['purple', 'lavender', 'mauve'])) {
       return TodayRecommendation(
         style: styleHint.isEmpty ? 'Soft Creative' : styleHint,
@@ -237,7 +260,8 @@ class TodayRecommendationService {
       );
     }
 
-    final fallbackStyles = <TodayRecommendation>[
+    final weekday = DateTime.now().weekday;
+    final styles = <TodayRecommendation>[
       TodayRecommendation(style: styleHint.isEmpty ? 'Clean Start' : styleHint, tags: const ['Simple', 'Fresh', 'Put-together'], colour: '—', outfit: 'A fresh everyday outfit built around one clean, versatile piece.', reason: 'Simple foundations make it easier to look polished with less effort.'),
       TodayRecommendation(style: styleHint.isEmpty ? 'Easy Smart' : styleHint, tags: const ['Casual', 'Neat', 'Versatile'], colour: '—', outfit: 'A neat top with comfortable tailored bottoms and simple shoes.', reason: 'A balanced casual-smart formula works across most everyday plans.'),
       TodayRecommendation(style: styleHint.isEmpty ? 'Balanced Chic' : styleHint, tags: const ['Simple', 'Elegant', 'Comfortable'], colour: '—', outfit: 'A comfortable base with one elegant finishing detail.', reason: 'Keeping the base easy lets one polished detail elevate the whole look.'),
@@ -247,7 +271,7 @@ class TodayRecommendationService {
       TodayRecommendation(style: styleHint.isEmpty ? 'Soft Sunday' : styleHint, tags: const ['Comfortable', 'Calm', 'Clean'], colour: '—', outfit: 'A soft, comfortable outfit in a calm neutral or muted tone.', reason: 'A relaxed palette and comfortable silhouette create an effortless finish.'),
     ];
 
-    final fallback = fallbackStyles[DateTime.now().weekday - 1];
+    final fallback = styles[weekday - 1];
     return TodayRecommendation(style: fallback.style, tags: fallback.tags, colour: colour, outfit: fallback.outfit, reason: fallback.reason);
   }
 
