@@ -5,9 +5,7 @@ class StyleFeedbackService {
   StyleFeedbackService._();
 
   static CollectionReference<Map<String, dynamic>> _feedbackCollection(String uid) => FirebaseFirestore.instance.collection('users').doc(uid).collection('styleFeedback');
-
   static String _safeKey(String value) => value.trim().replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
-
   static String? _currentUid() {
     final uid = FirebaseAuth.instance.currentUser?.uid.trim();
     return uid == null || uid.isEmpty ? null : uid;
