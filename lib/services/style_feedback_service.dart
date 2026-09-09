@@ -7,8 +7,7 @@ class StyleFeedbackService {
   static CollectionReference<Map<String, dynamic>> _feedbackCollection(String uid) =>
       FirebaseFirestore.instance.collection('users').doc(uid).collection('styleFeedback');
 
-  static String _safeKey(String value) =>
-      value.trim().replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
+  static String _safeKey(String value) => value.trim().replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
 
   static String? _currentUid() {
     final uid = FirebaseAuth.instance.currentUser?.uid.trim();
@@ -24,17 +23,14 @@ class StyleFeedbackService {
     final uid = _currentUid();
     final cleanItemId = itemId.trim();
     if (uid == null || cleanItemId.isEmpty) return;
-    await _feedbackCollection(uid).doc('item_${_safeKey(cleanItemId)}').set(
-      {
-        'type': 'item',
-        'itemId': cleanItemId,
-        'category': category.trim(),
-        'liked': liked,
-        'occasion': occasion.trim(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      },
-      SetOptions(merge: true),
-    );
+    await _feedbackCollection(uid).doc('item_${_safeKey(cleanItemId)}').set({
+      'type': 'item',
+      'itemId': cleanItemId,
+      'category': category.trim(),
+      'liked': liked,
+      'occasion': occasion.trim(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
   }
 
   static Future<void> recordLookFeedback({
@@ -43,19 +39,20 @@ class StyleFeedbackService {
     String occasion = '',
   }) async {
     final uid = _currentUid();
-    final ids = itemIds.map((id) => id.trim()).where((id) => id.isNotEmpty).toSet().toList()
+    final ids = itemIds
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty)
+        .toSet()
+        .toList()
       ..sort();
     if (uid == null || ids.isEmpty) return;
-    await _feedbackCollection(uid).doc('look_${ids.map(_safeKey).join('_')}').set(
-      {
-        'type': 'look',
-        'itemIds': ids,
-        'liked': liked,
-        'occasion': occasion.trim(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      },
-      SetOptions(merge: true),
-    );
+    await _feedbackCollection(uid).doc('look_${ids.map(_safeKey).join('_')}').set({
+      'type': 'look',
+      'itemIds': ids,
+      'liked': liked,
+      'occasion': occasion.trim(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
   }
 
   static Future<void> recordAction({
@@ -65,7 +62,11 @@ class StyleFeedbackService {
     String source = 'ai_outfit',
   }) async {
     final uid = _currentUid();
-    final ids = itemIds.map((id) => id.trim()).where((id) => id.isNotEmpty).toSet().toList()
+    final ids = itemIds
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty)
+        .toSet()
+        .toList()
       ..sort();
     final cleanAction = action.trim();
     if (uid == null || ids.isEmpty || cleanAction.isEmpty) return;
@@ -92,7 +93,11 @@ class StyleFeedbackService {
       source: 'ai_generation',
     );
     final uid = _currentUid();
-    final ids = itemIds.map((id) => id.trim()).where((id) => id.isNotEmpty).toSet().toList()
+    final ids = itemIds
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty)
+        .toSet()
+        .toList()
       ..sort();
     if (uid == null || ids.isEmpty) return;
     final generatedKey = '${DateTime.now().microsecondsSinceEpoch}_${ids.map(_safeKey).join('_')}';
@@ -106,28 +111,16 @@ class StyleFeedbackService {
     await _feedbackCollection(uid).doc('generated_$generatedKey').set(payload);
   }
 
-  static Future<void> recordSavedLook({
-    required List<String> itemIds,
-    required String occasion,
-  }) =>
+  static Future<void> recordSavedLook({required List<String> itemIds, required String occasion}) =>
       recordAction(action: 'saved', itemIds: itemIds, occasion: occasion, source: 'ai_outfit');
 
-  static Future<void> recordWearAgain({
-    required List<String> itemIds,
-    required String occasion,
-  }) =>
+  static Future<void> recordWearAgain({required List<String> itemIds, required String occasion}) =>
       recordAction(action: 'wear_again', itemIds: itemIds, occasion: occasion, source: 'saved_looks');
 
-  static Future<void> recordRestyle({
-    required List<String> itemIds,
-    required String occasion,
-  }) =>
+  static Future<void> recordRestyle({required List<String> itemIds, required String occasion}) =>
       recordAction(action: 'restyle', itemIds: itemIds, occasion: occasion, source: 'ai_outfit');
 
-  static Future<void> recordShoeChange({
-    required List<String> itemIds,
-    required String occasion,
-  }) =>
+  static Future<void> recordShoeChange({required List<String> itemIds, required String occasion}) =>
       recordAction(action: 'change_shoes', itemIds: itemIds, occasion: occasion, source: 'ai_outfit');
 
   static Future<List<Map<String, dynamic>>> getRecentFeedback({int limit = 40}) async {
@@ -161,7 +154,10 @@ class StyleFeedbackService {
       final rawIds = entry['itemIds'];
       final liked = entry['liked'] as bool?;
       if (rawIds is! List || liked == null) continue;
-      final ids = rawIds.map((item) => item.toString().trim()).where((id) => id.isNotEmpty).toList()
+      final ids = rawIds
+          .map((item) => item.toString().trim())
+          .where((id) => id.isNotEmpty)
+          .toList()
         ..sort();
       if (ids.length < 2) continue;
       final key = ids.join('|');
