@@ -73,7 +73,9 @@ class AiStylingService {
     for (final item in items) {
       final id = item.id.trim();
       final category = item.category.trim();
-      if (id.isEmpty || !_knownCategories.contains(category)) continue;
+      if (id.isEmpty || !_knownCategories.contains(category)) {
+        continue;
+      }
       unique[id] = item;
     }
 
@@ -84,27 +86,51 @@ class AiStylingService {
         ? null
         : unique[selectedItem.id.trim()];
 
-    WardrobeItem? choose(String category, {Set<String> used = const {}}) {
+    WardrobeItem? choose(
+      String category, {
+      Set<String> used = const {},
+    }) {
       final pool = candidates
-          .where((item) => item.category == category && !used.contains(item.id))
+          .where(
+            (item) => item.category == category && !used.contains(item.id),
+          )
           .toList(growable: false);
       if (pool.isEmpty) return null;
-      return _rankItems(
+
+      final ranked = _rankItems(
         pool,
         profile: profile,
         occasion: occasion,
         styles: styles,
         preferences: preferences,
-      ).first;
+      );
+      return ranked.isEmpty ? null : ranked.first;
     }
 
     final selectedCategory = selected?.category;
 
     if (selectedCategory == 'Dresses') {
-      return _buildOnePiece(candidates, selected!, choose);
+      return _buildOnePiece(
+        candidates,
+        selected!,
+        choose,
+        profile: profile,
+        occasion: occasion,
+        styles: styles,
+        preferences: preferences,
+      );
     }
+
     if (selectedCategory == 'Suits') {
-      return _buildSuit(candidates, selected!, choose);
+      return _buildSuit(
+        candidates,
+        selected!,
+        choose,
+        profile: profile,
+        occasion: occasion,
+        styles: styles,
+        preferences: preferences,
+      );
     }
 
     final top = selectedCategory == 'Tops' ? selected : choose('Tops');
@@ -120,14 +146,43 @@ class AiStylingService {
           );
 
     if (top != null && lower != null) {
-      return _buildTwoPiece(candidates, top, lower, choose);
+      return _buildTwoPiece(
+        candidates,
+        top,
+        lower,
+        choose,
+        profile: profile,
+        occasion: occasion,
+        styles: styles,
+        preferences: preferences,
+      );
     }
 
     final dress = choose('Dresses');
-    if (dress != null) return _buildOnePiece(candidates, dress, choose);
+    if (dress != null) {
+      return _buildOnePiece(
+        candidates,
+        dress,
+        choose,
+        profile: profile,
+        occasion: occasion,
+        styles: styles,
+        preferences: preferences,
+      );
+    }
 
     final suit = choose('Suits');
-    if (suit != null) return _buildSuit(candidates, suit, choose);
+    if (suit != null) {
+      return _buildSuit(
+        candidates,
+        suit,
+        choose,
+        profile: profile,
+        occasion: occasion,
+        styles: styles,
+        preferences: preferences,
+      );
+    }
 
     return const [];
   }
@@ -136,8 +191,12 @@ class AiStylingService {
     List<WardrobeItem> candidates,
     WardrobeItem top,
     WardrobeItem lower,
-    WardrobeItem? Function(String, {Set<String> used}) choose,
-  ) {
+    WardrobeItem? Function(String, {Set<String> used}) choose, {
+    required ColourAnalysisResult? profile,
+    required String occasion,
+    required List<String> styles,
+    required List<String> preferences,
+  }) {
     final result = <WardrobeItem>[top, lower];
     final used = <String>{top.id, lower.id};
 
@@ -146,10 +205,10 @@ class AiStylingService {
       'Jackets',
       anchor: [top, lower],
       used: used,
-      profile: null,
-      occasion: '',
-      styles: const [],
-      preferences: const [],
+      profile: profile,
+      occasion: occasion,
+      styles: styles,
+      preferences: preferences,
     );
     if (jacket != null) {
       result.add(jacket);
@@ -161,10 +220,10 @@ class AiStylingService {
       'Shoes',
       anchor: result,
       used: used,
-      profile: null,
-      occasion: '',
-      styles: const [],
-      preferences: const [],
+      profile: profile,
+      occasion: occasion,
+      styles: styles,
+      preferences: preferences,
     );
     if (shoes != null) {
       result.add(shoes);
@@ -177,63 +236,169 @@ class AiStylingService {
         'Accessories',
         anchor: result,
         used: used,
-        profile: null,
-        occasion: '',
-        styles: const [],
-        preferences: const [],
+        profile: profile,
+        occasion: occasion,
+        styles: styles,
+        preferences: preferences,
       );
-      if (accessory != null) result.add(accessory);
+      if (accessory != null) {
+        result.add(accessory);
+      }
     }
 
-    return result.take(5).toList(growable: false);
+    return _finalizeLook(
+      result,
+      selectedItem: top,
+      profile: profile,
+      occasion: occasion,
+      styles: styles,
+      preferences: preferences,
+    );
   }
 
   static List<WardrobeItem> _buildOnePiece(
     List<WardrobeItem> candidates,
     WardrobeItem piece,
-    WardrobeItem? Function(String, {Set<String> used}) choose,
-  ) {
+    WardrobeItem? Function(String, {Set<String> used}) choose, {
+    required ColourAnalysisResult? profile,
+    required String occasion,
+    required List<String> styles,
+    required List<String> preferences,
+  }) {
     final result = <WardrobeItem>[piece];
     final used = <String>{piece.id};
 
-    final jacket = choose('Jackets', used: used);
+    final jacket = _bestPair(
+      candidates,
+      'Jackets',
+      anchor: [piece],
+      used: used,
+      profile: profile,
+      occasion: occasion,
+      styles: styles,
+      preferences: preferences,
+    );
     if (jacket != null) {
       result.add(jacket);
       used.add(jacket.id);
     }
 
-    final shoes = choose('Shoes', used: used);
+    final shoes = _bestPair(
+      candidates,
+      'Shoes',
+      anchor: result,
+      used: used,
+      profile: profile,
+      occasion: occasion,
+      styles: styles,
+      preferences: preferences,
+    );
     if (shoes != null) {
       result.add(shoes);
       used.add(shoes.id);
     }
 
     if (result.length < 5) {
-      final accessory = choose('Accessories', used: used);
-      if (accessory != null) result.add(accessory);
+      final accessory = _bestPair(
+        candidates,
+        'Accessories',
+        anchor: result,
+        used: used,
+        profile: profile,
+        occasion: occasion,
+        styles: styles,
+        preferences: preferences,
+      );
+      if (accessory != null) {
+        result.add(accessory);
+      }
     }
 
-    return result.take(5).toList(growable: false);
+    return _finalizeLook(
+      result,
+      selectedItem: piece,
+      profile: profile,
+      occasion: occasion,
+      styles: styles,
+      preferences: preferences,
+    );
   }
 
   static List<WardrobeItem> _buildSuit(
     List<WardrobeItem> candidates,
     WardrobeItem suit,
-    WardrobeItem? Function(String, {Set<String> used}) choose,
-  ) {
+    WardrobeItem? Function(String, {Set<String> used}) choose, {
+    required ColourAnalysisResult? profile,
+    required String occasion,
+    required List<String> styles,
+    required List<String> preferences,
+  }) {
     final result = <WardrobeItem>[suit];
     final used = <String>{suit.id};
 
-    final shoes = choose('Shoes', used: used);
+    final shoes = _bestPair(
+      candidates,
+      'Shoes',
+      anchor: [suit],
+      used: used,
+      profile: profile,
+      occasion: occasion,
+      styles: styles,
+      preferences: preferences,
+    );
     if (shoes != null) {
       result.add(shoes);
       used.add(shoes.id);
     }
 
-    final accessory = choose('Accessories', used: used);
-    if (accessory != null) result.add(accessory);
+    final accessory = _bestPair(
+      candidates,
+      'Accessories',
+      anchor: result,
+      used: used,
+      profile: profile,
+      occasion: occasion,
+      styles: styles,
+      preferences: preferences,
+    );
+    if (accessory != null) {
+      result.add(accessory);
+    }
 
-    return result.take(5).toList(growable: false);
+    return _finalizeLook(
+      result,
+      selectedItem: suit,
+      profile: profile,
+      occasion: occasion,
+      styles: styles,
+      preferences: preferences,
+    );
+  }
+
+  static List<WardrobeItem> _finalizeLook(
+    List<WardrobeItem> result, {
+    required WardrobeItem? selectedItem,
+    required ColourAnalysisResult? profile,
+    required String occasion,
+    required List<String> styles,
+    required List<String> preferences,
+  }) {
+    final sanitized = result
+        .where((item) => _knownCategories.contains(item.category.trim()))
+        .toList(growable: false);
+    if (sanitized.isEmpty) return const [];
+
+    final score = _scoreLook(
+      sanitized,
+      profile: profile,
+      occasion: occasion,
+      styles: styles,
+      preferences: preferences,
+      selectedItem: selectedItem,
+    );
+
+    if (score < 18) return const [];
+    return sanitized.take(5).toList(growable: false);
   }
 
   static WardrobeItem? _bestLower(
@@ -257,7 +422,7 @@ class AiStylingService {
       styles: styles,
       preferences: preferences,
     );
-    return ranked.first;
+    return ranked.isEmpty ? null : ranked.first;
   }
 
   static WardrobeItem? _bestPair(
@@ -275,14 +440,32 @@ class AiStylingService {
         .toList(growable: false);
     if (pool.isEmpty) return null;
 
-    return _rankPairCandidates(
+    final ranked = _rankPairCandidates(
       pool,
       anchor: anchor,
       profile: profile,
       occasion: occasion,
       styles: styles,
       preferences: preferences,
-    ).first;
+    );
+    return ranked.isEmpty ? null : ranked.first;
+  }
+
+  static List<WardrobeItem> _rankItems(
+    List<WardrobeItem> items, {
+    ColourAnalysisResult? profile,
+    required String occasion,
+    required List<String> styles,
+    required List<String> preferences,
+  }) {
+    return _rankPairCandidates(
+      items,
+      anchor: const [],
+      profile: profile,
+      occasion: occasion,
+      styles: styles,
+      preferences: preferences,
+    );
   }
 
   static List<WardrobeItem> _rankPairCandidates(
@@ -332,53 +515,134 @@ class AiStylingService {
     scored.sort((a, b) {
       final byScore = b.score.compareTo(a.score);
       if (byScore != 0) return byScore;
+      final favouriteTie =
+          (b.item.isFavourite ? 1 : 0).compareTo(a.item.isFavourite ? 1 : 0);
+      if (favouriteTie != 0) return favouriteTie;
       return a.item.name.toLowerCase().compareTo(b.item.name.toLowerCase());
     });
+
     return scored.map((entry) => entry.item).toList(growable: false);
   }
 
-  static int _pairCompatibilityScore(
-    WardrobeItem item,
-    WardrobeItem partner,
-  ) {
+  static int _scoreLook(
+    List<WardrobeItem> look, {
+    required ColourAnalysisResult? profile,
+    required String occasion,
+    required List<String> styles,
+    required List<String> preferences,
+    WardrobeItem? selectedItem,
+  }) {
+    if (look.isEmpty) return 0;
+
     var score = 0;
-    final a = _colourFamily(item.colour);
-    final b = _colourFamily(partner.colour);
+    for (final item in look) {
+      score += _individualFitScore(
+        item,
+        profile: profile,
+        occasion: occasion,
+        styles: styles,
+        preferences: preferences,
+      );
+    }
+
+    for (var i = 0; i < look.length; i++) {
+      for (var j = i + 1; j < look.length; j++) {
+        score += _pairCompatibilityScore(look[i], look[j]);
+      }
+    }
+
+    if (selectedItem != null &&
+        look.any((item) => item.id == selectedItem.id)) {
+      score += 8;
+    }
+
+    final categories = look.map((item) => item.category).toSet();
+    final hasDress = categories.contains('Dresses');
+    final hasSuit = categories.contains('Suits');
+    final hasTop = categories.contains('Tops');
+    final hasLower =
+        categories.contains('Bottoms') || categories.contains('Skirts');
+    final validStructure =
+        (hasDress && !hasLower && !hasTop && !hasSuit) ||
+        (hasSuit && !hasLower && !hasTop && !hasDress) ||
+        (hasTop && hasLower && !hasDress && !hasSuit);
+
+    if (validStructure) score += 16;
+    if (hasDress && look.any((item) => item.category == 'Jackets')) score += 3;
+    if (hasSuit && look.any((item) => item.category == 'Shoes')) score += 3;
+    if (hasTop && hasLower) score += 4;
+
+    return score;
+  }
+
+  static int _individualFitScore(
+    WardrobeItem item, {
+    required ColourAnalysisResult? profile,
+    required String occasion,
+    required List<String> styles,
+    required List<String> preferences,
+  }) {
+    var score = 0;
+    final colour = _normaliseColour(item.colour);
+    final combined = '${item.name} ${item.style} ${item.season}'.toLowerCase();
+    final season = profile?.season.trim().toLowerCase() ?? '';
+
+    if (item.isFavourite) score += 4;
+    if (profile != null &&
+        profile.colours.any((value) => _colourMatches(colour, value))) {
+      score += 5;
+    }
+    if (season.isNotEmpty && combined.contains(season)) score += 3;
+    if (_cleanTokenSet(styles).any((token) => combined.contains(token))) {
+      score += 3;
+    }
+    if (_cleanTokenSet(preferences).any((token) => combined.contains(token))) {
+      score += 2;
+    }
+    if (_occasionTokens(occasion).any((token) => combined.contains(token))) {
+      score += 3;
+    }
+    return score;
+  }
+
+  static int _pairCompatibilityScore(
+    WardrobeItem first,
+    WardrobeItem second,
+  ) {
+    if (first.id == second.id) return -100;
+
+    final a = _colourFamily(first.colour);
+    final b = _colourFamily(second.colour);
+    var score = 0;
 
     if (a == b && a != 'unknown') score += 14;
     if (_isNeutral(a) || _isNeutral(b)) score += 12;
     if (_isDark(a) != _isDark(b)) score += 6;
     if (_isLight(a) != _isLight(b)) score += 4;
 
-    final itemStyle = _styleFamily(item.style);
-    final partnerStyle = _styleFamily(partner.style);
-    if (itemStyle == partnerStyle && itemStyle != 'unknown') score += 10;
-    if (_stylesCanBlend(itemStyle, partnerStyle)) score += 6;
+    final firstStyle = _styleFamily(first.style);
+    final secondStyle = _styleFamily(second.style);
+    if (firstStyle == secondStyle && firstStyle != 'unknown') score += 10;
+    if (_stylesCanBlend(firstStyle, secondStyle)) score += 6;
 
-    final seasonA = item.season.trim().toLowerCase();
-    final seasonB = partner.season.trim().toLowerCase();
+    final seasonA = first.season.trim().toLowerCase();
+    final seasonB = second.season.trim().toLowerCase();
     if (seasonA.isNotEmpty && seasonB.isNotEmpty &&
-        (seasonA == 'all seasons' || seasonB == 'all seasons' ||
-            seasonA.contains(seasonB) || seasonB.contains(seasonA))) {
+        (seasonA == seasonB ||
+            seasonA == 'all seasons' ||
+            seasonB == 'all seasons')) {
       score += 5;
     }
 
     return score;
   }
 
-  static String _normaliseColour(String value) => value
-      .trim()
-      .toLowerCase()
-      .replaceAll(RegExp(r'[_\-]+'), ' ')
-      .replaceAll(RegExp(r'\s+'), ' ');
-
   static bool _colourMatches(String colour, String target) {
     final a = _colourFamily(colour);
     final b = _colourFamily(target);
     if (a == 'unknown' || b == 'unknown') return false;
     if (a == b) return true;
-    if (_isNeutral(a) && _isNeutral(b)) return true;
-    return false;
+    return _isNeutral(a) && _isNeutral(b);
   }
 
   static String _colourFamily(String raw) {
@@ -416,16 +680,25 @@ class AiStylingService {
   static String _styleFamily(String raw) {
     final value = raw.trim().toLowerCase();
     if (value.isEmpty) return 'unknown';
-    if (value.contains('formal') || value.contains('tailored') || value.contains('office')) {
+    if (value.contains('formal') ||
+        value.contains('tailored') ||
+        value.contains('office') ||
+        value.contains('business')) {
       return 'formal';
     }
-    if (value.contains('elegant') || value.contains('feminine') || value.contains('romantic')) {
+    if (value.contains('elegant') ||
+        value.contains('feminine') ||
+        value.contains('romantic')) {
       return 'elegant';
     }
-    if (value.contains('casual') || value.contains('relaxed') || value.contains('everyday')) {
+    if (value.contains('casual') ||
+        value.contains('relaxed') ||
+        value.contains('everyday')) {
       return 'casual';
     }
-    if (value.contains('minimal') || value.contains('classic') || value.contains('clean')) {
+    if (value.contains('minimal') ||
+        value.contains('classic') ||
+        value.contains('clean')) {
       return 'minimal';
     }
     if (value.contains('street') || value.contains('edgy')) return 'street';
@@ -458,10 +731,10 @@ class AiStylingService {
     final normalized = value.trim().toLowerCase();
     final tokens = <String>{..._cleanTokenSet([normalized])};
     if (normalized.contains('work') || normalized.contains('office')) {
-      tokens.addAll({'smart', 'formal', 'elegant', 'tailored'});
+      tokens.addAll({'smart', 'formal', 'elegant', 'tailored', 'business'});
     }
     if (normalized.contains('date') || normalized.contains('dinner')) {
-      tokens.addAll({'elegant', 'feminine', 'dress', 'polished'});
+      tokens.addAll({'elegant', 'feminine', 'dress', 'polished', 'refined'});
     }
     if (normalized.contains('weekend') || normalized.contains('cafe')) {
       tokens.addAll({'casual', 'relaxed', 'everyday', 'comfortable'});
@@ -594,14 +867,16 @@ class AiStylingService {
         'suitIsOnePiece': true,
         'jacketIsLayerOnly': true,
         'maxFiveItems': true,
-        'pairingEngine': 'colour + style + season + occasion + wardrobe preference',
         'rankWithinCategoryByPersonalFit': true,
+        'rankByPairCompatibility': true,
+        'scoreWholeOutfit': true,
         'prioritiseFavouriteItems': true,
         'considerPersonalColours': true,
         'considerSeason': true,
         'considerStylePreferences': true,
         'considerOccasion': true,
-        'considerPairCompatibility': true,
+        'avoidStrongStyleConflicts': true,
+        'avoidStrongColourConflicts': true,
         'allowedRoutes': const [
           'Tops + Bottoms',
           'Tops + Skirts',
