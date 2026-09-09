@@ -11,15 +11,20 @@ class StyleFeedbackService {
 
   static String _safeKey(String value) => value.trim().replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
 
+  static String? _currentUid() {
+    final uid = FirebaseAuth.instance.currentUser?.uid.trim();
+    return uid == null || uid.isEmpty ? null : uid;
+  }
+
   static Future<void> recordItemFeedback({
     required String itemId,
     required String category,
     required bool liked,
     String occasion = '',
   }) async {
-    final uid = FirebaseAuth.instance.currentUser?.uid.trim();
+    final uid = _currentUid();
     final cleanItemId = itemId.trim();
-    if (uid == null || uid.isEmpty || cleanItemId.isEmpty) return;
+    if (uid == null || cleanItemId.isEmpty) return;
     await _feedbackCollection(uid).doc('item_${_safeKey(cleanItemId)}').set({
       'type': 'item',
       'itemId': cleanItemId,
@@ -35,9 +40,9 @@ class StyleFeedbackService {
     required bool liked,
     String occasion = '',
   }) async {
-    final uid = FirebaseAuth.instance.currentUser?.uid.trim();
+    final uid = _currentUid();
     final ids = itemIds.map((id) => id.trim()).where((id) => id.isNotEmpty).toSet().toList()..sort();
-    if (uid == null || uid.isEmpty || ids.isEmpty) return;
+    if (uid == null || ids.isEmpty) return;
     await _feedbackCollection(uid).doc('look_${ids.map(_safeKey).join('_')}').set({
       'type': 'look',
       'itemIds': ids,
@@ -47,13 +52,84 @@ class StyleFeedbackService {
     }, SetOptions(merge: true));
   }
 
+  static Future<void> recordAction({
+    required String action,
+    required List<String> itemIds,
+    String occasion = '',
+    String source = 'ai_outfit',
+  }) async {
+    final uid = _currentUid();
+    final ids = itemIds.map((id) => id.trim()).where((id) => id.isNotEmpty).toSet().toList()..sort();
+    final cleanAction = action.trim();
+    if (uid == null || ids.isEmpty || cleanAction.isEmpty) return;
+    final eventId = '${DateTime.now().microsecondsSinceEpoch}_${_safeKey(cleanAction)}';
+    await _feedbackCollection(uid).doc('event_$eventId').set({
+      'type': 'action',
+      'action': cleanAction,
+      'itemIds': ids,
+      'occasion': occasion.trim(),
+      'source': source.trim(),
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  static Future<void> recordGeneratedLook({
+    required List<String> itemIds,
+    required String occasion,
+    int? matchScore,
+  }) async {
+    await recordAction(
+      action: 'generated',
+      itemIds: itemIds,
+      occasion: occasion,
+      source: 'ai_generation',
+    );
+    final uid = _currentUid();
+    final ids = itemIds.map((id) => id.trim()).where((id) => id.isNotEmpty).toSet().toList()..sort();
+    if (uid == null || ids.isEmpty) return;
+    final generatedKey = '${DateTime.now().microsecondsSinceEpoch}_${ids.map(_safeKey).join('_')}';
+    final payload = <String, dynamic>{
+      'type': 'generated',
+      'itemIds': ids,
+      'occasion': occasion.trim(),
+      'updatedAt': FieldValue.serverTimestamp(),
+      if (matchScore != null) 'matchScore': matchScore,
+    };
+    await _feedbackCollection(uid).doc('generated_$generatedKey').set(payload);
+  }
+
+  static Future<void> recordSavedLook({
+    required List<String> itemIds,
+    required String occasion,
+  }) async {
+    await recordAction(action: 'saved', itemIds: itemIds, occasion: occasion, source: 'ai_outfit');
+  }
+
+  static Future<void> recordWearAgain({
+    required List<String> itemIds,
+    required String occasion,
+  }) async {
+    await recordAction(action: 'wear_again', itemIds: itemIds, occasion: occasion, source: 'saved_looks');
+  }
+
+  static Future<void> recordRestyle({
+    required List<String> itemIds,
+    required String occasion,
+  }) async {
+    await recordAction(action: 'restyle', itemIds: itemIds, occasion: occasion, source: 'ai_outfit');
+  }
+
+  static Future<void> recordShoeChange({
+    required List<String> itemIds,
+    required String occasion,
+  }) async {
+    await recordAction(action: 'change_shoes', itemIds: itemIds, occasion: occasion, source: 'ai_outfit');
+  }
+
   static Future<List<Map<String, dynamic>>> getRecentFeedback({int limit = 40}) async {
-    final uid = FirebaseAuth.instance.currentUser?.uid.trim();
-    if (uid == null || uid.isEmpty) return const [];
-    final snapshot = await _feedbackCollection(uid)
-        .orderBy('updatedAt', descending: true)
-        .limit(limit.clamp(1, 100))
-        .get();
+    final uid = _currentUid();
+    if (uid == null) return const [];
+    final snapshot = await _feedbackCollection(uid).orderBy('updatedAt', descending: true).limit(limit.clamp(1, 100)).get();
     return snapshot.docs.map((doc) => doc.data()).toList(growable: false);
   }
 
@@ -84,24 +160,5 @@ class StyleFeedbackService {
       bias[key] = liked ? (bias[key] ?? 0) + 18 : (bias[key] ?? 0) - 20;
     }
     return bias;
-  }
-
-  static Future<void> recordGeneratedLook({
-    required List<String> itemIds,
-    required String occasion,
-    int? matchScore,
-  }) async {
-    final uid = FirebaseAuth.instance.currentUser?.uid.trim();
-    final ids = itemIds.map((id) => id.trim()).where((id) => id.isNotEmpty).toSet().toList()..sort();
-    if (uid == null || uid.isEmpty || ids.isEmpty) return;
-    final generatedKey = ids.map(_safeKey).join('_');
-    final payload = <String, dynamic>{
-      'type': 'generated',
-      'itemIds': ids,
-      'occasion': occasion.trim(),
-      'updatedAt': FieldValue.serverTimestamp(),
-      ...?matchScore == null ? null : {'matchScore': matchScore},
-    };
-    await _feedbackCollection(uid).doc('generated_$generatedKey').set(payload, SetOptions(merge: true));
   }
 }
