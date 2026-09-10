@@ -47,12 +47,10 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
         });
         return;
       }
-
       final document = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
       final data = document.data();
       final role = (data?['role'] as String? ?? '').trim().toLowerCase();
       final isActive = data?['isActive'] as bool? ?? true;
-
       if (!mounted) return;
       setState(() {
         _isCheckingAccess = false;
@@ -82,8 +80,6 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
         AdminMode.consultantPreview => Icons.support_agent_rounded,
         AdminMode.personalCustomer => Icons.person_outline_rounded,
       };
-
-  bool get _isPreviewMode => _mode == AdminMode.consultantPreview;
 
   void _setMode(AdminMode mode) {
     if (_mode == mode) return;
@@ -239,11 +235,9 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
   Widget build(BuildContext context) {
     if (_isCheckingAccess) return const Scaffold(body: Center(child: CircularProgressIndicator()));
     if (!_hasAdminAccess) return _buildAccessDenied();
-
     final pages = _pages;
     final destinations = _destinations;
     final safeIndex = _selectedIndex < pages.length ? _selectedIndex : 0;
-
     return Scaffold(
       appBar: AppBar(
         titleSpacing: 16,
@@ -296,7 +290,7 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
               children: List.generate(destinations.length, (index) {
                 final destination = destinations[index];
                 final selected = safeIndex == index;
-                final icon = destination.icon;
+                final icon = selected ? destination.selectedIcon : destination.icon;
                 return Expanded(
                   child: _AdminNavItem(
                     icon: icon,
