@@ -9,6 +9,7 @@ import '../../core/constants/app_radius.dart';
 import '../../models/colour_analysis_result.dart';
 import '../../models/user_model.dart';
 import '../../services/admin_preview_service.dart';
+import '../../services/firestore_service.dart';
 import '../../services/preview_context.dart';
 import '../../services/tib_style_journey_service.dart';
 import '../../widgets/empty_state.dart';
@@ -41,6 +42,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   int wardrobeCount = 0;
   int wardrobeFavouriteCount = 0;
   int savedLookCount = 0;
+  String? _observedPreviewUid;
+  bool _initialLoadScheduled = false;
 
   String? get activeUid {
     final previewUid = context.read<PreviewContext>().customerUid;
@@ -53,18 +56,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
+    _initialLoadScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _observedPreviewUid = context.read<PreviewContext>().customerUid;
+      loadProfile();
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final previewUid = context.read<PreviewContext>().customerUid;
+    if (!_initialLoadScheduled) return;
+    if (_observedPreviewUid == null && previewUid == null) return;
+    if (_observedPreviewUid == previewUid) return;
+    _observedPreviewUid = previewUid;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) loadProfile();
     });
   }
 
   Future<void> loadProfile() async {
-    final uid = activeUid;
+    final previewContext = context.read<PreviewContext>();
+    final previewUid = previewContext.customerUid?.trim();
+    final previewMode = previewUid != null && previewUid.isNotEmpty;
+    final uid = previewMode ? previewUid : FirebaseAuth.instance.currentUser?.uid;
+
     if (uid == null || uid.isEmpty) {
       if (mounted) {
         setState(() {
           isLoading = false;
-          loadError = isPreview ? 'No customer was selected for preview.' : 'No signed-in user was found.';
+          loadError = previewMode ? 'No customer was selected for preview.' : 'No signed-in user was found.';
         });
       }
       return;
@@ -75,6 +98,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       loadError = null;
       user = null;
       analysis = null;
+      isPremium = false;
       styles = const [];
       preferences = const [];
       wardrobeCount = 0;
@@ -84,18 +108,58 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
 
     try {
-      final data = await AdminPreviewService.loadCustomerProfile(uid);
+      UserModel? loadedUser;
+      ColourAnalysisResult? loadedAnalysis;
+      List<String> loadedStyles = const [];
+      List<String> loadedPreferences = const [];
+      int loadedWardrobeCount = 0;
+      int loadedWardrobeFavouriteCount = 0;
+      int loadedSavedLookCount = 0;
+
+      if (previewMode) {
+        // Admin preview can read another customer's UID only through the
+        // preview service; never route that UID through owner-only methods.
+        final data = await AdminPreviewService.loadCustomerProfile(uid);
+        loadedUser = data.user;
+        loadedAnalysis = data.colourAnalysis;
+        loadedStyles = data.styles;
+        loadedPreferences = data.preferences;
+        loadedWardrobeCount = data.wardrobe.length;
+        loadedWardrobeFavouriteCount = data.wardrobe.where((item) => item.isFavourite).length;
+        loadedSavedLookCount = data.savedLooks.length;
+      } else {
+        // Normal customer profile must use the owner-scoped Firestore path.
+        // The previous implementation used AdminPreviewService here, which
+        // made optional subcollection failures surface as profile-load errors.
+        final data = await FirestoreService.getPersonalStyleContext(uid);
+        loadedUser = data.user;
+        loadedAnalysis = data.colourAnalysis;
+        loadedStyles = data.styles;
+        loadedPreferences = data.preferences;
+        loadedWardrobeCount = data.wardrobe.length;
+        loadedWardrobeFavouriteCount = data.favouriteWardrobeCount;
+        loadedSavedLookCount = data.savedLooks.length;
+        if (loadedUser == null) {
+          throw StateError(data.errorMessage ?? 'Your profile could not be loaded.');
+        }
+      }
+
       if (!mounted) return;
+      final stillSameUid = activeUid == uid;
+      final stillSameMode = context.read<PreviewContext>().isCustomerPreview == previewMode;
+      if (!stillSameUid || !stillSameMode) return;
+
       setState(() {
-        user = data.user;
-        analysis = data.colourAnalysis;
-        styles = data.styles;
-        preferences = data.preferences;
-        wardrobeCount = data.wardrobe.length;
-        wardrobeFavouriteCount = data.wardrobe.where((item) => item.isFavourite).length;
-        savedLookCount = data.savedLooks.length;
-        isPremium = data.user?.isPremium ?? false;
+        user = loadedUser;
+        analysis = loadedAnalysis;
+        styles = loadedStyles;
+        preferences = loadedPreferences;
+        wardrobeCount = loadedWardrobeCount;
+        wardrobeFavouriteCount = loadedWardrobeFavouriteCount;
+        savedLookCount = loadedSavedLookCount;
+        isPremium = loadedUser?.isPremium ?? false;
         isLoading = false;
+        loadError = null;
       });
     } catch (error) {
       if (!mounted) return;
@@ -107,7 +171,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     try {
       final journey = await TibStyleJourneyService.load(uid);
-      if (mounted) setState(() => styleJourney = journey);
+      if (mounted && activeUid == uid) setState(() => styleJourney = journey);
     } catch (_) {}
   }
 
@@ -126,6 +190,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Watch PreviewContext so changing the selected customer while this tab is
+    // mounted immediately triggers didChangeDependencies and reloads the data.
+    context.watch<PreviewContext>();
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
