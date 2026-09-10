@@ -8,20 +8,15 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 
-import '../data/professional_style_data.dart';
 import '../data/season_colour_guide.dart';
 import '../models/colour_analysis_result.dart';
 
-/// Generates a multi-page editorial-style personal colour + face-shape report.
 class ColourReportService {
   ColourReportService._();
 
-  static Future<Uint8List> generateBytes({
-    required ColourAnalysisResult result,
-  }) async {
+  static Future<Uint8List> generateBytes({required ColourAnalysisResult result}) async {
     final document = PdfDocument();
     document.pageSettings.size = PdfPageSize.a4;
-
     try {
       final profile = SeasonColourGuide.forSeason(result.season);
       final accent = _seasonColor(result.season);
@@ -33,24 +28,15 @@ class ColourReportService {
       final date = DateFormat('dd MMM yyyy, h:mm a').format(DateTime.now());
       final photoBytes = await _loadImageBytes(result.imageUrl);
 
-      _drawCover(
-        document.pages.add(),
-        result: result,
-        profile: profile,
-        accent: accent,
-        dark: dark,
-        muted: muted,
-        white: white,
-        photoBytes: photoBytes,
-      );
-      _drawColourProfile(document.pages.add(), result: result, profile: profile, accent: accent, dark: dark, muted: muted, soft: soft, border: border);
-      _drawFaceShape(document.pages.add(), result: result, accent: accent, dark: dark, muted: muted, soft: soft, border: border, photoBytes: photoBytes);
-      _drawFaceStyleGuide(document.pages.add(), result: result, accent: accent, dark: dark, muted: muted, soft: soft, border: border);
-      _drawColourPalette(document.pages.add(), result: result, profile: profile, accent: accent, dark: dark, muted: muted, soft: soft, border: border);
-      _drawMakeupAndStyle(document.pages.add(), result: result, profile: profile, accent: accent, dark: dark, muted: muted, soft: soft, border: border);
-      _drawStyleIdentity(document.pages.add(), result: result, profile: profile, accent: accent, dark: dark, muted: muted, soft: soft, border: border);
-      _drawReferenceGuide(document.pages.add(), accent: accent, dark: dark, muted: muted, soft: soft, border: border);
-      _addFooters(document, date: date, accent: accent, muted: muted);
+      _drawCover(document.pages.add(), result, profile, accent, dark, muted, white, photoBytes);
+      _drawColourProfile(document.pages.add(), result, profile, accent, dark, muted, soft, border);
+      _drawFaceShape(document.pages.add(), result, accent, dark, muted, soft, border, photoBytes);
+      _drawFaceStyleGuide(document.pages.add(), result, accent, dark, muted, soft, border);
+      _drawColourPalette(document.pages.add(), result, profile, accent, dark, muted, soft, border);
+      _drawMakeupAndStyle(document.pages.add(), result, profile, accent, dark, muted, soft, border);
+      _drawStyleIdentity(document.pages.add(), result, profile, accent, dark, muted, soft, border);
+      _drawReferenceGuide(document.pages.add(), accent, dark, muted, soft, border);
+      _addFooters(document, date, accent, muted);
       return Uint8List.fromList(await document.save());
     } finally {
       document.dispose();
@@ -88,7 +74,7 @@ class ColourReportService {
     return file;
   }
 
-  static void _drawCover(PdfPage page, {required ColourAnalysisResult result, required SeasonColourProfile profile, required PdfColor accent, required PdfColor dark, required PdfColor muted, required PdfColor white, required Uint8List? photoBytes}) {
+  static void _drawCover(PdfPage page, ColourAnalysisResult result, SeasonColourProfile profile, PdfColor accent, PdfColor dark, PdfColor muted, PdfColor white, Uint8List? photoBytes) {
     final size = page.getClientSize();
     page.graphics.drawRectangle(brush: PdfSolidBrush(accent), bounds: ui.Rect.fromLTWH(0, 0, size.width, size.height));
     page.graphics.drawRectangle(brush: PdfSolidBrush(white), bounds: ui.Rect.fromLTWH(28, 34, size.width - 56, size.height - 68));
@@ -98,7 +84,6 @@ class ColourReportService {
     _text(page, 'STYLE ANALYSIS', PdfStandardFont(PdfFontFamily.helvetica, 27, style: PdfFontStyle.bold), dark, ui.Rect.fromLTWH(52, 142, 440, 32));
     _text(page, result.season.toUpperCase(), PdfStandardFont(PdfFontFamily.helvetica, 38, style: PdfFontStyle.bold), accent, ui.Rect.fromLTWH(52, 184, 440, 46));
     _text(page, profile.dimension, PdfStandardFont(PdfFontFamily.helvetica, 12, style: PdfFontStyle.bold), dark, ui.Rect.fromLTWH(52, 234, 440, 18));
-
     final photoRect = ui.Rect.fromLTWH(52, 286, 238, 300);
     if (photoBytes != null) {
       page.graphics.drawImage(PdfBitmap(photoBytes), photoRect);
@@ -106,9 +91,7 @@ class ColourReportService {
     } else {
       page.graphics.drawRectangle(brush: PdfSolidBrush(PdfColor(248, 245, 247)), pen: PdfPen(accent, width: 1.2), bounds: photoRect);
       _text(page, 'Analysis photo', PdfStandardFont(PdfFontFamily.helvetica, 14, style: PdfFontStyle.bold), dark, ui.Rect.fromLTWH(82, 420, 178, 22), alignCenter: true);
-      _text(page, 'Photo unavailable in this report', PdfStandardFont(PdfFontFamily.helvetica, 8), muted, ui.Rect.fromLTWH(76, 450, 190, 20), alignCenter: true);
     }
-
     page.graphics.drawRectangle(brush: PdfSolidBrush(PdfColor(251, 249, 252)), pen: PdfPen(PdfColor(232, 226, 234)), bounds: ui.Rect.fromLTWH(314, 286, 218, 300));
     _text(page, 'YOUR PROFILE', PdfStandardFont(PdfFontFamily.helvetica, 9, style: PdfFontStyle.bold), accent, ui.Rect.fromLTWH(334, 310, 170, 16));
     _text(page, result.faceShape.isEmpty ? 'Face shape · Unknown' : 'Face shape · ${result.faceShape}', PdfStandardFont(PdfFontFamily.helvetica, 14, style: PdfFontStyle.bold), dark, ui.Rect.fromLTWH(334, 345, 170, 40));
@@ -118,7 +101,7 @@ class ColourReportService {
     _text(page, 'A personal reference built from your observed colour characteristics and face-shape analysis.', PdfStandardFont(PdfFontFamily.helvetica, 9.5), muted, ui.Rect.fromLTWH(52, 620, 480, 42));
   }
 
-  static void _drawColourProfile(PdfPage page, {required ColourAnalysisResult result, required SeasonColourProfile profile, required PdfColor accent, required PdfColor dark, required PdfColor muted, required PdfColor soft, required PdfColor border}) {
+  static void _drawColourProfile(PdfPage page, ColourAnalysisResult result, SeasonColourProfile profile, PdfColor accent, PdfColor dark, PdfColor muted, PdfColor soft, PdfColor border) {
     _header(page, '01 · YOUR COLOUR PROFILE', 'Observed colour direction', accent, dark, muted);
     _text(page, profile.description, PdfStandardFont(PdfFontFamily.helvetica, 11), muted, ui.Rect.fromLTWH(28, 108, 510, 48));
     _metricCard(page, 28, 175, 158, 'UNDERTONE', result.undertone, accent, dark, soft, border);
@@ -140,7 +123,7 @@ class ColourReportService {
     }
   }
 
-  static void _drawFaceShape(PdfPage page, {required ColourAnalysisResult result, required PdfColor accent, required PdfColor dark, required PdfColor muted, required PdfColor soft, required PdfColor border, required Uint8List? photoBytes}) {
+  static void _drawFaceShape(PdfPage page, ColourAnalysisResult result, PdfColor accent, PdfColor dark, PdfColor muted, PdfColor soft, PdfColor border, Uint8List? photoBytes) {
     _header(page, '02 · FACE SHAPE ANALYSIS', 'Proportion-based facial outline analysis', accent, dark, muted);
     if (photoBytes != null) {
       page.graphics.drawImage(PdfBitmap(photoBytes), ui.Rect.fromLTWH(28, 108, 190, 238));
@@ -169,193 +152,184 @@ class ColourReportService {
     }
   }
 
-  static void _drawFaceStyleGuide(PdfPage page, {required ColourAnalysisResult result, required PdfColor accent, required PdfColor dark, required PdfColor muted, required PdfColor soft, required PdfColor border}) {
+  static void _drawFaceStyleGuide(PdfPage page, ColourAnalysisResult result, PdfColor accent, PdfColor dark, PdfColor muted, PdfColor soft, PdfColor border) {
     _header(page, '03 · STYLE FROM YOUR FACE', 'How your proportions can guide styling choices', accent, dark, muted);
     _text(page, 'Your face shape is a proportion guide, not a limit. Use these recommendations to create balance or emphasis intentionally.', PdfStandardFont(PdfFontFamily.helvetica, 10.5), muted, ui.Rect.fromLTWH(28, 108, 506, 44));
     final guidance = result.faceStylingGuidance.isEmpty ? ['Personal styling guidance will appear here after face-shape analysis.'] : result.faceStylingGuidance;
     var y = 184.0;
-    final labels = ['LOOK 01', 'LOOK 02', 'LOOK 03', 'LOOK 04'];
+    final labels = ['STYLE 01', 'STYLE 02', 'STYLE 03', 'STYLE 04'];
     for (var i = 0; i < guidance.take(4).length; i++) {
-      final tip = guidance[i];
       page.graphics.drawRectangle(brush: PdfSolidBrush(soft), pen: PdfPen(border), bounds: ui.Rect.fromLTWH(28, y, 506, 82));
       _text(page, labels[i], PdfStandardFont(PdfFontFamily.helvetica, 8, style: PdfFontStyle.bold), accent, ui.Rect.fromLTWH(44, y + 14, 75, 14));
-      _text(page, tip, PdfStandardFont(PdfFontFamily.helvetica, 11, style: PdfFontStyle.bold), dark, ui.Rect.fromLTWH(44, y + 34, 455, 32));
+      _text(page, guidance[i], PdfStandardFont(PdfFontFamily.helvetica, 11, style: PdfFontStyle.bold), dark, ui.Rect.fromLTWH(44, y + 34, 455, 32));
       y += 96;
     }
     _sectionTitle(page, 'Use this with your wardrobe', 590, accent, dark);
     _text(page, 'Combine face-shape recommendations with your personal colours, preferred silhouettes and occasion needs for a more complete styling decision.', PdfStandardFont(PdfFontFamily.helvetica, 10.5), muted, ui.Rect.fromLTWH(28, 630, 506, 42));
   }
 
-  static void _drawColourPalette(PdfPage page, {required ColourAnalysisResult result, required SeasonColourProfile profile, required PdfColor accent, required PdfColor dark, required PdfColor muted, required PdfColor soft, required PdfColor border}) {
-    _header(page, '04 · YOUR COLOUR PALETTE', 'A practical palette for wardrobe decisions', accent, dark, muted);
-    _paletteBlock(page, 'BEST COLOURS', profile.bestColours, 108, accent, dark, muted, border);
-    final neutrals = result.bestNeutrals.isNotEmpty ? result.bestNeutrals : profile.bestColours.take(4).toList();
-    _paletteBlock(page, 'BEST NEUTRALS', neutrals, 332, accent, dark, muted, border);
-    final accents = result.accentColours.isNotEmpty ? result.accentColours : profile.bestColours.skip(4).take(6).toList();
-    _paletteBlock(page, 'ACCENT COLOURS', accents, 500, accent, dark, muted, border);
-    if (result.lessIdealColours.isNotEmpty) {
-      _text(page, 'USE LESS OF', PdfStandardFont(PdfFontFamily.helvetica, 8.5, style: PdfFontStyle.bold), muted, ui.Rect.fromLTWH(28, 676, 160, 14));
-      _text(page, result.lessIdealColours.join(' · '), PdfStandardFont(PdfFontFamily.helvetica, 8.5), dark, ui.Rect.fromLTWH(28, 694, 506, 30));
-    }
+  static void _drawColourPalette(PdfPage page, ColourAnalysisResult result, SeasonColourProfile profile, PdfColor accent, PdfColor dark, PdfColor muted, PdfColor soft, PdfColor border) {
+    _header(page, '04 · YOUR COLOUR PALETTE', 'Colours that align with your personal colour direction', accent, dark, muted);
+    _paletteGroup(page, 'SIGNATURE COLOURS', profile.bestColours, 116, accent, dark, muted, border);
+    _paletteGroup(page, 'BEST NEUTRALS', result.bestNeutrals.isEmpty ? _defaultNeutrals(profile) : result.bestNeutrals, 350, accent, dark, muted, border);
+    _paletteGroup(page, 'ACCENT COLOURS', result.accentColours.isEmpty ? profile.bestColours.take(6).toList() : result.accentColours, 584, accent, dark, muted, border);
   }
 
-  static void _drawMakeupAndStyle(PdfPage page, {required ColourAnalysisResult result, required SeasonColourProfile profile, required PdfColor accent, required PdfColor dark, required PdfColor muted, required PdfColor soft, required PdfColor border}) {
-    _header(page, '05 · BEAUTY COLOUR GUIDE', 'Makeup shades that echo your palette', accent, dark, muted);
-    _sectionTitle(page, 'Eye shadow', 108, accent, dark);
-    _swatchGrid(page, profile.eyeShadowColours, 150, accent, dark, border, columns: 4);
-    _sectionTitle(page, 'Blush', 390, accent, dark);
-    _swatchGrid(page, profile.blushColours, 432, accent, dark, border, columns: 4);
-    _text(page, 'Style note', PdfStandardFont(PdfFontFamily.helvetica, 9, style: PdfFontStyle.bold), accent, ui.Rect.fromLTWH(28, 618, 120, 14));
-    final note = '${profile.name} works best when colour, depth and styling details feel intentional rather than competing for attention.';
-    _text(page, note, PdfStandardFont(PdfFontFamily.helvetica, 11), muted, ui.Rect.fromLTWH(28, 640, 506, 50));
+  static void _drawMakeupAndStyle(PdfPage page, ColourAnalysisResult result, SeasonColourProfile profile, PdfColor accent, PdfColor dark, PdfColor muted, PdfColor soft, PdfColor border) {
+    _header(page, '05 · BEAUTY & COLOUR STYLING', 'Makeup tones and colours to explore', accent, dark, muted);
+    _sectionTitle(page, 'Eye shadow', 112, accent, dark);
+    _drawNamedList(page, profile.eyeShadowColours, 154, accent, dark, muted, border);
+    _sectionTitle(page, 'Blush', 378, accent, dark);
+    _drawNamedList(page, profile.blushColours, 420, accent, dark, muted, border);
+    _sectionTitle(page, 'Colours to use less often', 584, accent, dark);
+    _drawNamedList(page, result.lessIdealColours.isEmpty ? _fallbackLessIdeal(result.season) : result.lessIdealColours, 626, accent, dark, muted, border);
   }
 
-  static void _drawStyleIdentity(PdfPage page, {required ColourAnalysisResult result, required SeasonColourProfile profile, required PdfColor accent, required PdfColor dark, required PdfColor muted, required PdfColor soft, required PdfColor border}) {
-    _header(page, '06 · YOUR STYLE IDENTITY', 'From colour profile to personal expression', accent, dark, muted);
-    final keywords = profile.keywords;
-    _text(page, 'YOUR STYLE LANGUAGE', PdfStandardFont(PdfFontFamily.helvetica, 9, style: PdfFontStyle.bold), accent, ui.Rect.fromLTWH(28, 112, 220, 14));
-    _drawKeywordChips(page, keywords, 148, accent, dark, soft, border);
-    _sectionTitle(page, 'Personal direction', 330, accent, dark);
-    _text(page, _styleSummary(profile, result), PdfStandardFont(PdfFontFamily.helvetica, 15, style: PdfFontStyle.bold), dark, ui.Rect.fromLTWH(28, 372, 506, 72));
-    _text(page, 'Use this identity as a bridge between what suits you visually and what feels like you.', PdfStandardFont(PdfFontFamily.helvetica, 10.5), muted, ui.Rect.fromLTWH(28, 466, 506, 42));
-    _sectionTitle(page, 'Your styling blueprint', 540, accent, dark);
-    final blueprint = <MapEntry<String, String>>[
-      MapEntry('COLOUR', '${profile.name} · ${profile.dimension}'),
-      MapEntry('FACE', result.faceShape.isEmpty ? 'Not available' : result.faceShape),
-      MapEntry('UNDERTONE', result.undertone),
-      MapEntry('DEPTH', result.brightness),
-      MapEntry('CONTRAST', result.contrast),
-    ];
-    var y = 580.0;
-    for (final entry in blueprint) {
-      _text(page, entry.key, PdfStandardFont(PdfFontFamily.helvetica, 8, style: PdfFontStyle.bold), muted, ui.Rect.fromLTWH(28, y, 110, 14));
-      _text(page, entry.value, PdfStandardFont(PdfFontFamily.helvetica, 10.5, style: PdfFontStyle.bold), dark, ui.Rect.fromLTWH(150, y - 1, 360, 18));
-      y += 28;
-    }
+  static void _drawStyleIdentity(PdfPage page, ColourAnalysisResult result, SeasonColourProfile profile, PdfColor accent, PdfColor dark, PdfColor muted, PdfColor soft, PdfColor border) {
+    _header(page, '06 · YOUR STYLE IDENTITY', 'Turning colour and face shape into a personal style direction', accent, dark, muted);
+    _sectionTitle(page, 'Style personality', 112, accent, dark);
+    _drawPills(page, profile.keywords.take(12).toList(), 154, accent, dark, soft, border);
+    _sectionTitle(page, 'Your signature direction', 326, accent, dark);
+    page.graphics.drawRectangle(brush: PdfSolidBrush(soft), pen: PdfPen(border), bounds: ui.Rect.fromLTWH(28, 368, 506, 150));
+    _text(page, _styleSummary(result, profile), PdfStandardFont(PdfFontFamily.helvetica, 15, style: PdfFontStyle.bold), dark, ui.Rect.fromLTWH(48, 394, 466, 76));
+    _text(page, 'This profile can be used by VYEA to personalise wardrobe recommendations and AI styling decisions.', PdfStandardFont(PdfFontFamily.helvetica, 9.5), muted, ui.Rect.fromLTWH(48, 474, 466, 28));
+    _sectionTitle(page, 'Your styling formula', 562, accent, dark);
+    final formula = '${result.faceShape.isEmpty ? 'Your face shape' : result.faceShape} + ${profile.name} colour direction + intentional silhouette';
+    _text(page, formula, PdfStandardFont(PdfFontFamily.helvetica, 16, style: PdfFontStyle.bold), accent, ui.Rect.fromLTWH(28, 604, 506, 52), alignCenter: true);
   }
 
-  static void _drawReferenceGuide(PdfPage page, {required PdfColor accent, required PdfColor dark, required PdfColor muted, required PdfColor soft, required PdfColor border}) {
-    final profiles = SeasonColourGuide.profiles.values.toList();
+  static void _drawReferenceGuide(PdfPage page, PdfColor accent, PdfColor dark, PdfColor muted, PdfColor soft, PdfColor border) {
     _header(page, '07 · SEASON REFERENCE', 'Four-season reference guide', accent, dark, muted);
-    final positions = <ui.Rect>[
-      ui.Rect.fromLTWH(28, 108, 248, 260), ui.Rect.fromLTWH(292, 108, 248, 260),
-      ui.Rect.fromLTWH(28, 392, 248, 260), ui.Rect.fromLTWH(292, 392, 248, 260),
-    ];
+    final profiles = SeasonColourGuide.profiles.values.toList();
+    final positions = [ui.Rect.fromLTWH(28, 106, 248, 300), ui.Rect.fromLTWH(292, 106, 248, 300), ui.Rect.fromLTWH(28, 430, 248, 300), ui.Rect.fromLTWH(292, 430, 248, 300)];
     for (var i = 0; i < profiles.length && i < positions.length; i++) {
       final profile = profiles[i];
       final rect = positions[i];
       final color = _seasonColor(profile.name);
-      page.graphics.drawRectangle(brush: PdfSolidBrush(PdfColor(251, 249, 252)), pen: PdfPen(color, width: 1), bounds: rect);
+      page.graphics.drawRectangle(brush: PdfSolidBrush(soft), pen: PdfPen(color), bounds: rect);
       _text(page, profile.name.toUpperCase(), PdfStandardFont(PdfFontFamily.helvetica, 13, style: PdfFontStyle.bold), color, ui.Rect.fromLTWH(rect.left + 14, rect.top + 14, rect.width - 28, 18));
-      _text(page, profile.dimension, PdfStandardFont(PdfFontFamily.helvetica, 10, style: PdfFontStyle.bold), dark, ui.Rect.fromLTWH(rect.left + 14, rect.top + 40, rect.width - 28, 16));
-      _text(page, profile.description, PdfStandardFont(PdfFontFamily.helvetica, 8.2), muted, ui.Rect.fromLTWH(rect.left + 14, rect.top + 65, rect.width - 28, 48));
-      _swatchGrid(page, profile.bestColours.take(6).toList(), rect.top + 124, color, dark, border, columns: 3, boxWidth: 65, boxHeight: 25);
-      _text(page, 'Eye: ${profile.eyeShadowColours.take(4).join(', ')}', PdfStandardFont(PdfFontFamily.helvetica, 7), dark, ui.Rect.fromLTWH(rect.left + 14, rect.bottom - 48, rect.width - 28, 18));
-      _text(page, 'Blush: ${profile.blushColours.take(4).join(', ')}', PdfStandardFont(PdfFontFamily.helvetica, 7), dark, ui.Rect.fromLTWH(rect.left + 14, rect.bottom - 26, rect.width - 28, 18));
+      _text(page, profile.dimension, PdfStandardFont(PdfFontFamily.helvetica, 9.5, style: PdfFontStyle.bold), dark, ui.Rect.fromLTWH(rect.left + 14, rect.top + 40, rect.width - 28, 16));
+      _text(page, profile.description, PdfStandardFont(PdfFontFamily.helvetica, 8.5), muted, ui.Rect.fromLTWH(rect.left + 14, rect.top + 65, rect.width - 28, 42));
+      _drawSwatchesInRect(page, profile.bestColours.take(6).toList(), rect.left + 14, rect.top + 118, rect.width - 28, color, dark);
+      _text(page, 'Eye: ${profile.eyeShadowColours.take(4).join(', ')}', PdfStandardFont(PdfFontFamily.helvetica, 7), dark, ui.Rect.fromLTWH(rect.left + 14, rect.bottom - 50, rect.width - 28, 20));
+      _text(page, 'Blush: ${profile.blushColours.take(4).join(', ')}', PdfStandardFont(PdfFontFamily.helvetica, 7), dark, ui.Rect.fromLTWH(rect.left + 14, rect.bottom - 28, rect.width - 28, 20));
     }
   }
 
-  static Future<Uint8List?> _loadImageBytes(String imageUrl) async {
-    final value = imageUrl.trim();
-    if (value.isEmpty) return null;
-    try {
-      final uri = Uri.tryParse(value);
-      if (uri != null && (uri.scheme == 'http' || uri.scheme == 'https')) {
-        final response = await http.get(uri).timeout(const Duration(seconds: 12));
-        if (response.statusCode >= 200 && response.statusCode < 300 && response.bodyBytes.isNotEmpty) return Uint8List.fromList(response.bodyBytes);
-      } else if (value.startsWith('file://')) {
-        return await File.fromUri(Uri.parse(value)).readAsBytes();
-      } else {
-        final file = File(value);
-        if (await file.exists()) return await file.readAsBytes();
-      }
-    } catch (_) {}
-    return null;
-  }
-
-  static void _addFooters(PdfDocument document, {required String date, required PdfColor accent, required PdfColor muted}) {
+  static void _addFooters(PdfDocument document, String date, PdfColor accent, PdfColor muted) {
     for (var i = 0; i < document.pages.count; i++) {
       final page = document.pages[i];
       final size = page.getClientSize();
-      _text(page, 'TiB AI Personal Styling · VYEA', PdfStandardFont(PdfFontFamily.helvetica, 7), muted, ui.Rect.fromLTWH(28, size.height - 24, 230, 12));
-      _text(page, 'CONFIDENTIAL PERSONAL REPORT', PdfStandardFont(PdfFontFamily.helvetica, 7, style: PdfFontStyle.bold), accent, ui.Rect.fromLTWH(280, size.height - 24, 170, 12), alignRight: true);
-      _text(page, '${i + 1}/${document.pages.count} · $date', PdfStandardFont(PdfFontFamily.helvetica, 7), muted, ui.Rect.fromLTWH(450, size.height - 24, 85, 12), alignRight: true);
+      _text(page, 'TiB AI Personal Styling · VYEA', PdfStandardFont(PdfFontFamily.helvetica, 7), muted, ui.Rect.fromLTWH(28, size.height - 24, 220, 12));
+      _text(page, '${i + 1} / ${document.pages.count}', PdfStandardFont(PdfFontFamily.helvetica, 7, style: PdfFontStyle.bold), accent, ui.Rect.fromLTWH(size.width - 70, size.height - 24, 42, 12), alignRight: true);
+      if (i == 0) _text(page, date, PdfStandardFont(PdfFontFamily.helvetica, 7), muted, ui.Rect.fromLTWH(size.width - 220, size.height - 24, 145, 12), alignRight: true);
     }
   }
 
   static void _header(PdfPage page, String title, String subtitle, PdfColor accent, PdfColor dark, PdfColor muted) {
-    _text(page, title, PdfStandardFont(PdfFontFamily.helvetica, 17, style: PdfFontStyle.bold), dark, ui.Rect.fromLTWH(28, 32, 410, 24));
-    _text(page, subtitle, PdfStandardFont(PdfFontFamily.helvetica, 9), muted, ui.Rect.fromLTWH(28, 60, 430, 16));
-    page.graphics.drawRectangle(brush: PdfSolidBrush(accent), bounds: ui.Rect.fromLTWH(28, 84, 46, 3));
+    _text(page, 'TiB', PdfStandardFont(PdfFontFamily.helvetica, 10, style: PdfFontStyle.bold), accent, ui.Rect.fromLTWH(28, 28, 60, 14));
+    _text(page, title, PdfStandardFont(PdfFontFamily.helvetica, 19, style: PdfFontStyle.bold), dark, ui.Rect.fromLTWH(28, 57, 506, 24));
+    _text(page, subtitle, PdfStandardFont(PdfFontFamily.helvetica, 9), muted, ui.Rect.fromLTWH(28, 84, 506, 16));
+    page.graphics.drawRectangle(brush: PdfSolidBrush(accent), bounds: ui.Rect.fromLTWH(28, 101, 52, 2.5));
   }
 
   static void _sectionTitle(PdfPage page, String title, double y, PdfColor accent, PdfColor dark) {
-    _text(page, title, PdfStandardFont(PdfFontFamily.helvetica, 13, style: PdfFontStyle.bold), dark, ui.Rect.fromLTWH(28, y, 420, 19));
-    page.graphics.drawRectangle(brush: PdfSolidBrush(accent), bounds: ui.Rect.fromLTWH(28, y + 23, 38, 3));
+    _text(page, title, PdfStandardFont(PdfFontFamily.helvetica, 14, style: PdfFontStyle.bold), dark, ui.Rect.fromLTWH(28, y, 500, 20));
+    page.graphics.drawRectangle(brush: PdfSolidBrush(accent), bounds: ui.Rect.fromLTWH(28, y + 24, 38, 2));
   }
 
   static void _metricCard(PdfPage page, double x, double y, double width, String label, String value, PdfColor accent, PdfColor dark, PdfColor soft, PdfColor border) {
     page.graphics.drawRectangle(brush: PdfSolidBrush(soft), pen: PdfPen(border), bounds: ui.Rect.fromLTWH(x, y, width, 66));
     page.graphics.drawEllipse(ui.Rect.fromLTWH(x + 12, y + 14, 16, 16), brush: PdfSolidBrush(accent));
     _text(page, label, PdfStandardFont(PdfFontFamily.helvetica, 8, style: PdfFontStyle.bold), PdfColor(120, 114, 122), ui.Rect.fromLTWH(x + 36, y + 12, width - 48, 12));
-    _text(page, value, PdfStandardFont(PdfFontFamily.helvetica, 12, style: PdfFontStyle.bold), dark, ui.Rect.fromLTWH(x + 12, y + 34, width - 24, 18));
+    _text(page, value, PdfStandardFont(PdfFontFamily.helvetica, 11, style: PdfFontStyle.bold), dark, ui.Rect.fromLTWH(x + 12, y + 34, width - 24, 18));
   }
 
-  static void _dimensionBar(PdfPage page, double x, double y, String label, String selected, List<String> values, PdfColor accent, PdfColor dark, PdfColor muted, PdfColor border) {
-    _text(page, label.toUpperCase(), PdfStandardFont(PdfFontFamily.helvetica, 7.5, style: PdfFontStyle.bold), muted, ui.Rect.fromLTWH(x, y, 90, 14));
-    var currentX = x + 92.0;
-    for (final value in values) {
-      final selectedValue = value.toLowerCase() == selected.toLowerCase() || (label == 'Depth' && value.toLowerCase() == selected.toLowerCase());
-      final width = value.length * 4.6 + 24;
-      page.graphics.drawRectangle(brush: PdfSolidBrush(selectedValue ? accent : PdfColor(248, 247, 249)), pen: PdfPen(border), bounds: ui.Rect.fromLTWH(currentX, y - 2, width, 20));
-      _text(page, value, PdfStandardFont(PdfFontFamily.helvetica, 7, style: selectedValue ? PdfFontStyle.bold : PdfFontStyle.regular), selectedValue ? PdfColor(255, 255, 255) : dark, ui.Rect.fromLTWH(currentX + 5, y + 3, width - 10, 12), alignCenter: true);
-      currentX += width + 6;
-    }
-  }
-
-  static void _paletteBlock(PdfPage page, String title, List<String> names, double y, PdfColor accent, PdfColor dark, PdfColor muted, PdfColor border) {
-    _text(page, title, PdfStandardFont(PdfFontFamily.helvetica, 8.5, style: PdfFontStyle.bold), accent, ui.Rect.fromLTWH(28, y, 230, 14));
-    _swatchGrid(page, names.take(12).toList(), y + 26, accent, dark, border, columns: 6, boxWidth: 73, boxHeight: 31);
-  }
-
-  static void _swatchGrid(PdfPage page, List<String> names, double y, PdfColor accent, PdfColor dark, PdfColor border, {int columns = 4, double boxWidth = 112, double boxHeight = 36}) {
-    const startX = 28.0;
-    const gapX = 8.0;
-    const gapY = 54.0;
-    for (var i = 0; i < names.length; i++) {
-      final row = i ~/ columns;
-      final col = i % columns;
-      final x = startX + col * (boxWidth + gapX);
-      final top = y + row * gapY;
-      page.graphics.drawRectangle(brush: PdfSolidBrush(_colourFor(names[i], accent)), pen: PdfPen(border), bounds: ui.Rect.fromLTWH(x, top, boxWidth, boxHeight));
-      _text(page, names[i], PdfStandardFont(PdfFontFamily.helvetica, 7), dark, ui.Rect.fromLTWH(x, top + boxHeight + 5, boxWidth, 14), alignCenter: true);
-    }
-  }
-
-  static void _drawKeywordChips(PdfPage page, List<String> keywords, double y, PdfColor accent, PdfColor dark, PdfColor soft, PdfColor border) {
-    var x = 28.0;
-    var currentY = y;
-    for (final keyword in keywords) {
-      final width = 18 + keyword.length * 4.1;
-      if (x + width > 530) { x = 28; currentY += 28; }
-      page.graphics.drawRectangle(brush: PdfSolidBrush(soft), pen: PdfPen(border), bounds: ui.Rect.fromLTWH(x, currentY, width, 21));
-      _text(page, keyword, PdfStandardFont(PdfFontFamily.helvetica, 7), dark, ui.Rect.fromLTWH(x + 5, currentY + 4, width - 10, 12), alignCenter: true);
-      x += width + 7;
+  static void _dimensionBar(PdfPage page, double x, double y, String label, String selected, List<String> options, PdfColor accent, PdfColor dark, PdfColor muted, PdfColor border) {
+    _text(page, label.toUpperCase(), PdfStandardFont(PdfFontFamily.helvetica, 8, style: PdfFontStyle.bold), muted, ui.Rect.fromLTWH(x, y, 100, 14));
+    final start = x + 112;
+    final totalWidth = 394.0;
+    final step = totalWidth / options.length;
+    page.graphics.drawLine(PdfPen(border, width: 1), ui.Offset(start, y + 8), ui.Offset(start + totalWidth, y + 8));
+    for (var i = 0; i < options.length; i++) {
+      final centerX = start + i * step + step / 2;
+      final isSelected = options[i].toLowerCase() == selected.toLowerCase();
+      page.graphics.drawEllipse(ui.Rect.fromLTWH(centerX - 6, y + 2, 12, 12), brush: PdfSolidBrush(isSelected ? accent : PdfColor(238, 233, 240)), pen: PdfPen(border));
+      _text(page, options[i], PdfStandardFont(PdfFontFamily.helvetica, 7.5, style: isSelected ? PdfFontStyle.bold : PdfFontStyle.regular), isSelected ? dark : muted, ui.Rect.fromLTWH(start + i * step, y + 18, step, 13), alignCenter: true);
     }
   }
 
   static void _smallProfile(PdfPage page, String label, String value, double y, PdfColor dark, PdfColor muted) {
-    _text(page, label, PdfStandardFont(PdfFontFamily.helvetica, 8, style: PdfFontStyle.bold), muted, ui.Rect.fromLTWH(334, y, 70, 13));
-    _text(page, value, PdfStandardFont(PdfFontFamily.helvetica, 12, style: PdfFontStyle.bold), dark, ui.Rect.fromLTWH(334, y + 16, 170, 16));
+    _text(page, label, PdfStandardFont(PdfFontFamily.helvetica, 8, style: PdfFontStyle.bold), muted, ui.Rect.fromLTWH(334, y, 80, 12));
+    _text(page, value, PdfStandardFont(PdfFontFamily.helvetica, 11, style: PdfFontStyle.bold), dark, ui.Rect.fromLTWH(414, y - 1, 94, 14), alignRight: true);
   }
 
-  static String _formatMeasurement(double? value, {String suffix = ''}) => value == null ? '—' : '${value.toStringAsFixed(value.abs() >= 10 ? 0 : 3)}$suffix';
-
-  static String _styleSummary(SeasonColourProfile profile, ColourAnalysisResult result) {
-    final keywords = profile.keywords.take(3).join(' · ');
-    final face = result.faceShape.isEmpty || result.faceShape == 'Unknown' ? 'balanced personal styling' : '${result.faceShape.toLowerCase()} face proportions';
-    return '${profile.name} colour direction with $keywords, designed around your $face.';
+  static void _paletteGroup(PdfPage page, String title, List<String> names, double y, PdfColor accent, PdfColor dark, PdfColor muted, PdfColor border) {
+    _text(page, title, PdfStandardFont(PdfFontFamily.helvetica, 9, style: PdfFontStyle.bold), muted, ui.Rect.fromLTWH(28, y, 300, 14));
+    _drawSwatchesInRect(page, names.take(12).toList(), 28, y + 26, 506, accent, dark);
   }
+
+  static void _drawSwatchesInRect(PdfPage page, List<String> names, double x, double y, double width, PdfColor accent, PdfColor dark) {
+    final columns = width > 400 ? 6 : 3;
+    final gap = 9.0;
+    final swatchWidth = (width - gap * (columns - 1)) / columns;
+    const swatchHeight = 28.0;
+    const rowHeight = 54.0;
+    for (var i = 0; i < names.length; i++) {
+      final row = i ~/ columns;
+      final col = i % columns;
+      final px = x + col * (swatchWidth + gap);
+      final py = y + row * rowHeight;
+      page.graphics.drawRectangle(brush: PdfSolidBrush(_colourFor(names[i], accent)), pen: PdfPen(PdfColor(230, 224, 232)), bounds: ui.Rect.fromLTWH(px, py, swatchWidth, swatchHeight));
+      _text(page, names[i], PdfStandardFont(PdfFontFamily.helvetica, 6.6), dark, ui.Rect.fromLTWH(px, py + 31, swatchWidth, 16), alignCenter: true);
+    }
+  }
+
+  static void _drawNamedList(PdfPage page, List<String> names, double y, PdfColor accent, PdfColor dark, PdfColor muted, PdfColor border) {
+    for (var i = 0; i < names.length && i < 10; i++) {
+      final row = i % 5;
+      final col = i ~/ 5;
+      final x = 28 + col * 253.0;
+      final py = y + row * 46.0;
+      page.graphics.drawRectangle(brush: PdfSolidBrush(PdfColor(252, 251, 253)), pen: PdfPen(border), bounds: ui.Rect.fromLTWH(x, py, 242, 34));
+      page.graphics.drawEllipse(ui.Rect.fromLTWH(x + 10, py + 8, 18, 18), brush: PdfSolidBrush(_colourFor(names[i], accent)));
+      _text(page, names[i], PdfStandardFont(PdfFontFamily.helvetica, 8.5, style: PdfFontStyle.bold), dark, ui.Rect.fromLTWH(x + 38, py + 10, 190, 14));
+    }
+  }
+
+  static void _drawPills(PdfPage page, List<String> values, double y, PdfColor accent, PdfColor dark, PdfColor soft, PdfColor border) {
+    var x = 28.0;
+    var rowY = y;
+    for (final value in values) {
+      final width = 24 + value.length * 4.2;
+      if (x + width > 534) {
+        x = 28;
+        rowY += 34;
+      }
+      page.graphics.drawRectangle(brush: PdfSolidBrush(soft), pen: PdfPen(accent, width: .55), bounds: ui.Rect.fromLTWH(x, rowY, width, 23));
+      _text(page, value, PdfStandardFont(PdfFontFamily.helvetica, 7.5), dark, ui.Rect.fromLTWH(x + 5, rowY + 5, width - 10, 13), alignCenter: true);
+      x += width + 7;
+    }
+  }
+
+  static String _styleSummary(ColourAnalysisResult result, SeasonColourProfile profile) {
+    final face = result.faceShape.trim().isEmpty ? 'your natural facial proportions' : '${result.faceShape} face proportions';
+    return 'Your strongest direction combines ${profile.dimension.toLowerCase()} colour harmony with $face. Build outfits around refined colour contrast, intentional silhouette and details that support your natural proportions.';
+  }
+
+  static List<String> _defaultNeutrals(SeasonColourProfile profile) => profile.bestColours.take(4).toList();
+
+  static List<String> _fallbackLessIdeal(String season) {
+    switch (season) {
+      case 'Winter': return ['Camel', 'Mustard', 'Rust', 'Warm Orange'];
+      case 'Summer': return ['Neon Orange', 'Golden Yellow', 'Rust', 'Warm Olive'];
+      case 'Spring': return ['Jet Black', 'Charcoal', 'Deep Burgundy', 'Cool Plum'];
+      case 'Autumn': return ['Icy Grey', 'Frosted Blue', 'Cool Lilac', 'Neon Pink'];
+      default: return ['Extreme neon', 'Very cool grey', 'Very icy pastels'];
+    }
+  }
+
+  static String _formatMeasurement(double? value, {String suffix = ''}) => value == null ? '—' : '${value.toStringAsFixed(3)}$suffix';
 
   static PdfColor _seasonColor(String season) {
     switch (season) {
@@ -369,22 +343,35 @@ class ColourReportService {
 
   static PdfColor _colourFor(String name, PdfColor accent) {
     final key = name.toLowerCase();
-    if (key.contains('white') || key.contains('ivory') || key.contains('cream')) return PdfColor(245, 243, 238);
+    if (key.contains('white') || key.contains('ivory')) return PdfColor(245, 243, 238);
     if (key.contains('black')) return PdfColor(38, 36, 38);
     if (key.contains('charcoal')) return PdfColor(70, 73, 80);
     if (key.contains('navy')) return PdfColor(38, 57, 88);
     if (key.contains('blue') || key.contains('sapphire') || key.contains('cobalt')) return PdfColor(65, 115, 176);
     if (key.contains('lavender') || key.contains('lilac') || key.contains('mauve')) return PdfColor(176, 151, 193);
     if (key.contains('pink') || key.contains('rose') || key.contains('raspberry')) return PdfColor(211, 132, 155);
-    if (key.contains('red') || key.contains('ruby') || key.contains('cranberry') || key.contains('wine')) return PdfColor(167, 65, 74);
+    if (key.contains('red') || key.contains('ruby') || key.contains('cranberry')) return PdfColor(167, 65, 74);
     if (key.contains('peach') || key.contains('apricot') || key.contains('coral')) return PdfColor(230, 141, 116);
     if (key.contains('yellow') || key.contains('gold')) return PdfColor(210, 174, 70);
     if (key.contains('green') || key.contains('olive') || key.contains('mint')) return PdfColor(108, 135, 82);
-    if (key.contains('brown') || key.contains('camel') || key.contains('chocolate') || key.contains('sienna') || key.contains('bronze')) return PdfColor(143, 103, 74);
-    if (key.contains('beige') || key.contains('taupe')) return PdfColor(205, 186, 157);
-    if (key.contains('grey') || key.contains('gray') || key.contains('silver')) return PdfColor(154, 153, 157);
-    if (key.contains('golden')) return PdfColor(216, 170, 82);
+    if (key.contains('brown') || key.contains('camel') || key.contains('chocolate') || key.contains('sienna')) return PdfColor(143, 103, 74);
+    if (key.contains('beige') || key.contains('cream') || key.contains('taupe')) return PdfColor(205, 186, 157);
+    if (key.contains('grey') || key.contains('gray')) return PdfColor(154, 153, 157);
     return accent;
+  }
+
+  static Future<Uint8List?> _loadImageBytes(String url) async {
+    final trimmed = url.trim();
+    if (trimmed.isEmpty) return null;
+    final uri = Uri.tryParse(trimmed);
+    if (uri == null || !uri.hasScheme) return null;
+    try {
+      final response = await http.get(uri);
+      if (response.statusCode >= 200 && response.statusCode < 300 && response.bodyBytes.isNotEmpty) {
+        return Uint8List.fromList(response.bodyBytes);
+      }
+    } catch (_) {}
+    return null;
   }
 
   static void _text(PdfPage page, String text, PdfFont font, PdfColor color, ui.Rect bounds, {bool alignCenter = false, bool alignRight = false}) {
