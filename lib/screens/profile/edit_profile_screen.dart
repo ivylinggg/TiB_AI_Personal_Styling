@@ -2,8 +2,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
-import '../../services/firestore_service.dart';
 import '../../models/user_model.dart';
+import '../../services/firestore_service.dart';
 
 class EditProfileScreen extends StatefulWidget {
   final UserModel user;
@@ -18,20 +18,50 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   static const _genders = ['Female', 'Male', 'Non-binary', 'Prefer not to say'];
   static const _ages = ['Under 18', '18–24', '25–34', '35–44', '45–54', '55+'];
   static const _ethnicities = [
-    'White / Caucasian', 'East Asian', 'South Asian', 'Southeast Asian',
-    'Middle Eastern', 'Hispanic / Latino', 'Black / African',
-    'Mixed / Multiracial', 'Other',
+    'White / Caucasian',
+    'East Asian',
+    'South Asian',
+    'Southeast Asian',
+    'Middle Eastern',
+    'Hispanic / Latino',
+    'Black / African',
+    'Mixed / Multiracial',
+    'Other',
   ];
   static const _occupations = [
-    'Student', 'Office / Corporate', 'Business Owner', 'Healthcare',
-    'Education / Teacher', 'Hospitality / Service', 'Creative / Design',
-    'Beauty / Fashion', 'Sales / Retail', 'Freelancer', 'Homemaker',
-    'Retired', 'Currently looking for work', 'Other',
+    'Student',
+    'Office / Corporate',
+    'Business Owner',
+    'Healthcare',
+    'Education / Teacher',
+    'Hospitality / Service',
+    'Creative / Design',
+    'Beauty / Fashion',
+    'Sales / Retail',
+    'Freelancer',
+    'Homemaker',
+    'Retired',
+    'Currently looking for work',
+    'Other',
   ];
   static const _brands = [
-    'Zara', 'Uniqlo', 'Shein', 'Cotton On', 'H&M', 'Forever 21', 'Mango',
-    'Primark', 'Fashion Nova', 'Gap', 'Cider', 'ASOS', 'Romwe', 'Bershka',
-    'Target', 'Charlotte Russe', 'Dynamite',
+    'Zara',
+    'Uniqlo',
+    'Shein',
+    'Cotton On',
+    'H&M',
+    'Forever 21',
+    'Mango',
+    'Primark',
+    'Fashion Nova',
+    'Gap',
+    'Cider',
+    'ASOS',
+    'Romwe',
+    'Bershka',
+    'Target',
+    'Charlotte Russe',
+    'Dynamite',
   ];
 
   late final TextEditingController _nameController;
@@ -52,6 +82,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _gender = _validOrNull(widget.user.gender, _genders);
     _ageRange = _validOrNull(widget.user.ageRange, _ages);
     _ethnicity = _validOrNull(widget.user.ethnicity, _ethnicities);
+
     final occupation = widget.user.occupation?.trim();
     if (occupation != null && _occupations.contains(occupation)) {
       _occupation = occupation;
@@ -111,19 +142,19 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
     setState(() => _saving = true);
     try {
-      // Firebase Authentication remains the source of truth for the login email.
-      // Firestore is updated only after the auth email update succeeds.
       if (emailChanged) {
-        await currentAuthUser.updateEmail(email);
-        await currentAuthUser.reload();
+        // Use the current FirebaseAuth API supported by this project.
+        await currentAuthUser.verifyBeforeUpdateEmail(email);
       }
 
       final occupation = _occupation == 'Other'
           ? _occupationOtherController.text.trim()
           : _occupation;
+      final authEmail = emailChanged ? currentAuthUser.email : email;
+
       await FirestoreService.updateUser(uid, {
         'name': name,
-        'email': email,
+        'email': emailChanged ? (authEmail ?? email) : email,
         'gender': _gender,
         'ageRange': _ageRange,
         'ethnicity': _ethnicity,
@@ -142,6 +173,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
       if (!mounted) return;
       Navigator.pop(context, true);
+      if (emailChanged && mounted) {
+        _message('A verification email was sent. Confirm it to finish changing your login email.');
+      }
     } on FirebaseAuthException catch (error) {
       if (!mounted) return;
       final message = switch (error.code) {
@@ -175,7 +209,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message), behavior: SnackBarBehavior.floating));
+      ..showSnackBar(
+        SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+      );
   }
 
   @override
@@ -235,14 +271,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           _infoCard(
             Icons.palette_outlined,
             'Colour analysis is kept separately',
-            'Your season, undertone, brightness, contrast and face-shape analysis are generated from your scan. You can rescan from your profile whenever you want to update them.',
+            'Your season, undertone, brightness, contrast and face-shape analysis are generated from your scan. Rescan from your profile whenever you want to update them.',
           ),
           const SizedBox(height: 24),
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
               onPressed: _saving ? null : _save,
-              icon: _saving ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.check_rounded),
+              icon: _saving
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.check_rounded),
               label: Text(_saving ? 'Saving changes…' : 'Save changes'),
             ),
           ),
