@@ -91,27 +91,29 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
         excludedLookKeys: _excludedLookKeys,
       );
       if (!mounted || uid != _uid) return;
-      final resolved = result == null ? const <WardrobeItem>[] : _resolveLook(result);
+      final resolved = _resolveLook(result);
       setState(() {
         _aiResult = result;
         _look = resolved;
         _generated = resolved.isNotEmpty;
         _savedLook = false;
       });
-      if (resolved.isNotEmpty && result != null) {
+      if (resolved.isNotEmpty) {
         await StyleFeedbackService.recordGeneratedLook(
           itemIds: resolved.map((item) => item.id).toList(growable: false),
           occasion: _occasion,
           matchScore: result.matchScore,
         );
       }
-    } catch (_) {
-      if (mounted) {
+    } catch (error) {
+      if (mounted && uid == _uid) {
         setState(() {
           _aiResult = null;
           _look = const [];
           _generated = false;
+          _savedLook = false;
         });
+        _showMessage(error.toString());
       }
     } finally {
       if (mounted && uid == _uid) setState(() => _styling = false);
@@ -131,7 +133,7 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
     final byId = <String, WardrobeItem>{for (final item in _wardrobe) item.id: item};
     return [
       for (final id in ids)
-        if (id != null && id.isNotEmpty && byId[id] != null) byId[id]!,
+        if (id != null && id.isNotEmpty && byId.containsKey(id)) byId[id]!,
     ];
   }
 
@@ -218,6 +220,11 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
     } finally {
       if (mounted) setState(() => _savingLook = false);
     }
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message), behavior: SnackBarBehavior.floating));
   }
 
   @override
@@ -334,12 +341,12 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
     if (profile == null) return _message('Complete Colour Analysis to personalise your outfit.');
     if (_styling) return _message('Looking through your wardrobe and personal style…');
     if (_wardrobe.isEmpty) return _message('Add a few pieces to My Wardrobe first.');
-    if (_look.isEmpty) return _message('I could not build a valid outfit from this wardrobe yet.');
-    final result = _aiResult;
-    final notes = result?.stylingNotes ?? const <String>[];
-    final title = result?.displayTitle ?? 'A look built for ${_occasion.toLowerCase()}';
+    if (_look.isEmpty) return _message('No valid outfit was generated yet.');
+    final result = _aiResult!;
+    final notes = result.stylingNotes;
+    final title = result.displayTitle;
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [Expanded(child: Text(title, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900))), if (result != null) _matchBadge(result.matchScore)]),
+      Row(children: [Expanded(child: Text(title, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900))), _matchBadge(result.matchScore)]),
       const SizedBox(height: 10),
       Container(
         padding: const EdgeInsets.all(14),
@@ -349,48 +356,51 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: _look.length,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 9, mainAxisSpacing: 9, childAspectRatio: .78),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 9, mainAxisSpacing: 9, childAspectRatio: .86),
             itemBuilder: (_, index) {
               final item = _look[index];
-              final loved = _lovedItemIds.contains(item.id);
-              final disliked = _dislikedItemIds.contains(item.id);
               return Container(
-                decoration: BoxDecoration(borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
+                decoration: BoxDecoration(borderRadius: BorderRadius.circular(17), border: Border.all(color: AppColors.border)),
                 clipBehavior: Clip.antiAlias,
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Expanded(child: item.imageUrl.isEmpty ? const Center(child: Icon(Icons.checkroom_outlined, color: AppColors.primary)) : CachedNetworkImage(imageUrl: item.imageUrl, width: double.infinity, fit: BoxFit.cover)),
-                  Padding(padding: const EdgeInsets.fromLTRB(8, 7, 8, 3), child: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700))),
-                  Row(children: [
-                    IconButton(tooltip: 'Love this', onPressed: () => _feedback(item, true), icon: Icon(loved ? Icons.thumb_up_alt_rounded : Icons.thumb_up_alt_outlined, size: 17, color: loved ? AppColors.primary : AppColors.textMuted)),
-                    IconButton(tooltip: 'Not for me', onPressed: () => _feedback(item, false), icon: Icon(disliked ? Icons.thumb_down_alt_rounded : Icons.thumb_down_alt_outlined, size: 17, color: disliked ? AppColors.error : AppColors.textMuted)),
-                  ]),
+                  Expanded(
+                    child: item.imageUrl.isEmpty
+                        ? const Center(child: Icon(Icons.checkroom_outlined, color: AppColors.primary))
+                        : CachedNetworkImage(imageUrl: item.imageUrl, fit: BoxFit.cover, width: double.infinity),
+                  ),
+                  Padding(padding: const EdgeInsets.all(9), child: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700))),
                 ]),
               );
             },
           ),
-          if (result?.explanation.isNotEmpty == true) ...[
+          if (result.explanation.isNotEmpty) ...[
             const SizedBox(height: 14),
-            Align(alignment: Alignment.centerLeft, child: Text(result!.explanation, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.45))),
+            Align(alignment: Alignment.centerLeft, child: Text(result.explanation, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.45))),
           ],
           if (notes.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            const Align(alignment: Alignment.centerLeft, child: Text('WHY IT WORKS', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: 1.1, color: AppColors.textMuted))),
-            const SizedBox(height: 7),
-            ...notes.take(3).map((note) => Padding(padding: const EdgeInsets.only(bottom: 5), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [const Padding(padding: EdgeInsets.only(top: 5), child: Icon(Icons.circle, size: 5, color: AppColors.primary)), const SizedBox(width: 7), Expanded(child: Text(note, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)))]))),
+            const SizedBox(height: 10),
+            ...notes.map((note) => Align(alignment: Alignment.centerLeft, child: Padding(padding: const EdgeInsets.only(bottom: 4), child: Text('• $note', style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.35))))),
           ],
-          const SizedBox(height: 14),
-          Wrap(spacing: 8, runSpacing: 8, children: [
-            OutlinedButton.icon(onPressed: _styling ? null : () => _tryAnother(profile), icon: const Icon(Icons.refresh_rounded), label: const Text('Try another')),
-            OutlinedButton.icon(onPressed: _styling ? null : _restyleLook, icon: const Icon(Icons.auto_awesome_rounded), label: const Text('Restyle')),
-            OutlinedButton.icon(onPressed: _styling ? null : _changeShoes, icon: const Icon(Icons.directions_walk_rounded), label: const Text('Change shoes')),
-            FilledButton.icon(onPressed: _savingLook ? null : () => _saveLook(profile), icon: Icon(_savedLook ? Icons.bookmark_rounded : Icons.bookmark_add_outlined), label: Text(_savedLook ? 'Saved' : 'Save look')),
+          const SizedBox(height: 12),
+          Row(children: [
+            Expanded(child: OutlinedButton.icon(onPressed: _styling ? null : () => _tryAnother(profile), icon: const Icon(Icons.refresh_rounded), label: const Text('Try Another'))),
+            const SizedBox(width: 9),
+            Expanded(child: FilledButton.icon(onPressed: _savingLook ? null : () => _saveLook(profile), icon: Icon(_savedLook ? Icons.bookmark : Icons.bookmark_add_outlined), label: Text(_savedLook ? 'Saved' : 'Save Look'))),
           ]),
         ]),
       ),
     ]);
   }
 
-  Widget _matchBadge(int score) => Container(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6), decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.circular(20)), child: Text('$score% MATCH', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: AppColors.primaryDark)));
+  Widget _message(String text) => Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border)),
+        child: Text(text, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.45)),
+      );
 
-  Widget _message(String text) => Container(padding: const EdgeInsets.all(18), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(19), border: Border.all(color: AppColors.border)), child: Text(text, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.45)));
+  Widget _matchBadge(int score) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+        decoration: BoxDecoration(color: AppColors.lavenderMist, borderRadius: BorderRadius.circular(20)),
+        child: Text('$score% MATCH', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: AppColors.primaryDark)),
+      );
 }
