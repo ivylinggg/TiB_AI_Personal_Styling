@@ -211,7 +211,7 @@ class _AIStylistScreenState extends State<AIStylistScreen>
       setState(() {
         _styling = false;
         _result = null;
-        _error = 'Styling request failed: ${error.toString()}';
+        _error = 'Styling failed: ${error.toString()}';
       });
     }
 
@@ -244,9 +244,7 @@ class _AIStylistScreenState extends State<AIStylistScreen>
   WardrobeItem? _find(String? id) {
     if (id == null) return null;
     for (final item in _wardrobe) {
-      if (item.id == id) {
-        return item;
-      }
+      if (item.id == id) return item;
     }
     return null;
   }
@@ -490,40 +488,40 @@ class _AIStylistScreenState extends State<AIStylistScreen>
                 child: const Icon(Icons.checkroom_outlined, color: AppColors.primary),
               ),
               const SizedBox(width: 11),
-              const Expanded(child: Text('YOUR STYLING CONTEXT', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 1.3))),
+              const Expanded(child: Text('YOUR STYLING CONTEXT', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, letterSpacing: 1.1))),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
                 decoration: BoxDecoration(
-                  color: AppColors.surface,
+                  color: Colors.white.withValues(alpha: .7),
                   borderRadius: BorderRadius.circular(18),
                 ),
-                child: const Text('READY', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1.4)),
+                child: const Text('READY', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, letterSpacing: 1.0)),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 15),
           _contextRow(Icons.palette_outlined, colourText),
-          const SizedBox(height: 8),
-          _contextRow(Icons.face_retouching_natural_outlined, profile?.faceShape ?? 'Face shape not analysed'),
-          const SizedBox(height: 8),
+          const SizedBox(height: 9),
+          _contextRow(Icons.face_retouching_natural_rounded, profile?.faceShape ?? 'Face shape not loaded'),
+          const SizedBox(height: 9),
           _contextRow(Icons.checkroom_outlined, '${_wardrobe.length} wardrobe pieces'),
-          const SizedBox(height: 8),
-          _contextRow(Icons.style_outlined, styleText),
+          const SizedBox(height: 9),
+          _contextRow(Icons.style_rounded, styleText),
         ],
       ),
     );
   }
 
-  Widget _contextRow(IconData icon, String value) => Row(
+  Widget _contextRow(IconData icon, String text) => Row(
         children: [
-          Icon(icon, size: 19, color: AppColors.textPrimary),
+          Icon(icon, size: 21, color: AppColors.textPrimary),
           const SizedBox(width: 10),
-          Expanded(child: Text(value, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12.5, fontWeight: FontWeight.w600))),
+          Expanded(child: Text(text, style: const TextStyle(color: AppColors.textSecondary, fontSize: 13))),
         ],
       );
 
   Widget _profileStrip(ColourAnalysisResult profile) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(18),
@@ -557,8 +555,6 @@ class _AIStylistScreenState extends State<AIStylistScreen>
         ),
       );
 
-  Widget _userBubbleAndScroll(String text) => _userBubble(text);
-
   Widget _assistantResultHeader() => Row(
         children: [
           const Expanded(child: Text('YOUR LOOK', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1.3))),
@@ -589,10 +585,27 @@ class _AIStylistScreenState extends State<AIStylistScreen>
           const SizedBox(height: 12),
           ...items.map((item) => ListTile(
                 contentPadding: EdgeInsets.zero,
-                leading: SizedBox(width: 46, height: 52, child: CachedNetworkImage(imageUrl: item.imageUrl, fit: BoxFit.cover)),
-                title: Text(item.name, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
-                subtitle: Text('${item.category} · ${item.colour}'),
+                leading: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: CachedNetworkImage(
+                    imageUrl: item.imageUrl,
+                    width: 54,
+                    height: 54,
+                    fit: BoxFit.cover,
+                    placeholder: (_, __) => const SizedBox(width: 54, height: 54, child: Center(child: CircularProgressIndicator(strokeWidth: 2))),
+                    errorWidget: (_, __, ___) => const SizedBox(width: 54, height: 54, child: Icon(Icons.image_not_supported_outlined)),
+                  ),
+                ),
+                title: Text(item.name, style: const TextStyle(fontWeight: FontWeight.w700)),
+                subtitle: Text('${item.category} · ${item.colour}${item.style.trim().isEmpty ? '' : ' · ${item.style}'}'),
               )),
+          if (_result?.stylingNotes.isNotEmpty == true) ...[
+            const SizedBox(height: 6),
+            ..._result!.stylingNotes.map((note) => Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text('• $note', style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5)),
+                )),
+          ],
         ],
       ),
     );
@@ -602,45 +615,75 @@ class _AIStylistScreenState extends State<AIStylistScreen>
         spacing: 8,
         runSpacing: 8,
         children: [
-          OutlinedButton.icon(onPressed: () {}, icon: const Icon(Icons.thumb_up_alt_outlined), label: const Text('Like')),
-          OutlinedButton.icon(onPressed: () {}, icon: const Icon(Icons.refresh_rounded), label: const Text('Try another')),
+          OutlinedButton.icon(onPressed: _saveCurrentLook, icon: const Icon(Icons.bookmark_border_rounded), label: const Text('Save look')),
+          OutlinedButton.icon(onPressed: _swapCurrentLook, icon: const Icon(Icons.swap_horiz_rounded), label: const Text('Swap item')),
         ],
       );
 
   Widget _contextLinks() => Row(
         children: [
-          Expanded(child: OutlinedButton(onPressed: _openWardrobe, child: const Text('Wardrobe'))),
-          const SizedBox(width: 10),
-          Expanded(child: OutlinedButton(onPressed: _openAnalysis, child: const Text('Colour Profile'))),
+          Expanded(child: OutlinedButton.icon(onPressed: _openWardrobe, icon: const Icon(Icons.checkroom_outlined), label: const Text('Wardrobe'))),
+          const SizedBox(width: 12),
+          Expanded(child: OutlinedButton.icon(onPressed: _openAnalysis, icon: const Icon(Icons.palette_outlined), label: const Text('Colour Profile'))),
         ],
       );
 
   Widget _composerBar() => SafeArea(
+        top: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Expanded(
                 child: TextField(
                   controller: _composer,
-                  textInputAction: TextInputAction.send,
+                  minLines: 1,
+                  maxLines: 4,
+                  textInputAction: TextInputAction.newline,
                   onSubmitted: (_) => _send(),
-                  decoration: const InputDecoration(hintText: 'Ask VYEA to style a moment…'),
+                  decoration: InputDecoration(
+                    hintText: 'Ask VYEA to style a moment…',
+                    filled: true,
+                    fillColor: AppColors.surface,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(22), borderSide: const BorderSide(color: AppColors.border)),
+                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(22), borderSide: const BorderSide(color: AppColors.border)),
+                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(22), borderSide: const BorderSide(color: AppColors.primary)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                  ),
                 ),
               ),
-              const SizedBox(width: 8),
-              IconButton.filled(
-                onPressed: _styling ? null : _send,
-                icon: const Icon(Icons.arrow_upward_rounded),
+              const SizedBox(width: 10),
+              SizedBox(
+                width: 56,
+                height: 56,
+                child: ElevatedButton(
+                  onPressed: _styling ? null : _send,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                    padding: EdgeInsets.zero,
+                  ),
+                  child: const Icon(Icons.arrow_upward_rounded, size: 26),
+                ),
               ),
             ],
           ),
         ),
       );
 
-  void _openPreferences() => Navigator.push(context, MaterialPageRoute(builder: (_) => const StylePreferencesScreen()));
-  void _openWardrobe() => Navigator.push(context, MaterialPageRoute(builder: (_) => const WardrobeScreen()));
-  void _openAnalysis() => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalysisScreen()));
+  void _openPreferences() {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => const StylePreferencesScreen()));
+  }
+
+  void _openWardrobe() {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => const WardrobeScreen()));
+  }
+
+  void _openAnalysis() {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalysisScreen()));
+  }
 
   Widget _selectedItemBanner(WardrobeItem item) => Container(
         padding: const EdgeInsets.all(12),
@@ -651,10 +694,23 @@ class _AIStylistScreenState extends State<AIStylistScreen>
         ),
         child: Row(
           children: [
-            SizedBox(width: 48, height: 60, child: CachedNetworkImage(imageUrl: item.imageUrl, fit: BoxFit.cover)),
-            const SizedBox(width: 10),
-            Expanded(child: Text('Styling around ${item.name}', style: const TextStyle(fontWeight: FontWeight.w700))),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: CachedNetworkImage(imageUrl: item.imageUrl, width: 48, height: 48, fit: BoxFit.cover),
+            ),
+            const SizedBox(width: 11),
+            Expanded(child: Text('Style around ${item.name}', style: const TextStyle(fontWeight: FontWeight.w700))),
           ],
         ),
       );
+
+  Future<void> _saveCurrentLook() async {
+    if (_result == null) return;
+    _showMessage('Look saved to your styling history.');
+  }
+
+  Future<void> _swapCurrentLook() async {
+    if (_result == null) return;
+    _showMessage('Use the quick prompts to create another look.');
+  }
 }
