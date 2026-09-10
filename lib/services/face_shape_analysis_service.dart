@@ -45,10 +45,10 @@ class FaceShapeAnalysisService {
       );
     }
 
-    final points = <Point<double>>[];
+    final points = <dynamic>[];
     for (final point in contour.points) {
       if (point == null) continue;
-      points.add(Point<double>(point.x.toDouble(), point.y.toDouble()));
+      points.add(point);
     }
 
     if (points.length < 24) {
@@ -57,20 +57,22 @@ class FaceShapeAnalysisService {
       );
     }
 
-    final left = points.map((p) => p.x).reduce(math.min);
-    final right = points.map((p) => p.x).reduce(math.max);
-    final top = points.map((p) => p.y).reduce(math.min);
-    final bottom = points.map((p) => p.y).reduce(math.max);
+    final left = points.map((p) => p.x.toDouble()).reduce(math.min);
+    final right = points.map((p) => p.x.toDouble()).reduce(math.max);
+    final top = points.map((p) => p.y.toDouble()).reduce(math.min);
+    final bottom = points.map((p) => p.y.toDouble()).reduce(math.max);
     final width = math.max(1.0, right - left);
     final height = math.max(1.0, bottom - top);
 
     double widthAt(double relativeY) {
       final targetY = top + height * relativeY;
       final tolerance = height * .055;
-      final near = points.where((p) => (p.y - targetY).abs() <= tolerance).toList();
+      final near = points
+          .where((p) => (p.y.toDouble() - targetY).abs() <= tolerance)
+          .toList();
       if (near.length < 2) return width * .5;
-      final minX = near.map((p) => p.x).reduce(math.min);
-      final maxX = near.map((p) => p.x).reduce(math.max);
+      final minX = near.map((p) => p.x.toDouble()).reduce(math.min);
+      final maxX = near.map((p) => p.x.toDouble()).reduce(math.max);
       return math.max(1.0, maxX - minX);
     }
 
@@ -96,7 +98,6 @@ class FaceShapeAnalysisService {
       faceRatio: faceRatio,
       foreheadToCheek: foreheadToCheek,
       jawToCheek: jawToCheek,
-      chinToJaw: chinToJaw,
     );
 
     return FaceShapeAnalysis(
@@ -152,7 +153,7 @@ class FaceShapeAnalysisService {
       distances[name] = sum;
     }
 
-    String bestName = 'Oval';
+    var bestName = 'Oval';
     var bestDistance = double.infinity;
     distances.forEach((name, distance) {
       if (distance < bestDistance) {
@@ -170,7 +171,6 @@ class FaceShapeAnalysisService {
     required double faceRatio,
     required double foreheadToCheek,
     required double jawToCheek,
-    required double chinToJaw,
   }) {
     const profiles = <String, List<double>>{
       'Oval': [1.38, .92, .82],
