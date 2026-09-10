@@ -59,8 +59,12 @@ class _FlashFaceScanPanelState extends State<FlashFaceScanPanel>
     CameraController? controller;
     try {
       final cameras = await availableCameras();
-      if (cameras.isEmpty) throw StateError('No camera is available on this device.');
-      final front = cameras.where((camera) => camera.lensDirection == CameraLensDirection.front);
+      if (cameras.isEmpty) {
+        throw StateError('No camera is available on this device.');
+      }
+      final front = cameras.where(
+        (camera) => camera.lensDirection == CameraLensDirection.front,
+      );
       final selected = front.isNotEmpty ? front.first : cameras.first;
 
       controller = CameraController(
@@ -87,7 +91,8 @@ class _FlashFaceScanPanelState extends State<FlashFaceScanPanel>
       setState(() {
         _initialising = false;
         _error = _cameraErrorMessage(error);
-        _status = 'Camera is unavailable. You can choose a clear photo instead.';
+        _status =
+            'Camera is unavailable. You can choose a clear photo instead.';
       });
     } catch (error) {
       await controller?.dispose();
@@ -95,7 +100,8 @@ class _FlashFaceScanPanelState extends State<FlashFaceScanPanel>
       setState(() {
         _initialising = false;
         _error = 'Camera could not be started: $error';
-        _status = 'Camera is unavailable. You can choose a clear photo instead.';
+        _status =
+            'Camera is unavailable. You can choose a clear photo instead.';
       });
     }
   }
@@ -130,7 +136,10 @@ class _FlashFaceScanPanelState extends State<FlashFaceScanPanel>
 
   void _startScanning() {
     _scanTimer?.cancel();
-    _scanTimer = Timer.periodic(const Duration(milliseconds: 900), (_) => _scanFrame());
+    _scanTimer = Timer.periodic(
+      const Duration(milliseconds: 1200),
+      (_) => _scanFrame(),
+    );
     _scanFrame();
   }
 
@@ -198,20 +207,13 @@ class _FlashFaceScanPanelState extends State<FlashFaceScanPanel>
       final faces = await MlKitService.detectFace(file);
       if (!mounted || _completed) return;
 
-      if (faces.isEmpty) {
+      if (faces.length != 1) {
         _stableChecks = 0;
         setState(() {
           _checkingFrame = false;
-          _status = 'Face detection is taking a moment… keep still.';
-        });
-        return;
-      }
-
-      if (faces.length > 1) {
-        _stableChecks = 0;
-        setState(() {
-          _checkingFrame = false;
-          _status = 'Please scan alone with only one face visible.';
+          _status = faces.isEmpty
+              ? 'No face detected. Move closer and use even lighting.'
+              : 'Please scan alone with only one face visible.';
         });
         return;
       }
@@ -219,7 +221,7 @@ class _FlashFaceScanPanelState extends State<FlashFaceScanPanel>
       final face = faces.first;
       final yaw = (face.headEulerAngleY ?? 0).abs();
       final pitch = (face.headEulerAngleX ?? 0).abs();
-      final straight = yaw < 30 && pitch < 30;
+      final straight = yaw < 35 && pitch < 35;
 
       if (!straight) {
         _stableChecks = 0;
@@ -231,12 +233,10 @@ class _FlashFaceScanPanelState extends State<FlashFaceScanPanel>
       }
 
       _stableChecks += 1;
-      final ready = _stableChecks >= 2;
+      final ready = _stableChecks >= 1;
       setState(() {
         _checkingFrame = false;
-        _status = ready
-            ? 'Face detected. Capturing…'
-            : 'Face detected. Hold still…';
+        _status = ready ? 'Face detected. Capturing…' : 'Hold still…';
       });
 
       if (ready) {
@@ -270,7 +270,9 @@ class _FlashFaceScanPanelState extends State<FlashFaceScanPanel>
   }
 
   Future<void> _gallery() async {
-    if (_checkingFrame || widget.busy || _completed || _capturedFile != null) return;
+    if (_checkingFrame || widget.busy || _completed || _capturedFile != null) {
+      return;
+    }
     _stopScanning();
     final picked = await ImagePicker().pickImage(
       source: ImageSource.gallery,
@@ -278,7 +280,10 @@ class _FlashFaceScanPanelState extends State<FlashFaceScanPanel>
       maxWidth: 1800,
     );
     if (picked == null || !mounted) {
-      if (mounted && !widget.busy && !_completed && _controller?.value.isInitialized == true) {
+      if (mounted &&
+          !widget.busy &&
+          !_completed &&
+          _controller?.value.isInitialized == true) {
         _startScanning();
       }
       return;
@@ -323,7 +328,11 @@ class _FlashFaceScanPanelState extends State<FlashFaceScanPanel>
   Widget build(BuildContext context) {
     final controller = _controller;
     if (_initialising) {
-      return _panelShell(const Center(child: CircularProgressIndicator(color: AppColors.primary)));
+      return _panelShell(
+        const Center(
+          child: CircularProgressIndicator(color: AppColors.primary),
+        ),
+      );
     }
 
     if (_error != null || controller == null) {
@@ -334,15 +343,38 @@ class _FlashFaceScanPanelState extends State<FlashFaceScanPanel>
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.camera_alt_outlined, size: 48, color: AppColors.primary),
+                const Icon(
+                  Icons.camera_alt_outlined,
+                  size: 48,
+                  color: AppColors.primary,
+                ),
                 const SizedBox(height: 12),
-                const Text('Camera unavailable', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                const Text(
+                  'Camera unavailable',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                ),
                 const SizedBox(height: 7),
-                Text(_error ?? 'No camera is available. You can still choose a clear face photo from your gallery.', textAlign: TextAlign.center, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.35)),
+                Text(
+                  _error ??
+                      'No camera is available. You can still choose a clear face photo from your gallery.',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 11.5,
+                    height: 1.35,
+                  ),
+                ),
                 const SizedBox(height: 14),
-                OutlinedButton.icon(onPressed: widget.busy ? null : _gallery, icon: const Icon(Icons.photo_library_outlined), label: const Text('Choose Photo')),
+                OutlinedButton.icon(
+                  onPressed: widget.busy ? null : _gallery,
+                  icon: const Icon(Icons.photo_library_outlined),
+                  label: const Text('Choose Photo'),
+                ),
                 const SizedBox(height: 4),
-                TextButton(onPressed: widget.busy ? null : _retryScan, child: const Text('Try Camera Again')),
+                TextButton(
+                  onPressed: widget.busy ? null : _retryScan,
+                  child: const Text('Try Camera Again'),
+                ),
               ],
             ),
           ),
@@ -360,7 +392,11 @@ class _FlashFaceScanPanelState extends State<FlashFaceScanPanel>
             _status,
             key: ValueKey(_status),
             textAlign: TextAlign.center,
-            style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, fontWeight: FontWeight.w600),
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 11.5,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
         const SizedBox(height: 11),
@@ -376,7 +412,9 @@ class _FlashFaceScanPanelState extends State<FlashFaceScanPanel>
                     foregroundColor: AppColors.primaryDark,
                     side: const BorderSide(color: AppColors.border),
                     minimumSize: const Size.fromHeight(46),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                    ),
                   ),
                 ),
               ),
@@ -390,7 +428,9 @@ class _FlashFaceScanPanelState extends State<FlashFaceScanPanel>
                     backgroundColor: AppColors.primary,
                     foregroundColor: Colors.white,
                     minimumSize: const Size.fromHeight(46),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                    ),
                   ),
                 ),
               ),
@@ -433,7 +473,10 @@ class _FlashFaceScanPanelState extends State<FlashFaceScanPanel>
         children: [
           CameraPreview(controller),
           CustomPaint(
-            painter: _FaceGuidePainter(active: _checkingFrame, pulse: _pulseController),
+            painter: _FaceGuidePainter(
+              active: _checkingFrame,
+              pulse: _pulseController,
+            ),
           ),
           Positioned(
             top: 14,
@@ -442,11 +485,17 @@ class _FlashFaceScanPanelState extends State<FlashFaceScanPanel>
               children: const [
                 _Tip(icon: Icons.wb_sunny_outlined, text: 'Good\nlighting'),
                 SizedBox(height: 13),
-                _Tip(icon: Icons.face_retouching_natural_outlined, text: 'No makeup\nor filters'),
+                _Tip(
+                  icon: Icons.face_retouching_natural_outlined,
+                  text: 'No makeup\nor filters',
+                ),
                 SizedBox(height: 13),
                 _Tip(icon: Icons.person_outline_rounded, text: 'Hair tied\nback'),
                 SizedBox(height: 13),
-                _Tip(icon: Icons.sentiment_satisfied_alt_outlined, text: 'Look\nstraight'),
+                _Tip(
+                  icon: Icons.sentiment_satisfied_alt_outlined,
+                  text: 'Look\nstraight',
+                ),
               ],
             ),
           ),
@@ -463,9 +512,23 @@ class _FlashFaceScanPanelState extends State<FlashFaceScanPanel>
               child: const Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('✦ Tips for best results', style: TextStyle(color: AppColors.primaryDark, fontSize: 11, fontWeight: FontWeight.w800)),
+                  Text(
+                    '✦ Tips for best results',
+                    style: TextStyle(
+                      color: AppColors.primaryDark,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
                   SizedBox(height: 4),
-                  Text('Use natural lighting and remove\nmakeup & glasses.', style: TextStyle(color: AppColors.textSecondary, fontSize: 10.5, height: 1.35)),
+                  Text(
+                    'Use natural lighting and remove\nmakeup & glasses.',
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 10.5,
+                      height: 1.35,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -477,14 +540,18 @@ class _FlashFaceScanPanelState extends State<FlashFaceScanPanel>
               child: const SizedBox(
                 width: 42,
                 height: 42,
-                child: CircularProgressIndicator(strokeWidth: 3, color: Colors.white),
+                child: CircularProgressIndicator(
+                  strokeWidth: 3,
+                  color: Colors.white,
+                ),
               ),
             ),
         ],
       ),
     );
   }
-}
+
+  }
 
 class _Tip extends StatelessWidget {
   final IconData icon;
@@ -494,17 +561,24 @@ class _Tip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Container(
-          width: 38,
-          height: 38,
-          decoration: BoxDecoration(color: Colors.black.withValues(alpha: .18), shape: BoxShape.circle),
-          child: Icon(icon, color: Colors.white, size: 19),
-        ),
-        const SizedBox(height: 4),
-        Text(text, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 8.5, height: 1.1, fontWeight: FontWeight.w600)),
-      ],
+    return Container(
+      width: 78,
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 7),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: .88),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, size: 16, color: AppColors.primaryDark),
+          const SizedBox(height: 3),
+          Text(
+            text,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 8.5, height: 1.2),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -513,53 +587,28 @@ class _FaceGuidePainter extends CustomPainter {
   final bool active;
   final Animation<double> pulse;
 
-  const _FaceGuidePainter({required this.active, required this.pulse});
+  _FaceGuidePainter({required this.active, required this.pulse})
+      : super(repaint: pulse);
 
   @override
   void paint(Canvas canvas, Size size) {
-    final width = size.width;
-    final height = size.height;
-    final center = Offset(width * .49, height * .48);
-    final ovalWidth = width * .56;
-    final ovalHeight = height * .70;
-    final rect = Rect.fromCenter(center: center, width: ovalWidth, height: ovalHeight);
-
-    final guidePaint = Paint()
+    final center = Offset(size.width / 2, size.height * .42);
+    final rx = size.width * .31;
+    final ry = size.height * .38;
+    final rect = Rect.fromCenter(
+      center: center,
+      width: rx * 2,
+      height: ry * 2,
+    );
+    final opacity = active ? .75 + pulse.value * .2 : .55;
+    final paint = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.2
-      ..color = Colors.white.withValues(alpha: active ? .95 : .82);
-    canvas.drawOval(rect, guidePaint);
-
-    final cornerPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 4
-      ..strokeCap = StrokeCap.round
-      ..color = Colors.white.withValues(alpha: active ? 1 : .9);
-
-    const length = 28.0;
-    const inset = 16.0;
-
-    void corner(Offset topLeft, bool flipX, bool flipY) {
-      final dx = flipX ? -length : length;
-      final dy = flipY ? -length : length;
-      canvas.drawLine(topLeft, topLeft.translate(dx, 0), cornerPaint);
-      canvas.drawLine(topLeft, topLeft.translate(0, dy), cornerPaint);
-    }
-
-    corner(Offset(inset, inset), false, false);
-    corner(Offset(width - inset, inset), true, false);
-    corner(Offset(inset, height - inset), false, true);
-    corner(Offset(width - inset, height - inset), true, true);
-
-    if (active) {
-      final radius = 6.0 + (pulse.value * 4.0);
-      final dotPaint = Paint()..color = Colors.white.withValues(alpha: .75);
-      canvas.drawCircle(Offset(width * .49, height * .10), radius, dotPaint);
-    }
+      ..strokeWidth = 2
+      ..color = AppColors.primary.withValues(alpha: opacity);
+    canvas.drawOval(rect, paint);
   }
 
   @override
-  bool shouldRepaint(covariant _FaceGuidePainter oldDelegate) {
-    return oldDelegate.active != active || oldDelegate.pulse.value != pulse.value;
-  }
+  bool shouldRepaint(covariant _FaceGuidePainter oldDelegate) =>
+      oldDelegate.active != active;
 }
