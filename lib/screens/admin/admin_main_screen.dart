@@ -322,7 +322,7 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
               children: List.generate(destinations.length, (index) {
                 final destination = destinations[index];
                 final selected = safeIndex == index;
-                final icon = selected ? destination.selectedIcon : destination.icon;
+                final icon = destination.icon;
                 return Expanded(
                   child: _AdminNavItem(
                     icon: icon,
