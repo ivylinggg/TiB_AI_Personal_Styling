@@ -1,0 +1,161 @@
+name: Optimize admin navigation bar
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  optimize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Update admin navigation order and UI
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('lib/screens/admin/admin_main_screen.dart')
+          s = p.read_text()
+          old_pages = """            const PremiumManagementScreen(),
+            const AdminProfileScreen(),
+            const ConsultationManagementScreen(),
+            const StaffManagementScreen(),"""
+          new_pages = """            const PremiumManagementScreen(),
+            const ConsultationManagementScreen(),
+            const StaffManagementScreen(),
+            const AdminProfileScreen(),"""
+          if old_pages not in s:
+              raise SystemExit('admin page order block not found')
+          s = s.replace(old_pages, new_pages, 1)
+          old_dest = """            NavigationDestination(icon: Icon(Icons.workspace_premium_outlined), selectedIcon: Icon(Icons.workspace_premium), label: 'Premium'),
+            NavigationDestination(icon: Icon(Icons.admin_panel_settings_outlined), selectedIcon: Icon(Icons.admin_panel_settings), label: 'Admin'),
+            NavigationDestination(icon: Icon(Icons.support_agent_outlined), selectedIcon: Icon(Icons.support_agent), label: 'Consult'),
+            NavigationDestination(icon: Icon(Icons.badge_outlined), selectedIcon: Icon(Icons.badge_rounded), label: 'Staff'),"""
+          new_dest = """            NavigationDestination(icon: Icon(Icons.workspace_premium_outlined), selectedIcon: Icon(Icons.workspace_premium), label: 'Premium'),
+            NavigationDestination(icon: Icon(Icons.support_agent_outlined), selectedIcon: Icon(Icons.support_agent), label: 'Consult'),
+            NavigationDestination(icon: Icon(Icons.badge_outlined), selectedIcon: Icon(Icons.badge_rounded), label: 'Staff'),
+            NavigationDestination(icon: Icon(Icons.admin_panel_settings_outlined), selectedIcon: Icon(Icons.admin_panel_settings), label: 'Admin'),"""
+          if old_dest not in s:
+              raise SystemExit('admin destination order block not found')
+          s = s.replace(old_dest, new_dest, 1)
+          old_bar = """      bottomNavigationBar: NavigationBar(
+        selectedIndex: safeIndex,
+        onDestinationSelected: _navigateTo,
+        destinations: destinations,
+      ),"""
+          new_bar = """      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Container(
+          height: 78,
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            border: Border(top: BorderSide(color: Theme.of(context).colorScheme.outlineVariant)),
+          ),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            child: Row(
+              children: List.generate(destinations.length, (index) {
+                final destination = destinations[index];
+                final selected = safeIndex == index;
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 3),
+                  child: _AdminNavItem(
+                    icon: selected ? destination.selectedIcon : destination.icon,
+                    label: destination.label,
+                    selected: selected,
+                    onTap: () => _navigateTo(index),
+                  ),
+                );
+              }),
+            ),
+          ),
+        ),
+      ),"""
+          if old_bar not in s:
+              raise SystemExit('bottom bar block not found')
+          s = s.replace(old_bar, new_bar, 1)
+          s = s.replace("class _ModeTile extends StatelessWidget {", """class _AdminNavItem extends StatelessWidget {
+  final Widget icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _AdminNavItem({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: label,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          constraints: const BoxConstraints(minWidth: 72),
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+          decoration: BoxDecoration(
+            color: selected ? scheme.secondaryContainer : Colors.transparent,
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(height: 25, child: IconTheme(data: IconThemeData(size: 23), child: icon)),
+              const SizedBox(height: 3),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
+                  color: selected ? scheme.onSecondaryContainer : scheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ModeTile extends StatelessWidget {""", 1)
+          p.write_text(s)
+
+          p = Path('lib/screens/admin/admin_dashboard_screen.dart')
+          s = p.read_text()
+          replacements = {
+              "_goTo(6)": "_goTo(5)",
+              "_goTo(7)": "_goTo(6)",
+          }
+          for old, new in replacements.items():
+              s = s.replace(old, new)
+          p.write_text(s)
+          PY
+      - name: Verify navigation order
+        run: |
+          grep -q "const AdminProfileScreen()," lib/screens/admin/admin_main_screen.dart
+          grep -q "label: 'Admin'" lib/screens/admin/admin_main_screen.dart
+          grep -q "_AdminNavItem" lib/screens/admin/admin_main_screen.dart
+      - name: Commit and remove workflow
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add lib/screens/admin/admin_main_screen.dart lib/screens/admin/admin_dashboard_screen.dart
+          git commit -m 'Optimize admin navigation bar and move profile rightmost' || true
+          git rm .github/workflows/optimize-admin-bar.yml
+          git commit -m 'Remove temporary admin navigation workflow'
+          git push
