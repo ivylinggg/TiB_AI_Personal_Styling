@@ -76,6 +76,10 @@ class AiStylingService {
     'Accessories',
   };
 
+  // Keep recent outfit combinations out of the next recommendation so the
+  // stylist explores the user's wardrobe instead of repeating one look.
+  static final Map<String, Set<String>> _recentLookKeysByUid = <String, Set<String>>{};
+
   static String _normaliseColour(String raw) {
     final value = raw.trim().toLowerCase();
     if (value.isEmpty) return 'unknown';
@@ -160,6 +164,18 @@ class AiStylingService {
   static String? _lookKey(List<WardrobeItem> look) {
     final ids = look.map((item) => item.id.trim()).where((id) => id.isNotEmpty).toList()..sort();
     return ids.isEmpty ? null : ids.join('|');
+  }
+
+  static Set<String> _effectiveExcludedLookKeys(String uid, Set<String> explicit) {
+    final recent = _recentLookKeysByUid[uid];
+    if (recent == null || recent.isEmpty) return {...explicit};
+    return {...explicit, ...recent};
+  }
+
+  static void _rememberLook(String uid, List<WardrobeItem> look) {
+    final key = _lookKey(look);
+    if (key == null) return;
+    (_recentLookKeysByUid[uid] ??= <String>{}).add(key);
   }
 
   static List<WardrobeItem> _uniqueOwned(List<WardrobeItem> wardrobe, String uid) {
@@ -483,17 +499,35 @@ class AiStylingService {
           'bodyPathAvailable': model.bodyPath != null,
         };
 
-    final guaranteedFallback = sanitizeLook(
+    var effectiveExcludedLookKeys = _effectiveExcludedLookKeys(cleanUid, excludedLookKeys);
+    var guaranteedFallback = sanitizeLook(
       owned,
       selectedItem: selectedItem,
       occasion: occasion,
       profile: profile,
       styles: styles,
       preferences: preferences,
-      excludedLookKeys: excludedLookKeys,
+      excludedLookKeys: effectiveExcludedLookKeys,
       feedbackBias: feedbackBias,
       combinationBias: combinationBias,
     );
+
+    // If every valid combination has already been shown, restart the local
+    // rotation rather than failing. Explicit exclusions are still respected.
+    if (guaranteedFallback.isEmpty && effectiveExcludedLookKeys.length > excludedLookKeys.length) {
+      effectiveExcludedLookKeys = {...excludedLookKeys};
+      guaranteedFallback = sanitizeLook(
+        owned,
+        selectedItem: selectedItem,
+        occasion: occasion,
+        profile: profile,
+        styles: styles,
+        preferences: preferences,
+        excludedLookKeys: effectiveExcludedLookKeys,
+        feedbackBias: feedbackBias,
+        combinationBias: combinationBias,
+      );
+    }
 
     if (guaranteedFallback.isNotEmpty) {
       // Local wardrobe recommendation is deterministic and safe. We do not
@@ -547,12 +581,12 @@ class AiStylingService {
                 profile: profile,
                 styles: styles,
                 preferences: preferences,
-                excludedLookKeys: excludedLookKeys,
+                excludedLookKeys: effectiveExcludedLookKeys,
                 feedbackBias: feedbackBias,
                 combinationBias: combinationBias,
               );
               if (valid.isNotEmpty) {
-                return _resultFromLook(
+                final result = _resultFromLook(
                   valid,
                   source: remote,
                   profile: profile,
@@ -562,6 +596,8 @@ class AiStylingService {
                   preferences: preferences,
                   combinationBias: combinationBias,
                 );
+                _rememberLook(cleanUid, valid);
+                return result;
               }
             }
           }
@@ -570,7 +606,7 @@ class AiStylingService {
         // Deterministic local recommendation below remains the source of truth.
       }
 
-      return _resultFromLook(
+      final result = _resultFromLook(
         guaranteedFallback,
         source: null,
         profile: profile,
@@ -580,6 +616,8 @@ class AiStylingService {
         preferences: preferences,
         combinationBias: combinationBias,
       );
+      _rememberLook(cleanUid, guaranteedFallback);
+      return result;
     }
 
     throw const AiStylingException('No complete outfit could be assembled from the current wardrobe. Add at least one top and one bottom/skirt.');
