@@ -666,7 +666,7 @@ class AiStylingService {
       lookTitle: source?.lookTitle ?? 'Your ${occasion.trim().isEmpty ? 'personal' : occasion.toLowerCase()} look',
       colourDirection: source?.colourDirection ?? profile.colours.take(3).join(' · '),
       stylingNotes: source?.stylingNotes.isNotEmpty == true ? source!.stylingNotes : _fallbackNotes(look, profile),
-      matchScore: source?.matchScore == 0 ? score : source!.matchScore.clamp(0, 100),
+      matchScore: source == null || source.matchScore == 0 ? score : source.matchScore.clamp(0, 100),
       scoreBreakdown: source?.scoreBreakdown.isNotEmpty == true ? source!.scoreBreakdown : computedBreakdown,
     );
   }
