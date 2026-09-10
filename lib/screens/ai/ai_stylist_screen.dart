@@ -187,11 +187,9 @@ class _AIStylistScreenState extends State<AIStylistScreen>
       setState(() {
         _result = result;
         _styling = false;
-        if (result == null) {
-          _error = 'I could not build a look from the current styling service. Try again or refine your request.';
-        }
+        _error = null;
       });
-    } catch (_) {
+    } on AiStylingException catch (error) {
       if (!mounted ||
           FirebaseAuth.instance.currentUser?.uid != requestUid ||
           _requestUid != requestUid) {
@@ -200,7 +198,20 @@ class _AIStylistScreenState extends State<AIStylistScreen>
 
       setState(() {
         _styling = false;
-        _error = 'I could not build a look right now. Please try again.';
+        _result = null;
+        _error = error.message;
+      });
+    } catch (error) {
+      if (!mounted ||
+          FirebaseAuth.instance.currentUser?.uid != requestUid ||
+          _requestUid != requestUid) {
+        return;
+      }
+
+      setState(() {
+        _styling = false;
+        _result = null;
+        _error = 'Styling request failed: ${error.toString()}';
       });
     }
 
@@ -479,231 +490,171 @@ class _AIStylistScreenState extends State<AIStylistScreen>
                 child: const Icon(Icons.checkroom_outlined, color: AppColors.primary),
               ),
               const SizedBox(width: 11),
-              const Expanded(child: Text('YOUR STYLING CONTEXT', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1.1))),
-              _contextPill(_wardrobe.length >= 3 ? 'READY' : 'BUILDING'),
+              const Expanded(child: Text('YOUR STYLING CONTEXT', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 1.3))),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: const Text('READY', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1.4)),
+              ),
             ],
           ),
           const SizedBox(height: 12),
-          _contextLine(Icons.palette_outlined, colourText),
-          const SizedBox(height: 6),
-          _contextLine(Icons.face_retouching_natural_outlined, profile?.faceShape ?? 'Face shape not loaded'),
-          const SizedBox(height: 6),
-          _contextLine(Icons.checkroom_outlined, '${_wardrobe.length} wardrobe pieces'),
-          const SizedBox(height: 6),
-          _contextLine(Icons.style_outlined, styleText),
-          if (widget.selectedItem != null) ...[
-            const SizedBox(height: 6),
-            _contextLine(Icons.push_pin_outlined, 'Styling around ${widget.selectedItem!.name}'),
-          ],
+          _contextRow(Icons.palette_outlined, colourText),
+          const SizedBox(height: 8),
+          _contextRow(Icons.face_retouching_natural_outlined, profile?.faceShape ?? 'Face shape not analysed'),
+          const SizedBox(height: 8),
+          _contextRow(Icons.checkroom_outlined, '${_wardrobe.length} wardrobe pieces'),
+          const SizedBox(height: 8),
+          _contextRow(Icons.style_outlined, styleText),
         ],
       ),
     );
   }
 
-  Widget _contextLine(IconData icon, String text) => Row(
+  Widget _contextRow(IconData icon, String value) => Row(
         children: [
-          Icon(icon, size: 16, color: AppColors.primary),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              text,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 10.8, color: AppColors.textSecondary, fontWeight: FontWeight.w600),
-            ),
-          ),
+          Icon(icon, size: 19, color: AppColors.textPrimary),
+          const SizedBox(width: 10),
+          Expanded(child: Text(value, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12.5, fontWeight: FontWeight.w600))),
         ],
-      );
-
-  Widget _contextPill(String text) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-        decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.circular(10)),
-        child: Text(text, style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: .8, color: AppColors.primaryDark)),
-      );
-
-  Widget _quickPromptSection() => SizedBox(
-        height: 36,
-        child: ListView.separated(
-          scrollDirection: Axis.horizontal,
-          itemCount: _quickPrompts.length,
-          separatorBuilder: (_, __) => const SizedBox(width: 7),
-          itemBuilder: (_, index) => ActionChip(
-            label: Text(_quickPrompts[index]),
-            onPressed: _styling ? null : () => _send(_quickPrompts[index]),
-          ),
-        ),
       );
 
   Widget _profileStrip(ColourAnalysisResult profile) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(15), border: Border.all(color: AppColors.border)),
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: AppColors.border),
+        ),
         child: Row(
           children: [
-            const Icon(Icons.palette_outlined, size: 16, color: AppColors.primary),
-            const SizedBox(width: 8),
-            Expanded(child: Text('${profile.season} · ${profile.undertone} · ${profile.brightness}', style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700))),
-            Text(profile.faceShape, style: const TextStyle(fontSize: 9.5, color: AppColors.textSecondary)),
+            const Icon(Icons.palette_outlined, size: 19, color: AppColors.primary),
+            const SizedBox(width: 9),
+            Expanded(child: Text('${profile.season} · ${profile.undertone} · ${profile.brightness}', style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.textSecondary))),
+            Text(profile.faceShape, style: const TextStyle(color: AppColors.textSecondary)),
           ],
         ),
       );
 
-  Widget _selectedItemBanner(WardrobeItem item) => Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: AppColors.peach.withValues(alpha: .25), borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.peach)),
+  Widget _quickPromptSection() => SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
         child: Row(
           children: [
-            const Icon(Icons.push_pin_rounded, size: 18, color: AppColors.primary),
-            const SizedBox(width: 8),
-            Expanded(child: Text('Styling around ${item.name}', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700))),
+            for (final prompt in _quickPrompts) ...[
+              ActionChip(
+                label: Text(prompt),
+                onPressed: () => _send(prompt),
+                backgroundColor: AppColors.surface,
+                side: const BorderSide(color: AppColors.border),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              ),
+              const SizedBox(width: 8),
+            ],
           ],
         ),
       );
+
+  Widget _userBubbleAndScroll(String text) => _userBubble(text);
 
   Widget _assistantResultHeader() => Row(
         children: [
-          const Expanded(child: Text('VYEA’S LOOK', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900, letterSpacing: 1.2, color: AppColors.primary))),
-          Text('${_result?.matchScore ?? 0}% MATCH', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: AppColors.success)),
+          const Expanded(child: Text('YOUR LOOK', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1.3))),
+          if (_result != null) Text('${_result!.matchScore}%', style: const TextStyle(fontWeight: FontWeight.w800)),
         ],
       );
 
-  Widget _lookCard() => Container(
-        padding: const EdgeInsets.all(15),
-        decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(21), border: Border.all(color: AppColors.border)),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(_result?.displayTitle ?? 'Your personal look', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
-            if (_result?.explanation.isNotEmpty == true) ...[
-              const SizedBox(height: 8),
-              Text(_result!.explanation, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.45)),
-            ],
-            const SizedBox(height: 12),
-            if (_look.isEmpty)
-              const Text('No complete wardrobe match was returned.')
-            else
-              GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: _look.length,
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 9,
-                  mainAxisSpacing: 9,
-                  childAspectRatio: .82,
-                ),
-                itemBuilder: (_, index) {
-                  final item = _look[index];
-                  return Container(
-                    decoration: BoxDecoration(borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
-                    clipBehavior: Clip.antiAlias,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: item.imageUrl.isEmpty
-                              ? const Center(child: Icon(Icons.checkroom_outlined, color: AppColors.primary))
-                              : CachedNetworkImage(imageUrl: item.imageUrl, fit: BoxFit.cover, width: double.infinity),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.all(8),
-                          child: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700)),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            if (_result?.colourDirection != null && _result!.colourDirection!.trim().isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Text(_result!.colourDirection!, style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondary, height: 1.4)),
-            ],
-            if (_result?.stylingNotes.isNotEmpty == true) ...[
-              const SizedBox(height: 10),
-              ..._result!.stylingNotes.take(3).map(
-                    (note) => Padding(
-                      padding: const EdgeInsets.only(bottom: 5),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Padding(padding: EdgeInsets.only(top: 5), child: Icon(Icons.circle, size: 5, color: AppColors.primary)),
-                          const SizedBox(width: 7),
-                          Expanded(child: Text(note, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary))),
-                        ],
-                      ),
-                    ),
-                  ),
-            ],
-          ],
-        ),
-      );
-
-  Widget _resultActions() => Row(
+  Widget _lookCard() {
+    final items = _look;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: OutlinedButton.icon(
-              onPressed: _styling || _lastPrompt == null ? null : () => _send(_lastPrompt),
-              icon: const Icon(Icons.refresh_rounded),
-              label: const Text('Try again'),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: FilledButton.icon(
-              onPressed: _openSavedLooks,
-              icon: const Icon(Icons.bookmark_outline_rounded),
-              label: const Text('Saved Looks'),
-            ),
-          ),
+          Text(_result?.displayTitle ?? 'Your personal look', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+          const SizedBox(height: 6),
+          if (_result?.colourDirection != null && _result!.colourDirection!.trim().isNotEmpty)
+            Text(_result!.colourDirection!, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5)),
+          if (_result?.explanation.trim().isNotEmpty == true) ...[
+            const SizedBox(height: 8),
+            Text(_result!.explanation, style: const TextStyle(color: AppColors.textSecondary, height: 1.4, fontSize: 12)),
+          ],
+          const SizedBox(height: 12),
+          ...items.map((item) => ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: SizedBox(width: 46, height: 52, child: CachedNetworkImage(imageUrl: item.imageUrl, fit: BoxFit.cover)),
+                title: Text(item.name, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+                subtitle: Text('${item.category} · ${item.colour}'),
+              )),
+        ],
+      ),
+    );
+  }
+
+  Widget _resultActions() => Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          OutlinedButton.icon(onPressed: () {}, icon: const Icon(Icons.thumb_up_alt_outlined), label: const Text('Like')),
+          OutlinedButton.icon(onPressed: () {}, icon: const Icon(Icons.refresh_rounded), label: const Text('Try another')),
         ],
       );
 
   Widget _contextLinks() => Row(
         children: [
-          Expanded(child: OutlinedButton.icon(onPressed: _openWardrobe, icon: const Icon(Icons.checkroom_outlined), label: const Text('Wardrobe'))),
-          const SizedBox(width: 8),
-          Expanded(child: OutlinedButton.icon(onPressed: _openAnalysis, icon: const Icon(Icons.palette_outlined), label: const Text('Colour Profile'))),
+          Expanded(child: OutlinedButton(onPressed: _openWardrobe, child: const Text('Wardrobe'))),
+          const SizedBox(width: 10),
+          Expanded(child: OutlinedButton(onPressed: _openAnalysis, child: const Text('Colour Profile'))),
         ],
       );
 
   Widget _composerBar() => SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(14, 7, 14, 10),
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
           child: Row(
             children: [
               Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14),
-                  decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)),
-                  child: TextField(
-                    controller: _composer,
-                    minLines: 1,
-                    maxLines: 3,
-                    textInputAction: TextInputAction.send,
-                    onSubmitted: (_) => _send(),
-                    decoration: const InputDecoration(hintText: 'Ask VYEA to style a moment…', border: InputBorder.none),
-                  ),
+                child: TextField(
+                  controller: _composer,
+                  textInputAction: TextInputAction.send,
+                  onSubmitted: (_) => _send(),
+                  decoration: const InputDecoration(hintText: 'Ask VYEA to style a moment…'),
                 ),
               ),
               const SizedBox(width: 8),
-              FloatingActionButton.small(onPressed: _styling ? null : _send, child: const Icon(Icons.arrow_upward_rounded)),
+              IconButton.filled(
+                onPressed: _styling ? null : _send,
+                icon: const Icon(Icons.arrow_upward_rounded),
+              ),
             ],
           ),
         ),
       );
 
-  void _openPreferences() {
-    Navigator.push(context, MaterialPageRoute(builder: (_) => const StylePreferencesScreen()));
-  }
+  void _openPreferences() => Navigator.push(context, MaterialPageRoute(builder: (_) => const StylePreferencesScreen()));
+  void _openWardrobe() => Navigator.push(context, MaterialPageRoute(builder: (_) => const WardrobeScreen()));
+  void _openAnalysis() => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalysisScreen()));
 
-  void _openWardrobe() {
-    Navigator.push(context, MaterialPageRoute(builder: (_) => const WardrobeScreen()));
-  }
-
-  void _openAnalysis() {
-    Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalysisScreen()));
-  }
-
-  void _openSavedLooks() {
-    Navigator.pop(context);
-  }
+  Widget _selectedItemBanner(WardrobeItem item) => Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Row(
+          children: [
+            SizedBox(width: 48, height: 60, child: CachedNetworkImage(imageUrl: item.imageUrl, fit: BoxFit.cover)),
+            const SizedBox(width: 10),
+            Expanded(child: Text('Styling around ${item.name}', style: const TextStyle(fontWeight: FontWeight.w700))),
+          ],
+        ),
+      );
 }
