@@ -1,0 +1,34 @@
+name: Fix AI styling null assertion
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch null assertion
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('lib/services/ai_styling_service.dart')
+          text = path.read_text()
+          old = "matchScore: source?.matchScore == 0 ? score : source!.matchScore.clamp(0, 100),"
+          new = "matchScore: source == null || source.matchScore == 0 ? score : source.matchScore.clamp(0, 100),"
+          if old not in text:
+              raise SystemExit('Target expression not found; refusing to modify the file.')
+          path.write_text(text.replace(old, new, 1))
+          PY
+      - name: Commit fix and remove temporary workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add lib/services/ai_styling_service.dart .github/workflows/fix-ai-styling-null.yml
+          git rm .github/workflows/fix-ai-styling-null.yml
+          git commit -m "Fix AI stylist null assertion"
+          git push
