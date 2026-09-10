@@ -56,7 +56,7 @@ class AiStylingResult {
         jacketId,
         shoesId,
         accessoryId,
-      ].whereType<String>().where((id) => id.isNotEmpty).toSet().toList(growable: false);
+      ].whereType<String>().where((id) => id.trim().isNotEmpty).toSet().toList(growable: false);
 
   String get displayTitle => lookTitle == null || lookTitle!.trim().isEmpty
       ? 'Your personal look'
@@ -314,7 +314,9 @@ class AiStylingService {
           if (!look.any((item) => item.id == shoe.id)) look.add(shoe);
           if (!look.any((item) => item.id == accessory.id)) look.add(accessory);
           final key = _lookKey(look);
-          if (key != null && !excluded.contains(key) && _validStructure(look)) return look.take(5).toList(growable: false);
+          if (key != null && !excluded.contains(key) && _validStructure(look)) {
+            return look.take(5).toList(growable: false);
+          }
         }
       }
     }
@@ -338,11 +340,15 @@ class AiStylingService {
           if (!look.any((item) => item.id == shoe.id)) look.add(shoe);
           if (!look.any((item) => item.id == accessory.id)) look.add(accessory);
           final key = _lookKey(look);
-          if (key != null && !excluded.contains(key) && _validStructure(look)) return look.take(5).toList(growable: false);
+          if (key != null && !excluded.contains(key) && _validStructure(look)) {
+            return look.take(5).toList(growable: false);
+          }
         }
       }
     }
-    return const [];
+    final minimal = <WardrobeItem>[piece];
+    final key = _lookKey(minimal);
+    return key != null && !excluded.contains(key) && _validStructure(minimal) ? minimal : const [];
   }
 
   static List<WardrobeItem> sanitizeLook(
@@ -371,7 +377,9 @@ class AiStylingService {
         );
 
     WardrobeItem? selected;
-    if (selectedItem != null && candidates.any((item) => item.id == selectedItem.id)) selected = selectedItem;
+    if (selectedItem != null && candidates.any((item) => item.id == selectedItem.id)) {
+      selected = selectedItem;
+    }
 
     if (selected?.category == 'Dresses') {
       final look = _composeOnePiece(selected!, ranked('Shoes'), ranked('Accessories'), ranked('Jackets'), excludedLookKeys);
@@ -383,7 +391,9 @@ class AiStylingService {
     }
 
     final tops = selected?.category == 'Tops' ? <WardrobeItem>[selected!] : ranked('Tops');
-    final lowers = selected?.category == 'Bottoms' || selected?.category == 'Skirts' ? <WardrobeItem>[selected!] : <WardrobeItem>[...ranked('Bottoms'), ...ranked('Skirts')];
+    final lowers = selected?.category == 'Bottoms' || selected?.category == 'Skirts'
+        ? <WardrobeItem>[selected!]
+        : <WardrobeItem>[...ranked('Bottoms'), ...ranked('Skirts')];
     final shoes = ranked('Shoes');
     final accessories = ranked('Accessories');
     final jackets = ranked('Jackets');
@@ -430,7 +440,7 @@ class AiStylingService {
 
     var feedbackBias = const <String, double>{};
     var combinationBias = const <String, double>{};
-    TibModelProfile tibModel = const TibModelProfile(
+    var tibModel = const TibModelProfile(
       facePath: null,
       bodyPath: null,
       weight: 0,
@@ -443,39 +453,60 @@ class AiStylingService {
       isComplete: false,
     );
     try {
-      feedbackBias = await StyleFeedbackService.getItemBias();
-      combinationBias = await StyleFeedbackService.getCombinationBias();
-      tibModel = await TibModelService.loadForUser(cleanUid);
-    } catch (_) {
-      // Optional context must never block a wardrobe recommendation.
-    }
+      final loadedFeedback = await StyleFeedbackService.getItemBias();
+      feedbackBias = loadedFeedback;
+      final loadedCombinationBias = await StyleFeedbackService.getCombinationBias();
+      combinationBias = loadedCombinationBias;
+      try {
+        tibModel = await TibModelService.loadForUser(cleanUid);
+      } catch (_) {}
+    } catch (_) {}
 
-    String colourSummary(ColourAnalysisResult value) => jsonEncode({
-          'season': value.season,
-          'undertone': value.undertone,
-          'brightness': value.brightness,
-          'contrast': value.contrast,
-          'chroma': value.chroma,
-          'clarity': value.clarity,
-          'colours': value.colours,
-          'bestNeutrals': value.bestNeutrals,
-          'accentColours': value.accentColours,
-          'lessIdealColours': value.lessIdealColours,
-          'faceShape': value.faceShape,
-          'faceStylingGuidance': value.faceStylingGuidance,
-          'colourReasons': value.colourReasons,
-        });
-
-    Map<String, dynamic> tibModelData(TibModelProfile model) => {
-          ...model.personalIdentityData,
-          'measurementData': model.measurementData,
-          'facePathAvailable': model.facePath != null,
-          'bodyPathAvailable': model.bodyPath != null,
-        };
+    final profileData = <String, dynamic>{
+      'season': profile.season,
+      'undertone': profile.undertone,
+      'brightness': profile.brightness,
+      'contrast': profile.contrast,
+      'chroma': profile.chroma,
+      'clarity': profile.clarity,
+      'colours': profile.colours,
+      'bestNeutrals': profile.bestNeutrals,
+      'accentColours': profile.accentColours,
+      'lessIdealColours': profile.lessIdealColours,
+      'faceShape': profile.faceShape,
+      'faceStylingGuidance': profile.faceStylingGuidance,
+      'colourReasons': profile.colourReasons,
+    };
 
     String remoteFailure = '';
     try {
-      final token = await FirebaseAuth.instance.currentUser?.getIdToken();
+      final user = FirebaseAuth.instance.currentUser;
+      final token = user == null ? null : await user.getIdToken();
+      final payload = <String, dynamic>{
+        'action': 'aiStyling',
+        'uid': cleanUid,
+        'profile': jsonEncode(profileData),
+        'tibModel': {
+          ...tibModel.personalIdentityData,
+          'measurementData': tibModel.measurementData,
+          'facePathAvailable': tibModel.facePath != null,
+          'bodyPathAvailable': tibModel.bodyPath != null,
+        },
+        'wardrobe': owned.map((item) => item.toMap()).toList(growable: false),
+        'styles': styles,
+        'preferences': preferences,
+        'occasion': occasion,
+        'personalBrand': jsonEncode(profileData),
+        'feedbackBias': feedbackBias,
+        'combinationBias': combinationBias,
+        'selectedItem': selectedItem?.toMap(),
+        'outfitRules': const {
+          'allowedCategories': ['Tops', 'Bottoms', 'Dresses', 'Suits', 'Jackets', 'Skirts', 'Shoes', 'Accessories'],
+          'dressCannotCombineWith': ['Tops', 'Bottoms', 'Skirts', 'Suits'],
+          'suitCannotCombineWith': ['Tops', 'Bottoms', 'Skirts', 'Dresses'],
+          'separateUpperAndLowerRequired': true,
+        },
+      };
       final response = await http
           .post(
             Uri.parse(GoogleDriveConfig.uploadUrl),
@@ -483,26 +514,7 @@ class AiStylingService {
               'Content-Type': 'application/json',
               if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
             },
-            body: jsonEncode({
-              'action': 'aiStyling',
-              'uid': cleanUid,
-              'profile': colourSummary(profile),
-              'tibModel': tibModelData(tibModel),
-              'wardrobe': owned.map((item) => item.toMap()).toList(growable: false),
-              'styles': styles,
-              'preferences': preferences,
-              'occasion': occasion,
-              'personalBrand': colourSummary(profile),
-              'feedbackBias': feedbackBias,
-              'combinationBias': combinationBias,
-              'selectedItem': selectedItem?.toMap(),
-              'outfitRules': const {
-                'allowedCategories': ['Tops', 'Bottoms', 'Dresses', 'Suits', 'Jackets', 'Skirts', 'Shoes', 'Accessories'],
-                'dressCannotCombineWith': ['Tops', 'Bottoms', 'Skirts', 'Suits'],
-                'suitCannotCombineWith': ['Tops', 'Bottoms', 'Skirts', 'Dresses'],
-                'separateUpperAndLowerRequired': true,
-              },
-            }),
+            body: jsonEncode(payload),
           )
           .timeout(_requestTimeout);
 
@@ -512,11 +524,21 @@ class AiStylingService {
           if (decoded is Map) {
             final root = Map<String, dynamic>.from(decoded);
             final rawPayload = root['result'];
-            final payload = rawPayload is Map ? Map<String, dynamic>.from(rawPayload) : root;
-            final remote = _fromPayload(payload, owned);
+            final responsePayload = rawPayload is Map ? Map<String, dynamic>.from(rawPayload) : root;
+            final remote = _fromPayload(responsePayload, owned);
             if (remote != null && remote.itemIds.isNotEmpty) {
               final aiItems = remote.itemIds.map((id) => _findById(owned, id)).whereType<WardrobeItem>().toList(growable: false);
-              final valid = sanitizeLook(aiItems, selectedItem: selectedItem, occasion: occasion, profile: profile, styles: styles, preferences: preferences, excludedLookKeys: excludedLookKeys, feedbackBias: feedbackBias, combinationBias: combinationBias);
+              final valid = sanitizeLook(
+                aiItems,
+                selectedItem: selectedItem,
+                occasion: occasion,
+                profile: profile,
+                styles: styles,
+                preferences: preferences,
+                excludedLookKeys: excludedLookKeys,
+                feedbackBias: feedbackBias,
+                combinationBias: combinationBias,
+              );
               if (valid.isNotEmpty) {
                 return _resultFromLook(valid, source: remote, profile: profile, occasion: occasion, selectedItem: selectedItem, styles: styles, preferences: preferences, combinationBias: combinationBias);
               }
@@ -562,7 +584,9 @@ class AiStylingService {
     }
 
     throw AiStylingException(
-      remoteFailure.isEmpty ? 'No complete outfit could be assembled from the current wardrobe.' : '$remoteFailure No complete outfit could be assembled from the current wardrobe.',
+      remoteFailure.isEmpty
+          ? 'No complete outfit could be assembled from the current wardrobe.'
+          : '$remoteFailure No complete outfit could be assembled from the current wardrobe.',
     );
   }
 
@@ -710,7 +734,9 @@ class AiStylingService {
   static String _fallbackExplanation(List<WardrobeItem> look, ColourAnalysisResult profile, String occasion) {
     final colours = look.map((item) => item.colour.trim()).where((value) => value.isNotEmpty).take(3).join(', ');
     final palette = profile.colours.take(3).join(', ');
-    if (colours.isEmpty) return 'I built this ${occasion.toLowerCase()} look around your personal style and colour profile.';
+    if (colours.isEmpty) {
+      return 'I built this ${occasion.toLowerCase()} look around your personal style and colour profile.';
+    }
     return 'I paired $colours for ${occasion.toLowerCase()} and kept the direction aligned with your palette: $palette.';
   }
 
