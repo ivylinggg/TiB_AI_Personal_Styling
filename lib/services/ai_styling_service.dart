@@ -76,19 +76,6 @@ class AiStylingService {
     'Accessories',
   };
 
-  static TibModelProfile _emptyProfileForStyling() => const TibModelProfile(
-        facePath: null,
-        bodyPath: null,
-        weight: 0,
-        height: 0,
-        bust: 0,
-        waist: 0,
-        hips: 0,
-        bodyShape: 'Not measured',
-        faceShape: 'Not scanned',
-        isComplete: false,
-      );
-
   static String _normaliseColour(String raw) {
     final value = raw.trim().toLowerCase();
     if (value.isEmpty) return 'unknown';
@@ -108,8 +95,8 @@ class AiStylingService {
     return value;
   }
 
-  static String _colourFamily(String colour) => _normaliseColour(colour);
-  static bool _isNeutral(String colour) => {'black', 'white', 'grey', 'navy', 'beige', 'brown'}.contains(colour);
+  static bool _isNeutral(String colour) =>
+      {'black', 'white', 'grey', 'navy', 'beige', 'brown'}.contains(colour);
 
   static bool _colourMatches(String a, String b) {
     final left = _normaliseColour(a);
@@ -133,7 +120,8 @@ class AiStylingService {
     'grey': {'black', 'white', 'blue', 'purple', 'pink'},
   };
 
-  static bool _compatibleColourFamilies(String a, String b) => _compatible[a]?.contains(b) == true || _compatible[b]?.contains(a) == true;
+  static bool _compatibleColourFamilies(String a, String b) =>
+      _compatible[a]?.contains(b) == true || _compatible[b]?.contains(a) == true;
 
   static String _styleFamily(String raw) {
     final value = raw.trim().toLowerCase();
@@ -157,9 +145,15 @@ class AiStylingService {
   static Set<String> _occasionTokens(String value) {
     final normalized = value.trim().toLowerCase();
     final tokens = <String>{..._cleanTokenSet([normalized])};
-    if (normalized.contains('work') || normalized.contains('office')) tokens.addAll({'smart', 'formal', 'elegant', 'tailored', 'business'});
-    if (normalized.contains('date') || normalized.contains('dinner')) tokens.addAll({'elegant', 'feminine', 'dress', 'polished', 'refined'});
-    if (normalized.contains('weekend') || normalized.contains('cafe') || normalized.contains('casual')) tokens.addAll({'casual', 'relaxed', 'everyday', 'comfortable'});
+    if (normalized.contains('work') || normalized.contains('office')) {
+      tokens.addAll({'smart', 'formal', 'elegant', 'tailored', 'business'});
+    }
+    if (normalized.contains('date') || normalized.contains('dinner')) {
+      tokens.addAll({'elegant', 'feminine', 'dress', 'polished', 'refined'});
+    }
+    if (normalized.contains('weekend') || normalized.contains('cafe') || normalized.contains('casual')) {
+      tokens.addAll({'casual', 'relaxed', 'everyday', 'comfortable'});
+    }
     return tokens;
   }
 
@@ -207,7 +201,7 @@ class AiStylingService {
       if (cleanStyles.any(combined.contains)) score += 14;
       if (cleanPreferences.any(combined.contains)) score += 10;
       if (occasionTokens.any(combined.contains)) score += 14;
-      if (_isNeutral(_colourFamily(colour))) score += 3;
+      if (_isNeutral(colour)) score += 3;
       for (final anchor in anchors) {
         score += _pairCompatibilityScore(item, anchor);
         score += _pairCombinationBias(item, anchor, combinationBias).round();
@@ -224,7 +218,15 @@ class AiStylingService {
     return bias[ids.join('|')] ?? 0;
   }
 
-  static int _scoreLook(List<WardrobeItem> look, {required ColourAnalysisResult profile, required String occasion, required List<String> styles, required List<String> preferences, WardrobeItem? selectedItem, Map<String, double> combinationBias = const {}}) {
+  static int _scoreLook(
+    List<WardrobeItem> look, {
+    required ColourAnalysisResult profile,
+    required String occasion,
+    required List<String> styles,
+    required List<String> preferences,
+    WardrobeItem? selectedItem,
+    Map<String, double> combinationBias = const {},
+  }) {
     if (look.isEmpty) return 0;
     var score = 0;
     for (final item in look) {
@@ -261,8 +263,8 @@ class AiStylingService {
   static int _pairCompatibilityScore(WardrobeItem first, WardrobeItem second) {
     if (first.id == second.id) return -100;
     var score = 0;
-    final a = _colourFamily(first.colour);
-    final b = _colourFamily(second.colour);
+    final a = _normaliseColour(first.colour);
+    final b = _normaliseColour(second.colour);
     if (a == b && a != 'unknown') {
       score += 12;
     } else if (_isNeutral(a) || _isNeutral(b)) {
@@ -300,7 +302,14 @@ class AiStylingService {
     return categories.contains('Tops') && (categories.contains('Bottoms') || categories.contains('Skirts')) && !categories.contains('Dresses') && !categories.contains('Suits');
   }
 
-  static List<WardrobeItem> _composeTwoPiece(WardrobeItem top, WardrobeItem lower, List<WardrobeItem> shoes, List<WardrobeItem> accessories, List<WardrobeItem> jackets, Set<String> excluded) {
+  static List<WardrobeItem> _composeTwoPiece(
+    WardrobeItem top,
+    WardrobeItem lower,
+    List<WardrobeItem> shoes,
+    List<WardrobeItem> accessories,
+    List<WardrobeItem> jackets,
+    Set<String> excluded,
+  ) {
     final shoeCandidates = shoes.isEmpty ? <WardrobeItem?>[null] : shoes;
     final accessoryCandidates = accessories.isEmpty ? <WardrobeItem?>[null] : accessories;
     final jacketCandidates = <WardrobeItem?>[null, ...jackets.take(2)];
@@ -321,7 +330,13 @@ class AiStylingService {
     return key != null && !excluded.contains(key) && _validStructure(minimal) ? minimal : const [];
   }
 
-  static List<WardrobeItem> _composeOnePiece(WardrobeItem piece, List<WardrobeItem> shoes, List<WardrobeItem> accessories, List<WardrobeItem> jackets, Set<String> excluded) {
+  static List<WardrobeItem> _composeOnePiece(
+    WardrobeItem piece,
+    List<WardrobeItem> shoes,
+    List<WardrobeItem> accessories,
+    List<WardrobeItem> jackets,
+    Set<String> excluded,
+  ) {
     final shoeCandidates = shoes.isEmpty ? <WardrobeItem?>[null] : shoes;
     final accessoryCandidates = accessories.isEmpty ? <WardrobeItem?>[null] : accessories;
     final jacketCandidates = <WardrobeItem?>[null, ...jackets.take(2)];
@@ -354,12 +369,13 @@ class AiStylingService {
     final candidates = items.where((item) => _knownCategories.contains(item.category.trim()) && item.id.trim().isNotEmpty).toList(growable: false);
     if (candidates.isEmpty) return const [];
 
-    List<WardrobeItem> ranked(String category) => _rankItems(
+    List<WardrobeItem> ranked(String category, {List<WardrobeItem> anchors = const []}) => _rankItems(
           candidates.where((item) => item.category.trim() == category).toList(growable: false),
           profile: profile,
           occasion: occasion,
           styles: styles,
           preferences: preferences,
+          anchors: anchors,
           feedbackBias: feedbackBias,
           combinationBias: combinationBias,
         );
@@ -413,23 +429,61 @@ class AiStylingService {
   }) async {
     final cleanUid = uid.trim();
     final currentUid = FirebaseAuth.instance.currentUser?.uid.trim();
-    if (cleanUid.isEmpty || currentUid == null || cleanUid != currentUid) throw const AiStylingException('Your session changed. Please sign in again.');
+    if (cleanUid.isEmpty || currentUid == null || cleanUid != currentUid) {
+      throw const AiStylingException('Your session changed. Please sign in again.');
+    }
 
     final owned = _uniqueOwned(wardrobe, cleanUid);
-    if (owned.isEmpty) throw const AiStylingException('No usable wardrobe items are available for this account.');
+    if (owned.isEmpty) {
+      throw const AiStylingException('No usable wardrobe items are available for this account.');
+    }
 
-    // Build a local recommendation first. This is deterministic and cannot fail because a remote AI payload is malformed.
-    Map<String, double> feedbackBias = const {};
-    Map<String, double> combinationBias = const {};
+    var feedbackBias = const <String, double>{};
+    var combinationBias = const <String, double>{};
+    TibModelProfile tibModel = const TibModelProfile(
+      facePath: null,
+      bodyPath: null,
+      weight: 0,
+      height: 0,
+      bust: 0,
+      waist: 0,
+      hips: 0,
+      bodyShape: 'Not measured',
+      faceShape: 'Not scanned',
+      isComplete: false,
+    );
     try {
       feedbackBias = await StyleFeedbackService.getItemBias();
       combinationBias = await StyleFeedbackService.getCombinationBias();
+      tibModel = await TibModelService.loadForUser(cleanUid);
     } catch (_) {
-      feedbackBias = const {};
-      combinationBias = const {};
+      // Optional context must never block a wardrobe recommendation.
     }
 
-    final localLook = sanitizeLook(
+    String colourSummary(ColourAnalysisResult value) => jsonEncode({
+          'season': value.season,
+          'undertone': value.undertone,
+          'brightness': value.brightness,
+          'contrast': value.contrast,
+          'chroma': value.chroma,
+          'clarity': value.clarity,
+          'colours': value.colours,
+          'bestNeutrals': value.bestNeutrals,
+          'accentColours': value.accentColours,
+          'lessIdealColours': value.lessIdealColours,
+          'faceShape': value.faceShape,
+          'faceStylingGuidance': value.faceStylingGuidance,
+          'colourReasons': value.colourReasons,
+        });
+
+    Map<String, dynamic> tibModelData(TibModelProfile model) => {
+          ...model.personalIdentityData,
+          'measurementData': model.measurementData,
+          'facePathAvailable': model.facePath != null,
+          'bodyPathAvailable': model.bodyPath != null,
+        };
+
+    final guaranteedFallback = sanitizeLook(
       owned,
       selectedItem: selectedItem,
       occasion: occasion,
@@ -441,21 +495,12 @@ class AiStylingService {
       combinationBias: combinationBias,
     );
 
-    if (localLook.isNotEmpty) {
-      final localResult = _resultFromLook(
-        localLook,
-        profile: profile,
-        occasion: occasion,
-        selectedItem: selectedItem,
-        styles: styles,
-        preferences: preferences,
-        combinationBias: combinationBias,
-      );
-
-      // Try the remote explanation in the background-like best-effort path, but never block or replace a valid local look.
+    if (guaranteedFallback.isNotEmpty) {
+      // Local wardrobe recommendation is deterministic and safe. We do not
+      // block the user's primary outfit action on a remote AI dependency.
+      // The remote service remains available to enrich the copy below.
       try {
         final token = await FirebaseAuth.instance.currentUser?.getIdToken();
-        final tibModel = await TibModelService.loadForUser(cleanUid);
         final response = await http
             .post(
               Uri.parse(GoogleDriveConfig.uploadUrl),
@@ -466,13 +511,13 @@ class AiStylingService {
               body: jsonEncode({
                 'action': 'aiStyling',
                 'uid': cleanUid,
-                'profile': _colourSummary(profile),
-                'tibModel': _tibModelData(tibModel),
+                'profile': colourSummary(profile),
+                'tibModel': tibModelData(tibModel),
                 'wardrobe': owned.map((item) => item.toMap()).toList(growable: false),
                 'styles': styles,
                 'preferences': preferences,
                 'occasion': occasion,
-                'personalBrand': _colourSummary(profile),
+                'personalBrand': colourSummary(profile),
                 'feedbackBias': feedbackBias,
                 'combinationBias': combinationBias,
                 'selectedItem': selectedItem?.toMap(),
@@ -485,104 +530,60 @@ class AiStylingService {
               }),
             )
             .timeout(_requestTimeout);
+
         if (response.statusCode >= 200 && response.statusCode < 300) {
-          try {
-            final decoded = jsonDecode(response.body);
-            if (decoded is Map) {
-              final root = Map<String, dynamic>.from(decoded);
-              final rawPayload = root['result'];
-              final payload = rawPayload is Map ? Map<String, dynamic>.from(rawPayload) : root;
-              final remote = _fromPayload(payload, owned);
-              if (remote != null && remote.itemIds.isNotEmpty) {
-                final aiItems = remote.itemIds.map((id) => _findById(owned, id)).whereType<WardrobeItem>().toList(growable: false);
-                final valid = sanitizeLook(aiItems, selectedItem: selectedItem, occasion: occasion, profile: profile, styles: styles, preferences: preferences, excludedLookKeys: excludedLookKeys, feedbackBias: feedbackBias, combinationBias: combinationBias);
-                if (valid.isNotEmpty) {
-                  return _resultFromLook(valid, source: remote, profile: profile, occasion: occasion, selectedItem: selectedItem, styles: styles, preferences: preferences, combinationBias: combinationBias);
-                }
+          final decoded = jsonDecode(response.body);
+          if (decoded is Map) {
+            final root = Map<String, dynamic>.from(decoded);
+            final rawPayload = root['result'];
+            final payload = rawPayload is Map ? Map<String, dynamic>.from(rawPayload) : root;
+            final remote = _fromPayload(payload, owned);
+            if (remote != null && remote.itemIds.isNotEmpty) {
+              final aiItems = remote.itemIds.map((id) => _findById(owned, id)).whereType<WardrobeItem>().toList(growable: false);
+              final valid = sanitizeLook(
+                aiItems,
+                selectedItem: selectedItem,
+                occasion: occasion,
+                profile: profile,
+                styles: styles,
+                preferences: preferences,
+                excludedLookKeys: excludedLookKeys,
+                feedbackBias: feedbackBias,
+                combinationBias: combinationBias,
+              );
+              if (valid.isNotEmpty) {
+                return _resultFromLook(
+                  valid,
+                  source: remote,
+                  profile: profile,
+                  occasion: occasion,
+                  selectedItem: selectedItem,
+                  styles: styles,
+                  preferences: preferences,
+                  combinationBias: combinationBias,
+                );
               }
             }
-          } catch (_) {
-            // Keep the deterministic local result.
           }
         }
       } catch (_) {
-        // Keep the deterministic local result.
+        // Deterministic local recommendation below remains the source of truth.
       }
-      return localResult;
+
+      return _resultFromLook(
+        guaranteedFallback,
+        source: null,
+        profile: profile,
+        occasion: occasion,
+        selectedItem: selectedItem,
+        styles: styles,
+        preferences: preferences,
+        combinationBias: combinationBias,
+      );
     }
 
-    // Only when no valid local combination exists do we allow a remote response to become the source of truth.
-    try {
-      final token = await FirebaseAuth.instance.currentUser?.getIdToken();
-      final tibModel = await TibModelService.loadForUser(cleanUid);
-      final response = await http
-          .post(
-            Uri.parse(GoogleDriveConfig.uploadUrl),
-            headers: {
-              'Content-Type': 'application/json',
-              if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
-            },
-            body: jsonEncode({
-              'action': 'aiStyling',
-              'uid': cleanUid,
-              'profile': _colourSummary(profile),
-              'tibModel': _tibModelData(tibModel),
-              'wardrobe': owned.map((item) => item.toMap()).toList(growable: false),
-              'styles': styles,
-              'preferences': preferences,
-              'occasion': occasion,
-              'personalBrand': _colourSummary(profile),
-              'feedbackBias': feedbackBias,
-              'combinationBias': combinationBias,
-              'selectedItem': selectedItem?.toMap(),
-            }),
-          )
-          .timeout(_requestTimeout);
-      if (response.statusCode >= 200 && response.statusCode < 300) {
-        final decoded = jsonDecode(response.body);
-        if (decoded is Map) {
-          final root = Map<String, dynamic>.from(decoded);
-          final rawPayload = root['result'];
-          final payload = rawPayload is Map ? Map<String, dynamic>.from(rawPayload) : root;
-          final remote = _fromPayload(payload, owned);
-          if (remote != null && remote.itemIds.isNotEmpty) {
-            final aiItems = remote.itemIds.map((id) => _findById(owned, id)).whereType<WardrobeItem>().toList(growable: false);
-            final valid = sanitizeLook(aiItems, selectedItem: selectedItem, occasion: occasion, profile: profile, styles: styles, preferences: preferences, excludedLookKeys: excludedLookKeys, feedbackBias: feedbackBias, combinationBias: combinationBias);
-            if (valid.isNotEmpty) {
-              return _resultFromLook(valid, source: remote, profile: profile, occasion: occasion, selectedItem: selectedItem, styles: styles, preferences: preferences, combinationBias: combinationBias);
-            }
-          }
-        }
-      }
-    } catch (_) {
-      // handled below
-    }
-
-    throw const AiStylingException('No complete outfit could be assembled from your wardrobe. Please check that you have at least one top and one bottom, skirt, dress or suit.');
+    throw const AiStylingException('No complete outfit could be assembled from the current wardrobe. Add at least one top and one bottom/skirt.');
   }
-
-  static String _colourSummary(ColourAnalysisResult value) => jsonEncode({
-        'season': value.season,
-        'undertone': value.undertone,
-        'brightness': value.brightness,
-        'contrast': value.contrast,
-        'chroma': value.chroma,
-        'clarity': value.clarity,
-        'colours': value.colours,
-        'bestNeutrals': value.bestNeutrals,
-        'accentColours': value.accentColours,
-        'lessIdealColours': value.lessIdealColours,
-        'faceShape': value.faceShape,
-        'faceStylingGuidance': value.faceStylingGuidance,
-        'colourReasons': value.colourReasons,
-      });
-
-  static Map<String, dynamic> _tibModelData(TibModelProfile model) => {
-        ...model.personalIdentityData,
-        'measurementData': model.measurementData,
-        'facePathAvailable': model.facePath != null,
-        'bodyPathAvailable': model.bodyPath != null,
-      };
 
   static WardrobeItem? _findById(List<WardrobeItem> items, String id) {
     for (final item in items) {
@@ -607,9 +608,7 @@ class AiStylingService {
 
     final explanation = stringValue('explanation') ?? stringValue('reason') ?? '';
     final notesRaw = payload['stylingNotes'] ?? payload['notes'];
-    final stylingNotes = notesRaw is List
-        ? notesRaw.map((value) => value.toString().trim()).where((value) => value.isNotEmpty).toList(growable: false)
-        : const <String>[];
+    final stylingNotes = notesRaw is List ? notesRaw.map((value) => value.toString().trim()).where((value) => value.isNotEmpty).toList(growable: false) : const <String>[];
     final breakdownRaw = payload['scoreBreakdown'];
     final breakdown = <String, int>{};
     if (breakdownRaw is Map) {
