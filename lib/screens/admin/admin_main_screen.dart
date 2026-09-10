@@ -324,7 +324,7 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
                 final selected = safeIndex == index;
                 return Expanded(
                   child: _AdminNavItem(
-                    icon: selected ? destination.selectedIcon : destination.icon,
+                    icon: selected ? (destination.selectedIcon ?? destination.icon ?? const SizedBox.shrink()) : (destination.icon ?? const SizedBox.shrink()),
                     label: destination.label,
                     selected: selected,
                     onTap: () => _navigateTo(index),
