@@ -45,11 +45,10 @@ class FaceShapeAnalysisService {
       );
     }
 
-    final points = <dynamic>[];
-    for (final point in contour.points) {
-      if (point == null) continue;
-      points.add(point);
-    }
+    final points = contour.points
+        .where((point) => point != null)
+        .map((point) => point!)
+        .toList();
 
     if (points.length < 24) {
       throw const FormatException(
@@ -57,23 +56,43 @@ class FaceShapeAnalysisService {
       );
     }
 
-    final left = points.map((p) => p.x.toDouble()).reduce(math.min);
-    final right = points.map((p) => p.x.toDouble()).reduce(math.max);
-    final top = points.map((p) => p.y.toDouble()).reduce(math.min);
-    final bottom = points.map((p) => p.y.toDouble()).reduce(math.max);
-    final width = math.max(1.0, right - left);
-    final height = math.max(1.0, bottom - top);
+    var minX = double.infinity;
+    var maxX = double.negativeInfinity;
+    var minY = double.infinity;
+    var maxY = double.negativeInfinity;
+
+    for (final point in points) {
+      final x = point.x.toDouble();
+      final y = point.y.toDouble();
+      minX = math.min(minX, x);
+      maxX = math.max(maxX, x);
+      minY = math.min(minY, y);
+      maxY = math.max(maxY, y);
+    }
+
+    final width = math.max(1.0, maxX - minX);
+    final height = math.max(1.0, maxY - minY);
 
     double widthAt(double relativeY) {
-      final targetY = top + height * relativeY;
+      final targetY = minY + height * relativeY;
       final tolerance = height * .055;
-      final near = points
-          .where((p) => (p.y.toDouble() - targetY).abs() <= tolerance)
-          .toList();
-      if (near.length < 2) return width * .5;
-      final minX = near.map((p) => p.x.toDouble()).reduce(math.min);
-      final maxX = near.map((p) => p.x.toDouble()).reduce(math.max);
-      return math.max(1.0, maxX - minX);
+
+      var hasNearPoint = false;
+      var nearMinX = double.infinity;
+      var nearMaxX = double.negativeInfinity;
+
+      for (final point in points) {
+        final x = point.x.toDouble();
+        final y = point.y.toDouble();
+        if ((y - targetY).abs() <= tolerance) {
+          hasNearPoint = true;
+          nearMinX = math.min(nearMinX, x);
+          nearMaxX = math.max(nearMaxX, x);
+        }
+      }
+
+      if (!hasNearPoint) return width * .5;
+      return math.max(1.0, nearMaxX - nearMinX);
     }
 
     final foreheadWidth = widthAt(.28);
@@ -82,7 +101,8 @@ class FaceShapeAnalysisService {
     final chinWidth = widthAt(.86);
 
     final faceRatio = height / math.max(1.0, cheekboneWidth);
-    final foreheadToCheek = foreheadWidth / math.max(1.0, cheekboneWidth);
+    final foreheadToCheek =
+        foreheadWidth / math.max(1.0, cheekboneWidth);
     final jawToCheek = jawWidth / math.max(1.0, cheekboneWidth);
     final chinToJaw = chinWidth / math.max(1.0, jawWidth);
 
@@ -131,36 +151,32 @@ class FaceShapeAnalysisService {
     };
 
     final input = <double>[faceRatio, foreheadToCheek, jawToCheek];
-    final distances = <String, double>{};
+    var bestName = 'Oval';
+    var bestDistance = double.infinity;
 
     for (final entry in profiles.entries) {
-      final name = entry.key;
       final target = entry.value;
       var sum = 0.0;
+
       for (var i = 0; i < input.length; i++) {
         final normalized = (input[i] - target[i]) / _scale[i];
         sum += normalized * normalized;
       }
 
-      if (name == 'Heart') {
+      if (entry.key == 'Heart') {
         sum += math.pow((chinToJaw - .55) / .25, 2).toDouble() * .10;
-      } else if (name == 'Diamond') {
+      } else if (entry.key == 'Diamond') {
         sum += math.pow((chinToJaw - .58) / .25, 2).toDouble() * .08;
-      } else if (name == 'Triangle') {
+      } else if (entry.key == 'Triangle') {
         sum += math.pow((chinToJaw - .82) / .25, 2).toDouble() * .08;
       }
 
-      distances[name] = sum;
+      if (sum < bestDistance) {
+        bestDistance = sum;
+        bestName = entry.key;
+      }
     }
 
-    var bestName = 'Oval';
-    var bestDistance = double.infinity;
-    distances.forEach((name, distance) {
-      if (distance < bestDistance) {
-        bestDistance = distance;
-        bestName = name;
-      }
-    });
     return bestName;
   }
 
@@ -188,22 +204,31 @@ class FaceShapeAnalysisService {
       (foreheadToCheek - target[1]).abs() / _scale[1],
       (jawToCheek - target[2]).abs() / _scale[2],
     ];
+
     final meanError = errors.reduce((a, b) => a + b) / errors.length;
     return (100 * (1 - (meanError / 2).clamp(0.0, 1.0)))
         .clamp(0.0, 100.0)
         .toDouble();
   }
 
-  static double _round(double value) => double.parse(value.toStringAsFixed(3));
+  static double _round(double value) =>
+      double.parse(value.toStringAsFixed(3));
 
   static const _description = <String, String>{
-    'Oval': 'Balanced facial proportions with cheekbones slightly wider than the forehead and jaw, creating a gentle taper.',
-    'Round': 'Face length and width are relatively close, with a soft jaw and rounded overall contour.',
-    'Square': 'Forehead, cheekbones and jaw are broadly similar in width, with a stronger lower-face structure.',
-    'Heart': 'The upper face is broader and the face tapers noticeably toward a narrower chin.',
-    'Diamond': 'Cheekbones are the dominant width while both forehead and jaw are relatively narrower.',
-    'Oblong': 'The face is noticeably longer, with relatively consistent width through the forehead, cheeks and jaw.',
-    'Triangle': 'The lower face and jaw are relatively broad compared with the forehead, creating a stronger lower silhouette.',
+    'Oval':
+        'Balanced facial proportions with cheekbones slightly wider than the forehead and jaw, creating a gentle taper.',
+    'Round':
+        'Face length and width are relatively close, with a soft jaw and rounded overall contour.',
+    'Square':
+        'Forehead, cheekbones and jaw are broadly similar in width, with a stronger lower-face structure.',
+    'Heart':
+        'The upper face is broader and the face tapers noticeably toward a narrower chin.',
+    'Diamond':
+        'Cheekbones are the dominant width while both forehead and jaw are relatively narrower.',
+    'Oblong':
+        'The face is noticeably longer, with relatively consistent width through the forehead, cheeks and jaw.',
+    'Triangle':
+        'The lower face and jaw are relatively broad compared with the forehead, creating a stronger lower silhouette.',
   };
 
   static const _guidance = <String, List<String>>{
