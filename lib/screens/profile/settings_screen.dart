@@ -3,10 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/constants/app_colors.dart';
-import '../../services/notification_service.dart';
+import '../../models/user_model.dart';
 import '../../providers/theme_provider.dart';
-import '../auth/login_screen.dart';
+import '../../services/firestore_service.dart';
+import '../../services/notification_service.dart';
 import '../ai/style_preferences_screen.dart';
+import '../auth/login_screen.dart';
+import 'edit_profile_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -33,19 +36,14 @@ class SettingsScreen extends StatelessWidget {
         ),
       ),
     );
-    if (selected != null && context.mounted) {
-      await provider.setThemeMode(selected);
-    }
+    if (selected != null && context.mounted) await provider.setThemeMode(selected);
   }
 
   Widget _themeTile(BuildContext context, ThemeMode mode, String label, IconData icon, ThemeMode current) {
     final selected = current == mode;
     return ListTile(
       contentPadding: EdgeInsets.zero,
-      leading: CircleAvatar(
-        backgroundColor: AppColors.surfaceMuted,
-        child: Icon(icon, color: AppColors.primary),
-      ),
+      leading: CircleAvatar(backgroundColor: AppColors.surfaceMuted, child: Icon(icon, color: AppColors.primary)),
       title: Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
       trailing: selected
           ? const Icon(Icons.radio_button_checked_rounded, color: AppColors.primary)
@@ -54,18 +52,32 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
+  Future<void> _openPersonalProfile(BuildContext context) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    try {
+      final user = await FirestoreService.getUser(uid);
+      if (!context.mounted) return;
+      if (user == null) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Your personal profile could not be loaded.')));
+        return;
+      }
+      await Navigator.push(context, MaterialPageRoute(builder: (_) => EditProfileScreen(user: user)));
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString().replaceFirst('Exception: ', ''))));
+      }
+    }
+  }
+
   Future<void> _changePassword(BuildContext context) async {
     final email = FirebaseAuth.instance.currentUser?.email;
     if (email == null || email.trim().isEmpty) return;
     try {
       await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password reset email sent.')));
-      }
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password reset email sent.')));
     } on FirebaseAuthException catch (error) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message ?? 'Unable to send password reset email.')));
-      }
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message ?? 'Unable to send password reset email.')));
     }
   }
 
@@ -73,9 +85,7 @@ class SettingsScreen extends StatelessWidget {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
     await NotificationService.markAllRead(uid);
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('All notifications marked as read.')));
-    }
+    if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('All notifications marked as read.')));
   }
 
   Future<void> _logout(BuildContext context) async {
@@ -130,6 +140,12 @@ class SettingsScreen extends StatelessWidget {
               ]),
             ),
           const SizedBox(height: 24),
+          const Text('PERSONAL PROFILE', style: TextStyle(color: AppColors.textMuted, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.4)),
+          const SizedBox(height: 8),
+          _sectionCard([
+            _item(context, Icons.manage_accounts_outlined, 'Edit Personal Profile', 'Name, email, age, gender, ethnicity, occupation and favourite brands.', () => _openPersonalProfile(context)),
+          ]),
+          const SizedBox(height: 22),
           const Text('PREFERENCES', style: TextStyle(color: AppColors.textMuted, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.4)),
           const SizedBox(height: 8),
           _sectionCard([
