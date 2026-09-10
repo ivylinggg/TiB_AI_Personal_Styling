@@ -77,65 +77,53 @@ class AiStylingService {
     'Shoes',
     'Accessories',
   };
-  static const Set<String> _neutralColourFamilies = {
-    'black',
-    'white',
-    'grey',
-    'beige',
-    'brown',
+
+  static String _normaliseColour(String raw) {
+    final value = raw.trim().toLowerCase();
+    if (value.isEmpty) return 'unknown';
+    if (value.contains('navy')) return 'navy';
+    if (value.contains('beige') || value.contains('cream') || value.contains('ivory')) return 'beige';
+    if (value.contains('brown') || value.contains('camel') || value.contains('tan')) return 'brown';
+    if (value.contains('grey') || value.contains('gray')) return 'grey';
+    if (value.contains('black')) return 'black';
+    if (value.contains('white')) return 'white';
+    if (value.contains('pink') || value.contains('rose')) return 'pink';
+    if (value.contains('purple') || value.contains('violet')) return 'purple';
+    if (value.contains('orange') || value.contains('coral')) return 'orange';
+    if (value.contains('yellow') || value.contains('gold')) return 'yellow';
+    if (value.contains('green') || value.contains('olive')) return 'green';
+    if (value.contains('blue') || value.contains('teal') || value.contains('cyan')) return 'blue';
+    if (value.contains('red') || value.contains('burgundy') || value.contains('maroon')) return 'red';
+    return value;
+  }
+
+  static String _colourFamily(String colour) => _normaliseColour(colour);
+
+  static bool _isNeutral(String colour) => {'black', 'white', 'grey', 'navy', 'beige', 'brown'}.contains(colour);
+
+  static bool _colourMatches(String a, String b) {
+    final left = _normaliseColour(a);
+    final right = _normaliseColour(b);
+    return left == right || left == 'unknown' || right == 'unknown';
+  }
+
+  static const Map<String, Set<String>> _compatible = {
+    'red': {'pink', 'orange', 'purple', 'brown'},
+    'orange': {'red', 'yellow', 'brown', 'beige'},
+    'yellow': {'orange', 'green', 'brown', 'navy'},
+    'green': {'yellow', 'blue', 'brown', 'beige'},
+    'blue': {'green', 'purple', 'navy', 'white', 'grey'},
+    'navy': {'blue', 'yellow', 'white', 'beige', 'grey'},
+    'purple': {'red', 'pink', 'blue', 'grey'},
+    'pink': {'red', 'purple', 'grey', 'white'},
+    'brown': {'orange', 'green', 'beige', 'white'},
+    'beige': {'orange', 'green', 'brown', 'white'},
+    'black': {'white', 'grey', 'red', 'pink', 'beige'},
+    'white': {'black', 'grey', 'navy', 'blue', 'pink', 'brown', 'beige'},
+    'grey': {'black', 'white', 'blue', 'purple', 'pink'},
   };
 
-  static String _normaliseColour(String value) => value.trim().toLowerCase().replaceAll(RegExp(r'[_-]+'), ' ');
-
-  static String _colourFamily(String raw) {
-    final value = _normaliseColour(raw);
-    const families = <String, List<String>>{
-      'red': ['red', 'crimson', 'burgundy', 'maroon', 'wine', 'scarlet', 'berry'],
-      'orange': ['orange', 'rust', 'terracotta', 'coral', 'peach'],
-      'yellow': ['yellow', 'mustard', 'gold', 'golden'],
-      'green': ['green', 'olive', 'sage', 'mint', 'khaki', 'emerald'],
-      'blue': ['blue', 'denim', 'cobalt', 'teal', 'turquoise', 'aqua'],
-      'navy': ['navy'],
-      'purple': ['purple', 'lavender', 'lilac', 'plum', 'violet', 'mauve'],
-      'pink': ['pink', 'rose', 'blush', 'fuchsia', 'magenta'],
-      'brown': ['brown', 'camel', 'tan', 'caramel', 'chocolate', 'mocha'],
-      'beige': ['beige', 'cream', 'ivory', 'sand', 'stone'],
-      'black': ['black', 'charcoal'],
-      'white': ['white', 'snow'],
-      'grey': ['grey', 'gray', 'silver'],
-    };
-    for (final entry in families.entries) {
-      if (entry.value.any(value.contains)) return entry.key;
-    }
-    return 'unknown';
-  }
-
-  static bool _isNeutral(String family) => _neutralColourFamilies.contains(family);
-
-  static bool _colourMatches(String colour, String target) {
-    final a = _colourFamily(colour);
-    final b = _colourFamily(target);
-    return a != 'unknown' && b != 'unknown' && (a == b || (_isNeutral(a) && _isNeutral(b)));
-  }
-
-  static bool _compatibleColourFamilies(String a, String b) {
-    const compatible = <String, Set<String>>{
-      'red': {'pink', 'orange', 'purple', 'brown'},
-      'orange': {'red', 'yellow', 'brown', 'beige'},
-      'yellow': {'orange', 'green', 'brown', 'navy'},
-      'green': {'yellow', 'blue', 'brown', 'beige'},
-      'blue': {'green', 'purple', 'navy', 'white', 'grey'},
-      'navy': {'blue', 'yellow', 'white', 'beige', 'grey'},
-      'purple': {'red', 'pink', 'blue', 'grey'},
-      'pink': {'red', 'purple', 'grey', 'white'},
-      'brown': {'orange', 'green', 'beige', 'white'},
-      'beige': {'orange', 'green', 'brown', 'white'},
-      'black': {'white', 'grey', 'red', 'pink', 'beige'},
-      'white': {'black', 'grey', 'navy', 'blue', 'pink', 'brown', 'beige'},
-      'grey': {'black', 'white', 'blue', 'purple', 'pink'},
-    };
-    return compatible[a]?.contains(b) == true || compatible[b]?.contains(a) == true;
-  }
+  static bool _compatibleColourFamilies(String a, String b) => _compatible[a]?.contains(b) == true || _compatible[b]?.contains(a) == true;
 
   static String _styleFamily(String raw) {
     final value = raw.trim().toLowerCase();
@@ -161,7 +149,7 @@ class AiStylingService {
     final tokens = <String>{..._cleanTokenSet([normalized])};
     if (normalized.contains('work') || normalized.contains('office')) tokens.addAll({'smart', 'formal', 'elegant', 'tailored', 'business'});
     if (normalized.contains('date') || normalized.contains('dinner')) tokens.addAll({'elegant', 'feminine', 'dress', 'polished', 'refined'});
-    if (normalized.contains('weekend') || normalized.contains('cafe')) tokens.addAll({'casual', 'relaxed', 'everyday', 'comfortable'});
+    if (normalized.contains('weekend') || normalized.contains('cafe') || normalized.contains('casual')) tokens.addAll({'casual', 'relaxed', 'everyday', 'comfortable'});
     return tokens;
   }
 
@@ -342,43 +330,38 @@ class AiStylingService {
     List<WardrobeItem> jackets,
     Set<String> excluded,
   ) {
-    if (shoes.isNotEmpty) {
-      for (final shoe in shoes) {
-        for (final accessory in accessories) {
-          for (final jacket in <WardrobeItem?>[null, ...jackets.take(2)]) {
-            final look = <WardrobeItem>[piece];
-            if (jacket != null) look.add(jacket);
-            if (!look.any((item) => item.id == shoe.id)) look.add(shoe);
-            if (!look.any((item) => item.id == accessory.id)) look.add(accessory);
-            final key = _lookKey(look);
-            if (key != null && !excluded.contains(key) && _validStructure(look)) return look.take(5).toList(growable: false);
-          }
+    for (final shoe in shoes) {
+      for (final accessory in accessories) {
+        for (final jacket in <WardrobeItem?>[null, ...jackets.take(2)]) {
+          final look = <WardrobeItem>[piece];
+          if (jacket != null) look.add(jacket);
+          if (!look.any((item) => item.id == shoe.id)) look.add(shoe);
+          if (!look.any((item) => item.id == accessory.id)) look.add(accessory);
+          final key = _lookKey(look);
+          if (key != null && !excluded.contains(key) && _validStructure(look)) return look.take(5).toList(growable: false);
         }
       }
     }
-    final key = _lookKey([piece]);
-    return key != null && !excluded.contains(key) && _validStructure([piece]) ? [piece] : const [];
+    return const [];
   }
 
   static List<WardrobeItem> sanitizeLook(
     List<WardrobeItem> items, {
     WardrobeItem? selectedItem,
     String occasion = '',
-    ColourAnalysisResult? profile,
+    required ColourAnalysisResult profile,
     List<String> styles = const [],
     List<String> preferences = const [],
     Set<String> excludedLookKeys = const {},
     Map<String, double> feedbackBias = const {},
     Map<String, double> combinationBias = const {},
   }) {
-    final currentProfile = profile;
-    if (currentProfile == null || items.isEmpty) return const [];
     final candidates = items.where((item) => _knownCategories.contains(item.category.trim()) && item.id.trim().isNotEmpty).toList(growable: false);
     if (candidates.isEmpty) return const [];
 
     List<WardrobeItem> ranked(String category, {List<WardrobeItem> anchors = const []}) => _rankItems(
           candidates.where((item) => item.category.trim() == category).toList(growable: false),
-          profile: currentProfile,
+          profile: profile,
           occasion: occasion,
           styles: styles,
           preferences: preferences,
@@ -464,7 +447,7 @@ class AiStylingService {
       combinationBias = await StyleFeedbackService.getCombinationBias();
       tibModel = await TibModelService.loadForUser(cleanUid);
     } catch (_) {
-      // Optional personal context must never block outfit generation.
+      // Optional context must never block a wardrobe recommendation.
     }
 
     String colourSummary(ColourAnalysisResult value) => jsonEncode({
@@ -614,9 +597,7 @@ class AiStylingService {
     if (breakdownRaw is Map) {
       breakdownRaw.forEach((key, value) {
         final parsed = value is num ? value.round() : int.tryParse(value.toString());
-        if (parsed != null) {
-          breakdown[key.toString()] = parsed;
-        }
+        if (parsed != null) breakdown[key.toString()] = parsed;
       });
     }
     final rawScore = payload['matchScore'];
@@ -708,9 +689,7 @@ class AiStylingService {
     var matches = 0;
     for (final item in look) {
       final combined = '${item.name} ${item.style} ${item.occasion} ${item.formality} ${item.notes}'.toLowerCase();
-      if (tokens.any(combined.contains)) {
-        matches += 1;
-      }
+      if (tokens.any(combined.contains)) matches += 1;
     }
     return ((matches / look.length) * 100).round().clamp(0, 100);
   }
@@ -731,27 +710,17 @@ class AiStylingService {
   static String _fallbackExplanation(List<WardrobeItem> look, ColourAnalysisResult profile, String occasion) {
     final colours = look.map((item) => item.colour.trim()).where((value) => value.isNotEmpty).take(3).join(', ');
     final palette = profile.colours.take(3).join(', ');
-    if (colours.isEmpty) {
-      return 'I built this ${occasion.toLowerCase()} look around your personal style and colour profile.';
-    }
+    if (colours.isEmpty) return 'I built this ${occasion.toLowerCase()} look around your personal style and colour profile.';
     return 'I paired $colours for ${occasion.toLowerCase()} and kept the direction aligned with your palette: $palette.';
   }
 
   static List<String> _fallbackNotes(List<WardrobeItem> look, ColourAnalysisResult profile) {
     final notes = <String>[];
-    if (profile.undertone.isNotEmpty) {
-      notes.add('Colour direction respects your ${profile.undertone.toLowerCase()} undertone.');
-    }
-    if (profile.faceShape.isNotEmpty && profile.faceShape != 'Unknown') {
-      notes.add('The styling keeps your ${profile.faceShape} face shape in mind.');
-    }
+    if (profile.undertone.isNotEmpty) notes.add('Colour direction respects your ${profile.undertone.toLowerCase()} undertone.');
+    if (profile.faceShape.isNotEmpty && profile.faceShape != 'Unknown') notes.add('The styling keeps your ${profile.faceShape} face shape in mind.');
     final neutrals = profile.bestNeutrals.take(2).join(' + ');
-    if (neutrals.isNotEmpty) {
-      notes.add('Neutral support: $neutrals.');
-    }
-    if (notes.isEmpty) {
-      notes.add('The look is assembled from your own wardrobe with colour and pairing compatibility in mind.');
-    }
+    if (neutrals.isNotEmpty) notes.add('Neutral support: $neutrals.');
+    if (notes.isEmpty) notes.add('The look is assembled from your own wardrobe with colour and pairing compatibility in mind.');
     return notes.take(3).toList(growable: false);
   }
 }
