@@ -1,7 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
 import '../main/main_screen.dart';
 import 'admin_dashboard_screen.dart';
@@ -84,7 +83,7 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
   String get _modeDescription => switch (_mode) {
         AdminMode.administrator => 'Full administration access',
         AdminMode.consultantPreview => 'Respond to live customer consultations',
-        AdminMode.personalCustomer => 'Use your own customer profile and styling data without changing your admin role',
+        AdminMode.personalCustomer => 'Your own customer profile and styling data',
       };
 
   IconData get _modeIcon => switch (_mode) {
@@ -93,11 +92,10 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
         AdminMode.personalCustomer => Icons.person_outline_rounded,
       };
 
-  bool get _isPreviewMode => _mode != AdminMode.administrator;
+  bool get _isPreviewMode => _mode == AdminMode.consultantPreview;
 
   void _setMode(AdminMode mode) {
     if (_mode == mode) return;
-
     setState(() {
       _mode = mode;
       _selectedIndex = 0;
@@ -125,11 +123,11 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: CircleAvatar(child: Icon(_modeIcon)),
-                title: const Text('Switch Role Dashboard'),
+                title: const Text('Switch Dashboard'),
                 subtitle: Text(
-                  _isPreviewMode
-                      ? 'Preview mode is active. Your real Firebase role remains Administrator.'
-                      : 'Open a preview dashboard without changing your real Firebase role.',
+                  _mode == AdminMode.personalCustomer
+                      ? 'You are using your own customer data. Your Firebase role remains Administrator.'
+                      : 'Your Firebase role remains Administrator while using these dashboards.',
                 ),
               ),
               _ModeTile(
@@ -154,7 +152,7 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
               ),
               _ModeTile(
                 title: 'My Customer Dashboard',
-                subtitle: 'Open your own customer profile, wardrobe, analysis and AI styling data',
+                subtitle: 'Open only your own customer profile, wardrobe, analysis and AI styling data',
                 icon: Icons.person_outline_rounded,
                 selected: _mode == AdminMode.personalCustomer,
                 onTap: () {
@@ -185,6 +183,8 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
             const AdminProfileScreen(),
           ],
         AdminMode.personalCustomer => [
+            // MainScreen uses FirebaseAuth.currentUser.uid, so this dashboard
+            // can only load the signed-in administrator's own customer data.
             const MainScreen(adminPreview: false),
             const AdminProfileScreen(),
           ],
@@ -317,7 +317,7 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
           Padding(
             padding: const EdgeInsets.only(right: 8),
             child: IconButton.filledTonal(
-              tooltip: 'Switch Role Dashboard',
+              tooltip: 'Switch Dashboard',
               onPressed: _showModeSelector,
               icon: const Icon(Icons.swap_horiz_rounded),
             ),
