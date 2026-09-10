@@ -26,7 +26,6 @@ class ColourReportService {
       final muted = PdfColor(112, 104, 112);
       final soft = PdfColor(247, 243, 249);
       final border = PdfColor(226, 220, 228);
-      final white = PdfColor(255, 255, 255);
       final date = DateFormat('dd MMM yyyy, h:mm a').format(DateTime.now());
       final photoBytes = await _loadImageBytes(result.imageUrl);
 
@@ -199,7 +198,7 @@ class ColourReportService {
   static void _drawSwatchesCompact(PdfPage page, List<String> names, double x, double y, double width, PdfColor accent, PdfColor dark) {
     const columns = 3;
     const gap = 7.0;
-    final w = (width - gap * 2) / 3.0;
+    final w = (width - gap * 2) / 3;
     for (var i = 0; i < names.length; i++) {
       final row = i ~/ columns;
       final col = i % columns;
@@ -251,8 +250,9 @@ class ColourReportService {
     return 'Your strongest direction combines ${profile.dimension.toLowerCase()} colour harmony with $face. Use the palette as your core wardrobe language, then adjust silhouette and details for occasion and personal preference.';
   }
 
-  static PdfColor whiteColor() => PdfColor(255, 255, 255);
   static PdfColor mutedColor() => PdfColor(120, 114, 122);
+
+  static PdfColor whiteColor() => PdfColor(255, 255, 255);
 
   static PdfColor _seasonColor(String season) {
     switch (season) {
@@ -301,8 +301,8 @@ class ColourReportService {
     for (var i = 0; i < document.pages.count; i++) {
       final page = document.pages[i];
       final size = page.getClientSize();
-      _text(page, 'TiB AI Personal Styling · VYEA', PdfStandardFont(PdfFontFamily.helvetica, 7), muted, ui.Rect.fromLTWH(28, size.height - 24.0, 240, 12));
-      _text(page, '${i + 1} / ${document.pages.count}', PdfStandardFont(PdfFontFamily.helvetica, 7, style: PdfFontStyle.bold), accent, ui.Rect.fromLTWH(size.width - 72.0, size.height - 24.0, 44, 12), alignRight: true);
+      _text(page, 'TiB AI Personal Styling · VYEA', PdfStandardFont(PdfFontFamily.helvetica, 7), muted, ui.Rect.fromLTWH(28, size.height - 24, 240, 12));
+      _text(page, '${i + 1} / ${document.pages.count}', PdfStandardFont(PdfFontFamily.helvetica, 7, style: PdfFontStyle.bold), accent, ui.Rect.fromLTWH(size.width - 72, size.height - 24, 44, 12), alignRight: true);
     }
   }
 
@@ -310,8 +310,8 @@ class ColourReportService {
     final textSize = font.measureString(text);
     var x = bounds.left;
     if (alignRight) x = bounds.right - textSize.width;
-    if (alignCenter) x = bounds.left + (bounds.width - textSize.width) / 2.0;
+    if (alignCenter) x = bounds.left + (bounds.width - textSize.width) / 2;
     if (x < bounds.left) x = bounds.left;
-    page.graphics.drawString(text, font, brush: PdfSolidBrush(color), bounds: ui.Rect.fromLTWH(x, bounds.top, textSize.width + 2.0, bounds.height));
+    page.graphics.drawString(text, font, brush: PdfSolidBrush(color), bounds: ui.Rect.fromLTWH(x, bounds.top, textSize.width + 2, bounds.height));
   }
 }
