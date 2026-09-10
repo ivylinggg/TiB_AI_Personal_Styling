@@ -77,12 +77,6 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
         AdminMode.personalCustomer => 'My Customer Dashboard',
       };
 
-  String get _modeDescription => switch (_mode) {
-        AdminMode.administrator => 'Full administration access',
-        AdminMode.consultantPreview => 'Respond to live customer consultations',
-        AdminMode.personalCustomer => 'Your own customer profile and styling data',
-      };
-
   IconData get _modeIcon => switch (_mode) {
         AdminMode.administrator => Icons.admin_panel_settings_outlined,
         AdminMode.consultantPreview => Icons.support_agent_rounded,
@@ -262,27 +256,7 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
             ),
             const SizedBox(width: 10),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Flexible(
-                        child: Text(_modeLabel, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-                      ),
-                      if (_isPreviewMode) ...[
-                        const SizedBox(width: 7),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                          decoration: BoxDecoration(color: Theme.of(context).colorScheme.secondaryContainer, borderRadius: BorderRadius.circular(8)),
-                          child: const Text('PREVIEW', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w800)),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Text(_modeDescription, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodySmall),
-                ],
-              ),
+              child: Text(_modeLabel, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
             ),
           ],
         ),
