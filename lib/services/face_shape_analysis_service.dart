@@ -45,10 +45,7 @@ class FaceShapeAnalysisService {
       );
     }
 
-    final points = contour.points
-        .where((point) => point != null)
-        .map((point) => point!)
-        .toList();
+    final points = contour.points.where((point) => point != null).toList();
 
     if (points.length < 24) {
       throw const FormatException(
@@ -62,16 +59,16 @@ class FaceShapeAnalysisService {
     var maxY = double.negativeInfinity;
 
     for (final point in points) {
-      final x = point.x.toDouble();
+      final x = point!.x.toDouble();
       final y = point.y.toDouble();
-      minX = math.min(minX, x);
-      maxX = math.max(maxX, x);
-      minY = math.min(minY, y);
-      maxY = math.max(maxY, y);
+      minX = math.min(minX, x).toDouble();
+      maxX = math.max(maxX, x).toDouble();
+      minY = math.min(minY, y).toDouble();
+      maxY = math.max(maxY, y).toDouble();
     }
 
-    final width = math.max(1.0, maxX - minX);
-    final height = math.max(1.0, maxY - minY);
+    final width = math.max(1.0, maxX - minX).toDouble();
+    final height = math.max(1.0, maxY - minY).toDouble();
 
     double widthAt(double relativeY) {
       final targetY = minY + height * relativeY;
@@ -82,17 +79,17 @@ class FaceShapeAnalysisService {
       var nearMaxX = double.negativeInfinity;
 
       for (final point in points) {
-        final x = point.x.toDouble();
+        final x = point!.x.toDouble();
         final y = point.y.toDouble();
         if ((y - targetY).abs() <= tolerance) {
           hasNearPoint = true;
-          nearMinX = math.min(nearMinX, x);
-          nearMaxX = math.max(nearMaxX, x);
+          nearMinX = math.min(nearMinX, x).toDouble();
+          nearMaxX = math.max(nearMaxX, x).toDouble();
         }
       }
 
       if (!hasNearPoint) return width * .5;
-      return math.max(1.0, nearMaxX - nearMinX);
+      return math.max(1.0, nearMaxX - nearMinX).toDouble();
     }
 
     final foreheadWidth = widthAt(.28);
@@ -100,11 +97,12 @@ class FaceShapeAnalysisService {
     final jawWidth = widthAt(.72);
     final chinWidth = widthAt(.86);
 
-    final faceRatio = height / math.max(1.0, cheekboneWidth);
+    final faceRatio = height / math.max(1.0, cheekboneWidth).toDouble();
     final foreheadToCheek =
-        foreheadWidth / math.max(1.0, cheekboneWidth);
-    final jawToCheek = jawWidth / math.max(1.0, cheekboneWidth);
-    final chinToJaw = chinWidth / math.max(1.0, jawWidth);
+        foreheadWidth / math.max(1.0, cheekboneWidth).toDouble();
+    final jawToCheek =
+        jawWidth / math.max(1.0, cheekboneWidth).toDouble();
+    final chinToJaw = chinWidth / math.max(1.0, jawWidth).toDouble();
 
     final shape = _classify(
       faceRatio: faceRatio,
