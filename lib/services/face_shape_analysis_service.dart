@@ -45,8 +45,7 @@ class FaceShapeAnalysisService {
       );
     }
 
-    final points = contour.points.where((point) => point != null).toList();
-
+    final points = contour.points;
     if (points.length < 24) {
       throw const FormatException(
         'Face outline could not be measured reliably. Please use a front-facing photo with your full face visible.',
@@ -59,7 +58,7 @@ class FaceShapeAnalysisService {
     var maxY = double.negativeInfinity;
 
     for (final point in points) {
-      final x = point!.x.toDouble();
+      final x = point.x.toDouble();
       final y = point.y.toDouble();
       minX = math.min(minX, x).toDouble();
       maxX = math.max(maxX, x).toDouble();
@@ -79,7 +78,7 @@ class FaceShapeAnalysisService {
       var nearMaxX = double.negativeInfinity;
 
       for (final point in points) {
-        final x = point!.x.toDouble();
+        final x = point.x.toDouble();
         final y = point.y.toDouble();
         if ((y - targetY).abs() <= tolerance) {
           hasNearPoint = true;
