@@ -175,24 +175,24 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
           ],
       };
 
-  List<NavigationDestination> get _destinations => switch (_mode) {
+  List<_AdminNavSpec> get _destinations => switch (_mode) {
         AdminMode.administrator => const [
-            NavigationDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard), label: 'Dashboard'),
-            NavigationDestination(icon: Icon(Icons.people_outline), selectedIcon: Icon(Icons.people), label: 'Users'),
-            NavigationDestination(icon: Icon(Icons.analytics_outlined), selectedIcon: Icon(Icons.analytics), label: 'Analysis'),
-            NavigationDestination(icon: Icon(Icons.forum_outlined), selectedIcon: Icon(Icons.forum_rounded), label: 'Forum'),
-            NavigationDestination(icon: Icon(Icons.workspace_premium_outlined), selectedIcon: Icon(Icons.workspace_premium), label: 'Premium'),
-            NavigationDestination(icon: Icon(Icons.support_agent_outlined), selectedIcon: Icon(Icons.support_agent), label: 'Consult'),
-            NavigationDestination(icon: Icon(Icons.badge_outlined), selectedIcon: Icon(Icons.badge_rounded), label: 'Staff'),
-            NavigationDestination(icon: Icon(Icons.admin_panel_settings_outlined), selectedIcon: Icon(Icons.admin_panel_settings), label: 'Admin'),
+            _AdminNavSpec(icon: Icons.dashboard_outlined, selectedIcon: Icons.dashboard, label: 'Dashboard'),
+            _AdminNavSpec(icon: Icons.people_outline, selectedIcon: Icons.people, label: 'Users'),
+            _AdminNavSpec(icon: Icons.analytics_outlined, selectedIcon: Icons.analytics, label: 'Analysis'),
+            _AdminNavSpec(icon: Icons.forum_outlined, selectedIcon: Icons.forum_rounded, label: 'Forum'),
+            _AdminNavSpec(icon: Icons.workspace_premium_outlined, selectedIcon: Icons.workspace_premium, label: 'Premium'),
+            _AdminNavSpec(icon: Icons.support_agent_outlined, selectedIcon: Icons.support_agent, label: 'Consult'),
+            _AdminNavSpec(icon: Icons.badge_outlined, selectedIcon: Icons.badge_rounded, label: 'Staff'),
+            _AdminNavSpec(icon: Icons.admin_panel_settings_outlined, selectedIcon: Icons.admin_panel_settings, label: 'Admin'),
           ],
         AdminMode.consultantPreview => const [
-            NavigationDestination(icon: Icon(Icons.support_agent_outlined), selectedIcon: Icon(Icons.support_agent), label: 'Live Consultancy'),
-            NavigationDestination(icon: Icon(Icons.admin_panel_settings_outlined), selectedIcon: Icon(Icons.admin_panel_settings), label: 'Admin'),
+            _AdminNavSpec(icon: Icons.support_agent_outlined, selectedIcon: Icons.support_agent, label: 'Consult'),
+            _AdminNavSpec(icon: Icons.admin_panel_settings_outlined, selectedIcon: Icons.admin_panel_settings, label: 'Admin'),
           ],
         AdminMode.personalCustomer => const [
-            NavigationDestination(icon: Icon(Icons.person_outline_rounded), selectedIcon: Icon(Icons.person_rounded), label: 'Customer'),
-            NavigationDestination(icon: Icon(Icons.admin_panel_settings_outlined), selectedIcon: Icon(Icons.admin_panel_settings), label: 'Admin'),
+            _AdminNavSpec(icon: Icons.person_outline_rounded, selectedIcon: Icons.person_rounded, label: 'Customer'),
+            _AdminNavSpec(icon: Icons.admin_panel_settings_outlined, selectedIcon: Icons.admin_panel_settings, label: 'Admin'),
           ],
       };
 
@@ -275,7 +275,7 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
     );
   }
 
-  Widget _buildBottomBar(List<NavigationDestination> destinations, int safeIndex) {
+  Widget _buildBottomBar(List<_AdminNavSpec> destinations, int safeIndex) {
     final scheme = Theme.of(context).colorScheme;
     return Material(
       elevation: 8,
@@ -290,10 +290,10 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
               children: List.generate(destinations.length, (index) {
                 final destination = destinations[index];
                 final selected = safeIndex == index;
-                final icon = selected ? destination.selectedIcon : destination.icon;
+                final iconData = selected ? destination.selectedIcon : destination.icon;
                 return Expanded(
                   child: _AdminNavItem(
-                    icon: icon,
+                    icon: iconData,
                     label: destination.label,
                     selected: selected,
                     onTap: () => _navigateTo(index),
@@ -308,8 +308,16 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
   }
 }
 
+class _AdminNavSpec {
+  final IconData icon;
+  final IconData selectedIcon;
+  final String label;
+
+  const _AdminNavSpec({required this.icon, required this.selectedIcon, required this.label});
+}
+
 class _AdminNavItem extends StatelessWidget {
-  final Widget icon;
+  final IconData icon;
   final String label;
   final bool selected;
   final VoidCallback onTap;
@@ -338,7 +346,7 @@ class _AdminNavItem extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             mainAxisSize: MainAxisSize.min,
             children: [
-              SizedBox(height: 27, child: IconTheme(data: const IconThemeData(size: 22), child: icon)),
+              SizedBox(height: 27, child: Icon(icon, size: 22)),
               const SizedBox(height: 3),
               Text(
                 label,
