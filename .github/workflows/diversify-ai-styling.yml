@@ -1,0 +1,64 @@
+name: Diversify AI Stylist
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  diversify:
+    if: github.event.head_commit.message != 'Diversify AI stylist recommendations'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch recommendation diversity
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('lib/services/ai_styling_service.dart')
+          s = p.read_text()
+
+          marker = "  };\n\n  static String _normaliseColour"
+          insert = "  };\n\n  // Keep recent outfit combinations out of the next recommendation so the\n  // stylist explores the user's wardrobe instead of repeating one look.\n  static final Map<String, Set<String>> _recentLookKeysByUid = <String, Set<String>>{};\n\n  static String _normaliseColour"
+          if marker not in s:
+              raise SystemExit('category marker not found')
+          s = s.replace(marker, insert, 1)
+
+          marker = "  static List<WardrobeItem> _uniqueOwned(List<WardrobeItem> wardrobe, String uid) {"
+          insert = "  static Set<String> _effectiveExcludedLookKeys(String uid, Set<String> explicit) {\n    final recent = _recentLookKeysByUid[uid];\n    if (recent == null || recent.isEmpty) return {...explicit};\n    return {...explicit, ...recent};\n  }\n\n  static void _rememberLook(String uid, List<WardrobeItem> look) {\n    final key = _lookKey(look);\n    if (key == null) return;\n    (_recentLookKeysByUid[uid] ??= <String>{}).add(key);\n  }\n\n  static List<WardrobeItem> _uniqueOwned(List<WardrobeItem> wardrobe, String uid) {"
+          if marker not in s:
+              raise SystemExit('unique-owned marker not found')
+          s = s.replace(marker, insert, 1)
+
+          old = """    final guaranteedFallback = sanitizeLook(\n      owned,\n      selectedItem: selectedItem,\n      occasion: occasion,\n      profile: profile,\n      styles: styles,\n      preferences: preferences,\n      excludedLookKeys: excludedLookKeys,\n      feedbackBias: feedbackBias,\n      combinationBias: combinationBias,\n    );\n\n    if (guaranteedFallback.isNotEmpty) {"""
+          new = """    var effectiveExcludedLookKeys = _effectiveExcludedLookKeys(cleanUid, excludedLookKeys);\n    var guaranteedFallback = sanitizeLook(\n      owned,\n      selectedItem: selectedItem,\n      occasion: occasion,\n      profile: profile,\n      styles: styles,\n      preferences: preferences,\n      excludedLookKeys: effectiveExcludedLookKeys,\n      feedbackBias: feedbackBias,\n      combinationBias: combinationBias,\n    );\n\n    // If every valid combination has already been shown, restart the local\n    // rotation rather than failing. Explicit exclusions are still respected.\n    if (guaranteedFallback.isEmpty && effectiveExcludedLookKeys.length > excludedLookKeys.length) {\n      effectiveExcludedLookKeys = {...excludedLookKeys};\n      guaranteedFallback = sanitizeLook(\n        owned,\n        selectedItem: selectedItem,\n        occasion: occasion,\n        profile: profile,\n        styles: styles,\n        preferences: preferences,\n        excludedLookKeys: effectiveExcludedLookKeys,\n        feedbackBias: feedbackBias,\n        combinationBias: combinationBias,\n      );\n    }\n\n    if (guaranteedFallback.isNotEmpty) {"""
+          if old not in s:
+              raise SystemExit('fallback block not found')
+          s = s.replace(old, new, 1)
+
+          s = s.replace("excludedLookKeys: excludedLookKeys,\n                feedbackBias: feedbackBias,", "excludedLookKeys: effectiveExcludedLookKeys,\n                feedbackBias: feedbackBias,", 1)
+
+          old = """              if (valid.isNotEmpty) {\n                return _resultFromLook(\n                  valid,\n                  source: remote,\n                  profile: profile,\n                  occasion: occasion,\n                  selectedItem: selectedItem,\n                  styles: styles,\n                  preferences: preferences,\n                  combinationBias: combinationBias,\n                );\n              }"""
+          new = """              if (valid.isNotEmpty) {\n                final result = _resultFromLook(\n                  valid,\n                  source: remote,\n                  profile: profile,\n                  occasion: occasion,\n                  selectedItem: selectedItem,\n                  styles: styles,\n                  preferences: preferences,\n                  combinationBias: combinationBias,\n                );\n                _rememberLook(cleanUid, valid);\n                return result;\n              }"""
+          if old not in s:
+              raise SystemExit('remote return block not found')
+          s = s.replace(old, new, 1)
+
+          old = """      return _resultFromLook(\n        guaranteedFallback,\n        source: null,\n        profile: profile,\n        occasion: occasion,\n        selectedItem: selectedItem,\n        styles: styles,\n        preferences: preferences,\n        combinationBias: combinationBias,\n      );"""
+          new = """      final result = _resultFromLook(\n        guaranteedFallback,\n        source: null,\n        profile: profile,\n        occasion: occasion,\n        selectedItem: selectedItem,\n        styles: styles,\n        preferences: preferences,\n        combinationBias: combinationBias,\n      );\n      _rememberLook(cleanUid, guaranteedFallback);\n      return result;"""
+          if old not in s:
+              raise SystemExit('fallback return block not found')
+          s = s.replace(old, new, 1)
+
+          p.write_text(s)
+          PY
+      - name: Commit and remove temporary workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add lib/services/ai_styling_service.dart .github/workflows/diversify-ai-styling.yml
+          git commit -m "Diversify AI stylist recommendations"
+          git rm .github/workflows/diversify-ai-styling.yml
+          git commit -m "Remove temporary diversity workflow"
+          git push
