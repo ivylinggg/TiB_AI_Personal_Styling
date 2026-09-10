@@ -68,6 +68,14 @@ service cloud.firestore {
       }
     }
 
+    // Collection-group queries cannot rely only on the nested /users/{userId}
+    // match. Admin dashboard uses a collectionGroup('analysis') query, so
+    // expose the same analysis records through an explicit recursive rule.
+    match /{path=**}/analysis/{analysisId} {
+      allow read: if isAdmin();
+      allow update, delete: if isAdmin();
+    }
+
     match /content/{contentId} {
       allow create, update, delete: if isAdmin();
       allow get, list: if isAdmin() || (isSignedIn() && resource.data.get('isPublished', false) == true && (!isContentPremium(resource.data) || isPremiumUser()));
@@ -103,7 +111,7 @@ service cloud.firestore {
       allow create: if isOwner(userId) && request.resource.data.get('uid', userId) == userId && request.resource.data.get('assignedConsultantId', null) == null;
       allow update: if isAdmin()
         || (isOwner(userId) && request.resource.data.get('uid', userId) == userId && request.resource.data.get('assignedConsultantId', null) == resource.data.get('assignedConsultantId', null) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['uid', 'userName', 'email', 'status', 'lastMessage', 'lastSenderType', 'unreadForConsultant', 'updatedAt']) && request.resource.data.get('status', '') == 'waiting_for_consultant' && request.resource.data.get('lastSenderType', '') == 'user')
-        || (isOwner(userId) && resource.data.get('status', '') == 'resolved' && request.resource.data.get('status', '') == 'waiting_for_consultant' && request.resource.data.get('assignedConsultantId', null) == null && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'lastMessage', 'lastSenderType', 'unreadForConsultant', 'resolvedAt', 'assignedConsultantId', 'assignedConsultantName', 'firstConsultantReplyAt', 'responseTimeSeconds', 'rating', 'ratingComment', 'ratedAt', 'updatedAt']) && request.resource.data.get('lastSenderType', '') == 'user')
+        || (isOwner(userId) && resource.data.get('status', '') == 'resolved' && request.resource.data.get('status', '') == 'waiting_for_consultant' && request.resource.data.get('assignedConsultantId', null) == null && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'lastMessage', 'lastSenderType', 'resolvedAt', 'assignedConsultantId', 'assignedConsultantName', 'firstConsultantReplyAt', 'responseTimeSeconds', 'rating', 'ratingComment', 'ratedAt', 'updatedAt']) && request.resource.data.get('lastSenderType', '') == 'user')
         || (isOwner(userId) && resource.data.get('status', '') == 'resolved' && request.resource.data.get('status', '') == 'resolved' && request.resource.data.get('assignedConsultantId', null) == resource.data.get('assignedConsultantId', null) && resource.data.get('rating', null) == null && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rating', 'ratingComment', 'ratedAt']) && request.resource.data.get('rating', 0) is int && request.resource.data.get('rating', 0) >= 1 && request.resource.data.get('rating', 0) <= 5)
         || (isActiveConsultant() && resource.data.get('assignedConsultantId', null) == null && resource.data.get('status', '') in ['open', 'waiting_for_consultant'] && request.resource.data.get('assignedConsultantId', null) == request.auth.uid && request.resource.data.get('status', '') == 'assigned' && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['assignedConsultantId', 'assignedConsultantName', 'status', 'assignedAt', 'updatedAt']))
         || (isOwnAssignedConsultation() && request.resource.data.get('assignedConsultantId', null) == request.auth.uid && request.resource.data.get('status', '') in ['assigned', 'consultant_replied', 'resolved'] && request.resource.data.get('lastSenderType', '') == 'consultant' && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'lastMessage', 'lastSenderType', 'unreadForUser', 'unreadForConsultant', 'firstConsultantReplyAt', 'responseTimeSeconds', 'resolvedAt', 'updatedAt', 'assignedConsultantId', 'assignedConsultantName', 'assignedAt']));
