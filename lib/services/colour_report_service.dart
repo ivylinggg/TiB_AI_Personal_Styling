@@ -76,7 +76,7 @@ class ColourReportService {
   static void _drawCover(PdfPage page, ColourAnalysisResult result, SeasonColourProfile profile, PdfColor accent, PdfColor dark, PdfColor muted, PdfColor soft, PdfColor border, Uint8List? photoBytes, String date) {
     final size = page.getClientSize();
     page.graphics.drawRectangle(brush: PdfSolidBrush(accent), bounds: ui.Rect.fromLTWH(0, 0, size.width, size.height));
-    page.graphics.drawRectangle(brush: PdfSolidBrush(PdfColor(255, 255, 255)), bounds: ui.Rect.fromLTWH(26, 26, size.width - 52, size.height - 52));
+    page.graphics.drawRectangle(brush: PdfSolidBrush(whiteColor()), bounds: ui.Rect.fromLTWH(26, 26, size.width - 52, size.height - 52));
 
     _text(page, 'TiB', PdfStandardFont(PdfFontFamily.helvetica, 27, style: PdfFontStyle.bold), dark, ui.Rect.fromLTWH(48, 52, 80, 30));
     _text(page, 'VYEA · STYLE BUT PERSONAL', PdfStandardFont(PdfFontFamily.helvetica, 8, style: PdfFontStyle.bold), accent, ui.Rect.fromLTWH(48, 84, 240, 14));
@@ -144,7 +144,7 @@ class ColourReportService {
   static void _drawReference(PdfPage page, PdfColor accent, PdfColor dark, PdfColor muted, PdfColor soft, PdfColor border) {
     _header(page, '03 · SEASON REFERENCE', 'Four-season reference for comparison', accent, dark, muted);
     final profiles = SeasonColourGuide.profiles.values.toList();
-    final positions = [
+    final positions = <ui.Rect>[
       ui.Rect.fromLTWH(28, 110, 248, 288),
       ui.Rect.fromLTWH(292, 110, 248, 288),
       ui.Rect.fromLTWH(28, 420, 248, 288),
@@ -189,33 +189,33 @@ class ColourReportService {
     for (var i = 0; i < names.length; i++) {
       final row = i ~/ columns;
       final col = i % columns;
-      final x = 28 + col * (swatchW + gap);
+      final x = 28.0 + col * (swatchW + gap);
       final top = y + row * rowH;
-      page.graphics.drawRectangle(brush: PdfSolidBrush(_colourFor(names[i], accent)), pen: PdfPen(border), bounds: ui.Rect.fromLTWH(x, top, swatchW, 30));
-      _text(page, names[i], PdfStandardFont(PdfFontFamily.helvetica, 6.8), dark, ui.Rect.fromLTWH(x, top + 34, swatchW, 15), alignCenter: true);
+      page.graphics.drawRectangle(brush: PdfSolidBrush(_colourFor(names[i], accent)), pen: PdfPen(border), bounds: ui.Rect.fromLTWH(x, top, swatchW, 30.0));
+      _text(page, names[i], PdfStandardFont(PdfFontFamily.helvetica, 6.8), dark, ui.Rect.fromLTWH(x, top + 34.0, swatchW, 15.0), alignCenter: true);
     }
   }
 
   static void _drawSwatchesCompact(PdfPage page, List<String> names, double x, double y, double width, PdfColor accent, PdfColor dark) {
     const columns = 3;
     const gap = 7.0;
-    final w = (width - gap * 2) / 3;
+    final w = (width - gap * 2) / 3.0;
     for (var i = 0; i < names.length; i++) {
       final row = i ~/ columns;
       final col = i % columns;
       final px = x + col * (w + gap);
       final py = y + row * 48.0;
-      page.graphics.drawRectangle(brush: PdfSolidBrush(_colourFor(names[i], accent)), bounds: ui.Rect.fromLTWH(px, py, w, 25));
-      _text(page, names[i], PdfStandardFont(PdfFontFamily.helvetica, 6), dark, ui.Rect.fromLTWH(px, py + 28, w, 14), alignCenter: true);
+      page.graphics.drawRectangle(brush: PdfSolidBrush(_colourFor(names[i], accent)), bounds: ui.Rect.fromLTWH(px, py, w, 25.0));
+      _text(page, names[i], PdfStandardFont(PdfFontFamily.helvetica, 6), dark, ui.Rect.fromLTWH(px, py + 28.0, w, 14.0), alignCenter: true);
     }
   }
 
   static void _drawBeauty(PdfPage page, List<String> names, String title, double y, PdfColor accent, PdfColor dark, PdfColor border) {
     _text(page, title.toUpperCase(), PdfStandardFont(PdfFontFamily.helvetica, 8, style: PdfFontStyle.bold), mutedColor(), ui.Rect.fromLTWH(28, y, 130, 14));
     for (var i = 0; i < names.length; i++) {
-      final x = 28 + i * 84.0;
-      page.graphics.drawEllipse(ui.Rect.fromLTWH(x, y + 22, 24, 24), brush: PdfSolidBrush(_colourFor(names[i], accent)), pen: PdfPen(border));
-      _text(page, names[i], PdfStandardFont(PdfFontFamily.helvetica, 5.8), dark, ui.Rect.fromLTWH(x - 10, y + 50, 44, 22), alignCenter: true);
+      final x = 28.0 + i * 84.0;
+      page.graphics.drawEllipse(ui.Rect.fromLTWH(x, y + 22.0, 24.0, 24.0), brush: PdfSolidBrush(_colourFor(names[i], accent)), pen: PdfPen(border));
+      _text(page, names[i], PdfStandardFont(PdfFontFamily.helvetica, 5.8), dark, ui.Rect.fromLTWH(x - 10.0, y + 50.0, 44.0, 22.0), alignCenter: true);
     }
   }
 
@@ -224,13 +224,13 @@ class ColourReportService {
     var rowY = y;
     for (final value in values) {
       final width = 22.0 + value.length * 4.0;
-      if (x + width > 534) {
-        x = 28;
+      if (x + width > 534.0) {
+        x = 28.0;
         rowY += 31.0;
       }
-      page.graphics.drawRectangle(brush: PdfSolidBrush(soft), pen: PdfPen(accent, width: .5), bounds: ui.Rect.fromLTWH(x, rowY, width, 22));
-      _text(page, value, PdfStandardFont(PdfFontFamily.helvetica, 7), dark, ui.Rect.fromLTWH(x + 4, rowY + 4, width - 8, 13), alignCenter: true);
-      x += width + 6;
+      page.graphics.drawRectangle(brush: PdfSolidBrush(soft), pen: PdfPen(accent, width: .5), bounds: ui.Rect.fromLTWH(x, rowY, width, 22.0));
+      _text(page, value, PdfStandardFont(PdfFontFamily.helvetica, 7), dark, ui.Rect.fromLTWH(x + 4.0, rowY + 4.0, width - 8.0, 13.0), alignCenter: true);
+      x += width + 6.0;
     }
   }
 
@@ -251,6 +251,7 @@ class ColourReportService {
     return 'Your strongest direction combines ${profile.dimension.toLowerCase()} colour harmony with $face. Use the palette as your core wardrobe language, then adjust silhouette and details for occasion and personal preference.';
   }
 
+  static PdfColor whiteColor() => PdfColor(255, 255, 255);
   static PdfColor mutedColor() => PdfColor(120, 114, 122);
 
   static PdfColor _seasonColor(String season) {
@@ -300,8 +301,8 @@ class ColourReportService {
     for (var i = 0; i < document.pages.count; i++) {
       final page = document.pages[i];
       final size = page.getClientSize();
-      _text(page, 'TiB AI Personal Styling · VYEA', PdfStandardFont(PdfFontFamily.helvetica, 7), muted, ui.Rect.fromLTWH(28, size.height - 24, 240, 12));
-      _text(page, '${i + 1} / ${document.pages.count}', PdfStandardFont(PdfFontFamily.helvetica, 7, style: PdfFontStyle.bold), accent, ui.Rect.fromLTWH(size.width - 72, size.height - 24, 44, 12), alignRight: true);
+      _text(page, 'TiB AI Personal Styling · VYEA', PdfStandardFont(PdfFontFamily.helvetica, 7), muted, ui.Rect.fromLTWH(28, size.height - 24.0, 240, 12));
+      _text(page, '${i + 1} / ${document.pages.count}', PdfStandardFont(PdfFontFamily.helvetica, 7, style: PdfFontStyle.bold), accent, ui.Rect.fromLTWH(size.width - 72.0, size.height - 24.0, 44, 12), alignRight: true);
     }
   }
 
@@ -309,8 +310,8 @@ class ColourReportService {
     final textSize = font.measureString(text);
     var x = bounds.left;
     if (alignRight) x = bounds.right - textSize.width;
-    if (alignCenter) x = bounds.left + (bounds.width - textSize.width) / 2;
+    if (alignCenter) x = bounds.left + (bounds.width - textSize.width) / 2.0;
     if (x < bounds.left) x = bounds.left;
-    page.graphics.drawString(text, font, brush: PdfSolidBrush(color), bounds: ui.Rect.fromLTWH(x, bounds.top, textSize.width + 2, bounds.height));
+    page.graphics.drawString(text, font, brush: PdfSolidBrush(color), bounds: ui.Rect.fromLTWH(x, bounds.top, textSize.width + 2.0, bounds.height));
   }
 }
