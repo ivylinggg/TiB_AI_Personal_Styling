@@ -54,7 +54,7 @@ class _AiAvatarStylingScreenState extends State<AiAvatarStylingScreen> {
         FirestoreService.getLatestColourAnalysis(uid),
       ]);
       if (!mounted || FirebaseAuth.instance.currentUser?.uid != uid) return;
-      final prefs = results[2] is Map<String, dynamic> ? results[2] as Map<String, dynamic> : <String, dynamic>{};
+      final prefs = results[2] is Map ? Map<String, dynamic>.from(results[2] as Map) : <String, dynamic>{};
       final items = results[1] is List<WardrobeItem> ? List<WardrobeItem>.from(results[1] as List<WardrobeItem>) : <WardrobeItem>[];
       setState(() {
         _model = results[0] as TibModelProfile?;
@@ -152,16 +152,13 @@ class _AiAvatarStylingScreenState extends State<AiAvatarStylingScreen> {
 
   String _buildStylingBrief(AiStylingResult recommendation) {
     final model = _model!;
-    final reason = recommendation.explanation.trim().isEmpty
-        ? 'Choose the combination that best fits the user’s colour, body-shape and style context.'
-        : recommendation.explanation.trim();
+    final reason = recommendation.explanation.trim().isEmpty ? 'Choose the combination that best fits the user’s colour, body-shape and style context.' : recommendation.explanation.trim();
     return '''TI B PERSONAL VIRTUAL YOU — NON-NEGOTIABLE GENERATION BRIEF
 
 PERSON IDENTITY:
 - This is the real user, not a generic fashion model.
-- Reference A is the user's FULL-BODY reference photo.
-- Reference B is the user's FACE reference photo.
-- Preserve the same person from head to toe.
+- Use the user's full-body reference as the primary body reference.
+- Use the user's face reference as the identity anchor.
 
 MEASURED PERSONAL BODY DATA:
 - Height: ${model.height.toStringAsFixed(1)} cm
@@ -173,23 +170,20 @@ MEASURED PERSONAL BODY DATA:
 - Face shape: ${model.faceShape}
 
 BODY FIDELITY:
-- Use the full-body reference as the primary source of actual body geometry.
 - Preserve shoulder width, torso length, waist placement, hip width, leg length and natural posture.
 - Never slim, enlarge, lengthen, shorten, reshape or idealize the body.
-- Clothing must adapt to the user's actual proportions.
 
 FACE FIDELITY:
 - Preserve the real facial structure, skin tone and hair from the face reference.
 - Do not replace or beautify the person's identity.
 
 WARDROBE FIDELITY:
-- Use ONLY the selected wardrobe reference images supplied in this request.
-- Preserve category, colour, pattern, material, texture and visible construction.
-- Do not invent replacement clothes or accessories.
+- Use only the selected wardrobe reference images supplied in this request.
+- Preserve category, colour, pattern, material, texture and construction.
 
 OUTPUT:
-- Generate ONE photorealistic head-to-toe fashion photograph of THIS USER wearing the selected outfit.
-- Use a natural standing pose, realistic fabric behaviour and clean editorial lighting.
+- Generate one photorealistic head-to-toe fashion photograph of this same user wearing the selected outfit.
+- Use a natural standing pose and realistic fabric behaviour.
 
 OCCASION: $_occasion
 
@@ -200,8 +194,7 @@ FINAL PRIORITY:
 1. Same real person.
 2. Same real body proportions.
 3. Exact selected wardrobe items.
-4. Natural garment fit.
-5. Head-to-toe composition.''';
+4. Natural garment fit.''';
   }
 
   WardrobeItem? _find(String id) {
@@ -211,9 +204,7 @@ FINAL PRIORITY:
     return null;
   }
 
-  List<String> _stringList(dynamic value) => value is List
-      ? value.map((item) => item.toString().trim()).where((item) => item.isNotEmpty).toList(growable: false)
-      : const [];
+  List<String> _stringList(dynamic value) => value is List ? value.map((item) => item.toString().trim()).where((item) => item.isNotEmpty).toList(growable: false) : const [];
 
   Future<void> _saveLook() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -247,8 +238,11 @@ FINAL PRIORITY:
           _buildHero(model, model?.isComplete == true),
           const SizedBox(height: 16),
           _buildOccasion(),
-          const SizedBox(height: 14),
-          if (_look.isNotEmpty) ...[_buildRecommendedLook(), const SizedBox(height: 14)],
+          const SizedBox(height: 16),
+          if (_look.isNotEmpty) ...[
+            _buildRecommendedLook(),
+            const SizedBox(height: 14),
+          ],
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
@@ -261,7 +255,12 @@ FINAL PRIORITY:
             const SizedBox(height: 12),
             Text(_status, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.45)),
           ],
-          if (_imageUrl != null) ...[const SizedBox(height: 18), _buildResult()],
+          if (_imageUrl != null) ...[
+            const SizedBox(height: 18),
+            _buildResult(),
+            const SizedBox(height: 12),
+            SizedBox(width: double.infinity, child: OutlinedButton(onPressed: _busy ? null : _saveLook, child: const Text('Save this look'))),
+          ],
         ],
       ),
     );
@@ -270,30 +269,25 @@ FINAL PRIORITY:
   Widget _buildHero(TibModelProfile? model, bool ready) => Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(gradient: AppGradients.premium, borderRadius: BorderRadius.circular(30)),
-        child: Column(
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _referenceCard(model?.faceFile, Icons.face_retouching_natural_rounded),
-                const SizedBox(width: 10),
-                _referenceCard(model?.bodyFile, Icons.accessibility_new_rounded),
-              ],
-            ),
-            const SizedBox(height: 15),
-            Text(ready ? 'Meet your AI styling model' : 'Create your TiB Model first', textAlign: TextAlign.center, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, height: 1.08)),
-            const SizedBox(height: 8),
-            const Text('Your scanned face + full-body reference + real measurements become one persistent Personal TiB Model. TiB then dresses that same person using your own wardrobe.', textAlign: TextAlign.center, style: TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.45)),
-            const SizedBox(height: 14),
-            Wrap(alignment: WrapAlignment.center, spacing: 7, runSpacing: 7, children: [
-              _chip(Icons.face_rounded, 'Face identity'),
-              _chip(Icons.accessibility_new_rounded, model?.bodyShape ?? 'Body shape'),
-              _chip(Icons.straighten_rounded, model != null && model.height > 0 ? '${model.height.toStringAsFixed(0)} cm' : 'Measurements'),
-              _chip(Icons.palette_outlined, _analysis?.season ?? 'Colour profile'),
-              _chip(Icons.checkroom_rounded, 'Your wardrobe'),
-            ]),
-          ],
-        ),
+        child: Column(children: [
+          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            _referenceCard(model?.faceFile, Icons.face_retouching_natural_rounded),
+            const SizedBox(width: 10),
+            _referenceCard(model?.bodyFile, Icons.accessibility_new_rounded),
+          ]),
+          const SizedBox(height: 15),
+          Text(ready ? 'Meet your AI styling model' : 'Create your TiB Model first', textAlign: TextAlign.center, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, height: 1.08)),
+          const SizedBox(height: 8),
+          const Text('Your scanned face + full-body reference + real measurements become one persistent Personal TiB Model. TiB then dresses that same person using your own wardrobe.', textAlign: TextAlign.center, style: TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.45)),
+          const SizedBox(height: 14),
+          Wrap(alignment: WrapAlignment.center, spacing: 7, runSpacing: 7, children: [
+            _chip(Icons.face_rounded, 'Face identity'),
+            _chip(Icons.accessibility_new_rounded, model?.bodyShape ?? 'Body shape'),
+            _chip(Icons.straighten_rounded, model != null && model.height > 0 ? '${model.height.toStringAsFixed(0)} cm' : 'Measurements'),
+            _chip(Icons.palette_outlined, _analysis?.season ?? 'Colour profile'),
+            _chip(Icons.checkroom_rounded, 'Your wardrobe'),
+          ]),
+        ]),
       );
 
   Widget _referenceCard(dynamic file, IconData fallback) => Container(
@@ -316,7 +310,24 @@ FINAL PRIORITY:
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const Text('WHAT ARE YOU DRESSING FOR?', style: TextStyle(fontSize: 9, letterSpacing: 1.2, fontWeight: FontWeight.w900, color: AppColors.textMuted)),
           const SizedBox(height: 9),
-          Wrap(spacing: 7, runSpacing: 7, children: _occasions.map((value) => ChoiceChip(label: Text(value), selected: _occasion == value, onSelected: _busy ? null : (_) => setState(() { _occasion = value; _imageUrl = null; _look = const []; _recommendation = null; _status = ''; })).toList(growable: false)),
+          Wrap(
+            spacing: 7,
+            runSpacing: 7,
+            children: [
+              for (final value in _occasions)
+                ChoiceChip(
+                  label: Text(value),
+                  selected: _occasion == value,
+                  onSelected: _busy ? null : (_) => setState(() {
+                    _occasion = value;
+                    _imageUrl = null;
+                    _look = const [];
+                    _recommendation = null;
+                    _status = '';
+                  }),
+                ),
+            ],
+          ),
         ]),
       );
 
@@ -324,13 +335,9 @@ FINAL PRIORITY:
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(24), border: Border.all(color: AppColors.border)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [const Expanded(child: Text('RECOMMENDED LOOK', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.1))), if (_recommendation != null) Text('${_recommendation!.matchScore}% match', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: AppColors.primaryDark))]),
+          const Text('RECOMMENDED LOOK', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.1)),
           const SizedBox(height: 10),
-          Wrap(spacing: 8, runSpacing: 8, children: _look.map((item) => Chip(label: Text(item.name), avatar: const Icon(Icons.checkroom_outlined, size: 16))).toList(growable: false)),
-          const SizedBox(height: 10),
-          if (_recommendation?.stylingNotes.isNotEmpty == true) Text(_recommendation!.stylingNotes.join(' • '), style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondary, height: 1.4)),
-          const SizedBox(height: 8),
-          Align(alignment: Alignment.centerRight, child: OutlinedButton(onPressed: _busy ? null : _saveLook, child: const Text('Save look'))),
+          Wrap(spacing: 8, runSpacing: 8, children: [for (final item in _look) Chip(label: Text(item.name), avatar: const Icon(Icons.checkroom_outlined, size: 16))]),
         ]),
       );
 
