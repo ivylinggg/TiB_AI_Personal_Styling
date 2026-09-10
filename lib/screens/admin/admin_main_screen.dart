@@ -278,7 +278,7 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
                           child: const Text('PREVIEW', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w800)),
                         ),
                       ],
-                    ],
+                    ),
                   ),
                   Text(_modeDescription, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodySmall),
                 ],
@@ -322,9 +322,10 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
               children: List.generate(destinations.length, (index) {
                 final destination = destinations[index];
                 final selected = safeIndex == index;
+                final icon = selected ? destination.selectedIcon : destination.icon;
                 return Expanded(
                   child: _AdminNavItem(
-                    icon: selected ? (destination.selectedIcon ?? destination.icon ?? const SizedBox.shrink()) : (destination.icon ?? const SizedBox.shrink()),
+                    icon: icon,
                     label: destination.label,
                     selected: selected,
                     onTap: () => _navigateTo(index),
