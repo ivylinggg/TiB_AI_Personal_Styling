@@ -1,0 +1,54 @@
+name: Lock admin customer access
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  harden:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Replace customer preview with own customer dashboard
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('lib/screens/admin/admin_main_screen.dart')
+          s = p.read_text()
+          s = s.replace("import '../../services/preview_context.dart';\n", "")
+          s = s.replace("enum AdminMode { administrator, consultantPreview, customerPreview }", "enum AdminMode { administrator, consultantPreview, personalCustomer }")
+          s = s.replace("        AdminMode.customerPreview => 'Customer Preview',", "        AdminMode.personalCustomer => 'My Customer Dashboard',")
+          s = s.replace("        AdminMode.customerPreview => 'Preview a real customer account without changing your admin session',", "        AdminMode.personalCustomer => 'Use your own customer profile and styling data without changing your admin role',")
+          s = s.replace("        AdminMode.customerPreview => Icons.person_outline_rounded,", "        AdminMode.personalCustomer => Icons.person_outline_rounded,")
+          s = s.replace("    if (mode != AdminMode.customerPreview) {\n      context.read<PreviewContext>().clear();\n    }", "")
+          s = s.replace("    context.read<PreviewContext>().clear();\n", "")
+          start = s.index("  Future<void> _selectCustomerPreview() async {")
+          end = s.index("  void _showModeSelector()", start)
+          s = s[:start] + s[end:]
+          old = """              _ModeTile(\n                title: 'Customer Dashboard',\n                subtitle: 'Choose a customer and open their complete dashboard',\n                icon: Icons.person_outline_rounded,\n                selected: _mode == AdminMode.customerPreview,\n                onTap: () {\n                  Navigator.pop(sheetContext);\n                  _selectCustomerPreview();\n                },\n              ),"""
+          new = """              _ModeTile(\n                title: 'My Customer Dashboard',\n                subtitle: 'Open your own customer profile, wardrobe, analysis and AI styling data',\n                icon: Icons.person_outline_rounded,\n                selected: _mode == AdminMode.personalCustomer,\n                onTap: () {\n                  Navigator.pop(sheetContext);\n                  _setMode(AdminMode.personalCustomer);\n                },\n              ),"""
+          if old not in s:
+              raise SystemExit('customer mode tile not found')
+          s = s.replace(old, new)
+          s = s.replace("        AdminMode.customerPreview => [\n            const MainScreen(adminPreview: true),", "        AdminMode.personalCustomer => [\n            const MainScreen(adminPreview: false),")
+          s = s.replace("        AdminMode.customerPreview => const [", "        AdminMode.personalCustomer => const [")
+          s = s.replace("    if ((_mode == AdminMode.consultantPreview || _mode == AdminMode.customerPreview) && index == 1) {", "    if ((_mode == AdminMode.consultantPreview || _mode == AdminMode.personalCustomer) && index == 1) {")
+          p.write_text(s)
+          PY
+      - name: Verify no arbitrary customer preview remains
+        run: |
+          grep -q "AdminMode.personalCustomer" lib/screens/admin/admin_main_screen.dart
+          ! grep -q "_selectCustomerPreview\|Choose a Customer\|AdminMode.customerPreview" lib/screens/admin/admin_main_screen.dart
+      - name: Commit and remove workflow
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add lib/screens/admin/admin_main_screen.dart
+          git commit -m 'Restrict admin customer dashboard to own account' || true
+          git rm .github/workflows/lock-admin-customer-access.yml
+          git commit -m 'Remove temporary admin access workflow'
+          git push
