@@ -43,7 +43,12 @@ class _AiAvatarStylingScreenState extends State<AiAvatarStylingScreen> {
   Future<void> _load() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _status = 'Please sign in again before using TiB AI Avatar.';
+        });
+      }
       return;
     }
     try {
@@ -54,8 +59,12 @@ class _AiAvatarStylingScreenState extends State<AiAvatarStylingScreen> {
         FirestoreService.getLatestColourAnalysis(uid),
       ]);
       if (!mounted || FirebaseAuth.instance.currentUser?.uid != uid) return;
-      final prefs = results[2] is Map ? Map<String, dynamic>.from(results[2] as Map) : <String, dynamic>{};
-      final items = results[1] is List<WardrobeItem> ? List<WardrobeItem>.from(results[1] as List<WardrobeItem>) : <WardrobeItem>[];
+      final prefs = results[2] is Map
+          ? Map<String, dynamic>.from(results[2] as Map)
+          : <String, dynamic>{};
+      final items = results[1] is List<WardrobeItem>
+          ? List<WardrobeItem>.from(results[1] as List<WardrobeItem>)
+          : <WardrobeItem>[];
       setState(() {
         _model = results[0] as TibModelProfile?;
         _wardrobe = items.where((item) => item.userId.isEmpty || item.userId == uid).toList(growable: false);
@@ -152,7 +161,9 @@ class _AiAvatarStylingScreenState extends State<AiAvatarStylingScreen> {
 
   String _buildStylingBrief(AiStylingResult recommendation) {
     final model = _model!;
-    final reason = recommendation.explanation.trim().isEmpty ? 'Choose the combination that best fits the user’s colour, body-shape and style context.' : recommendation.explanation.trim();
+    final reason = recommendation.explanation.trim().isEmpty
+        ? 'Choose the combination that best fits the user’s colour, body-shape and style context.'
+        : recommendation.explanation.trim();
     return '''TI B PERSONAL VIRTUAL YOU — NON-NEGOTIABLE GENERATION BRIEF
 
 PERSON IDENTITY:
@@ -204,7 +215,9 @@ FINAL PRIORITY:
     return null;
   }
 
-  List<String> _stringList(dynamic value) => value is List ? value.map((item) => item.toString().trim()).where((item) => item.isNotEmpty).toList(growable: false) : const [];
+  List<String> _stringList(dynamic value) => value is List
+      ? value.map((item) => item.toString().trim()).where((item) => item.isNotEmpty).toList(growable: false)
+      : const [];
 
   Future<void> _saveLook() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -318,13 +331,15 @@ FINAL PRIORITY:
                 ChoiceChip(
                   label: Text(value),
                   selected: _occasion == value,
-                  onSelected: _busy ? null : (_) => setState(() {
-                    _occasion = value;
-                    _imageUrl = null;
-                    _look = const [];
-                    _recommendation = null;
-                    _status = '';
-                  }),
+                  onSelected: _busy ? null : (_) {
+                    setState(() {
+                      _occasion = value;
+                      _imageUrl = null;
+                      _look = const [];
+                      _recommendation = null;
+                      _status = '';
+                    });
+                  },
                 ),
             ],
           ),
