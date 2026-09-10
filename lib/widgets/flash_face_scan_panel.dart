@@ -191,30 +191,35 @@ class _FlashFaceScanPanelState extends State<FlashFaceScanPanel>
     }
 
     setState(() => _checkingFrame = true);
+
     try {
       final photo = await controller.takePicture();
       final file = File(photo.path);
       final faces = await MlKitService.detectFace(file);
       if (!mounted || _completed) return;
 
-      if (faces.length != 1) {
+      if (faces.isEmpty) {
         _stableChecks = 0;
         setState(() {
           _checkingFrame = false;
-          _status = faces.isEmpty
-              ? 'Face not detected yet. Move into the guide.'
-              : 'Please scan alone with only one face visible.';
+          _status = 'Face detection is taking a moment… keep still.';
         });
         return;
       }
 
-      // Do not compare ML Kit image coordinates with CameraPreview coordinates.
-      // Orientation/mirroring differs between iPhone preview and captured JPEGs.
-      // The scanner only uses face presence + head pose here; the oval is visual guidance.
+      if (faces.length > 1) {
+        _stableChecks = 0;
+        setState(() {
+          _checkingFrame = false;
+          _status = 'Please scan alone with only one face visible.';
+        });
+        return;
+      }
+
       final face = faces.first;
-      final straight =
-          (face.headEulerAngleY ?? 0).abs() < 25 &&
-          (face.headEulerAngleX ?? 0).abs() < 25;
+      final yaw = (face.headEulerAngleY ?? 0).abs();
+      final pitch = (face.headEulerAngleX ?? 0).abs();
+      final straight = yaw < 30 && pitch < 30;
 
       if (!straight) {
         _stableChecks = 0;
@@ -259,7 +264,7 @@ class _FlashFaceScanPanelState extends State<FlashFaceScanPanel>
       _stableChecks = 0;
       setState(() {
         _checkingFrame = false;
-        _status = 'Face not detected yet. Keep your face inside the guide.';
+        _status = 'Face detection is taking a moment… keep still.';
       });
     }
   }
@@ -362,13 +367,45 @@ class _FlashFaceScanPanelState extends State<FlashFaceScanPanel>
         if (_capturedFile != null && !widget.busy)
           Row(
             children: [
-              Expanded(child: OutlinedButton.icon(onPressed: _retryScan, icon: const Icon(Icons.refresh_rounded, size: 18), label: const Text('Retry Scan'), style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(46), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md))))),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _retryScan,
+                  icon: const Icon(Icons.refresh_rounded, size: 18),
+                  label: const Text('Retry Scan'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.primaryDark,
+                    side: const BorderSide(color: AppColors.border),
+                    minimumSize: const Size.fromHeight(46),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
+                  ),
+                ),
+              ),
               const SizedBox(width: 10),
-              Expanded(child: FilledButton.icon(onPressed: _continueWithScan, icon: const Icon(Icons.check_rounded, size: 18), label: const Text('Continue'), style: FilledButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white, minimumSize: const Size.fromHeight(46), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md))))),
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: _continueWithScan,
+                  icon: const Icon(Icons.check_rounded, size: 18),
+                  label: const Text('Continue'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size.fromHeight(46),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
+                  ),
+                ),
+              ),
             ],
           )
         else
-          Material(color: AppColors.surface, shape: const CircleBorder(), child: IconButton(tooltip: 'Choose from gallery', onPressed: _checkingFrame || widget.busy ? null : _gallery, icon: const Icon(Icons.photo_outlined, size: 22))),
+          Material(
+            color: AppColors.surface,
+            shape: const CircleBorder(),
+            child: IconButton(
+              tooltip: 'Choose from gallery',
+              onPressed: _checkingFrame || widget.busy ? null : _gallery,
+              icon: const Icon(Icons.photo_outlined, size: 22),
+            ),
+          ),
         const SizedBox(height: 3),
       ],
     );
@@ -395,7 +432,9 @@ class _FlashFaceScanPanelState extends State<FlashFaceScanPanel>
         fit: StackFit.expand,
         children: [
           CameraPreview(controller),
-          CustomPaint(painter: _FaceGuidePainter(active: _checkingFrame, pulse: _pulseController)),
+          CustomPaint(
+            painter: _FaceGuidePainter(active: _checkingFrame, pulse: _pulseController),
+          ),
           Positioned(
             top: 14,
             right: 12,
@@ -417,7 +456,10 @@ class _FlashFaceScanPanelState extends State<FlashFaceScanPanel>
             bottom: 14,
             child: Container(
               padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-              decoration: BoxDecoration(color: const Color(0xFFFBEFF6).withValues(alpha: .94), borderRadius: BorderRadius.circular(17)),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFBEFF6).withValues(alpha: .94),
+                borderRadius: BorderRadius.circular(17),
+              ),
               child: const Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -432,7 +474,11 @@ class _FlashFaceScanPanelState extends State<FlashFaceScanPanel>
             Container(
               color: Colors.black.withValues(alpha: .10),
               alignment: Alignment.center,
-              child: const SizedBox(width: 42, height: 42, child: CircularProgressIndicator(strokeWidth: 3, color: Colors.white)),
+              child: const SizedBox(
+                width: 42,
+                height: 42,
+                child: CircularProgressIndicator(strokeWidth: 3, color: Colors.white),
+              ),
             ),
         ],
       ),
@@ -443,13 +489,19 @@ class _FlashFaceScanPanelState extends State<FlashFaceScanPanel>
 class _Tip extends StatelessWidget {
   final IconData icon;
   final String text;
+
   const _Tip({required this.icon, required this.text});
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Container(width: 38, height: 38, decoration: BoxDecoration(color: Colors.black.withValues(alpha: .18), shape: BoxShape.circle), child: Icon(icon, color: Colors.white, size: 19)),
+        Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(color: Colors.black.withValues(alpha: .18), shape: BoxShape.circle),
+          child: Icon(icon, color: Colors.white, size: 19),
+        ),
         const SizedBox(height: 4),
         Text(text, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 8.5, height: 1.1, fontWeight: FontWeight.w600)),
       ],
@@ -460,6 +512,7 @@ class _Tip extends StatelessWidget {
 class _FaceGuidePainter extends CustomPainter {
   final bool active;
   final Animation<double> pulse;
+
   const _FaceGuidePainter({required this.active, required this.pulse});
 
   @override
@@ -467,7 +520,9 @@ class _FaceGuidePainter extends CustomPainter {
     final width = size.width;
     final height = size.height;
     final center = Offset(width * .49, height * .48);
-    final rect = Rect.fromCenter(center: center, width: width * .56, height: height * .70);
+    final ovalWidth = width * .56;
+    final ovalHeight = height * .70;
+    final rect = Rect.fromCenter(center: center, width: ovalWidth, height: ovalHeight);
 
     final guidePaint = Paint()
       ..style = PaintingStyle.stroke
@@ -480,6 +535,7 @@ class _FaceGuidePainter extends CustomPainter {
       ..strokeWidth = 4
       ..strokeCap = StrokeCap.round
       ..color = Colors.white.withValues(alpha: active ? 1 : .9);
+
     const length = 28.0;
     const inset = 16.0;
 
@@ -490,13 +546,13 @@ class _FaceGuidePainter extends CustomPainter {
       canvas.drawLine(topLeft, topLeft.translate(0, dy), cornerPaint);
     }
 
-    corner(const Offset(inset, inset), false, false);
+    corner(Offset(inset, inset), false, false);
     corner(Offset(width - inset, inset), true, false);
     corner(Offset(inset, height - inset), false, true);
     corner(Offset(width - inset, height - inset), true, true);
 
     if (active) {
-      final radius = 6.0 + pulse.value * 4.0;
+      final radius = 6.0 + (pulse.value * 4.0);
       final dotPaint = Paint()..color = Colors.white.withValues(alpha: .75);
       canvas.drawCircle(Offset(width * .49, height * .10), radius, dotPaint);
     }
