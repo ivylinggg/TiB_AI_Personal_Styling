@@ -48,10 +48,7 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
         return;
       }
 
-      final document = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .get();
+      final document = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
       final data = document.data();
       final role = (data?['role'] as String? ?? '').trim().toLowerCase();
       final isActive = data?['isActive'] as bool? ?? true;
@@ -183,8 +180,6 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
             const AdminProfileScreen(),
           ],
         AdminMode.personalCustomer => [
-            // MainScreen uses FirebaseAuth.currentUser.uid, so this dashboard
-            // can only load the signed-in administrator's own customer data.
             const MainScreen(adminPreview: false),
             const AdminProfileScreen(),
           ],
@@ -231,11 +226,7 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
               children: [
                 const Icon(Icons.lock_outline_rounded, size: 64),
                 const SizedBox(height: 18),
-                const Text(
-                  'Access Restricted',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
-                  textAlign: TextAlign.center,
-                ),
+                const Text('Access Restricted', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800), textAlign: TextAlign.center),
                 const SizedBox(height: 8),
                 Text(_accessError ?? 'Administrator access is required.', textAlign: TextAlign.center),
                 const SizedBox(height: 18),
@@ -277,32 +268,19 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
                   Row(
                     children: [
                       Flexible(
-                        child: Text(
-                          _modeLabel,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
-                        ),
+                        child: Text(_modeLabel, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
                       ),
                       if (_isPreviewMode) ...[
                         const SizedBox(width: 7),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.secondaryContainer,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
+                          decoration: BoxDecoration(color: Theme.of(context).colorScheme.secondaryContainer, borderRadius: BorderRadius.circular(8)),
                           child: const Text('PREVIEW', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w800)),
                         ),
                       ],
                     ],
                   ),
-                  Text(
-                    _modeDescription,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
+                  Text(_modeDescription, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodySmall),
                 ],
               ),
             ),
@@ -325,23 +303,26 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
         ],
       ),
       body: IndexedStack(index: safeIndex, children: pages),
-      bottomNavigationBar: SafeArea(
+      bottomNavigationBar: _buildBottomBar(destinations, safeIndex),
+    );
+  }
+
+  Widget _buildBottomBar(List<NavigationDestination> destinations, int safeIndex) {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      elevation: 8,
+      color: scheme.surface,
+      child: SafeArea(
         top: false,
-        child: Container(
-          height: 78,
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
-            border: Border(top: BorderSide(color: Theme.of(context).colorScheme.outlineVariant)),
-          ),
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        child: SizedBox(
+          height: 82,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(10, 7, 10, 6),
             child: Row(
               children: List.generate(destinations.length, (index) {
                 final destination = destinations[index];
                 final selected = safeIndex == index;
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 3),
+                return Expanded(
                   child: _AdminNavItem(
                     icon: selected ? destination.selectedIcon : destination.icon,
                     label: destination.label,
@@ -374,19 +355,34 @@ class _AdminNavItem extends StatelessWidget {
       selected: selected,
       label: label,
       child: InkWell(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
         onTap: onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
-          constraints: const BoxConstraints(minWidth: 72),
-          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
-          decoration: BoxDecoration(color: selected ? scheme.secondaryContainer : Colors.transparent, borderRadius: BorderRadius.circular(18)),
+          margin: const EdgeInsets.symmetric(horizontal: 2),
+          padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 7),
+          decoration: BoxDecoration(
+            color: selected ? scheme.secondaryContainer : Colors.transparent,
+            borderRadius: BorderRadius.circular(16),
+          ),
           child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
             mainAxisSize: MainAxisSize.min,
             children: [
-              SizedBox(height: 25, child: IconTheme(data: const IconThemeData(size: 23), child: icon)),
+              SizedBox(height: 27, child: IconTheme(data: const IconThemeData(size: 22), child: icon)),
               const SizedBox(height: 3),
-              Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, fontWeight: selected ? FontWeight.w800 : FontWeight.w500, color: selected ? scheme.onSecondaryContainer : scheme.onSurfaceVariant)),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 10.5,
+                  height: 1,
+                  fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
+                  color: selected ? scheme.onSecondaryContainer : scheme.onSurfaceVariant,
+                ),
+              ),
             ],
           ),
         ),
@@ -402,13 +398,7 @@ class _ModeTile extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
 
-  const _ModeTile({
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.selected,
-    required this.onTap,
-  });
+  const _ModeTile({required this.title, required this.subtitle, required this.icon, required this.selected, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
