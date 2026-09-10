@@ -152,8 +152,9 @@ class _AiAvatarStylingScreenState extends State<AiAvatarStylingScreen> {
 
   String _buildStylingBrief(AiStylingResult recommendation) {
     final model = _model!;
-    final explanation = recommendation.explanation.trim();
-    final reason = explanation.isEmpty ? 'Choose the combination that best fits the user’s colour, body-shape and style context.' : explanation;
+    final reason = recommendation.explanation.trim().isEmpty
+        ? 'Choose the combination that best fits the user’s colour, body-shape and style context.'
+        : recommendation.explanation.trim();
     return '''TI B PERSONAL VIRTUAL YOU — NON-NEGOTIABLE GENERATION BRIEF
 
 PERSON IDENTITY:
@@ -210,7 +211,9 @@ FINAL PRIORITY:
     return null;
   }
 
-  List<String> _stringList(dynamic value) => value is List ? value.map((item) => item.toString().trim()).where((item) => item.isNotEmpty).toList(growable: false) : const [];
+  List<String> _stringList(dynamic value) => value is List
+      ? value.map((item) => item.toString().trim()).where((item) => item.isNotEmpty).toList(growable: false)
+      : const [];
 
   Future<void> _saveLook() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -245,12 +248,7 @@ FINAL PRIORITY:
           const SizedBox(height: 16),
           _buildOccasion(),
           const SizedBox(height: 14),
-          _buildHowItWorks(),
-          const SizedBox(height: 16),
-          if (_look.isNotEmpty) ...[
-            _buildRecommendedLook(),
-            const SizedBox(height: 14),
-          ],
+          if (_look.isNotEmpty) ...[_buildRecommendedLook(), const SizedBox(height: 14)],
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
@@ -263,10 +261,7 @@ FINAL PRIORITY:
             const SizedBox(height: 12),
             Text(_status, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.45)),
           ],
-          if (_imageUrl != null) ...[
-            const SizedBox(height: 18),
-            _buildResult(),
-          ],
+          if (_imageUrl != null) ...[const SizedBox(height: 18), _buildResult()],
         ],
       ),
     );
@@ -275,25 +270,38 @@ FINAL PRIORITY:
   Widget _buildHero(TibModelProfile? model, bool ready) => Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(gradient: AppGradients.premium, borderRadius: BorderRadius.circular(30)),
-        child: Column(children: [
-          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Container(width: 92, height: 112, decoration: BoxDecoration(color: Colors.white.withValues(alpha: .58), borderRadius: BorderRadius.circular(24), border: Border.all(color: Colors.white.withValues(alpha: .7))), clipBehavior: Clip.antiAlias, child: model?.faceFile != null && model!.faceFile!.existsSync() ? Image.file(model.faceFile!, fit: BoxFit.cover) : const Icon(Icons.face_retouching_natural_rounded, size: 44, color: AppColors.primary)),
-            const SizedBox(width: 10),
-            Container(width: 92, height: 112, decoration: BoxDecoration(color: Colors.white.withValues(alpha: .58), borderRadius: BorderRadius.circular(24), border: Border.all(color: Colors.white.withValues(alpha: .7))), clipBehavior: Clip.antiAlias, child: model?.bodyFile != null && model!.bodyFile!.existsSync() ? Image.file(model.bodyFile!, fit: BoxFit.cover) : const Icon(Icons.accessibility_new_rounded, size: 44, color: AppColors.primary)),
-          ]),
-          const SizedBox(height: 15),
-          Text(ready ? 'Meet your AI styling model' : 'Create your TiB Model first', textAlign: TextAlign.center, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, height: 1.08)),
-          const SizedBox(height: 8),
-          const Text('Your scanned face + full-body reference + real measurements become one persistent Personal TiB Model. TiB then dresses that same person using your own wardrobe.', textAlign: TextAlign.center, style: TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.45)),
-          const SizedBox(height: 14),
-          Wrap(alignment: WrapAlignment.center, spacing: 7, runSpacing: 7, children: [
-            _chip(Icons.face_rounded, 'Face identity'),
-            _chip(Icons.accessibility_new_rounded, model?.bodyShape ?? 'Body shape'),
-            _chip(Icons.straighten_rounded, model != null && model.height > 0 ? '${model.height.toStringAsFixed(0)} cm' : 'Measurements'),
-            _chip(Icons.palette_outlined, _analysis?.season ?? 'Colour profile'),
-            _chip(Icons.checkroom_rounded, 'Your wardrobe'),
-          ]),
-        ]),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _referenceCard(model?.faceFile, Icons.face_retouching_natural_rounded),
+                const SizedBox(width: 10),
+                _referenceCard(model?.bodyFile, Icons.accessibility_new_rounded),
+              ],
+            ),
+            const SizedBox(height: 15),
+            Text(ready ? 'Meet your AI styling model' : 'Create your TiB Model first', textAlign: TextAlign.center, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, height: 1.08)),
+            const SizedBox(height: 8),
+            const Text('Your scanned face + full-body reference + real measurements become one persistent Personal TiB Model. TiB then dresses that same person using your own wardrobe.', textAlign: TextAlign.center, style: TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.45)),
+            const SizedBox(height: 14),
+            Wrap(alignment: WrapAlignment.center, spacing: 7, runSpacing: 7, children: [
+              _chip(Icons.face_rounded, 'Face identity'),
+              _chip(Icons.accessibility_new_rounded, model?.bodyShape ?? 'Body shape'),
+              _chip(Icons.straighten_rounded, model != null && model.height > 0 ? '${model.height.toStringAsFixed(0)} cm' : 'Measurements'),
+              _chip(Icons.palette_outlined, _analysis?.season ?? 'Colour profile'),
+              _chip(Icons.checkroom_rounded, 'Your wardrobe'),
+            ]),
+          ],
+        ),
+      );
+
+  Widget _referenceCard(dynamic file, IconData fallback) => Container(
+        width: 92,
+        height: 112,
+        decoration: BoxDecoration(color: Colors.white.withValues(alpha: .58), borderRadius: BorderRadius.circular(24), border: Border.all(color: Colors.white.withValues(alpha: .7))),
+        clipBehavior: Clip.antiAlias,
+        child: file != null && file.existsSync() ? Image.file(file, fit: BoxFit.cover) : Icon(fallback, size: 44, color: AppColors.primary),
       );
 
   Widget _chip(IconData icon, String label) => Container(
@@ -312,13 +320,19 @@ FINAL PRIORITY:
         ]),
       );
 
-  Widget _buildHowItWorks() => const SizedBox.shrink();
-
-  Widget _buildRecommendedLook() => Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(24), border: Border.all(color: AppColors.border)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    const Text('RECOMMENDED LOOK', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.1)),
-    const SizedBox(height: 10),
-    Wrap(spacing: 8, runSpacing: 8, children: _look.map((item) => Chip(label: Text(item.name), avatar: const Icon(Icons.checkroom_outlined, size: 16))).toList(growable: false)),
-  ]));
+  Widget _buildRecommendedLook() => Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(24), border: Border.all(color: AppColors.border)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [const Expanded(child: Text('RECOMMENDED LOOK', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.1))), if (_recommendation != null) Text('${_recommendation!.matchScore}% match', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: AppColors.primaryDark))]),
+          const SizedBox(height: 10),
+          Wrap(spacing: 8, runSpacing: 8, children: _look.map((item) => Chip(label: Text(item.name), avatar: const Icon(Icons.checkroom_outlined, size: 16))).toList(growable: false)),
+          const SizedBox(height: 10),
+          if (_recommendation?.stylingNotes.isNotEmpty == true) Text(_recommendation!.stylingNotes.join(' • '), style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondary, height: 1.4)),
+          const SizedBox(height: 8),
+          Align(alignment: Alignment.centerRight, child: OutlinedButton(onPressed: _busy ? null : _saveLook, child: const Text('Save look'))),
+        ]),
+      );
 
   Widget _buildResult() => Container(
         height: 420,
@@ -326,6 +340,4 @@ FINAL PRIORITY:
         clipBehavior: Clip.antiAlias,
         child: CachedNetworkImage(imageUrl: _imageUrl!, fit: BoxFit.cover),
       );
-
-  Widget _pill(String text, bool ok) => Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5), decoration: BoxDecoration(color: ok ? AppColors.lavenderMist : Colors.white70, borderRadius: BorderRadius.circular(12)), child: Text(text, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900)));
 }
