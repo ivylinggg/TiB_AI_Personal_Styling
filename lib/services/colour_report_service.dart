@@ -30,7 +30,7 @@ class ColourReportService {
       final date = DateFormat('dd MMM yyyy, h:mm a').format(DateTime.now());
       final photoBytes = await _loadImageBytes(result.imageUrl);
 
-      _drawCover(document.pages.add(), result, profile, accent, dark, muted, white, border, photoBytes, date);
+      _drawCover(document.pages.add(), result, profile, accent, dark, muted, soft, border, photoBytes, date);
       _drawColourAndFace(document.pages.add(), result, profile, accent, dark, muted, soft, border, photoBytes);
       _drawPaletteAndStyle(document.pages.add(), result, profile, accent, dark, muted, soft, border);
       _drawReference(document.pages.add(), accent, dark, muted, soft, border);
@@ -73,10 +73,10 @@ class ColourReportService {
     return file;
   }
 
-  static void _drawCover(PdfPage page, ColourAnalysisResult result, SeasonColourProfile profile, PdfColor accent, PdfColor dark, PdfColor muted, PdfColor white, PdfColor border, Uint8List? photoBytes, String date) {
+  static void _drawCover(PdfPage page, ColourAnalysisResult result, SeasonColourProfile profile, PdfColor accent, PdfColor dark, PdfColor muted, PdfColor soft, PdfColor border, Uint8List? photoBytes, String date) {
     final size = page.getClientSize();
     page.graphics.drawRectangle(brush: PdfSolidBrush(accent), bounds: ui.Rect.fromLTWH(0, 0, size.width, size.height));
-    page.graphics.drawRectangle(brush: PdfSolidBrush(white), bounds: ui.Rect.fromLTWH(26, 26, size.width - 52, size.height - 52));
+    page.graphics.drawRectangle(brush: PdfSolidBrush(PdfColor(255, 255, 255)), bounds: ui.Rect.fromLTWH(26, 26, size.width - 52, size.height - 52));
 
     _text(page, 'TiB', PdfStandardFont(PdfFontFamily.helvetica, 27, style: PdfFontStyle.bold), dark, ui.Rect.fromLTWH(48, 52, 80, 30));
     _text(page, 'VYEA · STYLE BUT PERSONAL', PdfStandardFont(PdfFontFamily.helvetica, 8, style: PdfFontStyle.bold), accent, ui.Rect.fromLTWH(48, 84, 240, 14));
@@ -95,7 +95,7 @@ class ColourReportService {
 
     page.graphics.drawRectangle(brush: PdfSolidBrush(PdfColor(251, 249, 252)), pen: PdfPen(border), bounds: ui.Rect.fromLTWH(292, 262, 218, 292));
     _text(page, 'YOUR RESULT', PdfStandardFont(PdfFontFamily.helvetica, 9, style: PdfFontStyle.bold), accent, ui.Rect.fromLTWH(312, 286, 160, 14));
-    _text(page, result.faceShape.isEmpty ? 'Unknown face shape' : '${result.faceShape} face shape', PdfStandardFont(PdfFontFamily.helvetica, 15, style: PdfFontStyle.bold), dark, ui.Rect.fromLTWH(312, 322, 170, 40));
+    _text(page, result.faceShape.trim().isEmpty ? 'Unknown face shape' : '${result.faceShape} face shape', PdfStandardFont(PdfFontFamily.helvetica, 15, style: PdfFontStyle.bold), dark, ui.Rect.fromLTWH(312, 322, 170, 40));
     _smallProfile(page, 'Undertone', result.undertone, 392, dark, muted);
     _smallProfile(page, 'Depth', result.brightness, 442, dark, muted);
     _smallProfile(page, 'Contrast', result.contrast, 492, dark, muted);
@@ -107,9 +107,9 @@ class ColourReportService {
     _header(page, '01 · COLOUR + FACE ANALYSIS', 'The key findings from your scan', accent, dark, muted);
 
     _sectionTitle(page, 'Colour profile', 112, accent, dark);
-    _metricCard(page, 28, 150, 158, 'UNDERTONE', result.undertone, accent, dark, soft, border);
-    _metricCard(page, 202, 150, 158, 'DEPTH', result.brightness, accent, dark, soft, border);
-    _metricCard(page, 376, 150, 158, 'CONTRAST', result.contrast, accent, dark, soft, border);
+    _metricCard(page, 28, 150, 158, 'UNDERTONE', result.undertone, accent, dark, soft, border, muted);
+    _metricCard(page, 202, 150, 158, 'DEPTH', result.brightness, accent, dark, soft, border, muted);
+    _metricCard(page, 376, 150, 158, 'CONTRAST', result.contrast, accent, dark, soft, border, muted);
     _text(page, profile.description, PdfStandardFont(PdfFontFamily.helvetica, 10.5), muted, ui.Rect.fromLTWH(28, 230, 506, 42));
 
     _sectionTitle(page, 'Face shape', 300, accent, dark);
@@ -118,8 +118,8 @@ class ColourReportService {
       page.graphics.drawRectangle(pen: PdfPen(accent, width: 1.1), bounds: ui.Rect.fromLTWH(28, 338, 156, 210));
     }
     page.graphics.drawRectangle(brush: PdfSolidBrush(soft), pen: PdfPen(border), bounds: ui.Rect.fromLTWH(200, 338, 334, 210));
-    _text(page, result.faceShape.isEmpty ? 'Unknown' : result.faceShape, PdfStandardFont(PdfFontFamily.helvetica, 26, style: PdfFontStyle.bold), dark, ui.Rect.fromLTWH(220, 360, 270, 32));
-    _text(page, result.faceShapeDescription.isEmpty ? 'Proportion-based analysis from your face contour.' : result.faceShapeDescription, PdfStandardFont(PdfFontFamily.helvetica, 9.5), muted, ui.Rect.fromLTWH(220, 404, 285, 55));
+    _text(page, result.faceShape.trim().isEmpty ? 'Unknown' : result.faceShape, PdfStandardFont(PdfFontFamily.helvetica, 26, style: PdfFontStyle.bold), dark, ui.Rect.fromLTWH(220, 360, 270, 32));
+    _text(page, result.faceShapeDescription.trim().isEmpty ? 'Proportion-based analysis from your face contour.' : result.faceShapeDescription, PdfStandardFont(PdfFontFamily.helvetica, 9.5), muted, ui.Rect.fromLTWH(220, 404, 285, 55));
     final m = result.faceMeasurements;
     _smallMeasure(page, 'Length / cheekbone', m['faceLengthToCheekbone'], 480, accent, dark, muted);
     _smallMeasure(page, 'Forehead / cheekbone', m['foreheadToCheekbone'], 505, accent, dark, muted);
@@ -130,7 +130,7 @@ class ColourReportService {
     _header(page, '02 · YOUR STYLE BLUEPRINT', 'Practical colour and styling guidance', accent, dark, muted);
 
     _sectionTitle(page, 'Your best colours', 112, accent, dark);
-    _drawSwatches(page, profile.bestColours.take(12).toList(), 154, accent, dark);
+    _drawSwatches(page, profile.bestColours.take(12).toList(), 154, accent, dark, border);
 
     _sectionTitle(page, 'Beauty colours', 300, accent, dark);
     _drawBeauty(page, profile.eyeShadowColours.take(6).toList(), 'Eye shadow', 338, accent, dark, border);
@@ -174,14 +174,14 @@ class ColourReportService {
     page.graphics.drawRectangle(brush: PdfSolidBrush(accent), bounds: ui.Rect.fromLTWH(28, y + 24, 36, 2));
   }
 
-  static void _metricCard(PdfPage page, double x, double y, double width, String label, String value, PdfColor accent, PdfColor dark, PdfColor soft, PdfColor border) {
+  static void _metricCard(PdfPage page, double x, double y, double width, String label, String value, PdfColor accent, PdfColor dark, PdfColor soft, PdfColor border, PdfColor muted) {
     page.graphics.drawRectangle(brush: PdfSolidBrush(soft), pen: PdfPen(border), bounds: ui.Rect.fromLTWH(x, y, width, 64));
     page.graphics.drawEllipse(ui.Rect.fromLTWH(x + 12, y + 13, 15, 15), brush: PdfSolidBrush(accent));
-    _text(page, label, PdfStandardFont(PdfFontFamily.helvetica, 7.5, style: PdfFontStyle.bold), mutedColor(), ui.Rect.fromLTWH(x + 34, y + 11, width - 44, 11));
+    _text(page, label, PdfStandardFont(PdfFontFamily.helvetica, 7.5, style: PdfFontStyle.bold), muted, ui.Rect.fromLTWH(x + 34, y + 11, width - 44, 11));
     _text(page, value, PdfStandardFont(PdfFontFamily.helvetica, 10.5, style: PdfFontStyle.bold), dark, ui.Rect.fromLTWH(x + 12, y + 34, width - 24, 16));
   }
 
-  static void _drawSwatches(PdfPage page, List<String> names, double y, PdfColor accent, PdfColor dark) {
+  static void _drawSwatches(PdfPage page, List<String> names, double y, PdfColor accent, PdfColor dark, PdfColor border) {
     const columns = 4;
     const gap = 9.0;
     const swatchW = 120.0;
@@ -191,7 +191,7 @@ class ColourReportService {
       final col = i % columns;
       final x = 28 + col * (swatchW + gap);
       final top = y + row * rowH;
-      page.graphics.drawRectangle(brush: PdfSolidBrush(_colourFor(names[i], accent)), pen: PdfPen(PdfColor(230, 224, 232)), bounds: ui.Rect.fromLTWH(x, top, swatchW, 30));
+      page.graphics.drawRectangle(brush: PdfSolidBrush(_colourFor(names[i], accent)), pen: PdfPen(border), bounds: ui.Rect.fromLTWH(x, top, swatchW, 30));
       _text(page, names[i], PdfStandardFont(PdfFontFamily.helvetica, 6.8), dark, ui.Rect.fromLTWH(x, top + 34, swatchW, 15), alignCenter: true);
     }
   }
@@ -204,7 +204,7 @@ class ColourReportService {
       final row = i ~/ columns;
       final col = i % columns;
       final px = x + col * (w + gap);
-      final py = y + row * 48;
+      final py = y + row * 48.0;
       page.graphics.drawRectangle(brush: PdfSolidBrush(_colourFor(names[i], accent)), bounds: ui.Rect.fromLTWH(px, py, w, 25));
       _text(page, names[i], PdfStandardFont(PdfFontFamily.helvetica, 6), dark, ui.Rect.fromLTWH(px, py + 28, w, 14), alignCenter: true);
     }
@@ -213,7 +213,7 @@ class ColourReportService {
   static void _drawBeauty(PdfPage page, List<String> names, String title, double y, PdfColor accent, PdfColor dark, PdfColor border) {
     _text(page, title.toUpperCase(), PdfStandardFont(PdfFontFamily.helvetica, 8, style: PdfFontStyle.bold), mutedColor(), ui.Rect.fromLTWH(28, y, 130, 14));
     for (var i = 0; i < names.length; i++) {
-      final x = 28 + i * 84;
+      final x = 28 + i * 84.0;
       page.graphics.drawEllipse(ui.Rect.fromLTWH(x, y + 22, 24, 24), brush: PdfSolidBrush(_colourFor(names[i], accent)), pen: PdfPen(border));
       _text(page, names[i], PdfStandardFont(PdfFontFamily.helvetica, 5.8), dark, ui.Rect.fromLTWH(x - 10, y + 50, 44, 22), alignCenter: true);
     }
@@ -223,10 +223,10 @@ class ColourReportService {
     var x = 28.0;
     var rowY = y;
     for (final value in values) {
-      final width = 22 + value.length * 4.0;
+      final width = 22.0 + value.length * 4.0;
       if (x + width > 534) {
         x = 28;
-        rowY += 31;
+        rowY += 31.0;
       }
       page.graphics.drawRectangle(brush: PdfSolidBrush(soft), pen: PdfPen(accent, width: .5), bounds: ui.Rect.fromLTWH(x, rowY, width, 22));
       _text(page, value, PdfStandardFont(PdfFontFamily.helvetica, 7), dark, ui.Rect.fromLTWH(x + 4, rowY + 4, width - 8, 13), alignCenter: true);
