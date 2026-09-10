@@ -45,17 +45,22 @@ class FaceShapeAnalysisService {
       );
     }
 
-    final points = contour.points.whereType<ContourPoint>().toList();
+    final points = <Point<double>>[];
+    for (final point in contour.points) {
+      if (point == null) continue;
+      points.add(Point<double>(point.x.toDouble(), point.y.toDouble()));
+    }
+
     if (points.length < 24) {
       throw const FormatException(
         'Face outline could not be measured reliably. Please use a front-facing photo with your full face visible.',
       );
     }
 
-    final left = points.map((p) => p.x.toDouble()).reduce(math.min);
-    final right = points.map((p) => p.x.toDouble()).reduce(math.max);
-    final top = points.map((p) => p.y.toDouble()).reduce(math.min);
-    final bottom = points.map((p) => p.y.toDouble()).reduce(math.max);
+    final left = points.map((p) => p.x).reduce(math.min);
+    final right = points.map((p) => p.x).reduce(math.max);
+    final top = points.map((p) => p.y).reduce(math.min);
+    final bottom = points.map((p) => p.y).reduce(math.max);
     final width = math.max(1.0, right - left);
     final height = math.max(1.0, bottom - top);
 
@@ -64,8 +69,8 @@ class FaceShapeAnalysisService {
       final tolerance = height * .055;
       final near = points.where((p) => (p.y - targetY).abs() <= tolerance).toList();
       if (near.length < 2) return width * .5;
-      final minX = near.map((p) => p.x.toDouble()).reduce(math.min);
-      final maxX = near.map((p) => p.x.toDouble()).reduce(math.max);
+      final minX = near.map((p) => p.x).reduce(math.min);
+      final maxX = near.map((p) => p.x).reduce(math.max);
       return math.max(1.0, maxX - minX);
     }
 
@@ -108,11 +113,6 @@ class FaceShapeAnalysisService {
     );
   }
 
-  /// Classifies by the published seven-profile ratio model:
-  /// length/cheekbone, forehead/cheekbone, and jaw/cheekbone.
-  ///
-  /// A nearest-profile model is used instead of brittle independent cutoffs,
-  /// because real faces frequently sit between named categories.
   static String _classify({
     required double faceRatio,
     required double foreheadToCheek,
@@ -129,15 +129,18 @@ class FaceShapeAnalysisService {
       'Triangle': [1.16, .78, 1.02],
     };
 
-    final input = [faceRatio, foreheadToCheek, jawToCheek];
-    final distances = profiles.map((name, target) {
+    final input = <double>[faceRatio, foreheadToCheek, jawToCheek];
+    final distances = <String, double>{};
+
+    for (final entry in profiles.entries) {
+      final name = entry.key;
+      final target = entry.value;
       var sum = 0.0;
       for (var i = 0; i < input.length; i++) {
         final normalized = (input[i] - target[i]) / _scale[i];
         sum += normalized * normalized;
       }
 
-      // Chin taper helps separate heart/diamond/oval from broad-jaw shapes.
       if (name == 'Heart') {
         sum += math.pow((chinToJaw - .55) / .25, 2).toDouble() * .10;
       } else if (name == 'Diamond') {
@@ -145,11 +148,19 @@ class FaceShapeAnalysisService {
       } else if (name == 'Triangle') {
         sum += math.pow((chinToJaw - .82) / .25, 2).toDouble() * .08;
       }
-      return MapEntry(name, sum);
-    });
 
-    distances.sort((a, b) => a.value.compareTo(b.value));
-    return distances.first.key;
+      distances[name] = sum;
+    }
+
+    String bestName = 'Oval';
+    var bestDistance = double.infinity;
+    distances.forEach((name, distance) {
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestName = name;
+      }
+    });
+    return bestName;
   }
 
   static const _scale = <double>[.20, .14, .16];
