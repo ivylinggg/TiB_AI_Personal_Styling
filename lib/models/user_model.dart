@@ -12,6 +12,7 @@ class UserModel {
   final String? gender;
   final String? ageRange;
   final String? ethnicity;
+  final String? occupation;
   final List<String> preferredBrands;
   final bool onboardingComplete;
   final UserRole role;
@@ -30,6 +31,7 @@ class UserModel {
     this.gender,
     this.ageRange,
     this.ethnicity,
+    this.occupation,
     this.preferredBrands = const [],
     this.onboardingComplete = false,
     this.role = UserRole.customer,
@@ -53,6 +55,7 @@ class UserModel {
       gender: data['gender'] as String?,
       ageRange: data['ageRange'] as String?,
       ethnicity: data['ethnicity'] as String?,
+      occupation: data['occupation'] as String?,
       preferredBrands: brands is List
           ? brands.map((item) => item.toString()).toList()
           : const [],
@@ -75,6 +78,7 @@ class UserModel {
       'gender': gender,
       'ageRange': ageRange,
       'ethnicity': ethnicity,
+      'occupation': occupation,
       'preferredBrands': preferredBrands,
       'onboardingComplete': onboardingComplete,
       'role': role.value,
@@ -98,6 +102,7 @@ class UserModel {
     String? gender,
     String? ageRange,
     String? ethnicity,
+    String? occupation,
     List<String>? preferredBrands,
     bool? onboardingComplete,
     UserRole? role,
@@ -116,6 +121,7 @@ class UserModel {
       gender: gender ?? this.gender,
       ageRange: ageRange ?? this.ageRange,
       ethnicity: ethnicity ?? this.ethnicity,
+      occupation: occupation ?? this.occupation,
       preferredBrands: preferredBrands ?? this.preferredBrands,
       onboardingComplete: onboardingComplete ?? this.onboardingComplete,
       role: role ?? this.role,
@@ -127,14 +133,8 @@ class UserModel {
   }
 
   static DateTime? _dateTimeFromTimestamp(dynamic value) {
-    if (value is Timestamp) {
-      return value.toDate();
-    }
-
-    if (value is DateTime) {
-      return value;
-    }
-
+    if (value is Timestamp) return value.toDate();
+    if (value is DateTime) return value;
     return null;
   }
 }
