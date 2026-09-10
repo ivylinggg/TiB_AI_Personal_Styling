@@ -174,9 +174,9 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
             const AnalysisManagementScreen(),
             const ContentForumHubScreen(),
             const PremiumManagementScreen(),
-            const AdminProfileScreen(),
             const ConsultationManagementScreen(),
             const StaffManagementScreen(),
+            const AdminProfileScreen(),
           ],
         AdminMode.consultantPreview => [
             const ConsultationManagementScreen(),
@@ -197,9 +197,9 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
             NavigationDestination(icon: Icon(Icons.analytics_outlined), selectedIcon: Icon(Icons.analytics), label: 'Analysis'),
             NavigationDestination(icon: Icon(Icons.forum_outlined), selectedIcon: Icon(Icons.forum_rounded), label: 'Forum'),
             NavigationDestination(icon: Icon(Icons.workspace_premium_outlined), selectedIcon: Icon(Icons.workspace_premium), label: 'Premium'),
-            NavigationDestination(icon: Icon(Icons.admin_panel_settings_outlined), selectedIcon: Icon(Icons.admin_panel_settings), label: 'Admin'),
             NavigationDestination(icon: Icon(Icons.support_agent_outlined), selectedIcon: Icon(Icons.support_agent), label: 'Consult'),
             NavigationDestination(icon: Icon(Icons.badge_outlined), selectedIcon: Icon(Icons.badge_rounded), label: 'Staff'),
+            NavigationDestination(icon: Icon(Icons.admin_panel_settings_outlined), selectedIcon: Icon(Icons.admin_panel_settings), label: 'Admin'),
           ],
         AdminMode.consultantPreview => const [
             NavigationDestination(icon: Icon(Icons.support_agent_outlined), selectedIcon: Icon(Icons.support_agent), label: 'Live Consultancy'),
@@ -325,10 +325,71 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
         ],
       ),
       body: IndexedStack(index: safeIndex, children: pages),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: safeIndex,
-        onDestinationSelected: _navigateTo,
-        destinations: destinations,
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Container(
+          height: 78,
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            border: Border(top: BorderSide(color: Theme.of(context).colorScheme.outlineVariant)),
+          ),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            child: Row(
+              children: List.generate(destinations.length, (index) {
+                final destination = destinations[index];
+                final selected = safeIndex == index;
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 3),
+                  child: _AdminNavItem(
+                    icon: selected ? destination.selectedIcon : destination.icon,
+                    label: destination.label,
+                    selected: selected,
+                    onTap: () => _navigateTo(index),
+                  ),
+                );
+              }),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AdminNavItem extends StatelessWidget {
+  final Widget icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _AdminNavItem({required this.icon, required this.label, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: label,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          constraints: const BoxConstraints(minWidth: 72),
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+          decoration: BoxDecoration(color: selected ? scheme.secondaryContainer : Colors.transparent, borderRadius: BorderRadius.circular(18)),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(height: 25, child: IconTheme(data: const IconThemeData(size: 23), child: icon)),
+              const SizedBox(height: 3),
+              Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, fontWeight: selected ? FontWeight.w800 : FontWeight.w500, color: selected ? scheme.onSecondaryContainer : scheme.onSurfaceVariant)),
+            ],
+          ),
+        ),
       ),
     );
   }
