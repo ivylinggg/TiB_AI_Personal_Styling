@@ -16,6 +16,7 @@ class StorageService {
 
   static final GoogleDriveService _driveService = GoogleDriveService();
   static Future<void>? _backgroundModel;
+  static const _ioTimeout = Duration(seconds: 15);
 
   static Future<void> _ensureBackgroundModel() {
     return _backgroundModel ??= BackgroundRemover.instance.initializeOrt();
@@ -25,6 +26,8 @@ class StorageService {
     required String uid,
     required File image,
   }) async {
+    _validateUid(uid);
+    await _ensureReadableImage(image);
     final fileName = 'analysis_${uid}_${DateTime.now().millisecondsSinceEpoch}.jpg';
     final result = await _driveService.uploadAnalysisImage(
       imageFile: image,
@@ -40,6 +43,8 @@ class StorageService {
     required String uid,
     required File image,
   }) async {
+    _validateUid(uid);
+    await _ensureReadableImage(image);
     final processed = await _prepareWardrobeImage(image);
     final fileName = 'wardrobe_${uid}_${DateTime.now().millisecondsSinceEpoch}.png';
 
@@ -55,7 +60,7 @@ class StorageService {
     } finally {
       if (processed.path != image.path) {
         try {
-          await processed.delete();
+          await processed.delete().timeout(_ioTimeout);
         } catch (_) {}
       }
     }
@@ -63,22 +68,22 @@ class StorageService {
 
   static Future<File> _prepareWardrobeImage(File original) async {
     try {
-      await _ensureBackgroundModel();
-      final bytes = await original.readAsBytes();
+      await _ensureBackgroundModel().timeout(_ioTimeout);
+      final bytes = await original.readAsBytes().timeout(_ioTimeout);
       final cutout = await BackgroundRemover.instance.removeBgBytes(
         bytes,
         threshold: 0.50,
         smoothMask: true,
         enhanceEdges: true,
-      );
+      ).timeout(_ioTimeout);
       final white = await BackgroundRemover.instance.addBackground(
         image: cutout,
         bgColor: Colors.white,
-      );
+      ).timeout(_ioTimeout);
 
       final tempDir = await Directory.systemTemp.createTemp('tib_wardrobe_');
       final output = File('${tempDir.path}/wardrobe_clean.png');
-      await output.writeAsBytes(white, flush: true);
+      await output.writeAsBytes(white, flush: true).timeout(_ioTimeout);
       return output;
     } catch (_) {
       return original;
@@ -89,6 +94,8 @@ class StorageService {
     required String uid,
     required File image,
   }) async {
+    _validateUid(uid);
+    await _ensureReadableImage(image);
     final fileName = 'profile_${uid}_${DateTime.now().millisecondsSinceEpoch}.jpg';
     final result = await _driveService.uploadProfileImage(
       imageFile: image,
@@ -108,6 +115,23 @@ class StorageService {
     final fileId = _driveFileIdFromUrl(imageUrl);
     if (fileId == null) return;
     await _driveService.deleteFile(fileId: fileId);
+  }
+
+  static Future<void> _ensureReadableImage(File image) async {
+    final exists = await image.exists().timeout(_ioTimeout);
+    if (!exists) {
+      throw ArgumentError('The selected image could not be found.');
+    }
+    final length = await image.length().timeout(_ioTimeout);
+    if (length <= 0) {
+      throw ArgumentError('The selected image is empty.');
+    }
+  }
+
+  static void _validateUid(String uid) {
+    if (uid.trim().isEmpty) {
+      throw ArgumentError('A valid user ID is required for image storage.');
+    }
   }
 
   static String? _driveFileIdFromUrl(String? url) {
