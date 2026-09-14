@@ -51,6 +51,13 @@ class NotificationService {
   static CollectionReference<Map<String, dynamic>> _notifications(String uid) =>
       _db.collection('users').doc(uid).collection('notifications');
 
+  static String? _normalizeUid(String uid) {
+    final requested = uid.trim();
+    final current = FirebaseAuth.instance.currentUser?.uid.trim();
+    if (requested.isEmpty || current == null || current.isEmpty) return null;
+    return requested == current ? current : null;
+  }
+
   static Future<void> initializePushNotifications() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null || _initializedUid == user.uid) return;
@@ -80,8 +87,6 @@ class NotificationService {
         unawaited(_storeDeviceToken(user.uid, token));
       });
 
-      // Foreground messages are handled by the OS/UI layer. Do not mirror
-      // them into Firestore, otherwise the in-app feed duplicates push events.
       _foregroundSubscription = FirebaseMessaging.onMessage.listen((_) {});
       _initializedUid = user.uid;
     } catch (_) {
@@ -109,9 +114,13 @@ class NotificationService {
   }
 
   static Future<void> _storeDeviceToken(String uid, String token) async {
+    final ownerUid = _normalizeUid(uid);
+    final cleanToken = token.trim();
+    if (ownerUid == null || cleanToken.isEmpty) return;
+
     try {
-      await _db.collection('users').doc(uid).set({
-        'fcmTokens': FieldValue.arrayUnion([token]),
+      await _db.collection('users').doc(ownerUid).set({
+        'fcmTokens': FieldValue.arrayUnion([cleanToken]),
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
     } catch (_) {
@@ -120,8 +129,9 @@ class NotificationService {
   }
 
   static Stream<List<VyeaNotification>> stream(String uid) {
-    if (uid.trim().isEmpty) return const Stream.empty();
-    return _notifications(uid).limit(50).snapshots().map((snapshot) {
+    final ownerUid = _normalizeUid(uid);
+    if (ownerUid == null) return const Stream.empty();
+    return _notifications(ownerUid).limit(50).snapshots().map((snapshot) {
       final items = snapshot.docs.map(VyeaNotification.fromDocument).toList();
       items.sort((a, b) {
         final aDate = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
@@ -133,8 +143,9 @@ class NotificationService {
   }
 
   static Stream<int> unreadCountStream(String uid) {
-    if (uid.trim().isEmpty) return Stream.value(0);
-    return _notifications(uid)
+    final ownerUid = _normalizeUid(uid);
+    if (ownerUid == null) return Stream.value(0);
+    return _notifications(ownerUid)
         .where('read', isEqualTo: false)
         .limit(50)
         .snapshots()
@@ -142,14 +153,15 @@ class NotificationService {
   }
 
   static Future<void> ensureWelcomeNotification(String uid) async {
-    if (uid.trim().isEmpty || _welcomeChecks.contains(uid)) return;
-    _welcomeChecks.add(uid);
+    final ownerUid = _normalizeUid(uid);
+    if (ownerUid == null || _welcomeChecks.contains(ownerUid)) return;
+    _welcomeChecks.add(ownerUid);
 
     try {
-      final existing = await _notifications(uid).limit(1).get();
+      final existing = await _notifications(ownerUid).limit(1).get();
       if (existing.docs.isNotEmpty) return;
 
-      await _notifications(uid).add({
+      await _notifications(ownerUid).add({
         'title': 'Welcome to VYEA',
         'body': 'Your personal styling space is ready. Explore your wardrobe and discover a look that feels like you.',
         'type': 'system',
@@ -157,21 +169,24 @@ class NotificationService {
         'createdAt': FieldValue.serverTimestamp(),
       });
     } catch (_) {
-      _welcomeChecks.remove(uid);
+      _welcomeChecks.remove(ownerUid);
     }
   }
 
   static Future<void> markRead(String uid, String notificationId) async {
-    if (uid.trim().isEmpty || notificationId.trim().isEmpty) return;
+    final ownerUid = _normalizeUid(uid);
+    final cleanId = notificationId.trim();
+    if (ownerUid == null || cleanId.isEmpty) return;
     try {
-      await _notifications(uid).doc(notificationId).update({'read': true});
+      await _notifications(ownerUid).doc(cleanId).update({'read': true});
     } catch (_) {}
   }
 
   static Future<void> markAllRead(String uid) async {
-    if (uid.trim().isEmpty) return;
+    final ownerUid = _normalizeUid(uid);
+    if (ownerUid == null) return;
     try {
-      final snapshot = await _notifications(uid)
+      final snapshot = await _notifications(ownerUid)
           .where('read', isEqualTo: false)
           .limit(50)
           .get();
