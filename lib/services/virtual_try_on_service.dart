@@ -20,12 +20,17 @@ class VirtualTryOnResult {
 class VirtualTryOnService {
   const VirtualTryOnService._();
 
+  static const Duration _requestTimeout = Duration(seconds: 90);
+  static const int _maxWardrobeItems = 5;
+  static const int _maxModelImageBytes = 12 * 1024 * 1024;
+
   static Future<VirtualTryOnResult?> generate({
     required File modelPhoto,
     required List<WardrobeItem> items,
     String? occasion,
   }) async {
-    if (!modelPhoto.existsSync() || items.isEmpty) return null;
+    if (!await modelPhoto.exists()) return null;
+    if (items.isEmpty) return null;
 
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return null;
@@ -33,23 +38,28 @@ class VirtualTryOnService {
     final idToken = await user.getIdToken();
     if (idToken == null || idToken.isEmpty) return null;
 
+    final fileLength = await modelPhoto.length();
+    if (fileLength <= 0 || fileLength > _maxModelImageBytes) return null;
+
     final modelBytes = await modelPhoto.readAsBytes();
+    if (modelBytes.isEmpty || modelBytes.length > _maxModelImageBytes) return null;
     final modelMimeType = _mimeType(modelPhoto.path);
 
     final wardrobeItems = items
         .where((item) => item.imageUrl.trim().isNotEmpty)
-        .take(5)
+        .where((item) => item.id.trim().isNotEmpty)
+        .take(_maxWardrobeItems)
         .map(
           (item) => {
-            'id': item.id,
-            'imageUrl': item.imageUrl,
-            'name': item.name,
-            'category': item.category,
-            'colour': item.colour,
-            'style': item.style,
+            'id': item.id.trim(),
+            'imageUrl': item.imageUrl.trim(),
+            'name': item.name.trim(),
+            'category': item.category.trim(),
+            'colour': item.colour.trim(),
+            'style': item.style.trim(),
           },
         )
-        .toList();
+        .toList(growable: false);
 
     if (wardrobeItems.isEmpty) return null;
 
@@ -57,7 +67,9 @@ class VirtualTryOnService {
       'action': 'virtualTryOn',
       'uid': user.uid,
       'idToken': idToken,
-      'occasion': occasion ?? 'Everyday',
+      'occasion': (occasion ?? 'Everyday').trim().isEmpty
+          ? 'Everyday'
+          : occasion!.trim(),
       'modelImage': {
         'mimeType': modelMimeType,
         'data': base64Encode(modelBytes),
@@ -74,22 +86,36 @@ class VirtualTryOnService {
             },
             body: jsonEncode(payload),
           )
-          .timeout(const Duration(seconds: 90));
+          .timeout(_requestTimeout);
 
       if (response.statusCode < 200 || response.statusCode >= 300) {
         return null;
       }
 
       final decoded = jsonDecode(response.body);
-      if (decoded is! Map<String, dynamic>) return null;
-      if (decoded['success'] != true) return null;
+      if (decoded is! Map) return null;
 
-      final imageUrl = decoded['imageUrl'] as String?;
+      final root = Map<String, dynamic>.from(decoded);
+      final rawPayload = root['result'];
+      final data = rawPayload is Map
+          ? Map<String, dynamic>.from(rawPayload)
+          : root;
+
+      final success = data['success'];
+      if (success != true) return null;
+
+      final imageUrl = data['imageUrl']?.toString().trim();
       if (imageUrl == null || imageUrl.isEmpty) return null;
 
+      final parsedUri = Uri.tryParse(imageUrl);
+      if (parsedUri == null || !parsedUri.hasScheme) return null;
+
+      final provider = data['provider']?.toString().trim();
       return VirtualTryOnResult(
         imageUrl: imageUrl,
-        provider: decoded['provider'] as String? ?? 'gemini-3.1-flash-image',
+        provider: provider == null || provider.isEmpty
+            ? 'gemini-3.1-flash-image'
+            : provider,
       );
     } catch (_) {
       return null;
