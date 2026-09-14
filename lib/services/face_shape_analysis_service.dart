@@ -31,6 +31,13 @@ class FaceShapeAnalysisService {
     required File image,
     required List<Face> faces,
   }) async {
+    // The file parameter is intentionally retained for API compatibility.
+    // Face geometry is derived from ML Kit's detected contour rather than
+    // assuming image dimensions or camera orientation.
+    if (!await image.exists()) {
+      throw const FormatException('The selected photo is no longer available. Please choose another photo.');
+    }
+
     if (faces.length != 1) {
       throw const FormatException(
         'Please use a clear photo with one front-facing face.',
@@ -46,12 +53,6 @@ class FaceShapeAnalysisService {
     }
 
     final points = contour.points;
-    if (points.length < 24) {
-      throw const FormatException(
-        'Face outline could not be measured reliably. Please use a front-facing photo with your full face visible.',
-      );
-    }
-
     var minX = double.infinity;
     var maxX = double.negativeInfinity;
     var minY = double.infinity;
@@ -66,28 +67,30 @@ class FaceShapeAnalysisService {
       maxY = math.max(maxY, y).toDouble();
     }
 
-    final width = math.max(1.0, maxX - minX).toDouble();
-    final height = math.max(1.0, maxY - minY).toDouble();
+    final width = maxX - minX;
+    final height = maxY - minY;
+    if (!width.isFinite || !height.isFinite || width <= 1 || height <= 1) {
+      throw const FormatException('Face outline could not be measured reliably. Please use a clearer front-facing photo.');
+    }
 
     double widthAt(double relativeY) {
       final targetY = minY + height * relativeY;
-      final tolerance = height * .055;
-
-      var hasNearPoint = false;
+      final tolerance = height * .045;
       var nearMinX = double.infinity;
       var nearMaxX = double.negativeInfinity;
+      var count = 0;
 
       for (final point in points) {
         final x = point.x.toDouble();
         final y = point.y.toDouble();
         if ((y - targetY).abs() <= tolerance) {
-          hasNearPoint = true;
           nearMinX = math.min(nearMinX, x).toDouble();
           nearMaxX = math.max(nearMaxX, x).toDouble();
+          count++;
         }
       }
 
-      if (!hasNearPoint) return width * .5;
+      if (count < 2) return double.nan;
       return math.max(1.0, nearMaxX - nearMinX).toDouble();
     }
 
@@ -96,12 +99,22 @@ class FaceShapeAnalysisService {
     final jawWidth = widthAt(.72);
     final chinWidth = widthAt(.86);
 
-    final faceRatio = height / math.max(1.0, cheekboneWidth).toDouble();
-    final foreheadToCheek =
-        foreheadWidth / math.max(1.0, cheekboneWidth).toDouble();
-    final jawToCheek =
-        jawWidth / math.max(1.0, cheekboneWidth).toDouble();
-    final chinToJaw = chinWidth / math.max(1.0, jawWidth).toDouble();
+    final sampledWidths = [foreheadWidth, cheekboneWidth, jawWidth, chinWidth];
+    final validWidthSamples = sampledWidths.where((value) => value.isFinite && value > 1).length;
+    if (validWidthSamples < 3 || !cheekboneWidth.isFinite || cheekboneWidth <= 1) {
+      throw const FormatException(
+        'Face outline could not be measured reliably. Please use a front-facing photo with your full face visible.',
+      );
+    }
+
+    final safeForehead = foreheadWidth.isFinite ? foreheadWidth : cheekboneWidth;
+    final safeJaw = jawWidth.isFinite ? jawWidth : cheekboneWidth;
+    final safeChin = chinWidth.isFinite ? chinWidth : safeJaw * .75;
+
+    final faceRatio = height / cheekboneWidth;
+    final foreheadToCheek = safeForehead / cheekboneWidth;
+    final jawToCheek = safeJaw / cheekboneWidth;
+    final chinToJaw = safeChin / safeJaw;
 
     final shape = _classify(
       faceRatio: faceRatio,
@@ -115,6 +128,9 @@ class FaceShapeAnalysisService {
       faceRatio: faceRatio,
       foreheadToCheek: foreheadToCheek,
       jawToCheek: jawToCheek,
+      chinToJaw: chinToJaw,
+      validSamples: validWidthSamples,
+      pointCount: points.length,
     );
 
     return FaceShapeAnalysis(
@@ -184,6 +200,9 @@ class FaceShapeAnalysisService {
     required double faceRatio,
     required double foreheadToCheek,
     required double jawToCheek,
+    required double chinToJaw,
+    required int validSamples,
+    required int pointCount,
   }) {
     const profiles = <String, List<double>>{
       'Oval': [1.38, .92, .82],
@@ -200,69 +219,36 @@ class FaceShapeAnalysisService {
       (faceRatio - target[0]).abs() / _scale[0],
       (foreheadToCheek - target[1]).abs() / _scale[1],
       (jawToCheek - target[2]).abs() / _scale[2],
+      (chinToJaw - .82).abs() / .25,
     ];
-
     final meanError = errors.reduce((a, b) => a + b) / errors.length;
-    return (100 * (1 - (meanError / 2).clamp(0.0, 1.0)))
-        .clamp(0.0, 100.0)
-        .toDouble();
+    final geometryScore = 1 - (meanError / 2).clamp(0.0, 1.0);
+    final sampleScore = validSamples / 4.0;
+    final contourScore = (pointCount / 36.0).clamp(0.0, 1.0);
+    final confidence = (35 + geometryScore * 50 + sampleScore * 10 + contourScore * 5).clamp(0.0, 100.0);
+    return confidence.toDouble();
   }
 
   static double _round(double value) =>
       double.parse(value.toStringAsFixed(3));
 
   static const _description = <String, String>{
-    'Oval':
-        'Balanced facial proportions with cheekbones slightly wider than the forehead and jaw, creating a gentle taper.',
-    'Round':
-        'Face length and width are relatively close, with a soft jaw and rounded overall contour.',
-    'Square':
-        'Forehead, cheekbones and jaw are broadly similar in width, with a stronger lower-face structure.',
-    'Heart':
-        'The upper face is broader and the face tapers noticeably toward a narrower chin.',
-    'Diamond':
-        'Cheekbones are the dominant width while both forehead and jaw are relatively narrower.',
-    'Oblong':
-        'The face is noticeably longer, with relatively consistent width through the forehead, cheeks and jaw.',
-    'Triangle':
-        'The lower face and jaw are relatively broad compared with the forehead, creating a stronger lower silhouette.',
+    'Oval': 'Balanced facial proportions with cheekbones slightly wider than the forehead and jaw, creating a gentle taper.',
+    'Round': 'Face length and width are relatively close, with a soft jaw and rounded overall contour.',
+    'Square': 'Forehead, cheekbones and jaw are broadly similar in width, with a stronger lower-face structure.',
+    'Heart': 'The upper face is broader and the face tapers noticeably toward a narrower chin.',
+    'Diamond': 'Cheekbones are the dominant width while both forehead and jaw are relatively narrower.',
+    'Oblong': 'The face is noticeably longer, with relatively consistent width through the forehead, cheeks and jaw.',
+    'Triangle': 'The lower face and jaw are relatively broad compared with the forehead, creating a stronger lower silhouette.',
   };
 
   static const _guidance = <String, List<String>>{
-    'Oval': [
-      'Balanced necklines work well',
-      'Try medium hoops and soft geometric earrings',
-      'Most hairstyle proportions can work',
-    ],
-    'Round': [
-      'V-necks and longer open lines add visual length',
-      'Try elongated earrings',
-      'Soft layers can create vertical movement',
-    ],
-    'Square': [
-      'Open necklines can soften the stronger jaw visually',
-      'Try rounded or drop earrings',
-      'Soft waves can balance stronger angles',
-    ],
-    'Heart': [
-      'Scoop and balanced V-necks work well',
-      'Try medium drop or oval earrings',
-      'Keep visual weight balanced around the jaw',
-    ],
-    'Diamond': [
-      'Open necklines can complement prominent cheekbones',
-      'Try curved or oval earrings',
-      'Soft fullness around the jaw can balance the face',
-    ],
-    'Oblong': [
-      'Crew, boat and wider necklines can add visual width',
-      'Try shorter or wider earrings',
-      'Soft horizontal volume can balance facial length',
-    ],
-    'Triangle': [
-      'Wider or softly structured necklines can balance a stronger jaw',
-      'Try earrings with some upper-face visual weight',
-      'Keep hairstyle volume toward the temples and crown',
-    ],
+    'Oval': ['Balanced necklines work well', 'Try medium hoops and soft geometric earrings', 'Most hairstyle proportions can work'],
+    'Round': ['V-necks and longer open lines add visual length', 'Try elongated earrings', 'Soft layers can create vertical movement'],
+    'Square': ['Open necklines can soften the stronger jaw visually', 'Try rounded or drop earrings', 'Soft waves can balance stronger angles'],
+    'Heart': ['Scoop and balanced V-necks work well', 'Try medium drop or oval earrings', 'Keep visual weight balanced around the jaw'],
+    'Diamond': ['Open necklines can complement prominent cheekbones', 'Try curved or oval earrings', 'Soft fullness around the jaw can balance the face'],
+    'Oblong': ['Crew, boat and wider necklines can add visual width', 'Try shorter or wider earrings', 'Soft horizontal volume can balance facial length'],
+    'Triangle': ['Wider or softly structured necklines can balance a stronger jaw', 'Try earrings with some upper-face visual weight', 'Keep hairstyle volume toward the temples and crown'],
   };
 }
