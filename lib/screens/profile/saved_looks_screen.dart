@@ -221,7 +221,7 @@ class _SavedLooksScreenState extends State<SavedLooksScreen>
     final score = (look['matchScore'] as num?)?.toInt() ?? 0;
     final width = MediaQuery.sizeOf(context).width;
     final compact = width < 560;
-    final detailColumns = compact ? 2 : (pieces.length.clamp(1, 4) as int);
+    final detailColumns = compact ? 2 : pieces.length.clamp(1, 4);
 
     showModalBottomSheet<void>(
       context: context,
@@ -550,19 +550,20 @@ class _SavedLooksScreenState extends State<SavedLooksScreen>
   }
 
   Widget _imageLoading() {
-    return const Center(
-      child: SizedBox(
-        width: 22,
-        height: 22,
-        child: CircularProgressIndicator(strokeWidth: 2),
+    return Container(
+      color: AppColors.surfaceMuted,
+      child: const Center(
+        child: SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
       ),
     );
   }
 
   Widget _imageFallback() {
     return Container(
-      width: double.infinity,
-      height: double.infinity,
       color: AppColors.surfaceMuted,
       child: const Center(
         child: Icon(
@@ -706,27 +707,18 @@ class _SavedLooksScreenState extends State<SavedLooksScreen>
                       else
                         SliverPadding(
                           padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
-                          sliver: SliverLayoutBuilder(
-                            builder: (context, constraints) {
-                              final columns = constraints.crossAxisExtent >= 1100
-                                  ? 3
-                                  : constraints.crossAxisExtent >= 680
-                                      ? 2
-                                      : 1;
-                              return SliverGrid(
-                                delegate: SliverChildBuilderDelegate(
-                                  (_, index) => _lookCard(visibleLooks[index]),
-                                  childCount: visibleLooks.length,
-                                ),
-                                gridDelegate:
-                                    SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: columns,
-                                  crossAxisSpacing: 12,
-                                  mainAxisSpacing: 12,
-                                  mainAxisExtent: columns == 1 ? 257 : 270,
-                                ),
-                              );
-                            },
+                          sliver: SliverGrid(
+                            delegate: SliverChildBuilderDelegate(
+                              (_, index) => _lookCard(visibleLooks[index]),
+                              childCount: visibleLooks.length,
+                            ),
+                            gridDelegate:
+                                const SliverGridDelegateWithMaxCrossAxisExtent(
+                              maxCrossAxisExtent: 460,
+                              mainAxisSpacing: 12,
+                              crossAxisSpacing: 12,
+                              mainAxisExtent: 248,
+                            ),
                           ),
                         ),
                     ],
@@ -1025,14 +1017,11 @@ class _SavedLooksScreenState extends State<SavedLooksScreen>
                     _matchPill(score),
                     const SizedBox(width: 8),
                     if (date != null)
-                      Flexible(
-                        child: Text(
-                          _formatDate(date),
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: AppColors.textMuted,
-                            fontSize: 10.5,
-                          ),
+                      Text(
+                        _formatDate(date),
+                        style: const TextStyle(
+                          color: AppColors.textMuted,
+                          fontSize: 10.5,
                         ),
                       ),
                     const Spacer(),
@@ -1072,7 +1061,8 @@ class _SavedLooksScreenState extends State<SavedLooksScreen>
                         itemCount: pieces.length,
                         separatorBuilder: (_, __) => const SizedBox(width: 9),
                         itemBuilder: (_, index) {
-                          final url = pieces[index]['imageUrl'] as String? ?? '';
+                          final url =
+                              pieces[index]['imageUrl'] as String? ?? '';
                           return ClipRRect(
                             borderRadius: BorderRadius.circular(18),
                             child: SizedBox(
@@ -1083,7 +1073,8 @@ class _SavedLooksScreenState extends State<SavedLooksScreen>
                                       imageUrl: url,
                                       fit: BoxFit.cover,
                                       placeholder: (_, __) => _imageLoading(),
-                                      errorWidget: (_, __, ___) => _imageFallback(),
+                                      errorWidget: (_, __, ___) =>
+                                          _imageFallback(),
                                     ),
                             ),
                           );
