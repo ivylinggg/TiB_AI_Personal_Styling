@@ -183,6 +183,7 @@ class AiStylingService {
 
   static Set<String> _effectiveExcludedLookKeys(String uid, Set<String> explicit) {
     final recent = _recentLookKeysByUid[uid];
+    if (recent == null) return {...explicit};
     if (recent.isEmpty) return {...explicit};
     return {...explicit, ...recent};
   }
