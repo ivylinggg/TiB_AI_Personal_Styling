@@ -65,6 +65,7 @@ class AiStylingService {
   AiStylingService._();
 
   static const Duration _requestTimeout = Duration(seconds: 12);
+  static const int _recentLookLimit = 12;
   static const Set<String> _knownCategories = {
     'Tops',
     'Bottoms',
@@ -76,9 +77,9 @@ class AiStylingService {
     'Accessories',
   };
 
-  // Keep recent outfit combinations out of the next recommendation so the
-  // stylist explores the user's wardrobe instead of repeating one look.
-  static final Map<String, Set<String>> _recentLookKeysByUid = <String, Set<String>>{};
+  // Recent recommendations are kept per account and bounded so repeated
+  // sessions do not grow memory without limit.
+  static final Map<String, List<String>> _recentLookKeysByUid = <String, List<String>>{};
 
   static String _normaliseColour(String raw) {
     final value = raw.trim().toLowerCase();
@@ -166,16 +167,27 @@ class AiStylingService {
     return ids.isEmpty ? null : ids.join('|');
   }
 
-  static Set<String> _effectiveExcludedLookKeys(String uid, Set<String> explicit) {
-    final recent = _recentLookKeysByUid[uid];
-    if (recent == null || recent.isEmpty) return {...explicit};
-    return {...explicit, ...recent};
-  }
+  static Set<String> _effectiveExcludedLookKeys(String uid, Set<String> explicit) => {
+        ...explicit,
+        ...?_recentLookKeysByUid[uid],
+      };
 
   static void _rememberLook(String uid, List<WardrobeItem> look) {
     final key = _lookKey(look);
     if (key == null) return;
-    (_recentLookKeysByUid[uid] ??= <String>{}).add(key);
+    final recent = _recentLookKeysByUid[uid] ?? <String>[];
+    recent.remove(key);
+    recent.add(key);
+    if (recent.length > _recentLookLimit) {
+      recent.removeRange(0, recent.length - _recentLookLimit);
+    }
+    _recentLookKeysByUid[uid] = recent;
+  }
+
+  static void clearRecentLooks(String uid) {
+    final cleanUid = uid.trim();
+    if (cleanUid.isEmpty) return;
+    _recentLookKeysByUid.remove(cleanUid);
   }
 
   static List<WardrobeItem> _uniqueOwned(List<WardrobeItem> wardrobe, String uid) {
@@ -512,8 +524,8 @@ class AiStylingService {
       combinationBias: combinationBias,
     );
 
-    // If every valid combination has already been shown, restart the local
-    // rotation rather than failing. Explicit exclusions are still respected.
+    // If every valid combination has already been shown, restart the recent
+    // rotation while preserving explicit exclusions supplied by the caller.
     if (guaranteedFallback.isEmpty && effectiveExcludedLookKeys.length > excludedLookKeys.length) {
       effectiveExcludedLookKeys = {...excludedLookKeys};
       guaranteedFallback = sanitizeLook(
@@ -530,9 +542,8 @@ class AiStylingService {
     }
 
     if (guaranteedFallback.isNotEmpty) {
-      // Local wardrobe recommendation is deterministic and safe. We do not
-      // block the user's primary outfit action on a remote AI dependency.
-      // The remote service remains available to enrich the copy below.
+      // The local recommendation is deterministic and safe. Remote AI only
+      // enriches the explanation; it is never a hard dependency for an outfit.
       try {
         final token = await FirebaseAuth.instance.currentUser?.getIdToken();
         final response = await http
@@ -603,7 +614,8 @@ class AiStylingService {
           }
         }
       } catch (_) {
-        // Deterministic local recommendation below remains the source of truth.
+        // Continue with the local recommendation when the remote service is
+        // unavailable, times out, or returns malformed content.
       }
 
       final result = _resultFromLook(
