@@ -43,6 +43,9 @@ class NotificationService {
   static final FirebaseFirestore _db = FirebaseFirestore.instance;
   static final FirebaseMessaging _messaging = FirebaseMessaging.instance;
 
+  static const Duration _readTimeout = Duration(seconds: 15);
+  static const Duration _writeTimeout = Duration(seconds: 15);
+
   static StreamSubscription<String>? _tokenSubscription;
   static StreamSubscription<RemoteMessage>? _foregroundSubscription;
   static String? _initializedUid;
@@ -50,6 +53,27 @@ class NotificationService {
 
   static CollectionReference<Map<String, dynamic>> _notifications(String uid) =>
       _db.collection('users').doc(uid).collection('notifications');
+
+  static String? _normalizeUid(String uid) {
+    final requested = uid.trim();
+    final current = FirebaseAuth.instance.currentUser?.uid.trim();
+    if (requested.isEmpty || current == null || current.isEmpty) return null;
+    return requested == current ? current : null;
+  }
+
+  static Future<T> _withReadTimeout<T>(Future<T> future, String message) {
+    return future.timeout(
+      _readTimeout,
+      onTimeout: () => throw TimeoutException(message),
+    );
+  }
+
+  static Future<T> _withWriteTimeout<T>(Future<T> future, String message) {
+    return future.timeout(
+      _writeTimeout,
+      onTimeout: () => throw TimeoutException(message),
+    );
+  }
 
   static Future<void> initializePushNotifications() async {
     final user = FirebaseAuth.instance.currentUser;
@@ -64,7 +88,7 @@ class NotificationService {
         badge: true,
         sound: true,
         provisional: false,
-      );
+      ).timeout(const Duration(seconds: 10));
 
       if (settings.authorizationStatus == AuthorizationStatus.denied) {
         _initializedUid = user.uid;
@@ -80,8 +104,6 @@ class NotificationService {
         unawaited(_storeDeviceToken(user.uid, token));
       });
 
-      // Foreground messages are handled by the OS/UI layer. Do not mirror
-      // them into Firestore, otherwise the in-app feed duplicates push events.
       _foregroundSubscription = FirebaseMessaging.onMessage.listen((_) {});
       _initializedUid = user.uid;
     } catch (_) {
@@ -99,7 +121,7 @@ class NotificationService {
 
   static Future<void> _syncToken(String uid) async {
     try {
-      final token = await _messaging.getToken();
+      final token = await _messaging.getToken().timeout(const Duration(seconds: 10));
       if (token != null && token.trim().isNotEmpty) {
         await _storeDeviceToken(uid, token);
       }
@@ -109,19 +131,26 @@ class NotificationService {
   }
 
   static Future<void> _storeDeviceToken(String uid, String token) async {
+    final ownerUid = _normalizeUid(uid);
+    final cleanToken = token.trim();
+    if (ownerUid == null || cleanToken.isEmpty) return;
     try {
-      await _db.collection('users').doc(uid).set({
-        'fcmTokens': FieldValue.arrayUnion([token]),
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      await _withWriteTimeout(
+        _db.collection('users').doc(ownerUid).set({
+          'fcmTokens': FieldValue.arrayUnion([cleanToken]),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true)),
+        'Saving notification device settings timed out.',
+      );
     } catch (_) {
       // Token persistence is non-critical.
     }
   }
 
   static Stream<List<VyeaNotification>> stream(String uid) {
-    if (uid.trim().isEmpty) return const Stream.empty();
-    return _notifications(uid).limit(50).snapshots().map((snapshot) {
+    final ownerUid = _normalizeUid(uid);
+    if (ownerUid == null) return const Stream.empty();
+    return _notifications(ownerUid).limit(50).snapshots().map((snapshot) {
       final items = snapshot.docs.map(VyeaNotification.fromDocument).toList();
       items.sort((a, b) {
         final aDate = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
@@ -133,8 +162,9 @@ class NotificationService {
   }
 
   static Stream<int> unreadCountStream(String uid) {
-    if (uid.trim().isEmpty) return Stream.value(0);
-    return _notifications(uid)
+    final ownerUid = _normalizeUid(uid);
+    if (ownerUid == null) return Stream.value(0);
+    return _notifications(ownerUid)
         .where('read', isEqualTo: false)
         .limit(50)
         .snapshots()
@@ -142,45 +172,64 @@ class NotificationService {
   }
 
   static Future<void> ensureWelcomeNotification(String uid) async {
-    if (uid.trim().isEmpty || _welcomeChecks.contains(uid)) return;
-    _welcomeChecks.add(uid);
+    final ownerUid = _normalizeUid(uid);
+    if (ownerUid == null || _welcomeChecks.contains(ownerUid)) return;
+    _welcomeChecks.add(ownerUid);
 
     try {
-      final existing = await _notifications(uid).limit(1).get();
+      final existing = await _withReadTimeout(
+        _notifications(ownerUid).limit(1).get(),
+        'Checking welcome notification timed out.',
+      );
       if (existing.docs.isNotEmpty) return;
 
-      await _notifications(uid).add({
-        'title': 'Welcome to VYEA',
-        'body': 'Your personal styling space is ready. Explore your wardrobe and discover a look that feels like you.',
-        'type': 'system',
-        'read': false,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+      await _withWriteTimeout(
+        _notifications(ownerUid).add({
+          'title': 'Welcome to VYEA',
+          'body': 'Your personal styling space is ready. Explore your wardrobe and discover a look that feels like you.',
+          'type': 'system',
+          'read': false,
+          'createdAt': FieldValue.serverTimestamp(),
+        }),
+        'Creating your welcome notification timed out.',
+      );
     } catch (_) {
-      _welcomeChecks.remove(uid);
+      _welcomeChecks.remove(ownerUid);
     }
   }
 
   static Future<void> markRead(String uid, String notificationId) async {
-    if (uid.trim().isEmpty || notificationId.trim().isEmpty) return;
+    final ownerUid = _normalizeUid(uid);
+    final cleanId = notificationId.trim();
+    if (ownerUid == null || cleanId.isEmpty) return;
     try {
-      await _notifications(uid).doc(notificationId).update({'read': true});
+      await _withWriteTimeout(
+        _notifications(ownerUid).doc(cleanId).update({'read': true}),
+        'Marking the notification as read timed out.',
+      );
     } catch (_) {}
   }
 
   static Future<void> markAllRead(String uid) async {
-    if (uid.trim().isEmpty) return;
+    final ownerUid = _normalizeUid(uid);
+    if (ownerUid == null) return;
     try {
-      final snapshot = await _notifications(uid)
-          .where('read', isEqualTo: false)
-          .limit(50)
-          .get();
+      final snapshot = await _withReadTimeout(
+        _notifications(ownerUid)
+            .where('read', isEqualTo: false)
+            .limit(50)
+            .get(),
+        'Loading unread notifications timed out.',
+      );
       if (snapshot.docs.isEmpty) return;
       final batch = _db.batch();
       for (final doc in snapshot.docs) {
         batch.update(doc.reference, {'read': true});
       }
-      await batch.commit();
+      await _withWriteTimeout(
+        batch.commit(),
+        'Marking notifications as read timed out.',
+      );
     } catch (_) {}
   }
 }
