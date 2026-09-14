@@ -219,6 +219,9 @@ class _SavedLooksScreenState extends State<SavedLooksScreen>
     final season = (look['season'] as String?)?.trim();
     final notes = (look['notes'] as String?)?.trim();
     final score = (look['matchScore'] as num?)?.toInt() ?? 0;
+    final width = MediaQuery.sizeOf(context).width;
+    final compact = width < 560;
+    final detailColumns = compact ? 2 : pieces.clamp(1, 4).length;
 
     showModalBottomSheet<void>(
       context: context,
@@ -227,12 +230,15 @@ class _SavedLooksScreenState extends State<SavedLooksScreen>
       builder: (sheetContext) => SafeArea(
         child: Container(
           constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(sheetContext).size.height * .88,
+            maxWidth: 760,
+            maxHeight: MediaQuery.sizeOf(sheetContext).height * .88,
           ),
-          padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
-          decoration: const BoxDecoration(
+          margin: EdgeInsets.symmetric(horizontal: compact ? 0 : 20),
+          padding: EdgeInsets.fromLTRB(compact ? 20 : 28, 10, compact ? 20 : 28, 24),
+          decoration: BoxDecoration(
             color: AppColors.background,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+            border: compact ? null : Border.all(color: AppColors.border),
           ),
           child: SingleChildScrollView(
             child: Column(
@@ -249,46 +255,51 @@ class _SavedLooksScreenState extends State<SavedLooksScreen>
                   ),
                 ),
                 const SizedBox(height: 20),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
+                LayoutBuilder(
+                  builder: (_, constraints) {
+                    final stack = constraints.maxWidth < 430;
+                    final heading = Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'SAVED LOOK',
+                          style: TextStyle(
+                            fontSize: 9,
+                            letterSpacing: 1.3,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.textMuted,
+                          ),
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          occasion?.isNotEmpty == true ? occasion! : 'Your saved outfit',
+                          style: const TextStyle(
+                            fontSize: 25,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -.5,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'A look worth coming back to.',
+                          style: TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    );
+                    if (stack) {
+                      return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'SAVED LOOK',
-                            style: TextStyle(
-                              fontSize: 9,
-                              letterSpacing: 1.3,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.textMuted,
-                            ),
-                          ),
-                          const SizedBox(height: 5),
-                          Text(
-                            occasion?.isNotEmpty == true
-                                ? occasion!
-                                : 'Your saved outfit',
-                            style: const TextStyle(
-                              fontSize: 25,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: -.5,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          const Text(
-                            'A look worth coming back to.',
-                            style: TextStyle(
-                              color: AppColors.textSecondary,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    _matchBadge(score),
-                  ],
+                        children: [heading, const SizedBox(height: 14), _matchBadge(score)],
+                      );
+                    }
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [Expanded(child: heading), _matchBadge(score)],
+                    );
+                  },
                 ),
                 const SizedBox(height: 22),
                 Row(
@@ -317,40 +328,45 @@ class _SavedLooksScreenState extends State<SavedLooksScreen>
                 if (pieces.isEmpty)
                   _missingPiecesCard()
                 else
-                  SizedBox(
-                    height: 205,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: pieces.length,
-                      separatorBuilder: (_, __) => const SizedBox(width: 10),
-                      itemBuilder: (_, index) => _detailPieceCard(pieces[index]),
+                  GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: pieces.length,
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: detailColumns,
+                      crossAxisSpacing: 10,
+                      mainAxisSpacing: 10,
+                      childAspectRatio: compact ? .78 : .88,
                     ),
+                    itemBuilder: (_, index) => _detailPieceCard(pieces[index]),
                   ),
                 const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _lookInfoTile(
-                        icon: Icons.palette_outlined,
-                        label: 'PALETTE',
-                        value: season?.isNotEmpty == true
-                            ? season!
-                            : 'Your colours',
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _lookInfoTile(
-                        icon: Icons.auto_awesome_outlined,
-                        label: 'MATCH',
-                        value: score >= 85
-                            ? 'Excellent'
-                            : score >= 70
-                                ? 'Great'
-                                : 'Good',
-                      ),
-                    ),
-                  ],
+                LayoutBuilder(
+                  builder: (_, constraints) {
+                    final stack = constraints.maxWidth < 460;
+                    final palette = _lookInfoTile(
+                      icon: Icons.palette_outlined,
+                      label: 'PALETTE',
+                      value: season?.isNotEmpty == true ? season! : 'Your colours',
+                    );
+                    final match = _lookInfoTile(
+                      icon: Icons.auto_awesome_outlined,
+                      label: 'MATCH',
+                      value: score >= 85 ? 'Excellent' : score >= 70 ? 'Great' : 'Good',
+                    );
+                    if (stack) {
+                      return Column(
+                        children: [palette, const SizedBox(height: 10), match],
+                      );
+                    }
+                    return Row(
+                      children: [
+                        Expanded(child: palette),
+                        const SizedBox(width: 10),
+                        Expanded(child: match),
+                      ],
+                    );
+                  },
                 ),
                 if (notes?.isNotEmpty == true) ...[
                   const SizedBox(height: 18),
@@ -460,66 +476,73 @@ class _SavedLooksScreenState extends State<SavedLooksScreen>
 
   Widget _detailPieceCard(Map<String, dynamic> item) {
     final imageUrl = item['imageUrl'] as String? ?? '';
-    return SizedBox(
-      width: 142,
-      child: Container(
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppColors.border),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: imageUrl.isEmpty
-                  ? Container(
-                      width: double.infinity,
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.border),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: imageUrl.isEmpty
+                ? Container(
+                    width: double.infinity,
+                    color: AppColors.surfaceMuted,
+                    child: const Center(
+                      child: Icon(
+                        Icons.checkroom_outlined,
+                        color: AppColors.primary,
+                        size: 30,
+                      ),
+                    ),
+                  )
+                : CachedNetworkImage(
+                    imageUrl: imageUrl,
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                    errorWidget: (_, __, ___) => Container(
                       color: AppColors.surfaceMuted,
                       child: const Center(
                         child: Icon(
-                          Icons.checkroom_outlined,
-                          color: AppColors.primary,
-                          size: 30,
+                          Icons.broken_image_outlined,
+                          color: AppColors.textMuted,
+                          size: 28,
                         ),
                       ),
-                    )
-                  : CachedNetworkImage(
-                      imageUrl: imageUrl,
-                      fit: BoxFit.cover,
-                      width: double.infinity,
-                    ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(11, 9, 11, 10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item['name'] as String? ?? 'Wardrobe piece',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w800,
                     ),
                   ),
-                  const SizedBox(height: 3),
-                  Text(
-                    '${item['category'] ?? ''}${item['colour'] == null ? '' : ' · ${item['colour']}'}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 9.5,
-                      color: AppColors.textMuted,
-                    ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(11, 9, 11, 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item['name'] as String? ?? 'Wardrobe piece',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w800,
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  '${item['category'] ?? ''}${item['colour'] == null ? '' : ' · ${item['colour']}' }',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 9.5,
+                    color: AppColors.textMuted,
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -656,12 +679,33 @@ class _SavedLooksScreenState extends State<SavedLooksScreen>
                       else
                         SliverPadding(
                           padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
-                          sliver: SliverList.separated(
-                            itemCount: visibleLooks.length,
-                            itemBuilder: (_, index) =>
-                                _lookCard(visibleLooks[index]),
-                            separatorBuilder: (_, __) =>
-                                const SizedBox(height: 12),
+                          sliver: LayoutBuilder(
+                            builder: (_, constraints) {
+                              final columns = constraints.maxWidth >= 980
+                                  ? 3
+                                  : constraints.maxWidth >= 680
+                                      ? 2
+                                      : 1;
+                              if (columns == 1) {
+                                return SliverList.separated(
+                                  itemCount: visibleLooks.length,
+                                  itemBuilder: (_, index) => _lookCard(visibleLooks[index]),
+                                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                                );
+                              }
+                              return SliverGrid(
+                                delegate: SliverChildBuilderDelegate(
+                                  (_, index) => _lookCard(visibleLooks[index]),
+                                  childCount: visibleLooks.length,
+                                ),
+                                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: columns,
+                                  crossAxisSpacing: 12,
+                                  mainAxisSpacing: 12,
+                                  childAspectRatio: columns == 3 ? 1.02 : 1.05,
+                                ),
+                              );
+                            },
                           ),
                         ),
                     ],
@@ -748,17 +792,14 @@ class _SavedLooksScreenState extends State<SavedLooksScreen>
               ),
               const SizedBox(width: 5),
               Text(
-                _sort == _SavedLookSort.recent
-                    ? 'Recently saved'
-                    : 'Highest match',
+                _sort == _SavedLookSort.recent ? 'Recently saved' : 'Highest match',
                 style: const TextStyle(
                   fontSize: 10.5,
                   color: AppColors.textSecondary,
                   fontWeight: FontWeight.w700,
                 ),
               ),
-              if (_sort == _SavedLookSort.highestMatch ||
-                  _occasionFilter != 'All')
+              if (_sort == _SavedLookSort.highestMatch || _occasionFilter != 'All')
                 Padding(
                   padding: const EdgeInsets.only(left: 8),
                   child: TextButton(
@@ -946,8 +987,7 @@ class _SavedLooksScreenState extends State<SavedLooksScreen>
                     ),
                     IconButton(
                       tooltip: 'Remove saved look',
-                      onPressed: () =>
-                          _deleteLook(look['id'] as String? ?? ''),
+                      onPressed: () => _deleteLook(look['id'] as String? ?? ''),
                       icon: const Icon(Icons.more_horiz_rounded),
                     ),
                   ],
@@ -1004,8 +1044,7 @@ class _SavedLooksScreenState extends State<SavedLooksScreen>
                         itemCount: pieces.length,
                         separatorBuilder: (_, __) => const SizedBox(width: 9),
                         itemBuilder: (_, index) {
-                          final url =
-                              pieces[index]['imageUrl'] as String? ?? '';
+                          final url = pieces[index]['imageUrl'] as String? ?? '';
                           return ClipRRect(
                             borderRadius: BorderRadius.circular(18),
                             child: SizedBox(
@@ -1023,6 +1062,15 @@ class _SavedLooksScreenState extends State<SavedLooksScreen>
                                   : CachedNetworkImage(
                                       imageUrl: url,
                                       fit: BoxFit.cover,
+                                      errorWidget: (_, __, ___) => Container(
+                                        color: AppColors.surfaceMuted,
+                                        child: const Center(
+                                          child: Icon(
+                                            Icons.broken_image_outlined,
+                                            color: AppColors.textMuted,
+                                          ),
+                                        ),
+                                      ),
                                     ),
                             ),
                           );
