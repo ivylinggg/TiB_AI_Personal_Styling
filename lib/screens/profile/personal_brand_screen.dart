@@ -48,7 +48,9 @@ class _PersonalBrandScreenState extends State<PersonalBrandScreen> {
             _role = data['role'] as String?;
             _impressions
               ..clear()
-              ..addAll(List<String>.from(data['impressions'] ?? const []));
+              ..addAll((data['impressions'] is List ? data['impressions'] : const [])
+                  .whereType<String>()
+                  .take(4));
             _statementController.text = data['statement'] as String? ?? '';
           }
           _loading = false;
@@ -67,7 +69,7 @@ class _PersonalBrandScreenState extends State<PersonalBrandScreen> {
       await FirebaseFirestore.instance.collection('users').doc(uid).set({
         'personalBrand': {
           'role': _role,
-          'impressions': List<String>.from(_impressions),
+          'impressions': List<String>.from(_impressions.take(4)),
           'statement': _statementController.text.trim(),
           'updatedAt': FieldValue.serverTimestamp(),
         },
@@ -84,6 +86,10 @@ class _PersonalBrandScreenState extends State<PersonalBrandScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    final compact = width < 560;
+    final maxWidth = width >= 1100 ? 860.0 : 760.0;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -94,87 +100,98 @@ class _PersonalBrandScreenState extends State<PersonalBrandScreen> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
-          : ListView(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [AppColors.primary, AppColors.primaryDark],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(25),
-                  ),
-                  child: const Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+          : SafeArea(
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: maxWidth),
+                  child: ListView(
+                    padding: EdgeInsets.fromLTRB(compact ? 14 : 20, 8, compact ? 14 : 20, 32),
                     children: [
-                      Text('YOUR PERSONAL BRAND', style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1.1)),
-                      SizedBox(height: 8),
-                      Text('How do you want to be remembered?', style: TextStyle(color: Colors.white, fontSize: 25, fontWeight: FontWeight.w800, height: 1.08)),
-                      SizedBox(height: 8),
-                      Text('TiB will use this direction when shaping professional styling ideas, colours and outfit recommendations.', style: TextStyle(color: Colors.white70, fontSize: 12.5, height: 1.45)),
+                      Container(
+                        padding: EdgeInsets.all(compact ? 17 : 20),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [AppColors.primary, AppColors.primaryDark],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(25),
+                        ),
+                        child: const Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('YOUR PERSONAL BRAND', style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1.1)),
+                            SizedBox(height: 8),
+                            Text('How do you want to be remembered?', style: TextStyle(color: Colors.white, fontSize: 25, fontWeight: FontWeight.w800, height: 1.08)),
+                            SizedBox(height: 8),
+                            Text('TiB will use this direction when shaping professional styling ideas, colours and outfit recommendations.', style: TextStyle(color: Colors.white70, fontSize: 12.5, height: 1.45)),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      const Text('YOUR ROLE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: .7, color: AppColors.textMuted)),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<String>(
+                        initialValue: _role,
+                        decoration: _decoration('Choose your main context'),
+                        isExpanded: true,
+                        items: roles.map((r) => DropdownMenuItem(value: r, child: Text(r, overflow: TextOverflow.ellipsis))).toList(),
+                        onChanged: _saving ? null : (value) => setState(() => _role = value),
+                      ),
+                      const SizedBox(height: 20),
+                      const Text('HOW YOU WANT TO COME ACROSS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: .7, color: AppColors.textMuted)),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.border)),
+                        child: Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: impressions.map((item) {
+                            final selected = _impressions.contains(item);
+                            return FilterChip(
+                              label: Text(item),
+                              selected: selected,
+                              onSelected: _saving
+                                  ? null
+                                  : (value) => setState(() {
+                                      if (value) {
+                                        if (_impressions.length < 4) _impressions.add(item);
+                                      } else {
+                                        _impressions.remove(item);
+                                      }
+                                    }),
+                              selectedColor: AppColors.primarySoft,
+                              checkmarkColor: AppColors.primaryDark,
+                              side: BorderSide(color: selected ? AppColors.primary.withValues(alpha: .25) : AppColors.border),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      const Text('MY SIGNATURE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: .7, color: AppColors.textMuted)),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _statementController,
+                        enabled: !_saving,
+                        maxLines: compact ? 5 : 4,
+                        maxLength: 180,
+                        decoration: _decoration('Example: Warm, polished and approachable.').copyWith(alignLabelWithHint: true),
+                      ),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: _saving ? null : _save,
+                          icon: _saving ? const SizedBox(width: 17, height: 17, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save_outlined),
+                          label: Text(_saving ? 'Saving…' : 'Save Personal Brand'),
+                          style: FilledButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white, minimumSize: const Size.fromHeight(52), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+                        ),
+                      ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 20),
-                const Text('YOUR ROLE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: .7, color: AppColors.textMuted)),
-                const SizedBox(height: 8),
-                DropdownButtonFormField<String>(
-                  initialValue: _role,
-                  decoration: _decoration('Choose your main context'),
-                  items: roles.map((r) => DropdownMenuItem(value: r, child: Text(r))).toList(),
-                  onChanged: (value) => setState(() => _role = value),
-                ),
-                const SizedBox(height: 20),
-                const Text('HOW YOU WANT TO COME ACROSS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: .7, color: AppColors.textMuted)),
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.border)),
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: impressions.map((item) {
-                      final selected = _impressions.contains(item);
-                      return FilterChip(
-                        label: Text(item),
-                        selected: selected,
-                        onSelected: (value) => setState(() {
-                          if (value) {
-                            if (_impressions.length < 4) _impressions.add(item);
-                          } else {
-                            _impressions.remove(item);
-                          }
-                        }),
-                        selectedColor: AppColors.primarySoft,
-                        checkmarkColor: AppColors.primaryDark,
-                        side: BorderSide(color: selected ? AppColors.primary.withValues(alpha: .25) : AppColors.border),
-                      );
-                    }).toList(),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                const Text('MY SIGNATURE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: .7, color: AppColors.textMuted)),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _statementController,
-                  maxLines: 4,
-                  maxLength: 180,
-                  decoration: _decoration('Example: Warm, polished and approachable.').copyWith(alignLabelWithHint: true),
-                ),
-                const SizedBox(height: 10),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    onPressed: _saving ? null : _save,
-                    icon: _saving ? const SizedBox(width: 17, height: 17, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save_outlined),
-                    label: Text(_saving ? 'Saving…' : 'Save Personal Brand'),
-                    style: FilledButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white, minimumSize: const Size.fromHeight(52), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
-                  ),
-                ),
-              ],
+              ),
             ),
     );
   }
