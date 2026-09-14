@@ -27,90 +27,125 @@ class AIHubScreen extends StatelessWidget {
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: () => context.read<PersonalStyleProvider>().refresh(force: true),
-          child: ListView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(20, 18, 20, 38),
-            children: [
-              const Text(
-                'VYEA  /  PERSONAL AI STUDIO',
-                style: TextStyle(
-                  color: AppColors.primary,
-                  fontSize: 9.5,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1.45,
-                ),
-              ),
-              const SizedBox(height: 9),
-              const Text(
-                'Your style,\nshaped around you.',
-                style: TextStyle(
-                  fontSize: 34,
-                  height: 1.0,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -1.4,
-                ),
-              ),
-              const SizedBox(height: 9),
-              Text(
-                readyInputs == 3
-                    ? 'Your colour profile, Personal TiB and real wardrobe are connected to the styling tools below.'
-                    : 'Complete your personal inputs to make VYEA more specific to you. $readyInputs of 3 core inputs are ready.',
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 13,
-                  height: 1.5,
-                ),
-              ),
-              const SizedBox(height: 18),
-              _contextCard(style, readyInputs),
-              const SizedBox(height: 22),
-              _heading('START HERE', 'Choose how you want VYEA to help.'),
-              const SizedBox(height: 11),
-              _heroAction(context),
-              const SizedBox(height: 22),
-              _heading('BUILD A LOOK', 'Use your wardrobe, palette and occasion together.'),
-              const SizedBox(height: 11),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final wide = constraints.maxWidth >= 900;
+              final columns = constraints.maxWidth >= 1100 ? 4 : constraints.maxWidth >= 600 ? 2 : 1;
+              final contentWidth = wide ? 1120.0 : 760.0;
+
+              return ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: EdgeInsets.fromLTRB(wide ? 28 : 20, 18, wide ? 28 : 20, 38),
                 children: [
-                  Expanded(
-                    child: _toolCard(
-                      icon: Icons.auto_awesome_rounded,
-                      eyebrow: 'PERSONAL',
-                      title: 'Style Me',
-                      subtitle: 'Describe the moment and style what you own.',
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const StyleMeScreen()),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _toolCard(
-                      icon: Icons.event_available_outlined,
-                      eyebrow: 'OCCASION',
-                      title: 'AI Outfit',
-                      subtitle: 'Generate a complete look for the moment.',
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const AIOutfitScreen()),
+                  Center(
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(maxWidth: contentWidth),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Semantics(
+                            header: true,
+                            child: Text(
+                              'VYEA  /  PERSONAL AI STUDIO',
+                              style: TextStyle(
+                                color: AppColors.primary,
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 1.45,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 9),
+                          const Semantics(
+                            header: true,
+                            child: Text(
+                              'Your style,\nshaped around you.',
+                              style: TextStyle(
+                                fontSize: 34,
+                                height: 1.0,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: -1.4,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 9),
+                          Text(
+                            readyInputs == 3
+                                ? 'Your colour profile, Personal TiB and real wardrobe are connected to the styling tools below.'
+                                : 'Complete your personal inputs to make VYEA more specific to you. $readyInputs of 3 core inputs are ready.',
+                            style: const TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 13,
+                              height: 1.5,
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+                          _contextCard(style, readyInputs),
+                          const SizedBox(height: 22),
+                          _heading('START HERE', 'Choose how you want VYEA to help.'),
+                          const SizedBox(height: 11),
+                          _heroAction(context),
+                          const SizedBox(height: 22),
+                          _heading('BUILD A LOOK', 'Use your wardrobe, palette and occasion together.'),
+                          const SizedBox(height: 11),
+                          GridView.count(
+                            crossAxisCount: columns.clamp(1, 4),
+                            crossAxisSpacing: 10,
+                            mainAxisSpacing: 10,
+                            childAspectRatio: wide ? 1.15 : 1.05,
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            children: [
+                              _toolCard(
+                                icon: Icons.auto_awesome_rounded,
+                                eyebrow: 'PERSONAL',
+                                title: 'Style Me',
+                                subtitle: 'Describe the moment and style what you own.',
+                                onTap: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(builder: (_) => const StyleMeScreen()),
+                                ),
+                              ),
+                              _toolCard(
+                                icon: Icons.event_available_outlined,
+                                eyebrow: 'OCCASION',
+                                title: 'AI Outfit',
+                                subtitle: 'Generate a complete look for the moment.',
+                                onTap: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(builder: (_) => const AIOutfitScreen()),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 22),
+                          _heading('VISUAL STYLE SPACE', 'Move from advice to something you can see.'),
+                          const SizedBox(height: 11),
+                          if (wide)
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(child: _modelFeature(context, style)),
+                                const SizedBox(width: 10),
+                                Expanded(child: _virtualFeature(context)),
+                              ],
+                            )
+                          else ...[
+                            _modelFeature(context, style),
+                            const SizedBox(height: 10),
+                            _virtualFeature(context),
+                          ],
+                          const SizedBox(height: 22),
+                          _heading('CONVERSATION', 'Start naturally, then turn advice into action.'),
+                          const SizedBox(height: 11),
+                          _talkFeature(context),
+                        ],
                       ),
                     ),
                   ),
                 ],
-              ),
-              const SizedBox(height: 22),
-              _heading('VISUAL STYLE SPACE', 'Move from advice to something you can see.'),
-              const SizedBox(height: 11),
-              _modelFeature(context, style),
-              const SizedBox(height: 10),
-              _virtualFeature(context),
-              const SizedBox(height: 22),
-              _heading('CONVERSATION', 'Start naturally, then turn advice into action.'),
-              const SizedBox(height: 11),
-              _talkFeature(context),
-            ],
+              );
+            },
           ),
         ),
       ),
@@ -156,7 +191,7 @@ class AIHubScreen extends StatelessWidget {
                   ],
                 ),
               ),
-              _miniPill('$readyInputs/3 READY'),
+              Flexible(child: _miniPill('$readyInputs/3 READY')),
             ],
           ),
           const SizedBox(height: 13),
@@ -192,7 +227,10 @@ class AIHubScreen extends StatelessWidget {
   Widget _heading(String title, String subtitle) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: 1.3)),
+          Semantics(
+            header: true,
+            child: Text(title, style: const TextStyle(color: AppColors.textMuted, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: 1.3)),
+          ),
           const SizedBox(height: 4),
           Text(subtitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.35)),
         ],
@@ -234,7 +272,7 @@ class AIHubScreen extends StatelessWidget {
   Widget _miniPill(String label) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
         decoration: BoxDecoration(color: Colors.white.withValues(alpha: .16), borderRadius: BorderRadius.circular(99)),
-        child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: .8)),
+        child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: .8)),
       );
 
   Widget _tag(String label) => Container(
@@ -346,7 +384,7 @@ class AIHubScreen extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
                     const SizedBox(height: 5),
-                    Text(subtitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.8, height: 1.38)),
+                    Text(subtitle, maxLines: 3, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.8, height: 1.38)),
                   ],
                 ),
               ),
