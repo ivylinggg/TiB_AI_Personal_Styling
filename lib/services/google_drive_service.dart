@@ -34,7 +34,7 @@ class GoogleDriveService {
               'type': type,
               'image': base64Encode(bytes),
               'fileName': fileName,
-              'mimeType': 'image/jpeg',
+              'mimeType': _mimeTypeForFileName(fileName),
             }),
           )
           .timeout(_requestTimeout);
@@ -95,6 +95,22 @@ class GoogleDriveService {
       return data?['success'] == true;
     } catch (_) {
       return false;
+    }
+  }
+
+  String _mimeTypeForFileName(String fileName) {
+    final extension = fileName.split('.').last.toLowerCase();
+    switch (extension) {
+      case 'png':
+        return 'image/png';
+      case 'webp':
+        return 'image/webp';
+      case 'gif':
+        return 'image/gif';
+      case 'jpg':
+      case 'jpeg':
+      default:
+        return 'image/jpeg';
     }
   }
 
