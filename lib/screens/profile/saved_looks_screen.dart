@@ -221,7 +221,7 @@ class _SavedLooksScreenState extends State<SavedLooksScreen>
     final score = (look['matchScore'] as num?)?.toInt() ?? 0;
     final width = MediaQuery.sizeOf(context).width;
     final compact = width < 560;
-    final detailColumns = compact ? 2 : pieces.length.clamp(1, 4);
+    final detailColumns = compact ? 2 : pieces.length.clamp(1, 4).toInt();
 
     showModalBottomSheet<void>(
       context: context,
@@ -494,6 +494,32 @@ class _SavedLooksScreenState extends State<SavedLooksScreen>
     );
   }
 
+  Widget _imageLoading() {
+    return Container(
+      color: AppColors.surfaceMuted,
+      child: const Center(
+        child: SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      ),
+    );
+  }
+
+  Widget _imageFallback() {
+    return Container(
+      color: AppColors.surfaceMuted,
+      child: const Center(
+        child: Icon(
+          Icons.checkroom_outlined,
+          color: AppColors.primary,
+          size: 30,
+        ),
+      ),
+    );
+  }
+
   Widget _detailPieceCard(Map<String, dynamic> item) {
     final imageUrl = item['imageUrl'] as String? ?? '';
     return Container(
@@ -549,38 +575,13 @@ class _SavedLooksScreenState extends State<SavedLooksScreen>
     );
   }
 
-  Widget _imageLoading() {
-    return Container(
-      color: AppColors.surfaceMuted,
-      child: const Center(
-        child: SizedBox(
-          width: 20,
-          height: 20,
-          child: CircularProgressIndicator(strokeWidth: 2),
-        ),
-      ),
-    );
-  }
-
-  Widget _imageFallback() {
-    return Container(
-      color: AppColors.surfaceMuted,
-      child: const Center(
-        child: Icon(
-          Icons.checkroom_outlined,
-          color: AppColors.primary,
-          size: 30,
-        ),
-      ),
-    );
-  }
-
   Widget _lookInfoTile({
     required IconData icon,
     required String label,
     required String value,
   }) {
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.surface,
@@ -707,18 +708,34 @@ class _SavedLooksScreenState extends State<SavedLooksScreen>
                       else
                         SliverPadding(
                           padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
-                          sliver: SliverGrid(
-                            delegate: SliverChildBuilderDelegate(
-                              (_, index) => _lookCard(visibleLooks[index]),
-                              childCount: visibleLooks.length,
-                            ),
-                            gridDelegate:
-                                const SliverGridDelegateWithMaxCrossAxisExtent(
-                              maxCrossAxisExtent: 460,
-                              mainAxisSpacing: 12,
-                              crossAxisSpacing: 12,
-                              mainAxisExtent: 248,
-                            ),
+                          sliver: SliverLayoutBuilder(
+                            builder: (context, constraints) {
+                              final width = constraints.crossAxisExtent;
+                              final columns = width >= 1100 ? 3 : width >= 680 ? 2 : 1;
+                              if (columns == 1) {
+                                return SliverList.separated(
+                                  itemCount: visibleLooks.length,
+                                  itemBuilder: (_, index) =>
+                                      _lookCard(visibleLooks[index]),
+                                  separatorBuilder: (_, __) =>
+                                      const SizedBox(height: 12),
+                                );
+                              }
+                              return SliverGrid(
+                                delegate: SliverChildBuilderDelegate(
+                                  (context, index) =>
+                                      _lookCard(visibleLooks[index]),
+                                  childCount: visibleLooks.length,
+                                ),
+                                gridDelegate:
+                                    SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: columns,
+                                  crossAxisSpacing: 12,
+                                  mainAxisSpacing: 12,
+                                  childAspectRatio: columns == 3 ? .78 : .82,
+                                ),
+                              );
+                            },
                           ),
                         ),
                     ],
@@ -1017,11 +1034,14 @@ class _SavedLooksScreenState extends State<SavedLooksScreen>
                     _matchPill(score),
                     const SizedBox(width: 8),
                     if (date != null)
-                      Text(
-                        _formatDate(date),
-                        style: const TextStyle(
-                          color: AppColors.textMuted,
-                          fontSize: 10.5,
+                      Flexible(
+                        child: Text(
+                          _formatDate(date),
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: AppColors.textMuted,
+                            fontSize: 10.5,
+                          ),
                         ),
                       ),
                     const Spacer(),
@@ -1061,8 +1081,7 @@ class _SavedLooksScreenState extends State<SavedLooksScreen>
                         itemCount: pieces.length,
                         separatorBuilder: (_, __) => const SizedBox(width: 9),
                         itemBuilder: (_, index) {
-                          final url =
-                              pieces[index]['imageUrl'] as String? ?? '';
+                          final url = pieces[index]['imageUrl'] as String? ?? '';
                           return ClipRRect(
                             borderRadius: BorderRadius.circular(18),
                             child: SizedBox(
