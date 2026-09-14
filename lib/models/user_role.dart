@@ -13,7 +13,8 @@ extension UserRoleExtension on UserRole {
   }
 
   static UserRole fromString(String? value) {
-    switch (value?.toLowerCase()) {
+    final normalized = value?.trim().toLowerCase();
+    switch (normalized) {
       case 'admin':
         return UserRole.admin;
       case 'consultant':
