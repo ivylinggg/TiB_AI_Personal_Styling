@@ -15,6 +15,7 @@ class GoogleDriveUploadResult {
 class GoogleDriveService {
   static const _redirectStatuses = <int>{301, 302, 303, 307, 308};
   static const _requestTimeout = Duration(seconds: 30);
+  static const _fileReadTimeout = Duration(seconds: 15);
 
   Future<GoogleDriveUploadResult?> uploadImage({
     required File imageFile,
@@ -22,8 +23,8 @@ class GoogleDriveService {
     required String type,
   }) async {
     try {
-      if (!await imageFile.exists()) return null;
-      final bytes = await imageFile.readAsBytes();
+      if (!await imageFile.exists().timeout(_fileReadTimeout)) return null;
+      final bytes = await imageFile.readAsBytes().timeout(_fileReadTimeout);
       if (bytes.isEmpty) return null;
 
       final response = await http
@@ -80,11 +81,12 @@ class GoogleDriveService {
 
   Future<bool> deleteFile({required String fileId}) async {
     try {
+      if (fileId.trim().isEmpty) return false;
       final response = await http
           .post(
             Uri.parse(GoogleDriveConfig.uploadUrl),
             headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({'action': 'delete', 'fileId': fileId}),
+            body: jsonEncode({'action': 'delete', 'fileId': fileId.trim()}),
           )
           .timeout(_requestTimeout);
 
