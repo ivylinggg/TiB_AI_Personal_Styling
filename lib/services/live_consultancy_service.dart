@@ -17,38 +17,70 @@ class LiveConsultancyService {
   static CollectionReference<Map<String, dynamic>> _messages(String uid) =>
       _consultation(uid).collection('messages');
 
+  static bool _isValidUid(String value) => RegExp(r'^[A-Za-z0-9:_-]{1,128}$').hasMatch(value.trim());
+
   static bool _isValidMessage(String value) =>
       value.trim().isNotEmpty && value.trim().length <= 1500;
 
+  static String? _normaliseUid(String value) {
+    final uid = value.trim();
+    return _isValidUid(uid) ? uid : null;
+  }
+
+  static String _normaliseDisplayName(String? value, {String fallback = 'TiB Consultant'}) {
+    final name = value?.trim() ?? '';
+    return name.isEmpty ? fallback : name;
+  }
+
+  static String? _normaliseStatus(String? value) {
+    final status = value?.trim();
+    if (status == null || status.isEmpty || status.length > 64) return null;
+    return status;
+  }
+
   static Future<Map<String, dynamic>?> _userData(String uid) async {
-    final snapshot = await _db.collection('users').doc(uid).get();
+    final safeUid = _normaliseUid(uid);
+    if (safeUid == null) return null;
+    final snapshot = await _db.collection('users').doc(safeUid).get();
     return snapshot.data();
   }
 
   static Future<bool> _hasConsultantRole(String uid) async {
-    final data = await _userData(uid);
-    final role = (data?['role'] as String? ?? '').trim().toLowerCase();
-    final active = data?['isActive'] as bool? ?? true;
+    final safeUid = _normaliseUid(uid);
+    if (safeUid == null) return false;
+    final data = await _userData(safeUid);
+    final roleValue = data?['role'];
+    final role = roleValue is String ? roleValue.trim().toLowerCase() : '';
+    final activeValue = data?['isActive'];
+    final active = activeValue is bool ? activeValue : true;
     return active && (role == 'consultant' || role == 'admin');
   }
 
   static Future<bool> _isAdmin(String uid) async {
-    final data = await _userData(uid);
-    return (data?['role'] as String? ?? '').trim().toLowerCase() == 'admin';
+    final safeUid = _normaliseUid(uid);
+    if (safeUid == null) return false;
+    final data = await _userData(safeUid);
+    final roleValue = data?['role'];
+    final role = roleValue is String ? roleValue.trim().toLowerCase() : '';
+    return role == 'admin';
   }
 
   static Future<void> ensureConversation() async {
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+    final uid = user == null ? null : _normaliseUid(user.uid);
+    if (user == null || uid == null) return;
 
-    final ref = _consultation(user.uid);
+    final ref = _consultation(uid);
     final existing = await ref.get();
     if (existing.exists) return;
 
-    final displayName = user.displayName?.trim();
+    final userName = _normaliseDisplayName(
+      user.displayName,
+      fallback: 'VYEA User',
+    );
     await ref.set({
-      'uid': user.uid,
-      'userName': displayName?.isNotEmpty == true ? displayName : 'VYEA User',
+      'uid': uid,
+      'userName': userName,
       'email': user.email ?? '',
       'status': 'open',
       'assignedConsultantId': null,
@@ -69,12 +101,14 @@ class LiveConsultancyService {
 
   static Stream<DocumentSnapshot<Map<String, dynamic>>> conversationStream() {
     final uid = currentUid;
-    return uid == null ? const Stream.empty() : _consultation(uid).snapshots();
+    return uid == null || !_isValidUid(uid)
+        ? const Stream.empty()
+        : _consultation(uid).snapshots();
   }
 
   static Stream<QuerySnapshot<Map<String, dynamic>>> messagesStream() {
     final uid = currentUid;
-    return uid == null
+    return uid == null || !_isValidUid(uid)
         ? const Stream.empty()
         : _messages(uid).orderBy('createdAt').snapshots();
   }
@@ -86,17 +120,21 @@ class LiveConsultancyService {
     String? status,
   }) async* {
     final uid = currentUid;
-    if (uid == null) return;
+    if (uid == null || !_isValidUid(uid)) return;
 
     final profile = await _userData(uid);
-    final role = (profile?['role'] as String? ?? '').trim().toLowerCase();
-    final active = profile?['isActive'] as bool? ?? true;
+    final roleValue = profile?['role'];
+    final role = roleValue is String ? roleValue.trim().toLowerCase() : '';
+    final activeValue = profile?['isActive'];
+    final active = activeValue is bool ? activeValue : true;
+    final safeStatus = status == null ? null : _normaliseStatus(status);
+    if (status != null && safeStatus == null) return;
 
     Query<Map<String, dynamic>> query = _consultations;
 
     if (role == 'admin') {
-      if (status != null) {
-        query = query.where('status', isEqualTo: status);
+      if (safeStatus != null) {
+        query = query.where('status', isEqualTo: safeStatus);
       }
     } else if (role == 'consultant' && active) {
       query = query.where(
@@ -108,8 +146,8 @@ class LiveConsultancyService {
           ),
         ),
       );
-      if (status != null) {
-        query = query.where('status', isEqualTo: status);
+      if (safeStatus != null) {
+        query = query.where('status', isEqualTo: safeStatus);
       }
     } else {
       return;
@@ -124,23 +162,26 @@ class LiveConsultancyService {
   static Stream<QuerySnapshot<Map<String, dynamic>>> conversationMessages(
     String uid,
   ) async* {
+    final targetUid = _normaliseUid(uid);
     final viewer = currentUid;
-    if (viewer == null) return;
+    if (viewer == null || !_isValidUid(viewer) || targetUid == null) return;
 
-    if (viewer == uid || await _isAdmin(viewer)) {
-      yield* _messages(uid).orderBy('createdAt').snapshots();
+    if (viewer == targetUid || await _isAdmin(viewer)) {
+      yield* _messages(targetUid).orderBy('createdAt').snapshots();
       return;
     }
 
     final profile = await _userData(viewer);
-    final role = (profile?['role'] as String? ?? '').trim().toLowerCase();
-    final active = profile?['isActive'] as bool? ?? true;
+    final roleValue = profile?['role'];
+    final role = roleValue is String ? roleValue.trim().toLowerCase() : '';
+    final activeValue = profile?['isActive'];
+    final active = activeValue is bool ? activeValue : true;
     if (role != 'consultant' || !active) return;
 
-    final consultation = (await _consultation(uid).get()).data();
+    final consultation = (await _consultation(targetUid).get()).data();
     if (consultation?['assignedConsultantId'] != viewer) return;
 
-    yield* _messages(uid).orderBy('createdAt').snapshots();
+    yield* _messages(targetUid).orderBy('createdAt').snapshots();
   }
 
   static Stream<QuerySnapshot<Map<String, dynamic>>> consultantPresenceStream() =>
@@ -151,18 +192,21 @@ class LiveConsultancyService {
 
   static Future<void> setConsultantPresence(bool online) async {
     final consultant = FirebaseAuth.instance.currentUser;
-    if (consultant == null) return;
-    if (!await _hasConsultantRole(consultant.uid)) return;
+    final uid = consultant == null ? null : _normaliseUid(consultant.uid);
+    if (consultant == null || uid == null) return;
+    if (!await _hasConsultantRole(uid)) return;
 
-    final profile = await _userData(consultant.uid);
-    final profileName = (profile?['name'] as String?)?.trim();
-    final authName = consultant.displayName?.trim();
-    final name = profileName?.isNotEmpty == true
-        ? profileName!
-        : (authName?.isNotEmpty == true ? authName! : 'TiB Consultant');
+    final profile = await _userData(uid);
+    final profileNameValue = profile?['name'];
+    final profileName = profileNameValue is String ? profileNameValue : null;
+    final name = _normaliseDisplayName(
+      profileName?.trim().isNotEmpty == true
+          ? profileName
+          : consultant.displayName,
+    );
 
-    await _presence.doc(consultant.uid).set({
-      'consultantId': consultant.uid,
+    await _presence.doc(uid).set({
+      'consultantId': uid,
       'consultantName': name,
       'online': online,
       'updatedAt': FieldValue.serverTimestamp(),
@@ -172,29 +216,32 @@ class LiveConsultancyService {
 
   static Future<void> sendUserMessage(String text) async {
     final user = FirebaseAuth.instance.currentUser;
+    final uid = user == null ? null : _normaliseUid(user.uid);
     final value = text.trim();
-    if (user == null || !_isValidMessage(value)) return;
+    if (user == null || uid == null || !_isValidMessage(value)) return;
 
     await ensureConversation();
-    final ref = _consultation(user.uid);
+    final ref = _consultation(uid);
     final existing = await ref.get();
     final data = existing.data() ?? <String, dynamic>{};
     final reopened = data['status'] == 'resolved';
-    final displayName = user.displayName?.trim();
-    final userName = displayName?.isNotEmpty == true ? displayName! : 'VYEA User';
+    final userName = _normaliseDisplayName(
+      user.displayName,
+      fallback: 'VYEA User',
+    );
 
     final batch = _db.batch();
-    final messageRef = _messages(user.uid).doc();
+    final messageRef = _messages(uid).doc();
     batch.set(messageRef, {
       'senderType': 'user',
-      'senderId': user.uid,
+      'senderId': uid,
       'senderName': userName,
       'text': value,
       'read': false,
       'createdAt': FieldValue.serverTimestamp(),
     });
     batch.set(ref, {
-      'uid': user.uid,
+      'uid': uid,
       'userName': userName,
       'email': user.email ?? '',
       'status': 'waiting_for_consultant',
@@ -217,34 +264,43 @@ class LiveConsultancyService {
   }
 
   static Future<bool> acceptConsultation(String uid) async {
+    final targetUid = _normaliseUid(uid);
     final consultant = FirebaseAuth.instance.currentUser;
-    if (consultant == null || !await _hasConsultantRole(consultant.uid)) {
+    final consultantUid = consultant == null ? null : _normaliseUid(consultant.uid);
+    if (consultant == null || consultantUid == null || targetUid == null ||
+        !await _hasConsultantRole(consultantUid)) {
       return false;
     }
 
-    final profile = await _userData(consultant.uid);
-    final profileName = (profile?['name'] as String?)?.trim();
-    final authName = consultant.displayName?.trim();
-    final name = profileName?.isNotEmpty == true
-        ? profileName!
-        : (authName?.isNotEmpty == true ? authName! : 'TiB Consultant');
-    final ref = _consultation(uid);
+    final profile = await _userData(consultantUid);
+    final profileNameValue = profile?['name'];
+    final profileName = profileNameValue is String ? profileNameValue : null;
+    final name = _normaliseDisplayName(
+      profileName?.trim().isNotEmpty == true
+          ? profileName
+          : consultant.displayName,
+    );
+    final ref = _consultation(targetUid);
 
     return _db.runTransaction<bool>((transaction) async {
       final snapshot = await transaction.get(ref);
       if (!snapshot.exists) return false;
       final data = snapshot.data() ?? <String, dynamic>{};
-      final assignedId = data['assignedConsultantId'] as String?;
-      final status = data['status'] as String?;
+      final assignedValue = data['assignedConsultantId'];
+      final assignedId = assignedValue is String && _isValidUid(assignedValue)
+          ? assignedValue
+          : null;
+      final statusValue = data['status'];
+      final status = statusValue is String ? statusValue.trim() : null;
 
-      if (assignedId != null && assignedId != consultant.uid) return false;
-      if (assignedId == consultant.uid) return true;
+      if (assignedId != null && assignedId != consultantUid) return false;
+      if (assignedId == consultantUid) return true;
       if (status != 'waiting_for_consultant' && status != 'open') return false;
 
       transaction.set(
         ref,
         {
-          'assignedConsultantId': consultant.uid,
+          'assignedConsultantId': consultantUid,
           'assignedConsultantName': name,
           'status': 'assigned',
           'assignedAt': FieldValue.serverTimestamp(),
@@ -263,19 +319,26 @@ class LiveConsultancyService {
     required String consultantId,
     required String consultantName,
   }) async {
+    final targetUid = _normaliseUid(uid);
+    final targetConsultantId = _normaliseUid(consultantId);
     final actingUser = FirebaseAuth.instance.currentUser;
-    if (actingUser == null || !await _isAdmin(actingUser.uid)) return;
+    final actingUid = actingUser == null ? null : _normaliseUid(actingUser.uid);
+    final trimmedName = consultantName.trim();
+    if (actingUser == null || actingUid == null || targetUid == null ||
+        targetConsultantId == null ||
+        trimmedName.length > 120 ||
+        !await _isAdmin(actingUid)) {
+      return;
+    }
 
-    final targetIsConsultant = await _hasConsultantRole(consultantId);
+    final targetIsConsultant = await _hasConsultantRole(targetConsultantId);
     if (!targetIsConsultant) return;
 
-    final ref = _consultation(uid);
+    final ref = _consultation(targetUid);
     await ref.set(
       {
-        'assignedConsultantId': consultantId,
-        'assignedConsultantName': consultantName.trim().isEmpty
-            ? 'TiB Consultant'
-            : consultantName.trim(),
+        'assignedConsultantId': targetConsultantId,
+        'assignedConsultantName': _normaliseDisplayName(trimmedName),
         'status': 'assigned',
         'assignedAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
@@ -285,11 +348,14 @@ class LiveConsultancyService {
   }
 
   static Future<bool> isAssignedToCurrentConsultant(String uid) async {
+    final targetUid = _normaliseUid(uid);
     final consultantId = currentUid;
-    if (consultantId == null || !await _hasConsultantRole(consultantId)) {
+    if (targetUid == null || consultantId == null ||
+        !_isValidUid(consultantId) ||
+        !await _hasConsultantRole(consultantId)) {
       return false;
     }
-    final data = (await _consultation(uid).get()).data();
+    final data = (await _consultation(targetUid).get()).data();
     return data?['assignedConsultantId'] == consultantId;
   }
 
@@ -298,28 +364,35 @@ class LiveConsultancyService {
     required String text,
     required String consultantName,
   }) async {
+    final targetUid = _normaliseUid(uid);
     final consultant = FirebaseAuth.instance.currentUser;
+    final consultantUid = consultant == null ? null : _normaliseUid(consultant.uid);
     final value = text.trim();
-    if (consultant == null || !_isValidMessage(value)) return;
-    if (!await _hasConsultantRole(consultant.uid)) return;
+    final displayName = consultantName.trim();
+    if (consultant == null || consultantUid == null || targetUid == null ||
+        !_isValidMessage(value) || displayName.length > 120) {
+      return;
+    }
+    if (!await _hasConsultantRole(consultantUid)) return;
 
-    final ref = _consultation(uid);
+    final ref = _consultation(targetUid);
     final data = (await ref.get()).data() ?? <String, dynamic>{};
-    final assignedId = data['assignedConsultantId'] as String?;
-    if (assignedId != consultant.uid) return;
+    final assignedValue = data['assignedConsultantId'];
+    final assignedId = assignedValue is String && _isValidUid(assignedValue)
+        ? assignedValue
+        : null;
+    if (assignedId != consultantUid) return;
 
     final firstReplyExists = data['firstConsultantReplyAt'] != null;
     final createdAt = data['createdAt'];
-    final displayName = consultantName.trim().isEmpty
-        ? 'TiB Consultant'
-        : consultantName.trim();
+    final safeDisplayName = _normaliseDisplayName(displayName);
 
     final batch = _db.batch();
-    final messageRef = _messages(uid).doc();
+    final messageRef = _messages(targetUid).doc();
     batch.set(messageRef, {
       'senderType': 'consultant',
-      'senderId': consultant.uid,
-      'senderName': displayName,
+      'senderId': consultantUid,
+      'senderName': safeDisplayName,
       'text': value,
       'read': false,
       'createdAt': FieldValue.serverTimestamp(),
@@ -327,8 +400,8 @@ class LiveConsultancyService {
 
     final update = <String, dynamic>{
       'status': 'consultant_replied',
-      'assignedConsultantId': consultant.uid,
-      'assignedConsultantName': displayName,
+      'assignedConsultantId': consultantUid,
+      'assignedConsultantName': safeDisplayName,
       'lastMessage': value,
       'lastSenderType': 'consultant',
       'unreadForUser': FieldValue.increment(1),
@@ -348,14 +421,20 @@ class LiveConsultancyService {
   }
 
   static Future<void> setStatus(String uid, String status) async {
+    final targetUid = _normaliseUid(uid);
+    final safeStatus = _normaliseStatus(status);
     final consultant = FirebaseAuth.instance.currentUser;
-    if (consultant == null || !await _hasConsultantRole(consultant.uid)) return;
-    if (!await isAssignedToCurrentConsultant(uid)) return;
+    final consultantUid = consultant == null ? null : _normaliseUid(consultant.uid);
+    if (consultant == null || consultantUid == null || targetUid == null ||
+        safeStatus == null || !await _hasConsultantRole(consultantUid)) {
+      return;
+    }
+    if (!await isAssignedToCurrentConsultant(targetUid)) return;
 
-    await _consultation(uid).set(
+    await _consultation(targetUid).set(
       {
-        'status': status,
-        if (status == 'resolved') 'resolvedAt': FieldValue.serverTimestamp(),
+        'status': safeStatus,
+        if (safeStatus == 'resolved') 'resolvedAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       },
       SetOptions(merge: true),
@@ -363,17 +442,23 @@ class LiveConsultancyService {
   }
 
   static Future<void> markMessagesRead(String uid, {required String by}) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null || uid.isEmpty) return;
-
-    if (by == 'customer') {
-      if (uid != user.uid) return;
-    } else {
-      if (!await isAssignedToCurrentConsultant(uid)) return;
+    final targetUid = _normaliseUid(uid);
+    final viewer = FirebaseAuth.instance.currentUser;
+    final viewerUid = viewer == null ? null : _normaliseUid(viewer.uid);
+    final readerType = by.trim().toLowerCase();
+    if (viewer == null || viewerUid == null || targetUid == null ||
+        (readerType != 'customer' && readerType != 'consultant')) {
+      return;
     }
 
-    final senderType = by == 'customer' ? 'consultant' : 'user';
-    final snapshot = await _messages(uid)
+    if (readerType == 'customer') {
+      if (targetUid != viewerUid) return;
+    } else {
+      if (!await isAssignedToCurrentConsultant(targetUid)) return;
+    }
+
+    final senderType = readerType == 'customer' ? 'consultant' : 'user';
+    final snapshot = await _messages(targetUid)
         .where('senderType', isEqualTo: senderType)
         .where('read', isEqualTo: false)
         .get();
@@ -385,9 +470,9 @@ class LiveConsultancyService {
       await batch.commit();
     }
 
-    await _consultation(uid).set(
+    await _consultation(targetUid).set(
       {
-        by == 'customer' ? 'unreadForUser' : 'unreadForConsultant': 0,
+        readerType == 'customer' ? 'unreadForUser' : 'unreadForConsultant': 0,
         'updatedAt': FieldValue.serverTimestamp(),
       },
       SetOptions(merge: true),
@@ -399,16 +484,19 @@ class LiveConsultancyService {
     String? comment,
   }) async {
     final uid = currentUid;
-    if (uid == null || rating < 1 || rating > 5) return;
+    if (uid == null || !_isValidUid(uid) || rating < 1 || rating > 5) return;
 
     final data = (await _consultation(uid).get()).data();
     if (data?['status'] != 'resolved') return;
     if (data?['rating'] != null) return;
 
+    final trimmedComment = comment?.trim();
+    if (trimmedComment != null && trimmedComment.length > 1000) return;
+
     await _consultation(uid).set(
       {
         'rating': rating,
-        'ratingComment': comment?.trim().isEmpty == true ? null : comment?.trim(),
+        'ratingComment': trimmedComment?.isEmpty == true ? null : trimmedComment,
         'ratedAt': FieldValue.serverTimestamp(),
       },
       SetOptions(merge: true),
