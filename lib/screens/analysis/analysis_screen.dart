@@ -173,11 +173,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
         const SizedBox(height: 9),
         const Text(
           'A guided AI analysis to build your personal colour identity.',
-          style: TextStyle(
-            color: _muted,
-            fontSize: 13.5,
-            height: 1.45,
-          ),
+          style: TextStyle(color: _muted, fontSize: 13.5, height: 1.45),
         ),
       ],
     );
@@ -196,14 +192,9 @@ class _AnalysisScreenState extends State<AnalysisScreen>
           Container(
             width: 42,
             height: 42,
-            decoration: const BoxDecoration(
-              color: _soft,
-              shape: BoxShape.circle,
-            ),
+            decoration: const BoxDecoration(color: _soft, shape: BoxShape.circle),
             child: Icon(
-              isPremium
-                  ? Icons.workspace_premium_outlined
-                  : Icons.palette_outlined,
+              isPremium ? Icons.workspace_premium_outlined : Icons.palette_outlined,
               color: _brown,
               size: 20,
             ),
@@ -217,14 +208,8 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                   children: [
                     Expanded(
                       child: Text(
-                        isPremium
-                            ? 'Premium colour insights'
-                            : 'Personal colour analysis',
-                        style: const TextStyle(
-                          color: _text,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
-                        ),
+                        isPremium ? 'Premium colour insights' : 'Personal colour analysis',
+                        style: const TextStyle(color: _text, fontSize: 13, fontWeight: FontWeight.w800),
                       ),
                     ),
                     if (isPremium) const PremiumBadge(compact: true),
@@ -235,11 +220,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                   isPremium
                       ? 'More personalised seasonal detail.'
                       : 'Your result becomes the colour foundation for VYEA styling.',
-                  style: const TextStyle(
-                    color: _muted,
-                    fontSize: 11.5,
-                    height: 1.35,
-                  ),
+                  style: const TextStyle(color: _muted, fontSize: 11.5, height: 1.35),
                 ),
               ],
             ),
@@ -265,17 +246,10 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                   CircleAvatar(
                     radius: 34,
                     backgroundColor: _soft,
-                    child: Icon(
-                      Icons.center_focus_strong_rounded,
-                      size: 32,
-                      color: _brown,
-                    ),
+                    child: Icon(Icons.center_focus_strong_rounded, size: 32, color: _brown),
                   ),
                   SizedBox(height: 15),
-                  Text(
-                    'Start with a clear photo',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
-                  ),
+                  Text('Start with a clear photo', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
                   SizedBox(height: 5),
                   Padding(
                     padding: EdgeInsets.symmetric(horizontal: 30),
@@ -289,7 +263,7 @@ class _AnalysisScreenState extends State<AnalysisScreen>
               )
             : ClipRRect(
                 borderRadius: BorderRadius.circular(26),
-                child: Image.file(selectedImage, fit: BoxFit.cover),
+                child: Image.file(selectedImage, fit: BoxFit.cover, width: double.infinity, height: double.infinity),
               ),
       ),
     );
@@ -316,44 +290,62 @@ class _AnalysisScreenState extends State<AnalysisScreen>
               Expanded(
                 child: Text(
                   hasImage ? 'PHOTO READY' : 'BEFORE YOU START',
-                  style: const TextStyle(
-                    color: _brown,
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.1,
-                  ),
+                  style: const TextStyle(color: _brown, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: 1.1),
                 ),
               ),
-              if (hasImage)
-                const Icon(Icons.check_circle_outline_rounded, size: 17, color: AppColors.success),
+              if (hasImage) const Icon(Icons.check_circle_outline_rounded, size: 17, color: AppColors.success),
             ],
           ),
           const SizedBox(height: 10),
-          Row(
-            children: [
-              for (var index = 0; index < items.length; index++) ...[
-                if (index > 0) const SizedBox(width: 7),
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: AppColors.background,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: AppColors.border),
-                    ),
-                    child: Column(
-                      children: [
-                        Icon(items[index].$3, size: 17, color: _brown),
-                        const SizedBox(height: 5),
-                        Text(items[index].$1, style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: .6, color: _muted)),
-                        const SizedBox(height: 2),
-                        Text(items[index].$2, textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 9.2, fontWeight: FontWeight.w700)),
-                      ],
-                    ),
-                  ),
-                ),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final columns = constraints.maxWidth >= 600 ? 3 : 1;
+              if (columns == 1) {
+                return Column(
+                  children: [
+                    for (var index = 0; index < items.length; index++) ...[
+                      if (index > 0) const SizedBox(height: 7),
+                      _qualityItem(items[index]),
+                    ],
+                  ],
+                );
+              }
+              return Row(
+                children: [
+                  for (var index = 0; index < items.length; index++) ...[
+                    if (index > 0) const SizedBox(width: 7),
+                    Expanded(child: _qualityItem(items[index])),
+                  ],
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _qualityItem((String, String, IconData) item) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          Icon(item.$3, size: 17, color: _brown),
+          const SizedBox(width: 7),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(item.$1, style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: .6, color: _muted)),
+                const SizedBox(height: 2),
+                Text(item.$2, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 9.2, fontWeight: FontWeight.w700)),
               ],
-            ],
+            ),
           ),
         ],
       ),
@@ -369,23 +361,11 @@ class _AnalysisScreenState extends State<AnalysisScreen>
 
     return Container(
       padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(color: AppColors.border),
-      ),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(AppRadius.lg), border: Border.all(color: AppColors.border)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'YOUR COLOUR JOURNEY',
-            style: TextStyle(
-              color: _muted,
-              fontSize: 10,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1,
-            ),
-          ),
+          const Text('YOUR COLOUR JOURNEY', style: TextStyle(color: _muted, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1)),
           const SizedBox(height: 15),
           ...steps.map(
             (step) => Padding(
@@ -397,41 +377,17 @@ class _AnalysisScreenState extends State<AnalysisScreen>
                     width: 34,
                     height: 34,
                     alignment: Alignment.center,
-                    decoration: const BoxDecoration(
-                      color: _soft,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Text(
-                      step.$1,
-                      style: const TextStyle(
-                        color: _brown,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
+                    decoration: const BoxDecoration(color: _soft, shape: BoxShape.circle),
+                    child: Text(step.$1, style: const TextStyle(color: _brown, fontSize: 10, fontWeight: FontWeight.w800)),
                   ),
                   const SizedBox(width: 11),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          step.$2,
-                          style: const TextStyle(
-                            color: _text,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
+                        Text(step.$2, style: const TextStyle(color: _text, fontSize: 13, fontWeight: FontWeight.w800)),
                         const SizedBox(height: 3),
-                        Text(
-                          step.$3,
-                          style: const TextStyle(
-                            color: _muted,
-                            fontSize: 11.5,
-                            height: 1.4,
-                          ),
-                        ),
+                        Text(step.$3, style: const TextStyle(color: _muted, fontSize: 11.5, height: 1.4)),
                       ],
                     ),
                   ),
@@ -449,86 +405,107 @@ class _AnalysisScreenState extends State<AnalysisScreen>
     return Consumer<AnalysisProvider>(
       builder: (context, provider, _) {
         final hasImage = provider.selectedImage != null;
+        final busy = provider.isLoading;
         return Scaffold(
           backgroundColor: AppColors.background,
           appBar: AppBar(
             title: const Text('Colour Analysis'),
             actions: [
-              IconButton(
-                tooltip: 'Season Colour Guide',
-                onPressed: provider.isLoading ? null : openSeasonGuide,
-                icon: const Icon(Icons.menu_book_outlined),
-              ),
-              IconButton(
-                tooltip: 'Analysis History',
-                onPressed: provider.isLoading ? null : openAnalysisHistory,
-                icon: const Icon(Icons.history_rounded),
-              ),
+              IconButton(tooltip: 'Season Colour Guide', onPressed: busy ? null : openSeasonGuide, icon: const Icon(Icons.menu_book_outlined)),
+              IconButton(tooltip: 'Analysis History', onPressed: busy ? null : openAnalysisHistory, icon: const Icon(Icons.history_rounded)),
             ],
           ),
           body: SafeArea(
             child: SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 34),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _reveal(_headerReveal, _buildHeader()),
-                  const SizedBox(height: 18),
-                  _buildAnalysisAccessCard(provider.isPremium),
-                  const SizedBox(height: 10),
-                  OutlinedButton.icon(
-                    onPressed: provider.isLoading ? null : openSeasonGuide,
-                    icon: const Icon(Icons.menu_book_outlined),
-                    label: const Text('Explore Season Colour Guide'),
-                    style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(44)),
-                  ),
-                  const SizedBox(height: 18),
-                  _reveal(_imageReveal, _buildImagePreview(provider.selectedImage)),
-                  const SizedBox(height: 10),
-                  _buildPhotoQualityGuide(hasImage),
-                  const SizedBox(height: 11),
-                  Row(
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 900),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
+                      Semantics(header: true, child: _reveal(_headerReveal, _buildHeader())),
+                      const SizedBox(height: 18),
+                      _buildAnalysisAccessCard(provider.isPremium),
+                      const SizedBox(height: 10),
+                      Semantics(
+                        button: true,
+                        label: 'Explore Season Colour Guide',
                         child: OutlinedButton.icon(
-                          onPressed: provider.isLoading ? null : openFaceScan,
-                          icon: const Icon(Icons.face_retouching_natural),
-                          label: const Text('Face Scan'),
+                          onPressed: busy ? null : openSeasonGuide,
+                          icon: const Icon(Icons.menu_book_outlined),
+                          label: const Text('Explore Season Colour Guide'),
+                          style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(44)),
                         ),
                       ),
-                      const SizedBox(width: 9),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: provider.isLoading ? null : pickGallery,
-                          icon: const Icon(Icons.photo_library_outlined),
-                          label: const Text('Gallery'),
+                      const SizedBox(height: 18),
+                      Semantics(
+                        label: hasImage ? 'Selected photo preview' : 'Photo upload area',
+                        image: hasImage,
+                        child: _reveal(_imageReveal, _buildImagePreview(provider.selectedImage)),
+                      ),
+                      const SizedBox(height: 10),
+                      _buildPhotoQualityGuide(hasImage),
+                      const SizedBox(height: 11),
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          final horizontal = constraints.maxWidth >= 600;
+                          final faceButton = OutlinedButton.icon(
+                            onPressed: busy ? null : openFaceScan,
+                            icon: const Icon(Icons.face_retouching_natural),
+                            label: const Text('Face Scan'),
+                          );
+                          final galleryButton = OutlinedButton.icon(
+                            onPressed: busy ? null : pickGallery,
+                            icon: const Icon(Icons.photo_library_outlined),
+                            label: const Text('Gallery'),
+                          );
+                          return horizontal
+                              ? Row(children: [Expanded(child: faceButton), const SizedBox(width: 9), Expanded(child: galleryButton)])
+                              : Column(children: [SizedBox(width: double.infinity, child: faceButton), const SizedBox(height: 9), SizedBox(width: double.infinity, child: galleryButton)]);
+                        },
+                      ),
+                      if (hasImage) ...[
+                        const SizedBox(height: 6),
+                        Align(
+                          alignment: Alignment.center,
+                          child: TextButton.icon(
+                            onPressed: busy ? null : removeSelectedPhoto,
+                            icon: const Icon(Icons.delete_outline_rounded, size: 17),
+                            label: const Text('Choose another photo'),
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 4),
+                      Semantics(
+                        liveRegion: true,
+                        label: busy ? 'Colour analysis is in progress' : hasImage ? 'Photo selected and ready for colour analysis' : 'No photo selected',
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Text(
+                            busy ? 'VYEA is analysing your colours…' : hasImage ? 'Your photo is ready for analysis.' : 'Choose a clear photo to begin.',
+                            style: const TextStyle(color: _muted, fontSize: 11.5, height: 1.35),
+                          ),
                         ),
                       ),
+                      _reveal(
+                        _actionsReveal,
+                        Semantics(
+                          button: true,
+                          enabled: hasImage && !busy,
+                          label: hasImage ? 'Start colour analysis' : 'Start colour analysis disabled until a photo is selected',
+                          child: PrimaryButton(
+                            text: busy ? 'Analysing your colours…' : 'Analyse My Colours',
+                            icon: Icons.auto_awesome_rounded,
+                            onPressed: hasImage && !busy ? analyse : null,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 22),
+                      Semantics(header: true, child: _reveal(_actionsReveal, _buildHowItWorks())),
                     ],
                   ),
-                  if (provider.selectedImage != null) ...[
-                    const SizedBox(height: 6),
-                    Align(
-                      alignment: Alignment.center,
-                      child: TextButton.icon(
-                        onPressed: provider.isLoading ? null : removeSelectedPhoto,
-                        icon: const Icon(Icons.delete_outline_rounded, size: 17),
-                        label: const Text('Choose another photo'),
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 4),
-                  _reveal(
-                    _actionsReveal,
-                    PrimaryButton(
-                      text: provider.isLoading ? 'Analysing your colours…' : 'Analyse My Colours',
-                      icon: Icons.auto_awesome_rounded,
-                      onPressed: provider.selectedImage == null || provider.isLoading ? null : analyse,
-                    ),
-                  ),
-                  const SizedBox(height: 22),
-                  _reveal(_actionsReveal, _buildHowItWorks()),
-                ],
+                ),
               ),
             ),
           ),
