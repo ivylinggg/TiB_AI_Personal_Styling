@@ -40,6 +40,8 @@ class VyeaNotification {
 class NotificationService {
   NotificationService._();
 
+  static const _requestTimeout = Duration(seconds: 15);
+
   static final FirebaseFirestore _db = FirebaseFirestore.instance;
   static final FirebaseMessaging _messaging = FirebaseMessaging.instance;
 
@@ -59,12 +61,14 @@ class NotificationService {
     await _foregroundSubscription?.cancel();
 
     try {
-      final settings = await _messaging.requestPermission(
-        alert: true,
-        badge: true,
-        sound: true,
-        provisional: false,
-      );
+      final settings = await _messaging
+          .requestPermission(
+            alert: true,
+            badge: true,
+            sound: true,
+            provisional: false,
+          )
+          .timeout(_requestTimeout);
 
       if (settings.authorizationStatus == AuthorizationStatus.denied) {
         _initializedUid = user.uid;
@@ -99,7 +103,7 @@ class NotificationService {
 
   static Future<void> _syncToken(String uid) async {
     try {
-      final token = await _messaging.getToken();
+      final token = await _messaging.getToken().timeout(_requestTimeout);
       if (token != null && token.trim().isNotEmpty) {
         await _storeDeviceToken(uid, token);
       }
@@ -110,10 +114,17 @@ class NotificationService {
 
   static Future<void> _storeDeviceToken(String uid, String token) async {
     try {
-      await _db.collection('users').doc(uid).set({
-        'fcmTokens': FieldValue.arrayUnion([token]),
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      await _db
+          .collection('users')
+          .doc(uid)
+          .set(
+            {
+              'fcmTokens': FieldValue.arrayUnion([token]),
+              'updatedAt': FieldValue.serverTimestamp(),
+            },
+            SetOptions(merge: true),
+          )
+          .timeout(_requestTimeout);
     } catch (_) {
       // Token persistence is non-critical.
     }
@@ -146,16 +157,18 @@ class NotificationService {
     _welcomeChecks.add(uid);
 
     try {
-      final existing = await _notifications(uid).limit(1).get();
+      final existing = await _notifications(uid).limit(1).get().timeout(_requestTimeout);
       if (existing.docs.isNotEmpty) return;
 
-      await _notifications(uid).add({
-        'title': 'Welcome to VYEA',
-        'body': 'Your personal styling space is ready. Explore your wardrobe and discover a look that feels like you.',
-        'type': 'system',
-        'read': false,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+      await _notifications(uid)
+          .add({
+            'title': 'Welcome to VYEA',
+            'body': 'Your personal styling space is ready. Explore your wardrobe and discover a look that feels like you.',
+            'type': 'system',
+            'read': false,
+            'createdAt': FieldValue.serverTimestamp(),
+          })
+          .timeout(_requestTimeout);
     } catch (_) {
       _welcomeChecks.remove(uid);
     }
@@ -164,7 +177,10 @@ class NotificationService {
   static Future<void> markRead(String uid, String notificationId) async {
     if (uid.trim().isEmpty || notificationId.trim().isEmpty) return;
     try {
-      await _notifications(uid).doc(notificationId).update({'read': true});
+      await _notifications(uid)
+          .doc(notificationId)
+          .update({'read': true})
+          .timeout(_requestTimeout);
     } catch (_) {}
   }
 
@@ -174,13 +190,14 @@ class NotificationService {
       final snapshot = await _notifications(uid)
           .where('read', isEqualTo: false)
           .limit(50)
-          .get();
+          .get()
+          .timeout(_requestTimeout);
       if (snapshot.docs.isEmpty) return;
       final batch = _db.batch();
       for (final doc in snapshot.docs) {
         batch.update(doc.reference, {'read': true});
       }
-      await batch.commit();
+      await batch.commit().timeout(_requestTimeout);
     } catch (_) {}
   }
 }
