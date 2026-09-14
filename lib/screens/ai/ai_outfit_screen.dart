@@ -164,6 +164,8 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
         occasion: _occasion,
       );
       if (mounted) setState(() => _savedLook = true);
+    } catch (error) {
+      if (mounted) _showMessage('Could not save this look. Please try again.');
     } finally {
       if (mounted) setState(() => _savingLook = false);
     }
@@ -185,17 +187,22 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
               onRefresh: _loadWardrobe,
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 32),
-                children: [
-                  _hero(profile),
-                  const SizedBox(height: 18),
-                  _occasionSection(),
-                  const SizedBox(height: 14),
-                  _generateButton(profile),
-                  const SizedBox(height: 18),
-                  _result(profile),
-                ],
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final horizontalPadding = constraints.maxWidth >= 700 ? 28.0 : 16.0;
+                  return ListView(
+                    padding: EdgeInsets.fromLTRB(horizontalPadding, 10, horizontalPadding, 32),
+                    children: [
+                      _hero(profile),
+                      const SizedBox(height: 18),
+                      _occasionSection(),
+                      const SizedBox(height: 14),
+                      _generateButton(profile),
+                      const SizedBox(height: 18),
+                      _result(profile),
+                    ],
+                  );
+                },
               ),
             ),
     );
@@ -204,38 +211,43 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
   Widget _hero(ColourAnalysisResult? profile) => Container(
         width: double.infinity,
         padding: const EdgeInsets.fromLTRB(18, 20, 18, 18),
-        decoration: BoxDecoration(
-          color: AppColors.primaryDark,
-          borderRadius: BorderRadius.circular(24),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'PERSONAL AI STYLIST',
-              style: TextStyle(color: Colors.white70, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1.2),
-            ),
-            const SizedBox(height: 7),
-            const Text(
-              'One wardrobe. One right look.',
-              style: TextStyle(color: Colors.white, fontSize: 23, fontWeight: FontWeight.w900, height: 1.08),
-            ),
-            const SizedBox(height: 7),
-            Text(
-              profile == null ? 'Complete Colour Analysis for a more personal recommendation.' : 'Built around your colours, preferences and the pieces you already own.',
-              style: const TextStyle(color: Colors.white70, fontSize: 11.5, height: 1.35),
-            ),
-            const SizedBox(height: 15),
-            Row(
+        decoration: BoxDecoration(color: AppColors.primaryDark, borderRadius: BorderRadius.circular(24)),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxWidth < 430;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _heroStat(Icons.checkroom_outlined, '${_wardrobe.length}', 'WARDROBE PIECES'),
-                const SizedBox(width: 8),
-                _heroStat(Icons.palette_outlined, profile?.season ?? '—', 'COLOUR PROFILE'),
-                const SizedBox(width: 8),
-                _heroStat(Icons.event_outlined, _occasion, 'MOMENT'),
+                const Text('PERSONAL AI STYLIST', style: TextStyle(color: Colors.white70, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1.2)),
+                const SizedBox(height: 7),
+                const Text('One wardrobe. One right look.', style: TextStyle(color: Colors.white, fontSize: 23, fontWeight: FontWeight.w900, height: 1.08)),
+                const SizedBox(height: 7),
+                Text(
+                  profile == null ? 'Complete Colour Analysis for a more personal recommendation.' : 'Built around your colours, preferences and the pieces you already own.',
+                  style: const TextStyle(color: Colors.white70, fontSize: 11.5, height: 1.35),
+                ),
+                const SizedBox(height: 15),
+                if (compact)
+                  Column(
+                    children: [
+                      Row(children: [Expanded(child: _heroStat(Icons.checkroom_outlined, '${_wardrobe.length}', 'WARDROBE PIECES')), const SizedBox(width: 8), Expanded(child: _heroStat(Icons.palette_outlined, profile?.season ?? '—', 'COLOUR PROFILE'))]),
+                      const SizedBox(height: 8),
+                      Row(children: [Expanded(child: _heroStat(Icons.event_outlined, _occasion, 'MOMENT'))]),
+                    ],
+                  )
+                else
+                  Row(
+                    children: [
+                      _heroStat(Icons.checkroom_outlined, '${_wardrobe.length}', 'WARDROBE PIECES'),
+                      const SizedBox(width: 8),
+                      _heroStat(Icons.palette_outlined, profile?.season ?? '—', 'COLOUR PROFILE'),
+                      const SizedBox(width: 8),
+                      _heroStat(Icons.event_outlined, _occasion, 'MOMENT'),
+                    ],
+                  ),
               ],
-            ),
-          ],
+            );
+          },
         ),
       );
 
@@ -252,7 +264,7 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.w800)),
-                    Text(label, style: const TextStyle(color: Colors.white54, fontSize: 8.5)),
+                    Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white54, fontSize: 8.5)),
                   ],
                 ),
               ),
@@ -330,11 +342,14 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Expanded(child: Text(result.displayTitle, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900))),
-            _matchBadge(result.matchScore),
-          ],
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final stacked = constraints.maxWidth < 360;
+            final title = Text(result.displayTitle, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900));
+            return stacked
+                ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [title, const SizedBox(height: 8), _matchBadge(result.matchScore)])
+                : Row(children: [Expanded(child: title), const SizedBox(width: 8), _matchBadge(result.matchScore)]);
+          },
         ),
         const SizedBox(height: 10),
         Container(
@@ -342,24 +357,32 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
           decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.border)),
           child: Column(
             children: [
-              GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: _look.length,
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: .82),
-                itemBuilder: (_, index) => _itemCard(_look[index]),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final columns = constraints.maxWidth >= 620 ? 3 : 2;
+                  return GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: _look.length,
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: columns, crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: columns == 3 ? .82 : .78),
+                    itemBuilder: (_, index) => _itemCard(_look[index]),
+                  );
+                },
               ),
               if (notes.isNotEmpty) ...[
                 const SizedBox(height: 12),
                 Align(alignment: Alignment.centerLeft, child: Text(notes.join(' • '), style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondary, height: 1.4))),
               ],
               const SizedBox(height: 14),
-              Row(
-                children: [
-                  Expanded(child: OutlinedButton(onPressed: _styling ? null : () => _tryAnother(profile), child: const Text('Try another'))),
-                  const SizedBox(width: 9),
-                  Expanded(child: FilledButton(onPressed: _savingLook ? null : () => _saveLook(profile), child: Text(_savedLook ? 'Saved' : (_savingLook ? 'Saving…' : 'Save look')))),
-                ],
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final stacked = constraints.maxWidth < 360;
+                  final tryAgain = OutlinedButton(onPressed: _styling ? null : () => _tryAnother(profile), child: const Text('Try another'));
+                  final save = FilledButton(onPressed: _savingLook ? null : () => _saveLook(profile), child: Text(_savedLook ? 'Saved' : (_savingLook ? 'Saving…' : 'Save look')));
+                  return stacked
+                      ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [tryAgain, const SizedBox(height: 9), save])
+                      : Row(children: [Expanded(child: tryAgain), const SizedBox(width: 9), Expanded(child: save)]);
+                },
               ),
             ],
           ),
@@ -377,7 +400,13 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
             Expanded(
               child: item.imageUrl.isEmpty
                   ? const Center(child: Icon(Icons.checkroom_outlined, color: AppColors.textMuted, size: 36))
-                  : CachedNetworkImage(imageUrl: item.imageUrl, fit: BoxFit.cover, width: double.infinity),
+                  : CachedNetworkImage(
+                      imageUrl: item.imageUrl,
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      errorWidget: (_, __, ___) => const Center(child: Icon(Icons.broken_image_outlined, color: AppColors.textMuted, size: 32)),
+                      placeholder: (_, __) => const Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),
+                    ),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(10, 8, 10, 9),
