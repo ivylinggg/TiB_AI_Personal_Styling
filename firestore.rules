@@ -68,9 +68,6 @@ service cloud.firestore {
       }
     }
 
-    // Collection-group queries cannot rely only on the nested /users/{userId}
-    // match. Admin dashboard uses a collectionGroup('analysis') query, so
-    // expose the same analysis records through an explicit recursive rule.
     match /{path=**}/analysis/{analysisId} {
       allow read: if isAdmin();
       allow update, delete: if isAdmin();
