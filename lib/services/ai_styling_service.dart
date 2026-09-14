@@ -183,7 +183,7 @@ class AiStylingService {
 
   static Set<String> _effectiveExcludedLookKeys(String uid, Set<String> explicit) {
     final recent = _recentLookKeysByUid[uid];
-    if (recent == null || recent.isEmpty) return {...explicit};
+    if (recent.isEmpty) return {...explicit};
     return {...explicit, ...recent};
   }
 
@@ -806,7 +806,7 @@ class AiStylingService {
     final colours = look.map((item) => _safeText(item.colour, maxLength: 30)).where((value) => value.isNotEmpty).take(3).join(', ');
     final palette = _safeStringList(profile.colours, maxItems: 3).join(', ');
     final safeOccasion = _safeText(occasion, maxLength: 40).toLowerCase();
-    if (colours.isEmpty) return 'I built this ${safeOccasion} look around your personal style and colour profile.';
+    if (colours.isEmpty) return 'I built this $safeOccasion look around your personal style and colour profile.';
     return 'I paired $colours for $safeOccasion and kept the direction aligned with your palette: $palette.';
   }
 
