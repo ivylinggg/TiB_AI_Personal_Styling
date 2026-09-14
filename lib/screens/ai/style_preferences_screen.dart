@@ -106,45 +106,56 @@ class _StylePreferencesScreenState extends State<StylePreferencesScreen> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : SafeArea(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 30),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _intro(),
-                    const SizedBox(height: 15),
-                    _profileStatus(),
-                    const SizedBox(height: 18),
-                    _selectionSummary(),
-                    const SizedBox(height: 27),
-                    _sectionTitle('What feels most like you?', 'Choose the styles you naturally reach for.'),
-                    const SizedBox(height: 12),
-                    ..._styleOptions.map((item) => _optionCard(title: item.$1, subtitle: item.$2, selected: _styles.contains(item.$1), onTap: () => setState(() { _styles.contains(item.$1) ? _styles.remove(item.$1) : _styles.add(item.$1); }))),
-                    const SizedBox(height: 18),
-                    _sectionTitle('What matters when you get dressed?', 'These small details help VYEA style for your real life.'),
-                    const SizedBox(height: 12),
-                    ..._preferenceOptions.map((item) => _optionCard(title: item.$1, subtitle: item.$2, selected: _preferences.contains(item.$1), onTap: () => setState(() { _preferences.contains(item.$1) ? _preferences.remove(item.$1) : _preferences.add(item.$1); }))),
-                    const SizedBox(height: 14),
-                    _guidanceCard(),
-                    const SizedBox(height: 18),
-                    if (_premiumLoaded && _isPremium) _buildPremiumProfileCard(),
-                    const SizedBox(height: 22),
-                    SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: _saving ? null : _save, icon: _saving ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.check_rounded), label: Text(_saving ? 'Saving your style...' : 'Save My Style'), style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(54), backgroundColor: AppColors.primaryDark, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(17))))),
-                  ],
-                ),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final wide = constraints.maxWidth >= 820;
+                  final contentWidth = wide ? 760.0 : constraints.maxWidth;
+                  return Center(
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(maxWidth: contentWidth),
+                      child: SingleChildScrollView(
+                        padding: EdgeInsets.fromLTRB(wide ? 0 : 20, 8, wide ? 0 : 20, 30),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _intro(wide),
+                            const SizedBox(height: 15),
+                            _profileStatus(),
+                            const SizedBox(height: 18),
+                            _selectionSummary(),
+                            const SizedBox(height: 27),
+                            _sectionTitle('What feels most like you?', 'Choose the styles you naturally reach for.'),
+                            const SizedBox(height: 12),
+                            _responsiveOptions(_styleOptions),
+                            const SizedBox(height: 18),
+                            _sectionTitle('What matters when you get dressed?', 'These small details help VYEA style for your real life.'),
+                            const SizedBox(height: 12),
+                            _responsiveOptions(_preferenceOptions),
+                            const SizedBox(height: 14),
+                            _guidanceCard(),
+                            const SizedBox(height: 18),
+                            if (_premiumLoaded && _isPremium) _buildPremiumProfileCard(),
+                            const SizedBox(height: 22),
+                            SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: _saving ? null : _save, icon: _saving ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.check_rounded), label: Text(_saving ? 'Saving your style...' : 'Save My Style'), style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(54), backgroundColor: AppColors.primaryDark, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(17)))),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
     );
   }
 
-  Widget _intro() => Container(
+  Widget _intro(bool wide) => Container(
         width: double.infinity,
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 22),
+        padding: EdgeInsets.fromLTRB(wide ? 24 : 20, wide ? 23 : 20, wide ? 24 : 20, wide ? 25 : 22),
         decoration: BoxDecoration(color: AppColors.primaryDark, borderRadius: BorderRadius.circular(28)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const Text('VYEA  /  STYLE PROFILE', style: TextStyle(color: AppColors.peach, fontSize: 9.5, fontWeight: FontWeight.w900, letterSpacing: 1.45)),
           const SizedBox(height: 15),
-          const Text('Make it feel\nlike you.', style: TextStyle(color: Colors.white, fontSize: 31, height: 1.0, fontWeight: FontWeight.w800, letterSpacing: -1)),
+          Text('Make it feel\nlike you.', style: TextStyle(color: Colors.white, fontSize: wide ? 35 : 31, height: 1.0, fontWeight: FontWeight.w800, letterSpacing: -1)),
           const SizedBox(height: 9),
           const Text('Tell VYEA what you love, what matters and how you want your clothes to feel.', style: TextStyle(color: Colors.white70, fontSize: 12.5, height: 1.45)),
         ]),
@@ -188,13 +199,52 @@ class _StylePreferencesScreenState extends State<StylePreferencesScreen> {
         Text(subtitle, style: const TextStyle(color: _muted, fontSize: 12.5, height: 1.4)),
       ]);
 
+  Widget _responsiveOptions(List<(String, String)> options) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth >= 600 ? 2 : 1;
+        if (columns == 1) {
+          return Column(children: options.map((item) => _optionCard(title: item.$1, subtitle: item.$2, selected: _selectionContains(item.$1), onTap: () => _toggleSelection(item.$1))).toList());
+        }
+        return GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: options.length,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
+            childAspectRatio: 1.95,
+          ),
+          itemBuilder: (_, index) {
+            final item = options[index];
+            return _optionCard(title: item.$1, subtitle: item.$2, selected: _selectionContains(item.$1), onTap: () => _toggleSelection(item.$1));
+          },
+        );
+      },
+    );
+  }
+
+  bool _selectionContains(String label) => _styles.contains(label) || _preferences.contains(label);
+
+  void _toggleSelection(String label) {
+    setState(() {
+      final target = _styleOptions.any((item) => item.$1 == label) ? _styles : _preferences;
+      if (target.contains(label)) {
+        target.remove(label);
+      } else {
+        target.add(label);
+      }
+    });
+  }
+
   Widget _optionCard({required String title, required String subtitle, required bool selected, required VoidCallback onTap}) => Padding(
         padding: const EdgeInsets.only(bottom: 10),
         child: Material(
           color: Colors.transparent,
           borderRadius: BorderRadius.circular(20),
           child: InkWell(
-            onTap: onTap,
+            onTap: _saving ? null : onTap,
             borderRadius: BorderRadius.circular(20),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 180),
@@ -203,7 +253,7 @@ class _StylePreferencesScreenState extends State<StylePreferencesScreen> {
               child: Row(children: [
                 AnimatedContainer(duration: const Duration(milliseconds: 180), width: 43, height: 43, decoration: BoxDecoration(color: selected ? AppColors.primary : AppColors.secondary, shape: BoxShape.circle), child: Icon(selected ? Icons.check_rounded : Icons.add_rounded, color: selected ? Colors.white : AppColors.primary, size: 21)),
                 const SizedBox(width: 12),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(color: _text, fontSize: 14, fontWeight: FontWeight.w800)), const SizedBox(height: 3), Text(subtitle, style: const TextStyle(color: _muted, fontSize: 10.5, height: 1.35))])),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [Text(title, style: const TextStyle(color: _text, fontSize: 14, fontWeight: FontWeight.w800)), const SizedBox(height: 3), Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: _muted, fontSize: 10.5, height: 1.35))])),
                 const SizedBox(width: 8),
                 Icon(selected ? Icons.radio_button_checked_rounded : Icons.radio_button_unchecked_rounded, color: selected ? AppColors.primary : AppColors.textMuted, size: 20),
               ]),
