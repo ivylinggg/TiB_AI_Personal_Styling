@@ -97,17 +97,15 @@ class FirestoreService {
     );
   }
 
-  static Future<T> _recoverRead<T>(Future<T> Function() operation, T fallback) async {
+  static Future<T?> _tryRead<T>(Future<T> future) async {
     try {
-      return await operation();
+      return await future;
     } on FirebaseException catch (error) {
-      if (error.code == 'unavailable' || error.code == 'deadline-exceeded') {
-        return fallback;
-      }
+      if (error.code == 'unavailable' || error.code == 'deadline-exceeded') return null;
+      rethrow;
     } on TimeoutException {
-      return fallback;
+      return null;
     }
-    return fallback;
   }
 
   static Future<PersonalStyleContext> getPersonalStyleContext(String uid) async {
@@ -126,20 +124,16 @@ class FirestoreService {
     }
 
     final results = await Future.wait<dynamic>([
-      _recoverRead<UserModel?>(() => getUser(ownerUid), null),
-      _recoverRead<ColourAnalysisResult?>(() => getLatestColourAnalysis(ownerUid), null),
-      _recoverRead<DocumentSnapshot<Map<String, dynamic>>>(
-        () => _withReadTimeout(
+      _tryRead<UserModel?>(getUser(ownerUid)),
+      _tryRead<ColourAnalysisResult?>(getLatestColourAnalysis(ownerUid)),
+      _tryRead<DocumentSnapshot<Map<String, dynamic>>>(
+        _withReadTimeout(
           _db.collection('users').doc(ownerUid).collection('preferences').doc('style').get(),
           'Loading your style preferences timed out.',
         ),
-        _emptyDocumentSnapshot(),
       ),
-      _recoverRead<List<WardrobeItem>>(() => getWardrobeItems(ownerUid), const []),
-      _recoverRead<List<Map<String, dynamic>>>(
-        () => getSavedOutfitLooks(ownerUid),
-        const [],
-      ),
+      _tryRead<List<WardrobeItem>>(getWardrobeItems(ownerUid)),
+      _tryRead<List<Map<String, dynamic>>>(getSavedOutfitLooks(ownerUid)),
     ], eagerError: false);
 
     final user = results[0] is UserModel ? results[0] as UserModel? : null;
@@ -151,8 +145,8 @@ class FirestoreService {
     final savedLooks = results[4] is List<Map<String, dynamic>> ? results[4] as List<Map<String, dynamic>> : const <Map<String, dynamic>>[];
 
     final preferenceData = preferenceSnapshot?.data();
-    final hasPreferenceDocument = preferenceSnapshot?.exists == true;
-    final degraded = user == null || (preferenceSnapshot != null && !hasPreferenceDocument);
+    final failedReads = results.where((result) => result == null).length;
+    final degraded = failedReads > 0;
 
     return PersonalStyleContext(
       user: user,
@@ -165,9 +159,6 @@ class FirestoreService {
       errorMessage: degraded ? 'Some personal style data could not be loaded.' : null,
     );
   }
-
-  static DocumentSnapshot<Map<String, dynamic>> _emptyDocumentSnapshot() =>
-      _EmptyDocumentSnapshot();
 
   static Future<void> createUser(UserModel user) async {
     final currentUid = FirebaseAuth.instance.currentUser?.uid.trim();
@@ -514,21 +505,4 @@ class FirestoreService {
         .where((item) => item.isNotEmpty)
         .toList(growable: false);
   }
-}
-
-class _EmptyDocumentSnapshot extends DocumentSnapshot<Map<String, dynamic>> {
-  @override
-  Map<String, dynamic>? data() => null;
-
-  @override
-  SnapshotMetadata get metadata => throw UnimplementedError();
-
-  @override
-  String get id => '';
-
-  @override
-  DocumentReference<Map<String, dynamic>> get reference => throw UnimplementedError();
-
-  @override
-  bool get exists => false;
 }
