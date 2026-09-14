@@ -97,6 +97,19 @@ class FirestoreService {
     );
   }
 
+  static Future<T> _recoverRead<T>(Future<T> Function() operation, T fallback) async {
+    try {
+      return await operation();
+    } on FirebaseException catch (error) {
+      if (error.code == 'unavailable' || error.code == 'deadline-exceeded') {
+        return fallback;
+      }
+    } on TimeoutException {
+      return fallback;
+    }
+    return fallback;
+  }
+
   static Future<PersonalStyleContext> getPersonalStyleContext(String uid) async {
     final ownerUid = _normalizeUid(uid);
     if (ownerUid == null) {
@@ -113,31 +126,33 @@ class FirestoreService {
     }
 
     final results = await Future.wait<dynamic>([
-      getUser(ownerUid),
-      getLatestColourAnalysis(ownerUid),
-      _withReadTimeout(
-        _db.collection('users').doc(ownerUid).collection('preferences').doc('style').get(),
-        'Loading your style preferences timed out.',
+      _recoverRead<UserModel?>(() => getUser(ownerUid), null),
+      _recoverRead<ColourAnalysisResult?>(() => getLatestColourAnalysis(ownerUid), null),
+      _recoverRead<DocumentSnapshot<Map<String, dynamic>>>(
+        () => _withReadTimeout(
+          _db.collection('users').doc(ownerUid).collection('preferences').doc('style').get(),
+          'Loading your style preferences timed out.',
+        ),
+        _emptyDocumentSnapshot(),
       ),
-      getWardrobeItems(ownerUid),
-      getSavedOutfitLooks(ownerUid),
+      _recoverRead<List<WardrobeItem>>(() => getWardrobeItems(ownerUid), const []),
+      _recoverRead<List<Map<String, dynamic>>>(
+        () => getSavedOutfitLooks(ownerUid),
+        const [],
+      ),
     ], eagerError: false);
-
-    var degraded = false;
-    String? errorMessage;
-
-    Map<String, dynamic>? preferenceData;
-    if (results[2] is DocumentSnapshot<Map<String, dynamic>>) {
-      preferenceData = (results[2] as DocumentSnapshot<Map<String, dynamic>>).data();
-    } else {
-      degraded = true;
-      errorMessage = 'Some style preferences could not be loaded.';
-    }
 
     final user = results[0] is UserModel ? results[0] as UserModel? : null;
     final colourAnalysis = results[1] is ColourAnalysisResult ? results[1] as ColourAnalysisResult? : null;
+    final preferenceSnapshot = results[2] is DocumentSnapshot<Map<String, dynamic>>
+        ? results[2] as DocumentSnapshot<Map<String, dynamic>>
+        : null;
     final wardrobe = results[3] is List<WardrobeItem> ? results[3] as List<WardrobeItem> : const <WardrobeItem>[];
     final savedLooks = results[4] is List<Map<String, dynamic>> ? results[4] as List<Map<String, dynamic>> : const <Map<String, dynamic>>[];
+
+    final preferenceData = preferenceSnapshot?.data();
+    final hasPreferenceDocument = preferenceSnapshot?.exists == true;
+    final degraded = user == null || (preferenceSnapshot != null && !hasPreferenceDocument);
 
     return PersonalStyleContext(
       user: user,
@@ -147,9 +162,12 @@ class FirestoreService {
       wardrobe: List<WardrobeItem>.unmodifiable(wardrobe),
       savedLooks: List<Map<String, dynamic>>.unmodifiable(savedLooks),
       isDegraded: degraded,
-      errorMessage: errorMessage,
+      errorMessage: degraded ? 'Some personal style data could not be loaded.' : null,
     );
   }
+
+  static DocumentSnapshot<Map<String, dynamic>> _emptyDocumentSnapshot() =>
+      _EmptyDocumentSnapshot();
 
   static Future<void> createUser(UserModel user) async {
     final currentUid = FirebaseAuth.instance.currentUser?.uid.trim();
@@ -297,7 +315,7 @@ class FirestoreService {
     if (ownerUid == null) throw ArgumentError('A wardrobe item must belong to the signed-in user.');
     final ref = await _withWriteTimeout(
       _wardrobe(ownerUid).add(item.toMap()),
-      'Adding this wardrobe item timed out. Please try again.',
+      'Adding your wardrobe item timed out. Please try again.',
     );
     return ref.id;
   }
@@ -305,26 +323,14 @@ class FirestoreService {
   static Future<List<WardrobeItem>> getWardrobeItems(String uid) async {
     final ownerUid = _normalizeUid(uid);
     if (ownerUid == null) return const [];
-    try {
-      final snapshot = await _withReadTimeout(
-        _wardrobe(ownerUid).orderBy('createdAt', descending: true).get(),
-        'Loading your wardrobe timed out.',
-      );
-      return snapshot.docs
-          .map(WardrobeItem.fromFirestore)
-          .where((item) => item.userId.isEmpty || item.userId == ownerUid)
-          .toList(growable: false);
-    } on FirebaseException catch (error) {
-      if (error.code != 'unavailable') rethrow;
-      final snapshot = await _withReadTimeout(
-        _wardrobe(ownerUid).orderBy('createdAt', descending: true).get(const GetOptions(source: Source.cache)),
-        'Loading cached wardrobe data timed out.',
-      );
-      return snapshot.docs
-          .map(WardrobeItem.fromFirestore)
-          .where((item) => item.userId.isEmpty || item.userId == ownerUid)
-          .toList(growable: false);
-    }
+    final snapshot = await _withReadTimeout(
+      _wardrobe(ownerUid).orderBy('createdAt', descending: true).get(),
+      'Loading your wardrobe timed out.',
+    );
+    return snapshot.docs
+        .map(WardrobeItem.fromFirestore)
+        .where((item) => item.userId.isEmpty || item.userId == ownerUid)
+        .toList(growable: false);
   }
 
   static Stream<List<WardrobeItem>> watchWardrobeItems(String uid) {
@@ -348,7 +354,7 @@ class FirestoreService {
       ..remove('imageUrl');
     await _withWriteTimeout(
       _wardrobe(ownerUid).doc(cleanId).update(safeData),
-      'Updating this wardrobe item timed out. Please try again.',
+      'Updating your wardrobe item timed out. Please try again.',
     );
   }
 
@@ -358,7 +364,7 @@ class FirestoreService {
     if (ownerUid == null || cleanId.isEmpty) throw ArgumentError('Invalid wardrobe ownership or item ID.');
     await _withWriteTimeout(
       _wardrobe(ownerUid).doc(cleanId).delete(),
-      'Deleting this wardrobe item timed out. Please try again.',
+      'Deleting your wardrobe item timed out. Please try again.',
     );
   }
 
@@ -385,7 +391,7 @@ class FirestoreService {
 
     final wardrobeSnapshot = await _withReadTimeout(
       _wardrobe(ownerUid).get(),
-      'Checking your wardrobe items timed out. Please try again.',
+      'Checking wardrobe ownership timed out. Please try again.',
     );
     final ownedIds = wardrobeSnapshot.docs.map((doc) => doc.id).toSet();
     if (sanitizedItemIds.any((id) => !ownedIds.contains(id))) {
@@ -437,14 +443,14 @@ class FirestoreService {
 
     final userRef = _db.collection('users').doc(ownerUid);
     final consultationRef = _db.collection('consultations').doc(ownerUid);
-    final userDoc = await _withReadTimeout(userRef.get(), 'Loading account data for deletion timed out.');
-    final analysisSnapshot = await _withReadTimeout(userRef.collection('analysis').get(), 'Loading analysis records for deletion timed out.');
-    final wardrobeSnapshot = await _withReadTimeout(userRef.collection('wardrobe').get(), 'Loading wardrobe records for deletion timed out.');
-    final preferencesSnapshot = await _withReadTimeout(userRef.collection('preferences').get(), 'Loading preference records for deletion timed out.');
-    final savedLooksSnapshot = await _withReadTimeout(userRef.collection('savedLooks').get(), 'Loading saved looks for deletion timed out.');
-    final notificationsSnapshot = await _withReadTimeout(userRef.collection('notifications').get(), 'Loading notifications for deletion timed out.');
-    final consultationDoc = await _withReadTimeout(consultationRef.get(), 'Loading consultation for deletion timed out.');
-    final messagesSnapshot = await _withReadTimeout(consultationRef.collection('messages').get(), 'Loading consultation messages for deletion timed out.');
+    final userDoc = await _withReadTimeout(userRef.get(), 'Loading your account data timed out.');
+    final analysisSnapshot = await _withReadTimeout(userRef.collection('analysis').get(), 'Loading analysis data timed out.');
+    final wardrobeSnapshot = await _withReadTimeout(userRef.collection('wardrobe').get(), 'Loading wardrobe data timed out.');
+    final preferencesSnapshot = await _withReadTimeout(userRef.collection('preferences').get(), 'Loading preferences data timed out.');
+    final savedLooksSnapshot = await _withReadTimeout(userRef.collection('savedLooks').get(), 'Loading saved looks data timed out.');
+    final notificationsSnapshot = await _withReadTimeout(userRef.collection('notifications').get(), 'Loading notification data timed out.');
+    final consultationDoc = await _withReadTimeout(consultationRef.get(), 'Loading consultation data timed out.');
+    final messagesSnapshot = await _withReadTimeout(consultationRef.collection('messages').get(), 'Loading consultation messages timed out.');
 
     final imageUrls = <String>[];
     final profilePhotoUrl = userDoc.data()?['photoUrl'];
@@ -453,82 +459,50 @@ class FirestoreService {
     }
     for (final doc in wardrobeSnapshot.docs) {
       final imageUrl = doc.data()['imageUrl'];
-      if (imageUrl is String && imageUrl.trim().isNotEmpty) imageUrls.add(imageUrl.trim());
+      if (imageUrl is String && imageUrl.trim().isNotEmpty) {
+        imageUrls.add(imageUrl.trim());
+      }
     }
+
+    final batch = _db.batch();
     for (final doc in analysisSnapshot.docs) {
-      final imageUrl = doc.data()['imageUrl'];
-      if (imageUrl is String && imageUrl.trim().isNotEmpty) imageUrls.add(imageUrl.trim());
-    }
-
-    var batch = _db.batch();
-    var operations = 0;
-    var wardrobeItemsDeleted = 0;
-    var preferencesDeleted = 0;
-    var analysisRecordsDeleted = 0;
-    var savedLooksDeleted = 0;
-    var notificationRecordsDeleted = 0;
-    var consultationMessagesDeleted = 0;
-
-    Future<void> commitIfNeeded() async {
-      if (operations == 0) return;
-      final currentBatch = batch;
-      batch = _db.batch();
-      operations = 0;
-      await _withWriteTimeout(currentBatch.commit(), 'Deleting your account data timed out. Please try again.');
-    }
-
-    void queueDelete(DocumentReference<Map<String, dynamic>> ref) {
-      batch.delete(ref);
-      operations++;
-    }
-
-    for (final doc in analysisSnapshot.docs) {
-      queueDelete(doc.reference);
-      analysisRecordsDeleted++;
-      if (operations >= 400) await commitIfNeeded();
+      batch.delete(doc.reference);
     }
     for (final doc in wardrobeSnapshot.docs) {
-      queueDelete(doc.reference);
-      wardrobeItemsDeleted++;
-      if (operations >= 400) await commitIfNeeded();
+      batch.delete(doc.reference);
     }
     for (final doc in preferencesSnapshot.docs) {
-      queueDelete(doc.reference);
-      preferencesDeleted++;
-      if (operations >= 400) await commitIfNeeded();
+      batch.delete(doc.reference);
     }
     for (final doc in savedLooksSnapshot.docs) {
-      queueDelete(doc.reference);
-      savedLooksDeleted++;
-      if (operations >= 400) await commitIfNeeded();
+      batch.delete(doc.reference);
     }
     for (final doc in notificationsSnapshot.docs) {
-      queueDelete(doc.reference);
-      notificationRecordsDeleted++;
-      if (operations >= 400) await commitIfNeeded();
+      batch.delete(doc.reference);
     }
     for (final doc in messagesSnapshot.docs) {
-      queueDelete(doc.reference);
-      consultationMessagesDeleted++;
-      if (operations >= 400) await commitIfNeeded();
+      batch.delete(doc.reference);
     }
-
     if (consultationDoc.exists) {
-      queueDelete(consultationRef);
+      batch.delete(consultationDoc.reference);
     }
-    queueDelete(userRef);
-    await commitIfNeeded();
+    batch.delete(userRef);
+
+    await _withWriteTimeout(
+      batch.commit(),
+      'Deleting your account data timed out. Please try again.',
+    );
 
     return CustomerDeletionResult(
-      wardrobeItemsDeleted: wardrobeItemsDeleted,
-      preferencesDeleted: preferencesDeleted,
-      analysisRecordsDeleted: analysisRecordsDeleted,
-      savedLooksDeleted: savedLooksDeleted,
-      notificationRecordsDeleted: notificationRecordsDeleted,
-      consultationMessagesDeleted: consultationMessagesDeleted,
+      wardrobeItemsDeleted: wardrobeSnapshot.docs.length,
+      preferencesDeleted: preferencesSnapshot.docs.length,
+      analysisRecordsDeleted: analysisSnapshot.docs.length,
+      savedLooksDeleted: savedLooksSnapshot.docs.length,
+      notificationRecordsDeleted: notificationsSnapshot.docs.length,
+      consultationMessagesDeleted: messagesSnapshot.docs.length,
       consultationDeleted: consultationDoc.exists,
       userDocDeleted: true,
-      imageUrls: List<String>.unmodifiable(imageUrls.toSet()),
+      imageUrls: List<String>.unmodifiable(imageUrls),
     );
   }
 
@@ -540,4 +514,21 @@ class FirestoreService {
         .where((item) => item.isNotEmpty)
         .toList(growable: false);
   }
+}
+
+class _EmptyDocumentSnapshot extends DocumentSnapshot<Map<String, dynamic>> {
+  @override
+  Map<String, dynamic>? data() => null;
+
+  @override
+  SnapshotMetadata get metadata => throw UnimplementedError();
+
+  @override
+  String get id => '';
+
+  @override
+  DocumentReference<Map<String, dynamic>> get reference => throw UnimplementedError();
+
+  @override
+  bool get exists => false;
 }
