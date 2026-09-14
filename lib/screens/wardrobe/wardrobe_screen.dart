@@ -93,9 +93,7 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
   @override
   Widget build(BuildContext context) {
     final uid = _uid;
-    if (uid != null && !_premiumLoaded) {
-      _loadPremiumStatus(uid);
-    }
+    if (uid != null && !_premiumLoaded) _loadPremiumStatus(uid);
     final analysisResult = context.watch<AnalysisProvider>().result;
     final wantedColours = (analysisResult?.colours ?? const <String>[]).map((colour) => colour.toLowerCase()).toList();
 
@@ -106,21 +104,21 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
         elevation: 0,
         title: const Text('Wardrobe', style: TextStyle(color: _text, fontWeight: FontWeight.w800, fontSize: 18)),
         actions: [
-          IconButton(
+          Semantics(button: true, label: 'Show wardrobe favourites', toggled: _showFavouritesOnly, child: IconButton(
             tooltip: 'Favourites',
             onPressed: uid == null ? null : () => setState(() => _showFavouritesOnly = !_showFavouritesOnly),
             icon: Icon(_showFavouritesOnly ? Icons.favorite_rounded : Icons.favorite_border_rounded, color: _showFavouritesOnly ? AppColors.premiumAccent : _text),
-          ),
-          IconButton(
+          )),
+          Semantics(button: true, label: 'Open Smart Wardrobe', child: IconButton(
             tooltip: 'Smart Wardrobe',
             onPressed: uid == null ? null : () => _showSmartWardrobe(uid),
             icon: Icon(_isPremium ? Icons.auto_awesome_rounded : Icons.lock_outline_rounded),
-          ),
-          IconButton(
+          )),
+          Semantics(button: true, label: 'Add clothing to wardrobe', child: IconButton(
             tooltip: 'Add clothing',
             onPressed: uid == null ? null : () => _showAddItem(uid),
             icon: const Icon(Icons.add_rounded),
-          ),
+          )),
         ],
       ),
       body: uid == null
@@ -174,7 +172,7 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
                 );
               },
             ),
-      floatingActionButton: uid == null ? null : FloatingActionButton.extended(onPressed: () => _showAddItem(uid), backgroundColor: _brown, foregroundColor: _cream, icon: const Icon(Icons.add_rounded), label: const Text('Add Item')),
+      floatingActionButton: uid == null ? null : Semantics(button: true, label: 'Add clothing to wardrobe', child: FloatingActionButton.extended(onPressed: () => _showAddItem(uid), backgroundColor: _brown, foregroundColor: _cream, icon: const Icon(Icons.add_rounded), label: const Text('Add Item'))),
     );
   }
 
@@ -183,7 +181,7 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
       children: [
         Expanded(child: _buildSearchBar()),
         const SizedBox(width: 10),
-        Material(
+        Semantics(button: true, label: _filtersExpanded ? 'Collapse wardrobe filters' : 'Open wardrobe filters', child: Material(
           color: _filtersExpanded || hasActiveFilters ? AppColors.primarySoft : AppColors.surface,
           borderRadius: BorderRadius.circular(AppRadius.full),
           child: InkWell(
@@ -200,7 +198,7 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
               ]),
             ),
           ),
-        ),
+        )),
       ],
     );
   }
@@ -214,45 +212,25 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('FILTER YOUR WARDROBE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1, color: _brown)),
+            Semantics(header: true, child: const Text('FILTER YOUR WARDROBE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1, color: _brown))),
             const SizedBox(height: 12),
             const Text('SORT BY', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: _muted, letterSpacing: .8)),
             const SizedBox(height: 8),
-            Wrap(
-              spacing: 7,
-              runSpacing: 7,
-              children: ['Recently added', 'Name A–Z', 'Category', 'Favourites first']
-                  .map((value) => StyleChip(label: value, icon: Icons.sort_rounded, selected: _sort == value, onTap: () => setState(() => _sort = value)))
-                  .toList(),
-            ),
+            Wrap(spacing: 7, runSpacing: 7, children: ['Recently added', 'Name A–Z', 'Category', 'Favourites first'].map((value) => StyleChip(label: value, icon: Icons.sort_rounded, selected: _sort == value, onTap: () => setState(() => _sort = value))).toList()),
             const SizedBox(height: 14),
             const Text('CATEGORY', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: _muted, letterSpacing: .8)),
             const SizedBox(height: 8),
-            Wrap(
-              spacing: 7,
-              runSpacing: 7,
-              children: ['All', ..._categoryOptions]
-                  .map((value) => StyleChip(label: value, icon: value == 'All' ? Icons.grid_view_rounded : _categoryIcon(value), selected: _category == value, onTap: () => setState(() => _category = value)))
-                  .toList(),
-            ),
+            Wrap(spacing: 7, runSpacing: 7, children: ['All', ..._categoryOptions].map((value) => StyleChip(label: value, icon: value == 'All' ? Icons.grid_view_rounded : _categoryIcon(value), selected: _category == value, onTap: () => setState(() => _category = value))).toList()),
             const SizedBox(height: 14),
             const Text('COLOUR', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: _muted, letterSpacing: .8)),
             const SizedBox(height: 8),
-            Wrap(
-              spacing: 7,
-              runSpacing: 7,
-              children: ['All', ..._colourOptions]
-                  .map((value) => StyleChip(label: value, icon: Icons.palette_outlined, selected: _colour == value, onTap: () => setState(() => _colour = value)))
-                  .toList(),
-            ),
+            Wrap(spacing: 7, runSpacing: 7, children: ['All', ..._colourOptions].map((value) => StyleChip(label: value, icon: Icons.palette_outlined, selected: _colour == value, onTap: () => setState(() => _colour = value))).toList()),
             const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(child: OutlinedButton.icon(onPressed: _clearFilters, icon: const Icon(Icons.clear_rounded, size: 17), label: const Text('Clear'))),
-                const SizedBox(width: 9),
-                Expanded(child: FilledButton.icon(onPressed: () => setState(() => _filtersExpanded = false), icon: const Icon(Icons.check_rounded, size: 17), label: const Text('Done'), style: FilledButton.styleFrom(backgroundColor: _brown))),
-              ],
-            ),
+            Row(children: [
+              Expanded(child: OutlinedButton.icon(onPressed: _clearFilters, icon: const Icon(Icons.clear_rounded, size: 17), label: const Text('Clear'))),
+              const SizedBox(width: 9),
+              Expanded(child: FilledButton.icon(onPressed: () => setState(() => _filtersExpanded = false), icon: const Icon(Icons.check_rounded, size: 17), label: const Text('Done'), style: FilledButton.styleFrom(backgroundColor: _brown))),
+            ]),
           ],
         ),
       ),
@@ -277,24 +255,21 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
   }
 
   Widget _buildActiveFilterChip({required String label, required VoidCallback onRemove, IconData? icon}) {
-    return Container(
+    return Semantics(button: true, label: 'Remove filter $label', child: Container(
       decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: .08), borderRadius: BorderRadius.circular(99), border: Border.all(color: AppColors.primary.withValues(alpha: .16))),
       child: InkWell(
         borderRadius: BorderRadius.circular(99), onTap: onRemove,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(10, 6, 7, 6),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
-            if (icon != null) ...[
-              Icon(icon, size: 12, color: AppColors.primary),
-              const SizedBox(width: 4),
-            ],
+            if (icon != null) ...[Icon(icon, size: 12, color: AppColors.primary), const SizedBox(width: 4)],
             ConstrainedBox(constraints: const BoxConstraints(maxWidth: 150), child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.primary))),
             const SizedBox(width: 4),
             const Icon(Icons.close_rounded, size: 13, color: AppColors.primary),
           ]),
         ),
       ),
-    );
+    ));
   }
 
   void _clearFilters() {
@@ -352,7 +327,7 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Row(children: [PremiumBadge(compact: true), SizedBox(width: 10), Text('Smart Wardrobe', style: TextStyle(color: _text, fontSize: 21, fontWeight: FontWeight.w700))]),
+              const Row(children: [PremiumBadge(compact: true), SizedBox(width: 10), Flexible(child: Text('Smart Wardrobe', style: TextStyle(color: _text, fontSize: 21, fontWeight: FontWeight.w700)))]),
               const SizedBox(height: 8),
               const Text('Premium tools help you understand what is already in your wardrobe and turn it into more useful outfit ideas.', style: TextStyle(color: _muted, height: 1.45)),
               const SizedBox(height: 18),
@@ -360,7 +335,7 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
               _premiumInsightListTile(Icons.palette_outlined, 'Colour insights', 'Find the colours you have saved most often.'),
               _premiumInsightListTile(Icons.auto_awesome_outlined, 'AI outfit matching', 'Use your wardrobe with the Premium AI Stylist.'),
               const SizedBox(height: 12),
-              SizedBox(
+              Semantics(button: true, label: 'Open AI Stylist from Smart Wardrobe', child: SizedBox(
                 width: double.infinity,
                 child: FilledButton.icon(
                   onPressed: () {
@@ -371,7 +346,7 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
                   label: const Text('Open AI Stylist'),
                   style: FilledButton.styleFrom(backgroundColor: _brown, minimumSize: const Size.fromHeight(52)),
                 ),
-              ),
+              )),
             ],
           ),
         ),
@@ -415,29 +390,41 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
     final paletteText = wantedColours.isEmpty ? 'Run Colour Analysis to unlock palette matching.' : '$paletteCount of ${items.length} pieces match your personal palette.';
     return Padding(
       padding: const EdgeInsets.fromLTRB(18, 2, 18, 12),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(gradient: AppGradients.premium, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.border)),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Row(children: [PremiumBadge(compact: true), SizedBox(width: 8), Text('Wardrobe Insights', style: TextStyle(color: _text, fontWeight: FontWeight.w700))]),
-          const SizedBox(height: 12),
-          Row(children: [
-            Expanded(child: _insightStat('Pieces', '${items.length}')),
-            const SizedBox(width: 8),
-            Expanded(child: _insightStat('Favourites', '$favouriteCount')),
-            const SizedBox(width: 8),
-            Expanded(child: _insightStat('Top colour', mostCommon(colourCounts))),
+      child: Semantics(
+        container: true,
+        label: 'Wardrobe Insights. $paletteText',
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(gradient: AppGradients.premium, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.border)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Row(children: [PremiumBadge(compact: true), SizedBox(width: 8), Flexible(child: Text('Wardrobe Insights', style: TextStyle(color: _text, fontWeight: FontWeight.w700)))]),
+            const SizedBox(height: 12),
+            Row(children: [
+              Expanded(child: _insightStat('Pieces', '${items.length}')),
+              const SizedBox(width: 8),
+              Expanded(child: _insightStat('Favourites', '$favouriteCount')),
+              const SizedBox(width: 8),
+              Expanded(child: _insightStat('Top colour', mostCommon(colourCounts))),
+            ]),
+            const SizedBox(height: 9),
+            Text('Most used category: ${mostCommon(categoryCounts)}', style: const TextStyle(color: AppColors.premiumAccentDark, fontSize: 12, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 4),
+            Text(paletteText, style: const TextStyle(color: AppColors.premiumAccentDark, fontSize: 11.5, height: 1.35)),
           ]),
-          const SizedBox(height: 9),
-          Text('Most used category: ${mostCommon(categoryCounts)}', style: const TextStyle(color: AppColors.premiumAccentDark, fontSize: 12, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 4),
-          Text(paletteText, style: const TextStyle(color: AppColors.premiumAccentDark, fontSize: 11.5, height: 1.35)),
-        ]),
+        ),
       ),
     );
   }
 
-  Widget _insightStat(String label, String value) => Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10), decoration: BoxDecoration(color: AppColors.background.withValues(alpha: .75), borderRadius: BorderRadius.circular(13)), child: Column(children: [Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: _brown, fontSize: 14, fontWeight: FontWeight.w800)), const SizedBox(height: 2), Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: _muted, fontSize: 10))]));
+  Widget _insightStat(String label, String value) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+        decoration: BoxDecoration(color: AppColors.background.withValues(alpha: .75), borderRadius: BorderRadius.circular(13)),
+        child: Column(children: [
+          Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: _brown, fontSize: 14, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 2),
+          Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: _muted, fontSize: 10)),
+        ]),
+      );
 
   String _headlineFor(int count) => count == 0 ? 'Your closet is empty' : count == 1 ? '1 piece' : '$count pieces';
 
@@ -463,30 +450,33 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
     final chips = counts.entries.map<Widget>((entry) {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(AppRadius.full),
-          border: Border.all(color: AppColors.border),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('${entry.value}', style: const TextStyle(color: _brown, fontWeight: FontWeight.w800, fontSize: 13)),
-            const SizedBox(width: 5),
-            Text(entry.key, style: const TextStyle(color: _muted, fontSize: 12, fontWeight: FontWeight.w600)),
-          ],
-        ),
+        decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(AppRadius.full), border: Border.all(color: AppColors.border)),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Text('${entry.value}', style: const TextStyle(color: _brown, fontWeight: FontWeight.w800, fontSize: 13)),
+          const SizedBox(width: 5),
+          Text(entry.key, style: const TextStyle(color: _muted, fontSize: 12, fontWeight: FontWeight.w600)),
+        ]),
       );
     }).toList();
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
-      child: Wrap(spacing: 8, runSpacing: 8, children: chips),
-    );
+    return Padding(padding: const EdgeInsets.fromLTRB(20, 14, 20, 0), child: Wrap(spacing: 8, runSpacing: 8, children: chips));
   }
 
   Widget _buildSearchBar() => Container(
         decoration: BoxDecoration(color: AppColors.surfaceMuted, borderRadius: BorderRadius.circular(AppRadius.full), border: Border.all(color: AppColors.border)),
-        child: TextField(controller: _searchController, style: const TextStyle(color: _text, fontSize: 14), decoration: InputDecoration(hintText: 'Search your wardrobe...', hintStyle: const TextStyle(color: _muted, fontSize: 14), prefixIcon: const Icon(Icons.search_rounded, color: _muted), suffixIcon: _searchQuery.isEmpty ? null : IconButton(tooltip: 'Clear search', icon: const Icon(Icons.close_rounded, color: _muted), onPressed: _searchController.clear), border: InputBorder.none, isDense: true, contentPadding: const EdgeInsets.symmetric(vertical: 14))),
+        child: TextField(
+          controller: _searchController,
+          textInputAction: TextInputAction.search,
+          style: const TextStyle(color: _text, fontSize: 14),
+          decoration: InputDecoration(
+            hintText: 'Search your wardrobe...',
+            hintStyle: const TextStyle(color: _muted, fontSize: 14),
+            prefixIcon: const Icon(Icons.search_rounded, color: _muted),
+            suffixIcon: _searchQuery.isEmpty ? null : IconButton(tooltip: 'Clear search', icon: const Icon(Icons.close_rounded, color: _muted), onPressed: _searchController.clear),
+            border: InputBorder.none,
+            isDense: true,
+            contentPadding: const EdgeInsets.symmetric(vertical: 14),
+          ),
+        ),
       );
 
   IconData _categoryIcon(String category) {
@@ -525,65 +515,71 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
 
   Widget _buildItemCard(WardrobeItem item, String uid, int index, List<String> wantedColours) {
     final matchesPalette = _matchesPalette(item, wantedColours);
-    return TweenAnimationBuilder<double>(
-      key: ValueKey(item.id),
-      tween: Tween(begin: 0, end: 1),
-      duration: Duration(milliseconds: 320 + (index % 6) * 45),
-      curve: Curves.easeOut,
-      builder: (context, value, child) => Opacity(opacity: value, child: Transform.translate(offset: Offset(0, (1 - value) * 10), child: child)),
-      child: Material(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: () => _showItemDetails(item, uid),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Stack(
-                  children: [
-                    Positioned.fill(
-                      child: item.imageUrl.isEmpty
-                          ? Container(color: _soft, child: Icon(_categoryIcon(item.category), size: 38, color: _brown))
-                          : CachedNetworkImage(imageUrl: item.imageUrl, fit: BoxFit.cover, placeholder: (context, url) => Container(color: _soft, child: const Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)))), errorWidget: (context, url, error) => Container(color: _soft, child: Icon(_categoryIcon(item.category), color: _brown))),
-                    ),
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: Material(
-                        color: AppColors.background.withValues(alpha: .92),
-                        shape: const CircleBorder(),
-                        child: IconButton(
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints.tightFor(width: 36, height: 36),
-                          onPressed: () => _toggleFavourite(item, uid),
-                          icon: AnimatedScale(scale: item.isFavourite ? 1.12 : 1, duration: const Duration(milliseconds: 160), child: Icon(item.isFavourite ? Icons.favorite : Icons.favorite_border, color: item.isFavourite ? AppColors.premiumAccent : _brown, size: 19)),
-                        ),
+    final imageLabel = item.imageUrl.isEmpty ? '${item.name} placeholder image' : '${item.name} wardrobe image';
+    return Semantics(
+      container: true,
+      label: '${item.name}, ${item.category}, ${item.colour}${item.isFavourite ? ', favourite' : ''}${matchesPalette ? ', palette match' : ''}',
+      child: TweenAnimationBuilder<double>(
+        key: ValueKey(item.id),
+        tween: Tween(begin: 0, end: 1),
+        duration: Duration(milliseconds: 320 + (index % 6) * 45),
+        curve: Curves.easeOut,
+        builder: (context, value, child) => Opacity(opacity: value, child: Transform.translate(offset: Offset(0, (1 - value) * 10), child: child)),
+        child: Material(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: () => _showItemDetails(item, uid),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Stack(
+                    children: [
+                      Positioned.fill(
+                        child: item.imageUrl.isEmpty
+                            ? Semantics(image: true, label: imageLabel, child: Container(color: _soft, child: Icon(_categoryIcon(item.category), size: 38, color: _brown)))
+                            : Semantics(image: true, label: imageLabel, child: CachedNetworkImage(imageUrl: item.imageUrl, fit: BoxFit.cover, placeholder: (context, url) => Container(color: _soft, child: const Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)))), errorWidget: (context, url, error) => Container(color: _soft, child: Icon(_categoryIcon(item.category), color: _brown)))),
                       ),
-                    ),
-                    if (matchesPalette)
                       Positioned(
-                        left: 8,
-                        bottom: 8,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-                          decoration: BoxDecoration(color: AppColors.background.withValues(alpha: .94), borderRadius: BorderRadius.circular(AppRadius.full)),
-                          child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.check_circle_rounded, size: 11, color: AppColors.success), SizedBox(width: 3), Text('Palette match', style: TextStyle(color: AppColors.success, fontSize: 9.5, fontWeight: FontWeight.w800))]),
-                        ),
+                        top: 8,
+                        right: 8,
+                        child: Semantics(button: true, label: item.isFavourite ? 'Remove ${item.name} from favourites' : 'Save ${item.name} as favourite', child: Material(
+                          color: AppColors.background.withValues(alpha: .92),
+                          shape: const CircleBorder(),
+                          child: IconButton(
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+                            onPressed: () => _toggleFavourite(item, uid),
+                            tooltip: item.isFavourite ? 'Remove from favourites' : 'Save as favourite',
+                            icon: AnimatedScale(scale: item.isFavourite ? 1.12 : 1, duration: const Duration(milliseconds: 160), child: Icon(item.isFavourite ? Icons.favorite : Icons.favorite_border, color: item.isFavourite ? AppColors.premiumAccent : _brown, size: 19)),
+                          ),
+                        )),
                       ),
-                  ],
+                      if (matchesPalette)
+                        Positioned(
+                          left: 8,
+                          bottom: 8,
+                          child: Semantics(label: 'Palette match', child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+                            decoration: BoxDecoration(color: AppColors.background.withValues(alpha: .94), borderRadius: BorderRadius.circular(AppRadius.full)),
+                            child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.check_circle_rounded, size: 11, color: AppColors.success), SizedBox(width: 3), Text('Palette match', style: TextStyle(color: AppColors.success, fontSize: 9.5, fontWeight: FontWeight.w800))]),
+                          )),
+                        ),
+                    ],
+                  ),
                 ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 9, 12, 11),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: _text, fontWeight: FontWeight.w700, fontSize: 13.5)),
-                  const SizedBox(height: 4),
-                  Row(children: [Container(width: 9, height: 9, decoration: BoxDecoration(color: ColourNameMapper.colourFor(item.colour), shape: BoxShape.circle)), const SizedBox(width: 5), Expanded(child: Text('${item.category} · ${item.colour}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: _muted, fontSize: 11.5)))]),
-                ]),
-              ),
-            ],
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 9, 12, 11),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: _text, fontWeight: FontWeight.w700, fontSize: 13.5)),
+                    const SizedBox(height: 4),
+                    Row(children: [Container(width: 9, height: 9, decoration: BoxDecoration(color: ColourNameMapper.colourFor(item.colour), shape: BoxShape.circle)), const SizedBox(width: 5), Expanded(child: Text('${item.category} · ${item.colour}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: _muted, fontSize: 11.5)))]),
+                  ]),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -600,21 +596,17 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
       builder: (context) => SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 25),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Add to Your Wardrobe', style: TextStyle(color: _text, fontSize: 21, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 8),
-              const Text('Only clothing and fashion accessories are accepted. Clear photos of a single wearable item work best.', style: TextStyle(color: _muted, height: 1.4)),
-              const SizedBox(height: 20),
-              Row(children: [
-                Expanded(child: _photoSourceTile(icon: Icons.camera_alt_outlined, label: 'Camera', onTap: () async { final image = await ImagePickerService.pickCamera(); if (!context.mounted) return; Navigator.pop(context, image); })),
-                const SizedBox(width: 12),
-                Expanded(child: _photoSourceTile(icon: Icons.photo_outlined, label: 'Gallery', onTap: () async { final image = await ImagePickerService.pickGallery(); if (!context.mounted) return; Navigator.pop(context, image); })),
-              ]),
-            ],
-          ),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('Add to Your Wardrobe', style: TextStyle(color: _text, fontSize: 21, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
+            const Text('Only clothing and fashion accessories are accepted. Clear photos of a single wearable item work best.', style: TextStyle(color: _muted, height: 1.4)),
+            const SizedBox(height: 20),
+            Row(children: [
+              Expanded(child: _photoSourceTile(icon: Icons.camera_alt_outlined, label: 'Camera', onTap: () async { final image = await ImagePickerService.pickCamera(); if (!context.mounted) return; Navigator.pop(context, image); })),
+              const SizedBox(width: 12),
+              Expanded(child: _photoSourceTile(icon: Icons.photo_outlined, label: 'Gallery', onTap: () async { final image = await ImagePickerService.pickGallery(); if (!context.mounted) return; Navigator.pop(context, image); })),
+            ]),
+          ]),
         ),
       ),
     );
@@ -676,33 +668,22 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
             child: Padding(
               padding: EdgeInsets.only(left: 20, right: 20, bottom: MediaQuery.viewInsetsOf(context).bottom + 20),
               child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Tell me a little about it', style: TextStyle(color: _text, fontSize: 21, fontWeight: FontWeight.w700)),
-                    const SizedBox(height: 15),
-                    ClipRRect(borderRadius: BorderRadius.circular(AppRadius.lg), child: Image.file(image, height: 190, width: double.infinity, fit: BoxFit.cover)),
-                    const SizedBox(height: 15),
-                    TextField(controller: nameController, decoration: _fieldDecoration('Name', hint: 'e.g. Cream knit cardigan')),
-                    const SizedBox(height: 12),
-                    _dropdown('Category', category, _categoryOptions, (value) => setSheetState(() => category = value)),
-                    _dropdown('Colour', colour, _colourOptions, (value) => setSheetState(() => colour = value)),
-                    _dropdown('Style', style, _styleOptions, (value) => setSheetState(() => style = value)),
-                    _dropdown('Season', season, _seasonOptions, (value) => setSheetState(() => season = value)),
-                    const SizedBox(height: 4),
-                    TextField(controller: notesController, maxLines: 2, decoration: _fieldDecoration('Notes (optional)')),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton.icon(
-                        onPressed: saving ? null : save,
-                        icon: saving ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.background)) : const Icon(Icons.check_rounded),
-                        label: Text(saving ? 'Checking & Saving...' : 'Save to My Wardrobe'),
-                        style: FilledButton.styleFrom(backgroundColor: _brown, minimumSize: const Size.fromHeight(52)),
-                      ),
-                    ),
-                  ],
-                ),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  const Text('Tell me a little about it', style: TextStyle(color: _text, fontSize: 21, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 15),
+                  Semantics(image: true, label: 'Selected wardrobe photo', child: ClipRRect(borderRadius: BorderRadius.circular(AppRadius.lg), child: Image.file(image, height: 190, width: double.infinity, fit: BoxFit.cover))),
+                  const SizedBox(height: 15),
+                  TextField(controller: nameController, decoration: _fieldDecoration('Name', hint: 'e.g. Cream knit cardigan')),
+                  const SizedBox(height: 12),
+                  _dropdown('Category', category, _categoryOptions, (value) => setSheetState(() => category = value)),
+                  _dropdown('Colour', colour, _colourOptions, (value) => setSheetState(() => colour = value)),
+                  _dropdown('Style', style, _styleOptions, (value) => setSheetState(() => style = value)),
+                  _dropdown('Season', season, _seasonOptions, (value) => setSheetState(() => season = value)),
+                  const SizedBox(height: 4),
+                  TextField(controller: notesController, maxLines: 2, decoration: _fieldDecoration('Notes (optional)')),
+                  const SizedBox(height: 16),
+                  SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: saving ? null : save, icon: saving ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.background)) : const Icon(Icons.check_rounded), label: Text(saving ? 'Checking & Saving...' : 'Save to My Wardrobe'), style: FilledButton.styleFrom(backgroundColor: _brown, minimumSize: const Size.fromHeight(52)))),
+                ]),
               ),
             ),
           );
@@ -774,61 +755,49 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 5, 20, 25),
           child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(AppRadius.lg),
-                  child: AspectRatio(
-                    aspectRatio: 4 / 3,
-                    child: item.imageUrl.isEmpty
-                        ? Container(color: _soft, child: Icon(_categoryIcon(item.category), size: 46, color: _brown))
-                        : CachedNetworkImage(imageUrl: item.imageUrl, fit: BoxFit.cover),
-                  ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(AppRadius.lg),
+                child: AspectRatio(
+                  aspectRatio: 4 / 3,
+                  child: item.imageUrl.isEmpty ? Container(color: _soft, child: Icon(_categoryIcon(item.category), size: 46, color: _brown)) : CachedNetworkImage(imageUrl: item.imageUrl, fit: BoxFit.cover),
                 ),
-                const SizedBox(height: 16),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(child: Text(item.name, style: const TextStyle(color: _text, fontSize: 21, fontWeight: FontWeight.w700))),
-                    Material(
-                      color: _soft,
-                      shape: const CircleBorder(),
-                      child: IconButton(
-                        tooltip: item.isFavourite ? 'Remove from favourites' : 'Save as favourite',
-                        onPressed: () => _toggleFavourite(item, uid),
-                        icon: Icon(item.isFavourite ? Icons.favorite : Icons.favorite_border, color: item.isFavourite ? AppColors.premiumAccent : _brown),
-                      ),
-                    ),
-                  ],
+              ),
+              const SizedBox(height: 16),
+              Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Expanded(child: Text(item.name, style: const TextStyle(color: _text, fontSize: 21, fontWeight: FontWeight.w700))),
+                Material(
+                  color: _soft,
+                  shape: const CircleBorder(),
+                  child: IconButton(tooltip: item.isFavourite ? 'Remove from favourites' : 'Save as favourite', onPressed: () => _toggleFavourite(item, uid), icon: Icon(item.isFavourite ? Icons.favorite : Icons.favorite_border, color: item.isFavourite ? AppColors.premiumAccent : _brown)),
                 ),
-                if (matchesPalette) ...[
-                  const SizedBox(height: 4),
-                  const Row(children: [Icon(Icons.check_circle_rounded, size: 14, color: AppColors.success), SizedBox(width: 5), Text('Matches your colour palette', style: TextStyle(color: AppColors.success, fontSize: 12, fontWeight: FontWeight.w700))]),
-                ],
-                const SizedBox(height: 16),
-                const Text('DETAILS', style: TextStyle(color: _muted, fontSize: 10.5, fontWeight: FontWeight.w800, letterSpacing: .6)),
-                const SizedBox(height: 10),
-                _detailRow('Colour', item.colour),
-                _detailRow('Category', item.category),
-                _detailRow('Style', item.style),
-                if (item.season.isNotEmpty && item.season != 'All seasons') _detailRow('Season', item.season),
-                if (item.notes.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  const Text('NOTES', style: TextStyle(color: _muted, fontSize: 10.5, fontWeight: FontWeight.w800, letterSpacing: .6)),
-                  const SizedBox(height: 6),
-                  Text(item.notes, style: const TextStyle(color: _text, height: 1.4)),
-                ],
-                const SizedBox(height: 20),
-                Row(children: [
-                  Expanded(child: OutlinedButton.icon(onPressed: () { Navigator.pop(context); _showEditItem(item, uid); }, icon: const Icon(Icons.edit_outlined), label: const Text('Edit'))),
-                  const SizedBox(width: 10),
-                  Expanded(child: FilledButton.icon(onPressed: () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (_) => AIStylistScreen(selectedItem: item))); }, icon: const Icon(Icons.auto_awesome_rounded), label: const Text('Style this'), style: FilledButton.styleFrom(backgroundColor: _brown))),
-                ]),
-                const SizedBox(height: 10),
-                SizedBox(width: double.infinity, child: TextButton.icon(onPressed: () => _confirmDelete(item, uid), icon: const Icon(Icons.delete_outline_rounded), label: const Text('Remove this piece'), style: TextButton.styleFrom(foregroundColor: Colors.redAccent))),
+              ]),
+              if (matchesPalette) ...[
+                const SizedBox(height: 4),
+                const Row(children: [Icon(Icons.check_circle_rounded, size: 14, color: AppColors.success), SizedBox(width: 5), Text('Matches your colour palette', style: TextStyle(color: AppColors.success, fontSize: 12, fontWeight: FontWeight.w700))]),
               ],
-            ),
+              const SizedBox(height: 16),
+              const Text('DETAILS', style: TextStyle(color: _muted, fontSize: 10.5, fontWeight: FontWeight.w800, letterSpacing: .6)),
+              const SizedBox(height: 10),
+              _detailRow('Colour', item.colour),
+              _detailRow('Category', item.category),
+              _detailRow('Style', item.style),
+              if (item.season.isNotEmpty && item.season != 'All seasons') _detailRow('Season', item.season),
+              if (item.notes.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                const Text('NOTES', style: TextStyle(color: _muted, fontSize: 10.5, fontWeight: FontWeight.w800, letterSpacing: .6)),
+                const SizedBox(height: 6),
+                Text(item.notes, style: const TextStyle(color: _text, height: 1.4)),
+              ],
+              const SizedBox(height: 20),
+              Row(children: [
+                Expanded(child: OutlinedButton.icon(onPressed: () { Navigator.pop(context); _showEditItem(item, uid); }, icon: const Icon(Icons.edit_outlined), label: const Text('Edit'))),
+                const SizedBox(width: 10),
+                Expanded(child: FilledButton.icon(onPressed: () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (_) => AIStylistScreen(selectedItem: item))); }, icon: const Icon(Icons.auto_awesome_rounded), label: const Text('Style this'), style: FilledButton.styleFrom(backgroundColor: _brown))),
+              ]),
+              const SizedBox(height: 10),
+              SizedBox(width: double.infinity, child: TextButton.icon(onPressed: () => _confirmDelete(item, uid), icon: const Icon(Icons.delete_outline_rounded), label: const Text('Remove this piece'), style: TextButton.styleFrom(foregroundColor: Colors.redAccent))),
+            ]),
           ),
         ),
       ),
@@ -855,14 +824,7 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
             if (nameController.text.trim().isEmpty || saving) return;
             setSheetState(() => saving = true);
             try {
-              await FirestoreService.updateWardrobeItem(uid, item.id, {
-                'name': nameController.text.trim(),
-                'category': category,
-                'colour': colour,
-                'style': style,
-                'season': season,
-                'notes': notesController.text.trim(),
-              });
+              await FirestoreService.updateWardrobeItem(uid, item.id, {'name': nameController.text.trim(), 'category': category, 'colour': colour, 'style': style, 'season': season, 'notes': notesController.text.trim()});
               if (sheetContext.mounted) Navigator.pop(sheetContext);
             } catch (_) {
               if (sheetContext.mounted) ScaffoldMessenger.of(sheetContext).showSnackBar(const SnackBar(content: Text('Could not update this piece. Please try again.')));
@@ -875,33 +837,22 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
             child: Padding(
               padding: EdgeInsets.only(left: 20, right: 20, bottom: MediaQuery.viewInsetsOf(context).bottom + 20),
               child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Edit this piece', style: TextStyle(color: _text, fontSize: 21, fontWeight: FontWeight.w700)),
-                    const SizedBox(height: 15),
-                    ClipRRect(borderRadius: BorderRadius.circular(AppRadius.lg), child: Image.network(item.imageUrl, height: 190, width: double.infinity, fit: BoxFit.cover)),
-                    const SizedBox(height: 15),
-                    TextField(controller: nameController, decoration: _fieldDecoration('Name')),
-                    const SizedBox(height: 12),
-                    _dropdown('Category', category, _categoryOptions, (value) => setSheetState(() => category = value)),
-                    _dropdown('Colour', colour, _colourOptions, (value) => setSheetState(() => colour = value)),
-                    _dropdown('Style', style, _styleOptions, (value) => setSheetState(() => style = value)),
-                    _dropdown('Season', season, _seasonOptions, (value) => setSheetState(() => season = value)),
-                    const SizedBox(height: 4),
-                    TextField(controller: notesController, maxLines: 2, decoration: _fieldDecoration('Notes (optional)')),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton.icon(
-                        onPressed: saving ? null : save,
-                        icon: saving ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.background)) : const Icon(Icons.save_outlined),
-                        label: Text(saving ? 'Saving...' : 'Save changes'),
-                        style: FilledButton.styleFrom(backgroundColor: _brown, minimumSize: const Size.fromHeight(52)),
-                      ),
-                    ),
-                  ],
-                ),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  const Text('Edit this piece', style: TextStyle(color: _text, fontSize: 21, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 15),
+                  ClipRRect(borderRadius: BorderRadius.circular(AppRadius.lg), child: Image.network(item.imageUrl, height: 190, width: double.infinity, fit: BoxFit.cover)),
+                  const SizedBox(height: 15),
+                  TextField(controller: nameController, decoration: _fieldDecoration('Name')),
+                  const SizedBox(height: 12),
+                  _dropdown('Category', category, _categoryOptions, (value) => setSheetState(() => category = value)),
+                  _dropdown('Colour', colour, _colourOptions, (value) => setSheetState(() => colour = value)),
+                  _dropdown('Style', style, _styleOptions, (value) => setSheetState(() => style = value)),
+                  _dropdown('Season', season, _seasonOptions, (value) => setSheetState(() => season = value)),
+                  const SizedBox(height: 4),
+                  TextField(controller: notesController, maxLines: 2, decoration: _fieldDecoration('Notes (optional)')),
+                  const SizedBox(height: 16),
+                  SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: saving ? null : save, icon: saving ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.background)) : const Icon(Icons.save_outlined), label: Text(saving ? 'Saving...' : 'Save changes'), style: FilledButton.styleFrom(backgroundColor: _brown, minimumSize: const Size.fromHeight(52)))),
+                ]),
               ),
             ),
           );
