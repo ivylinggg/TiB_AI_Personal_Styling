@@ -104,50 +104,52 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
       builder: (sheetContext) => SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: CircleAvatar(child: Icon(_modeIcon)),
-                title: const Text('Switch Dashboard'),
-                subtitle: Text(
-                  _mode == AdminMode.personalCustomer
-                      ? 'You are using your own customer data. Your Firebase role remains Administrator.'
-                      : 'Your Firebase role remains Administrator while using these dashboards.',
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: CircleAvatar(child: Icon(_modeIcon)),
+                  title: const Text('Switch Dashboard'),
+                  subtitle: Text(
+                    _mode == AdminMode.personalCustomer
+                        ? 'You are using your own customer data. Your Firebase role remains Administrator.'
+                        : 'Your Firebase role remains Administrator while using these dashboards.',
+                  ),
                 ),
-              ),
-              _ModeTile(
-                title: 'Administrator',
-                subtitle: 'Manage users, content, forum, premium, staff and analytics',
-                icon: Icons.admin_panel_settings_outlined,
-                selected: _mode == AdminMode.administrator,
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  _setMode(AdminMode.administrator);
-                },
-              ),
-              _ModeTile(
-                title: 'Consultant',
-                subtitle: 'Accept and answer live customer requests',
-                icon: Icons.support_agent_outlined,
-                selected: _mode == AdminMode.consultantPreview,
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  _setMode(AdminMode.consultantPreview);
-                },
-              ),
-              _ModeTile(
-                title: 'My Customer Dashboard',
-                subtitle: 'Open only your own customer profile, wardrobe, analysis and AI styling data',
-                icon: Icons.person_outline_rounded,
-                selected: _mode == AdminMode.personalCustomer,
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  _setMode(AdminMode.personalCustomer);
-                },
-              ),
-            ],
+                _ModeTile(
+                  title: 'Administrator',
+                  subtitle: 'Manage users, content, forum, premium, staff and analytics',
+                  icon: Icons.admin_panel_settings_outlined,
+                  selected: _mode == AdminMode.administrator,
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    _setMode(AdminMode.administrator);
+                  },
+                ),
+                _ModeTile(
+                  title: 'Consultant',
+                  subtitle: 'Accept and answer live customer requests',
+                  icon: Icons.support_agent_outlined,
+                  selected: _mode == AdminMode.consultantPreview,
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    _setMode(AdminMode.consultantPreview);
+                  },
+                ),
+                _ModeTile(
+                  title: 'My Customer Dashboard',
+                  subtitle: 'Open only your own customer profile, wardrobe, analysis and AI styling data',
+                  icon: Icons.person_outline_rounded,
+                  selected: _mode == AdminMode.personalCustomer,
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    _setMode(AdminMode.personalCustomer);
+                  },
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -209,23 +211,29 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
   Widget _buildAccessDenied() => Scaffold(
         appBar: AppBar(title: const Text('Administrator Access')),
         body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(28),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.lock_outline_rounded, size: 64),
-                const SizedBox(height: 18),
-                const Text('Access Restricted', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800), textAlign: TextAlign.center),
-                const SizedBox(height: 8),
-                Text(_accessError ?? 'Administrator access is required.', textAlign: TextAlign.center),
-                const SizedBox(height: 18),
-                FilledButton.icon(
-                  onPressed: _isCheckingAccess ? null : _verifyAdministratorAccess,
-                  icon: const Icon(Icons.refresh_rounded),
-                  label: const Text('Check Again'),
-                ),
-              ],
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: Padding(
+              padding: const EdgeInsets.all(28),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.lock_outline_rounded, size: 64),
+                  const SizedBox(height: 18),
+                  const Semantics(
+                    header: true,
+                    child: Text('Access Restricted', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800), textAlign: TextAlign.center),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(_accessError ?? 'Administrator access is required.', textAlign: TextAlign.center),
+                  const SizedBox(height: 18),
+                  FilledButton.icon(
+                    onPressed: _isCheckingAccess ? null : _verifyAdministratorAccess,
+                    icon: const Icon(Icons.refresh_rounded),
+                    label: const Text('Check Again'),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -282,26 +290,37 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
       color: scheme.surface,
       child: SafeArea(
         top: false,
-        child: SizedBox(
-          height: 82,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(10, 7, 10, 6),
-            child: Row(
-              children: List.generate(destinations.length, (index) {
-                final destination = destinations[index];
-                final selected = safeIndex == index;
-                final iconData = selected ? destination.selectedIcon : destination.icon;
-                return Expanded(
-                  child: _AdminNavItem(
-                    icon: iconData,
-                    label: destination.label,
-                    selected: selected,
-                    onTap: () => _navigateTo(index),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final wide = constraints.maxWidth >= 760;
+            final maxWidth = wide ? 1120.0 : constraints.maxWidth;
+            return SizedBox(
+              height: 82,
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: maxWidth),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(10, 7, 10, 6),
+                    child: Row(
+                      children: List.generate(destinations.length, (index) {
+                        final destination = destinations[index];
+                        final selected = safeIndex == index;
+                        final iconData = selected ? destination.selectedIcon : destination.icon;
+                        return Expanded(
+                          child: _AdminNavItem(
+                            icon: iconData,
+                            label: destination.label,
+                            selected: selected,
+                            onTap: () => _navigateTo(index),
+                          ),
+                        );
+                      }),
+                    ),
                   ),
-                );
-              }),
-            ),
-          ),
+                ),
+              ),
+            );
+          },
         ),
       ),
     );
