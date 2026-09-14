@@ -73,11 +73,18 @@ class FirestoreService {
 
   static final FirebaseFirestore _db = FirebaseFirestore.instance;
 
+  static const Duration _writeTimeout = Duration(seconds: 15);
+  static const Duration _readTimeout = Duration(seconds: 15);
+
   static String? _normalizeUid(String uid) {
     final requested = uid.trim();
     final current = FirebaseAuth.instance.currentUser?.uid.trim();
     if (requested.isEmpty || current == null || current.isEmpty) return null;
     return requested == current ? current : null;
+  }
+
+  static Future<T> _withReadTimeout<T>(Future<T> future, String message) {
+    return future.timeout(_readTimeout, onTimeout: () => throw TimeoutException(message));
   }
 
   static Future<PersonalStyleContext> getPersonalStyleContext(String uid) async {
@@ -95,30 +102,46 @@ class FirestoreService {
       );
     }
 
-    final results = await Future.wait<dynamic>([
+    final resultEntries = await Future.wait<dynamic>([
       getUser(ownerUid),
       getLatestColourAnalysis(ownerUid),
-      _db.collection('users').doc(ownerUid).collection('preferences').doc('style').get(),
+      _withReadTimeout(
+        _db.collection('users').doc(ownerUid).collection('preferences').doc('style').get(),
+        'Loading your style preferences timed out.',
+      ),
       getWardrobeItems(ownerUid),
       getSavedOutfitLooks(ownerUid),
-    ], eagerError: false);
+    ], eagerError: false).then((results) {
+      return results.map((result) => _ContextLoadResult(result)).toList(growable: false);
+    });
 
     var degraded = false;
     String? errorMessage;
 
-    Map<String, dynamic>? preferenceData;
-    if (results[2] is DocumentSnapshot<Map<String, dynamic>>) {
-      preferenceData = (results[2] as DocumentSnapshot<Map<String, dynamic>>).data();
-    } else {
+    T? unwrap<T>(int index, String message) {
+      final entry = resultEntries[index];
+      if (entry.error != null) {
+        degraded = true;
+        errorMessage ??= message;
+        return null;
+      }
+      final value = entry.value;
+      if (value is T) return value;
       degraded = true;
-      errorMessage = 'Some style preferences could not be loaded.';
+      errorMessage ??= message;
+      return null;
     }
 
-    final user = results[0] is UserModel ? results[0] as UserModel? : null;
-    final colourAnalysis = results[1] is ColourAnalysisResult ? results[1] as ColourAnalysisResult? : null;
-    final wardrobe = results[3] is List<WardrobeItem> ? results[3] as List<WardrobeItem> : const <WardrobeItem>[];
-    final savedLooks = results[4] is List<Map<String, dynamic>> ? results[4] as List<Map<String, dynamic>> : const <Map<String, dynamic>>[];
+    final user = unwrap<UserModel?>(0, 'Some personal style data could not be loaded.');
+    final colourAnalysis = unwrap<ColourAnalysisResult?>(1, 'Some colour analysis data could not be loaded.');
+    final preferenceSnapshot = unwrap<DocumentSnapshot<Map<String, dynamic>>>(
+      2,
+      'Some style preferences could not be loaded.',
+    );
+    final wardrobe = unwrap<List<WardrobeItem>>(3, 'Some wardrobe data could not be loaded.') ?? const [];
+    final savedLooks = unwrap<List<Map<String, dynamic>>>(4, 'Some saved looks could not be loaded.') ?? const [];
 
+    final preferenceData = preferenceSnapshot?.data();
     return PersonalStyleContext(
       user: user,
       colourAnalysis: colourAnalysis,
@@ -131,301 +154,19 @@ class FirestoreService {
     );
   }
 
-  static Future<void> createUser(UserModel user) async {
-    final currentUid = FirebaseAuth.instance.currentUser?.uid.trim();
-    if (currentUid == null || currentUid != user.uid.trim()) {
-      throw StateError('Cannot create a profile for a different account.');
-    }
-    await _db.collection('users').doc(currentUid).set(user.toMap()).timeout(
-      const Duration(seconds: 15),
-      onTimeout: () => throw TimeoutException('Creating your profile timed out. Please check your connection and try again.'),
-    );
-  }
-
-  static Future<UserModel?> getUser(String uid) async {
-    final ownerUid = _normalizeUid(uid);
-    if (ownerUid == null) return null;
-    final ref = _db.collection('users').doc(ownerUid);
-    try {
-      final doc = await ref.get();
-      if (!doc.exists) return null;
-      return UserModel.fromFirestore(doc);
-    } on FirebaseException catch (error) {
-      if (error.code != 'unavailable') rethrow;
-      final cachedDoc = await ref.get(const GetOptions(source: Source.cache));
-      if (!cachedDoc.exists) return null;
-      return UserModel.fromFirestore(cachedDoc);
-    }
-  }
-
-  static Future<void> updateUser(String uid, Map<String, dynamic> data) async {
-    final ownerUid = _normalizeUid(uid);
-    if (ownerUid == null) throw StateError('User session does not match the requested account.');
-    await _db.collection('users').doc(ownerUid).update({
-      ...data,
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
-  }
-
-  static Future<void> updateColourProfile({
-    required String uid,
-    required String colourSeason,
-    required String skinTone,
-  }) async {
-    await updateUser(uid, {
-      'colourSeason': colourSeason.trim(),
-      'skinTone': skinTone.trim(),
-    });
-  }
-
-  static Future<void> saveAnalysis({required String uid, required AnalysisModel analysis}) async {
-    final ownerUid = _normalizeUid(uid);
-    if (ownerUid == null) throw StateError('User session does not match the requested account.');
-    await _db.collection('users').doc(ownerUid).collection('analysis').add(analysis.toMap());
-  }
-
-  static Future<List<AnalysisModel>> getAnalysisHistory(String uid) async {
-    final ownerUid = _normalizeUid(uid);
-    if (ownerUid == null) return const [];
-    final snapshot = await _db.collection('users').doc(ownerUid).collection('analysis').orderBy('createdAt', descending: true).get();
-    return snapshot.docs.map(AnalysisModel.fromFirestore).toList(growable: false);
-  }
-
-  static Future<void> saveAnalysisResult({required String uid, required ColourAnalysisResult result}) async {
-    final ownerUid = _normalizeUid(uid);
-    if (ownerUid == null) throw StateError('User session does not match the requested account.');
-    await _db.collection('users').doc(ownerUid).collection('analysis').add({
-      'season': result.season,
-      'undertone': result.undertone,
-      'brightness': result.brightness,
-      'contrast': result.contrast,
-      'imageUrl': result.imageUrl,
-      'colours': result.colours,
-      'faceShape': result.faceShape,
-      'faceShapeDescription': result.faceShapeDescription,
-      'faceMeasurements': result.faceMeasurements,
-      'faceStylingGuidance': result.faceStylingGuidance,
-      'colourReasons': result.colourReasons,
-      'createdAt': FieldValue.serverTimestamp(),
-    });
-  }
-
-  static ColourAnalysisResult _resultFromData(Map<String, dynamic> data) {
-    final rawMeasurements = <String, double>{};
-    final measurements = data['faceMeasurements'];
-    if (measurements is Map) {
-      measurements.forEach((key, value) {
-        if (value is num) rawMeasurements[key.toString()] = value.toDouble();
-      });
-    }
-
-    return ColourAnalysisResult(
-      season: data['season'] as String? ?? 'Unknown',
-      undertone: data['undertone'] as String? ?? 'Unknown',
-      brightness: data['brightness'] as String? ?? 'Unknown',
-      contrast: data['contrast'] as String? ?? 'Unknown',
-      imageUrl: data['imageUrl'] as String? ?? '',
-      colours: _stringList(data['colours']),
-      faceShape: data['faceShape'] as String? ?? 'Unknown',
-      faceShapeDescription: data['faceShapeDescription'] as String? ?? '',
-      faceMeasurements: rawMeasurements,
-      faceStylingGuidance: _stringList(data['faceStylingGuidance']),
-      colourReasons: _stringList(data['colourReasons']),
-    );
-  }
-
-  static Future<List<ColourAnalysisResult>> getColourAnalysisHistory(String uid) async {
-    final ownerUid = _normalizeUid(uid);
-    if (ownerUid == null) return const [];
-    final snapshot = await _db.collection('users').doc(ownerUid).collection('analysis').orderBy('createdAt', descending: true).get();
-    return snapshot.docs.map((doc) => _resultFromData(doc.data())).toList(growable: false);
-  }
-
-  static Future<ColourAnalysisResult?> getLatestColourAnalysis(String uid) async {
-    final ownerUid = _normalizeUid(uid);
-    if (ownerUid == null) return null;
-    final snapshot = await _db.collection('users').doc(ownerUid).collection('analysis').orderBy('createdAt', descending: true).limit(1).get();
-    if (snapshot.docs.isEmpty) return null;
-    return _resultFromData(snapshot.docs.first.data());
-  }
-
-  static CollectionReference<Map<String, dynamic>> _wardrobe(String uid) => _db.collection('users').doc(uid).collection('wardrobe');
-
-  static Future<String> addWardrobeItem(WardrobeItem item) async {
-    final ownerUid = _normalizeUid(item.userId);
-    if (ownerUid == null) throw ArgumentError('A wardrobe item must belong to the signed-in user.');
-    final ref = await _wardrobe(ownerUid).add(item.toMap());
-    return ref.id;
-  }
-
-  static Future<List<WardrobeItem>> getWardrobeItems(String uid) async {
-    final ownerUid = _normalizeUid(uid);
-    if (ownerUid == null) return const [];
-    final snapshot = await _wardrobe(ownerUid).orderBy('createdAt', descending: true).get();
-    return snapshot.docs
-        .map(WardrobeItem.fromFirestore)
-        .where((item) => item.userId.isEmpty || item.userId == ownerUid)
-        .toList(growable: false);
-  }
-
-  static Stream<List<WardrobeItem>> watchWardrobeItems(String uid) {
-    final ownerUid = _normalizeUid(uid);
-    if (ownerUid == null) return const Stream<List<WardrobeItem>>.empty();
-    return _wardrobe(ownerUid)
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map(WardrobeItem.fromFirestore)
-            .where((item) => item.userId.isEmpty || item.userId == ownerUid)
-            .toList(growable: false));
-  }
-
-  static Future<void> updateWardrobeItem(String uid, String itemId, Map<String, dynamic> data) async {
-    final ownerUid = _normalizeUid(uid);
-    final cleanId = itemId.trim();
-    if (ownerUid == null || cleanId.isEmpty) throw ArgumentError('Invalid wardrobe ownership or item ID.');
-    final safeData = Map<String, dynamic>.from(data)
-      ..remove('userId')
-      ..remove('imageUrl');
-    await _wardrobe(ownerUid).doc(cleanId).update(safeData);
-  }
-
-  static Future<void> deleteWardrobeItem(String uid, String itemId) async {
-    final ownerUid = _normalizeUid(uid);
-    final cleanId = itemId.trim();
-    if (ownerUid == null || cleanId.isEmpty) throw ArgumentError('Invalid wardrobe ownership or item ID.');
-    await _wardrobe(ownerUid).doc(cleanId).delete();
-  }
-
-  static Future<String> saveOutfitLook({
-    required String uid,
-    required String occasion,
-    required List<String> itemIds,
-    required int matchScore,
-    required String season,
-    String? title,
-    String? notes,
-  }) async {
-    final ownerUid = _normalizeUid(uid);
-    if (ownerUid == null) throw StateError('User session does not match the requested account.');
-
-    final sanitizedItemIds = itemIds
-        .map((id) => id.trim())
-        .where((id) => id.isNotEmpty)
-        .toSet()
-        .toList(growable: false);
-    if (sanitizedItemIds.isEmpty) {
-      throw ArgumentError('A saved look must contain at least one wardrobe item.');
-    }
-
-    final wardrobeSnapshot = await _wardrobe(ownerUid).get();
-    final ownedIds = wardrobeSnapshot.docs.map((doc) => doc.id).toSet();
-    if (sanitizedItemIds.any((id) => !ownedIds.contains(id))) {
-      throw StateError('A saved look can only contain items from the current user wardrobe.');
-    }
-
-    final payload = <String, dynamic>{
-      'uid': ownerUid,
-      'occasion': occasion.trim().isEmpty ? 'Everyday' : occasion.trim(),
-      'itemIds': sanitizedItemIds,
-      'matchScore': matchScore.clamp(0, 100),
-      'season': season.trim().isEmpty ? 'Unknown' : season.trim(),
-      'createdAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-      if (title != null && title.trim().isNotEmpty) 'title': title.trim(),
-      if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
-    };
-    return (await _db.collection('users').doc(ownerUid).collection('savedLooks').add(payload)).id;
-  }
-
-  static Future<List<Map<String, dynamic>>> getSavedOutfitLooks(String uid) async {
-    final ownerUid = _normalizeUid(uid);
-    if (ownerUid == null) return const [];
-    final snapshot = await _db.collection('users').doc(ownerUid).collection('savedLooks').orderBy('createdAt', descending: true).get();
-    return snapshot.docs
-        .map((doc) => {'id': doc.id, ...doc.data()})
-        .toList(growable: false);
-  }
-
-  static Future<void> deleteSavedOutfitLook(String uid, String lookId) async {
-    final ownerUid = _normalizeUid(uid);
-    final cleanId = lookId.trim();
-    if (ownerUid == null || cleanId.isEmpty) throw ArgumentError('Invalid saved look ownership or ID.');
-    await _db.collection('users').doc(ownerUid).collection('savedLooks').doc(cleanId).delete();
-  }
-
-  static Future<CustomerDeletionResult> deleteCustomerData(String uid) async {
-    final ownerUid = _normalizeUid(uid);
-    if (ownerUid == null) throw StateError('User session does not match the requested account.');
-
-    final userRef = _db.collection('users').doc(ownerUid);
-    final consultationRef = _db.collection('consultations').doc(ownerUid);
-    final userDoc = await userRef.get();
-    final analysisSnapshot = await userRef.collection('analysis').get();
-    final wardrobeSnapshot = await userRef.collection('wardrobe').get();
-    final preferencesSnapshot = await userRef.collection('preferences').get();
-    final savedLooksSnapshot = await userRef.collection('savedLooks').get();
-    final notificationsSnapshot = await userRef.collection('notifications').get();
-    final consultationDoc = await consultationRef.get();
-    final messagesSnapshot = await consultationRef.collection('messages').get();
-
-    final imageUrls = <String>[];
-    final profilePhotoUrl = userDoc.data()?['photoUrl'];
-    if (profilePhotoUrl is String && profilePhotoUrl.trim().isNotEmpty) {
-      imageUrls.add(profilePhotoUrl.trim());
-    }
-    for (final doc in wardrobeSnapshot.docs) {
-      final imageUrl = doc.data()['imageUrl'];
-      if (imageUrl is String && imageUrl.trim().isNotEmpty) {
-        imageUrls.add(imageUrl.trim());
-      }
-    }
-
-    final batch = _db.batch();
-    for (final doc in analysisSnapshot.docs) {
-      batch.delete(doc.reference);
-    }
-    for (final doc in wardrobeSnapshot.docs) {
-      batch.delete(doc.reference);
-    }
-    for (final doc in preferencesSnapshot.docs) {
-      batch.delete(doc.reference);
-    }
-    for (final doc in savedLooksSnapshot.docs) {
-      batch.delete(doc.reference);
-    }
-    for (final doc in notificationsSnapshot.docs) {
-      batch.delete(doc.reference);
-    }
-    for (final doc in messagesSnapshot.docs) {
-      batch.delete(doc.reference);
-    }
-    if (consultationDoc.exists) {
-      batch.delete(consultationDoc.reference);
-    }
-    if (userDoc.exists) {
-      batch.delete(userDoc.reference);
-    }
-    await batch.commit();
-    return CustomerDeletionResult(
-      wardrobeItemsDeleted: wardrobeSnapshot.docs.length,
-      preferencesDeleted: preferencesSnapshot.docs.length,
-      analysisRecordsDeleted: analysisSnapshot.docs.length,
-      savedLooksDeleted: savedLooksSnapshot.docs.length,
-      notificationRecordsDeleted: notificationsSnapshot.docs.length,
-      consultationMessagesDeleted: messagesSnapshot.docs.length,
-      consultationDeleted: consultationDoc.exists,
-      userDocDeleted: userDoc.exists,
-      imageUrls: imageUrls,
-    );
-  }
-
   static List<String> _stringList(dynamic value) {
-    if (value is! List) return const [];
+    if (value is! Iterable) return const [];
     return value
         .whereType<String>()
         .map((item) => item.trim())
         .where((item) => item.isNotEmpty)
         .toList(growable: false);
   }
+}
+
+class _ContextLoadResult {
+  final dynamic value;
+  final Object? error;
+
+  const _ContextLoadResult(this.value, [this.error]);
 }
