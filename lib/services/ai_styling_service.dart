@@ -189,7 +189,6 @@ class AiStylingService {
 
   static void _rememberLook(String uid, List<WardrobeItem> look) {
     final key = _lookKey(look);
-    if (key == null) return;
     final history = (_recentLookKeysByUid[uid] ??= <String>{});
     history.add(key);
     if (history.length > 12) {
