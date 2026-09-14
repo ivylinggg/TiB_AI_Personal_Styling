@@ -25,15 +25,23 @@ class VyeaNotification {
     QueryDocumentSnapshot<Map<String, dynamic>> doc,
   ) {
     final data = doc.data();
-    final timestamp = data['createdAt'];
     return VyeaNotification(
       id: doc.id,
-      title: data['title'] as String? ?? 'VYEA update',
-      body: data['body'] as String? ?? '',
-      type: data['type'] as String? ?? 'system',
+      title: _stringOrDefault(data['title'], 'VYEA update'),
+      body: _stringOrDefault(data['body'], ''),
+      type: _stringOrDefault(data['type'], 'system'),
       read: data['read'] == true,
-      createdAt: timestamp is Timestamp ? timestamp.toDate() : null,
+      createdAt: _dateTimeFromValue(data['createdAt']),
     );
+  }
+
+  static String _stringOrDefault(dynamic value, String fallback) =>
+      value is String ? value : fallback;
+
+  static DateTime? _dateTimeFromValue(dynamic value) {
+    if (value is Timestamp) return value.toDate();
+    if (value is DateTime) return value;
+    return null;
   }
 }
 
