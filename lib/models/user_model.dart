@@ -42,29 +42,25 @@ class UserModel {
   });
 
   factory UserModel.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final data = doc.data() ?? {};
-    final brands = data['preferredBrands'];
-
+    final data = doc.data() ?? const <String, dynamic>{};
     return UserModel(
       uid: doc.id,
-      name: data['name'] as String? ?? '',
-      email: data['email'] as String? ?? '',
-      photoUrl: data['photoUrl'] as String?,
-      colourSeason: data['colourSeason'] as String?,
-      skinTone: data['skinTone'] as String?,
-      gender: data['gender'] as String?,
-      ageRange: data['ageRange'] as String?,
-      ethnicity: data['ethnicity'] as String?,
-      occupation: data['occupation'] as String?,
-      preferredBrands: brands is List
-          ? brands.map((item) => item.toString()).toList()
-          : const [],
-      onboardingComplete: data['onboardingComplete'] as bool? ?? false,
-      role: UserRoleExtension.fromString(data['role'] as String?),
-      isActive: data['isActive'] as bool? ?? true,
-      isPremium: data['isPremium'] as bool? ?? false,
-      createdAt: _dateTimeFromTimestamp(data['createdAt']),
-      updatedAt: _dateTimeFromTimestamp(data['updatedAt']),
+      name: _stringOrDefault(data['name'], ''),
+      email: _stringOrDefault(data['email'], ''),
+      photoUrl: _nullableString(data['photoUrl']),
+      colourSeason: _nullableString(data['colourSeason']),
+      skinTone: _nullableString(data['skinTone']),
+      gender: _nullableString(data['gender']),
+      ageRange: _nullableString(data['ageRange']),
+      ethnicity: _nullableString(data['ethnicity']),
+      occupation: _nullableString(data['occupation']),
+      preferredBrands: _stringList(data['preferredBrands']),
+      onboardingComplete: data['onboardingComplete'] == true,
+      role: UserRoleExtension.fromString(_nullableString(data['role'])),
+      isActive: data['isActive'] is bool ? data['isActive'] as bool : true,
+      isPremium: data['isPremium'] is bool ? data['isPremium'] as bool : false,
+      createdAt: _dateTimeFromValue(data['createdAt']),
+      updatedAt: _dateTimeFromValue(data['updatedAt']),
     );
   }
 
@@ -132,7 +128,17 @@ class UserModel {
     );
   }
 
-  static DateTime? _dateTimeFromTimestamp(dynamic value) {
+  static String _stringOrDefault(dynamic value, String fallback) =>
+      value is String ? value : fallback;
+
+  static String? _nullableString(dynamic value) => value is String ? value : null;
+
+  static List<String> _stringList(dynamic value) {
+    if (value is! List) return const [];
+    return value.whereType<String>().toList(growable: false);
+  }
+
+  static DateTime? _dateTimeFromValue(dynamic value) {
     if (value is Timestamp) return value.toDate();
     if (value is DateTime) return value;
     return null;
