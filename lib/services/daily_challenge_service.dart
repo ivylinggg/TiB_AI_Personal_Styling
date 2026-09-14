@@ -24,6 +24,10 @@ class DailyChallengeService {
   DailyChallengeService._();
 
   static final FirebaseFirestore _db = FirebaseFirestore.instance;
+  static const _maxHistoryEntries = 365;
+  static const _maxUidLength = 128;
+  static const _maxChallengeIdLength = 64;
+  static const _maxTextLength = 240;
 
   static const List<DailyChallenge> challenges = [
     DailyChallenge(id: 'colour_confidence', title: 'Wear your best colour', description: 'Choose one colour from your personal palette and wear it today.', category: 'Colour', points: 10, icon: 'palette'),
@@ -49,35 +53,42 @@ class DailyChallengeService {
     String uid, {
     ColourAnalysisResult? analysis,
   }) async {
-    if (uid.trim().isEmpty) return today();
+    final normalizedUid = uid.trim();
+    if (!_isValidUid(normalizedUid)) return today();
 
     try {
-      final snapshot = await _db.collection('users').doc(uid).get();
+      final snapshot = await _db.collection('users').doc(normalizedUid).get();
       final data = snapshot.data() ?? <String, dynamic>{};
       final onboarding = data['onboardingProfile'] is Map
           ? Map<String, dynamic>.from(data['onboardingProfile'] as Map)
           : <String, dynamic>{};
 
-      final occupation = (data['occupation'] ?? onboarding['occupation'] ?? onboarding['occupationCategory'] ?? '').toString().toLowerCase();
-      final season = (data['season'] ?? data['colourSeason'] ?? analysis?.season ?? '').toString().toLowerCase();
+      final occupation = _normalizeText(
+        data['occupation'] ??
+            onboarding['occupation'] ??
+            onboarding['occupationCategory'],
+      ).toLowerCase();
+      final season = _normalizeText(
+        data['season'] ?? data['colourSeason'] ?? analysis?.season,
+      ).toLowerCase();
 
       final occupationMatches = <DailyChallenge>[];
       final colourMatches = <DailyChallenge>[];
 
       if (_matchesOccupation(occupation, ['office', 'corporate', 'business', 'finance', 'bank', 'law', 'admin', 'manager'])) {
-        occupationMatches.add(challenges.firstWhere((item) => item.id == 'work_polish'));
+        occupationMatches.add(_challengeById('work_polish'));
       } else if (_matchesOccupation(occupation, ['student', 'university', 'college'])) {
-        occupationMatches.add(challenges.firstWhere((item) => item.id == 'campus_style'));
+        occupationMatches.add(_challengeById('campus_style'));
       } else if (_matchesOccupation(occupation, ['creative', 'design', 'designer', 'artist', 'fashion', 'beauty', 'content', 'media'])) {
-        occupationMatches.add(challenges.firstWhere((item) => item.id == 'creative_detail'));
+        occupationMatches.add(_challengeById('creative_detail'));
       } else if (_matchesOccupation(occupation, ['hospitality', 'service', 'retail', 'sales', 'healthcare', 'nurse', 'doctor'])) {
-        occupationMatches.add(challenges.firstWhere((item) => item.id == 'service_ready'));
+        occupationMatches.add(_challengeById('service_ready'));
       }
 
       if (season.isNotEmpty) {
-        colourMatches.add(challenges.firstWhere((item) => item.id == 'colour_confidence'));
+        colourMatches.add(_challengeById('colour_confidence'));
         if (analysis != null && analysis.colours.length >= 2) {
-          colourMatches.add(challenges.firstWhere((item) => item.id == 'colour_pairing'));
+          colourMatches.add(_challengeById('colour_pairing'));
         }
       }
 
@@ -86,11 +97,27 @@ class DailyChallengeService {
       final day = DateTime.now().difference(DateTime(DateTime.now().year, 1, 1)).inDays;
 
       if (preferred.isNotEmpty) return preferred[day % preferred.length];
-      return remaining[day % remaining.length];
+      if (remaining.isNotEmpty) return remaining[day % remaining.length];
+      return today();
     } catch (_) {
       return today();
     }
   }
+
+  static DailyChallenge _challengeById(String id) =>
+      challenges.firstWhere((item) => item.id == id, orElse: today);
+
+  static String _normalizeText(Object? value) {
+    if (value is! String) return '';
+    final text = value.trim();
+    return text.length > _maxTextLength ? text.substring(0, _maxTextLength) : text;
+  }
+
+  static bool _isValidUid(String uid) =>
+      uid.isNotEmpty && uid.length <= _maxUidLength;
+
+  static bool _isValidChallengeId(String id) =>
+      id.isNotEmpty && id.length <= _maxChallengeIdLength;
 
   static bool _matchesOccupation(String occupation, List<String> keywords) =>
       occupation.isNotEmpty && keywords.any(occupation.contains);
@@ -103,11 +130,38 @@ class DailyChallengeService {
   }
 
   static Future<List<Map<String, dynamic>>> history(String uid) async {
-    if (uid.trim().isEmpty) return const [];
-    final snapshot = await _db.collection('users').doc(uid).get();
-    final value = snapshot.data()?['dailyChallengeHistory'];
-    if (value is! List) return const [];
-    return value.whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList();
+    final normalizedUid = uid.trim();
+    if (!_isValidUid(normalizedUid)) return const [];
+
+    try {
+      final snapshot = await _db.collection('users').doc(normalizedUid).get();
+      final value = snapshot.data()?['dailyChallengeHistory'];
+      if (value is! List) return const [];
+
+      return value
+          .whereType<Map>()
+          .take(_maxHistoryEntries)
+          .map((item) => Map<String, dynamic>.from(item))
+          .where(_isValidHistoryEntry)
+          .toList(growable: false);
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  static bool _isValidHistoryEntry(Map<String, dynamic> entry) {
+    final date = entry['date']?.toString().trim() ?? '';
+    final challengeId = entry['challengeId']?.toString().trim() ?? '';
+    final points = entry['points'];
+    return _isValidDateKey(date) &&
+        _isValidChallengeId(challengeId) &&
+        points is num &&
+        points.toInt() >= 0;
+  }
+
+  static bool _isValidDateKey(String value) {
+    if (!RegExp(r'^\d{4}-\d{2}-\d{2}\$').hasMatch(value)) return false;
+    return DateTime.tryParse(value) != null;
   }
 
   static Future<bool> isCompleted(String uid) async {
@@ -116,49 +170,62 @@ class DailyChallengeService {
   }
 
   static Future<bool> complete(String uid, {DailyChallenge? challenge}) async {
-    if (uid.trim().isEmpty) return false;
+    final normalizedUid = uid.trim();
+    if (!_isValidUid(normalizedUid)) return false;
 
     final selectedChallenge = challenge ?? today();
-    final date = todayKey();
-    final ref = _db.collection('users').doc(uid);
-    final snapshot = await ref.get();
-    final existing = snapshot.data()?['dailyChallengeHistory'];
-
-    if (existing is List && existing.any((item) => item is Map && item['date']?.toString() == date)) {
+    if (!_isValidChallengeId(selectedChallenge.id) || selectedChallenge.points < 0) {
       return false;
     }
 
-    // Firestore does not support serverTimestamp() nested inside an array.
-    // Use a concrete Timestamp so the whole challenge history entry can be
-    // safely written with arrayUnion().
-    await ref.set({
-      'dailyChallengeHistory': FieldValue.arrayUnion([
-        {
-          'date': date,
-          'challengeId': selectedChallenge.id,
-          'title': selectedChallenge.title,
-          'points': selectedChallenge.points,
-          'completedAt': Timestamp.now(),
-        },
-      ]),
-      'challengePoints': FieldValue.increment(selectedChallenge.points),
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    final date = todayKey();
+    final ref = _db.collection('users').doc(normalizedUid);
 
-    return true;
+    try {
+      final snapshot = await ref.get();
+      final existing = snapshot.data()?['dailyChallengeHistory'];
+      if (existing is List &&
+          existing.any(
+            (item) => item is Map && item['date']?.toString() == date,
+          )) {
+        return false;
+      }
+
+      await ref.set({
+        'dailyChallengeHistory': FieldValue.arrayUnion([
+          {
+            'date': date,
+            'challengeId': selectedChallenge.id,
+            'title': selectedChallenge.title,
+            'points': selectedChallenge.points,
+            'completedAt': Timestamp.now(),
+          },
+        ]),
+        'challengePoints': FieldValue.increment(selectedChallenge.points),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   static Future<int> totalPoints(String uid) async {
     final entries = await history(uid);
     return entries.fold<int>(0, (total, entry) {
       final value = entry['points'];
-      return total + (value is num ? value.toInt() : 0);
+      return total + (value is num && value.toInt() >= 0 ? value.toInt() : 0);
     });
   }
 
   static Future<int> streak(String uid) async {
     final entries = await history(uid);
-    final dates = entries.map((entry) => DateTime.tryParse(entry['date']?.toString() ?? '')).whereType<DateTime>().map((date) => DateTime(date.year, date.month, date.day)).toSet();
+    final dates = entries
+        .map((entry) => DateTime.tryParse(entry['date']?.toString() ?? ''))
+        .whereType<DateTime>()
+        .map((date) => DateTime(date.year, date.month, date.day))
+        .toSet();
     if (dates.isEmpty) return 0;
 
     var current = DateTime.now();
