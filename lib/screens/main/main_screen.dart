@@ -210,7 +210,10 @@ class _MainScreenState extends State<MainScreen> {
                           ),
                           trailing: item.read
                               ? null
-                              : const Icon(Icons.circle, size: 7, color: AppColors.primary),
+                              : const Semantics(
+                                  label: 'Unread notification',
+                                  child: Icon(Icons.circle, size: 7, color: AppColors.primary),
+                                ),
                           onTap: item.read
                               ? null
                               : () => NotificationService.markRead(uid, item.id),
@@ -224,80 +227,85 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  Widget _header() {
+  Widget _header(bool wide) {
     final auth = context.watch<AuthProvider>();
     final name = auth.displayName?.trim();
     final greeting = name?.isNotEmpty == true ? 'Hi, $name' : 'Welcome back';
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 10),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(16, 13, 10, 13),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: AppColors.border),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 42,
-              height: 42,
-              decoration: const BoxDecoration(
-                color: AppColors.secondary,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.auto_awesome_rounded, color: AppColors.primary),
+      padding: EdgeInsets.fromLTRB(wide ? 28 : 20, 12, wide ? 28 : 20, 10),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1280),
+          child: Container(
+            padding: EdgeInsets.fromLTRB(wide ? 20 : 16, 13, wide ? 12 : 10, 13),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: AppColors.border),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'VYEA',
-                    style: TextStyle(
-                      fontSize: 9.5,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 2.6,
-                      color: AppColors.brown,
-                    ),
+            child: Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: const BoxDecoration(
+                    color: AppColors.secondary,
+                    shape: BoxShape.circle,
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    greeting,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800),
+                  child: const Icon(Icons.auto_awesome_rounded, color: AppColors.primary),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'VYEA',
+                        style: TextStyle(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 2.6,
+                          color: AppColors.brown,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        greeting,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: wide ? 20 : 19, fontWeight: FontWeight.w800),
+                      ),
+                    ],
+                  ),
+                ),
+                if (widget.adminPreview)
+                  IconButton(
+                    onPressed: _returnToAdmin,
+                    tooltip: 'Return to Admin',
+                    icon: const Icon(Icons.admin_panel_settings_outlined),
+                  ),
+                if (!widget.adminPreview) ...[
+                  IconButton(
+                    onPressed: _showNotifications,
+                    tooltip: 'Notifications',
+                    icon: const Icon(Icons.notifications_none_rounded),
+                  ),
+                  IconButton(
+                    onPressed: _loggingOut ? null : _logout,
+                    tooltip: 'Log out',
+                    icon: _loggingOut
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.logout_rounded),
                   ),
                 ],
-              ),
+              ],
             ),
-            if (widget.adminPreview)
-              IconButton(
-                onPressed: _returnToAdmin,
-                tooltip: 'Return to Admin',
-                icon: const Icon(Icons.admin_panel_settings_outlined),
-              ),
-            if (!widget.adminPreview) ...[
-              IconButton(
-                onPressed: _showNotifications,
-                tooltip: 'Notifications',
-                icon: const Icon(Icons.notifications_none_rounded),
-              ),
-              IconButton(
-                onPressed: _loggingOut ? null : _logout,
-                tooltip: 'Log out',
-                icon: _loggingOut
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.logout_rounded),
-              ),
-            ],
-          ],
+          ),
         ),
       ),
     );
@@ -306,88 +314,98 @@ class _MainScreenState extends State<MainScreen> {
   @override
   Widget build(BuildContext context) {
     final direction = _selectedIndex >= _previousIndex ? 1 : -1;
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: Column(
-          children: [
-            if (_selectedIndex == 0) _header(),
-            Expanded(
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 220),
-                transitionBuilder: (child, animation) => FadeTransition(
-                  opacity: animation,
-                  child: SlideTransition(
-                    position: animation.drive(
-                      Tween<Offset>(
-                        begin: Offset(direction * .03, .01),
-                        end: Offset.zero,
-                      ).chain(
-                        CurveTween(curve: Curves.easeOutCubic),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final wide = constraints.maxWidth >= 900;
+        return Scaffold(
+          backgroundColor: AppColors.background,
+          body: SafeArea(
+            child: Column(
+              children: [
+                if (_selectedIndex == 0) _header(wide),
+                Expanded(
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 220),
+                    transitionBuilder: (child, animation) => FadeTransition(
+                      opacity: animation,
+                      child: SlideTransition(
+                        position: animation.drive(
+                          Tween<Offset>(
+                            begin: Offset(direction * .03, .01),
+                            end: Offset.zero,
+                          ).chain(
+                            CurveTween(curve: Curves.easeOutCubic),
+                          ),
+                        ),
+                        child: child,
                       ),
                     ),
-                    child: child,
+                    child: KeyedSubtree(
+                      key: ValueKey(_selectedIndex),
+                      child: _pages[_selectedIndex],
+                    ),
                   ),
                 ),
-                child: KeyedSubtree(
-                  key: ValueKey(_selectedIndex),
-                  child: _pages[_selectedIndex],
+              ],
+            ),
+          ),
+          bottomNavigationBar: SafeArea(
+            top: false,
+            minimum: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 900),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: NavigationBar(
+                    selectedIndex: _selectedIndex,
+                    height: wide ? 76 : 70,
+                    backgroundColor: Colors.transparent,
+                    indicatorColor: AppColors.primarySoft,
+                    onDestinationSelected: _selectTab,
+                    destinations: const [
+                      NavigationDestination(
+                        icon: Icon(Icons.home_outlined),
+                        selectedIcon: Icon(Icons.home_rounded),
+                        label: 'Home',
+                      ),
+                      NavigationDestination(
+                        icon: Icon(Icons.palette_outlined),
+                        selectedIcon: Icon(Icons.palette_rounded),
+                        label: 'Colour',
+                      ),
+                      NavigationDestination(
+                        icon: Icon(Icons.auto_awesome_outlined),
+                        selectedIcon: Icon(Icons.auto_awesome_rounded),
+                        label: 'Style',
+                      ),
+                      NavigationDestination(
+                        icon: Icon(Icons.checkroom_outlined),
+                        selectedIcon: Icon(Icons.checkroom_rounded),
+                        label: 'Wardrobe',
+                      ),
+                      NavigationDestination(
+                        icon: Icon(Icons.forum_outlined),
+                        selectedIcon: Icon(Icons.forum_rounded),
+                        label: 'Forum',
+                      ),
+                      NavigationDestination(
+                        icon: Icon(Icons.person_outline_rounded),
+                        selectedIcon: Icon(Icons.person_rounded),
+                        label: 'Profile',
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ],
-        ),
-      ),
-      bottomNavigationBar: SafeArea(
-        top: false,
-        minimum: const EdgeInsets.fromLTRB(12, 0, 12, 10),
-        child: Container(
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: AppColors.border),
           ),
-          child: NavigationBar(
-            selectedIndex: _selectedIndex,
-            height: 70,
-            backgroundColor: Colors.transparent,
-            indicatorColor: AppColors.primarySoft,
-            onDestinationSelected: _selectTab,
-            destinations: const [
-              NavigationDestination(
-                icon: Icon(Icons.home_outlined),
-                selectedIcon: Icon(Icons.home_rounded),
-                label: 'Home',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.palette_outlined),
-                selectedIcon: Icon(Icons.palette_rounded),
-                label: 'Colour',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.auto_awesome_outlined),
-                selectedIcon: Icon(Icons.auto_awesome_rounded),
-                label: 'Style',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.checkroom_outlined),
-                selectedIcon: Icon(Icons.checkroom_rounded),
-                label: 'Wardrobe',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.forum_outlined),
-                selectedIcon: Icon(Icons.forum_rounded),
-                label: 'Forum',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.person_outline_rounded),
-                selectedIcon: Icon(Icons.person_rounded),
-                label: 'Profile',
-              ),
-            ],
-          ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
