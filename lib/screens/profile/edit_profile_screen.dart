@@ -143,7 +143,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     setState(() => _saving = true);
     try {
       if (emailChanged) {
-        // Use the current FirebaseAuth API supported by this project.
         await currentAuthUser.verifyBeforeUpdateEmail(email);
       }
 
@@ -216,6 +215,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    final compact = width < 560;
+    final horizontal = compact ? 20.0 : 32.0;
+    final contentWidth = width > 900 ? 820.0 : double.infinity;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -233,76 +237,93 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           const SizedBox(width: 8),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
-        children: [
-          _introCard(),
-          const SizedBox(height: 22),
-          _sectionTitle('ACCOUNT DETAILS'),
-          const SizedBox(height: 8),
-          _card([
-            _textField('Name', _nameController, Icons.person_outline_rounded),
-            const Divider(height: 1),
-            _textField('Gmail / Email', _emailController, Icons.mail_outline_rounded, keyboardType: TextInputType.emailAddress),
-          ]),
-          const SizedBox(height: 22),
-          _sectionTitle('ABOUT YOU'),
-          const SizedBox(height: 8),
-          _card([
-            _dropdown('Gender', _gender, _genders, (value) => setState(() => _gender = value)),
-            const Divider(height: 1),
-            _dropdown('Age range', _ageRange, _ages, (value) => setState(() => _ageRange = value)),
-            const Divider(height: 1),
-            _dropdown('Ethnicity', _ethnicity, _ethnicities, (value) => setState(() => _ethnicity = value)),
-            const Divider(height: 1),
-            _dropdown('Occupation', _occupation, _occupations, (value) => setState(() => _occupation = value)),
-            if (_occupation == 'Other') ...[
-              const Divider(height: 1),
-              _textField('Your occupation', _occupationOtherController, Icons.work_outline_rounded),
+      body: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: contentWidth),
+          child: ListView(
+            padding: EdgeInsets.fromLTRB(horizontal, 8, horizontal, 36),
+            children: [
+              _introCard(compact),
+              const SizedBox(height: 22),
+              _sectionTitle('ACCOUNT DETAILS'),
+              const SizedBox(height: 8),
+              _card([
+                _textField('Name', _nameController, Icons.person_outline_rounded),
+                const Divider(height: 1),
+                _textField('Gmail / Email', _emailController, Icons.mail_outline_rounded, keyboardType: TextInputType.emailAddress),
+              ]),
+              const SizedBox(height: 22),
+              _sectionTitle('ABOUT YOU'),
+              const SizedBox(height: 8),
+              _card([
+                _dropdown('Gender', _gender, _genders, (value) => setState(() => _gender = value)),
+                const Divider(height: 1),
+                _dropdown('Age range', _ageRange, _ages, (value) => setState(() => _ageRange = value)),
+                const Divider(height: 1),
+                _dropdown('Ethnicity', _ethnicity, _ethnicities, (value) => setState(() => _ethnicity = value)),
+                const Divider(height: 1),
+                _dropdown('Occupation', _occupation, _occupations, (value) => setState(() => _occupation = value)),
+                if (_occupation == 'Other') ...[
+                  const Divider(height: 1),
+                  _textField('Your occupation', _occupationOtherController, Icons.work_outline_rounded),
+                ],
+              ]),
+              const SizedBox(height: 22),
+              _sectionTitle('FAVOURITE BRANDS'),
+              const SizedBox(height: 8),
+              _brandCard(),
+              const SizedBox(height: 22),
+              _sectionTitle('COLOUR PROFILE'),
+              const SizedBox(height: 8),
+              _infoCard(
+                Icons.palette_outlined,
+                'Colour analysis is kept separately',
+                'Your season, undertone, brightness, contrast and face-shape analysis are generated from your scan. Rescan from your profile whenever you want to update them.',
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: _saving ? null : _save,
+                  icon: _saving
+                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.check_rounded),
+                  label: Text(_saving ? 'Saving changes…' : 'Save changes'),
+                ),
+              ),
             ],
-          ]),
-          const SizedBox(height: 22),
-          _sectionTitle('FAVOURITE BRANDS'),
-          const SizedBox(height: 8),
-          _brandCard(),
-          const SizedBox(height: 22),
-          _sectionTitle('COLOUR PROFILE'),
-          const SizedBox(height: 8),
-          _infoCard(
-            Icons.palette_outlined,
-            'Colour analysis is kept separately',
-            'Your season, undertone, brightness, contrast and face-shape analysis are generated from your scan. Rescan from your profile whenever you want to update them.',
           ),
-          const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: _saving ? null : _save,
-              icon: _saving
-                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.check_rounded),
-              label: Text(_saving ? 'Saving changes…' : 'Save changes'),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _introCard() => Container(
-        padding: const EdgeInsets.all(16),
+  Widget _introCard(bool compact) => Container(
+        padding: EdgeInsets.all(compact ? 16 : 20),
         decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.border)),
-        child: const Row(
-          children: [
-            CircleAvatar(backgroundColor: AppColors.secondary, child: Icon(Icons.edit_outlined, color: AppColors.primary)),
-            SizedBox(width: 12),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Keep your style profile current', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900)),
-              SizedBox(height: 4),
-              Text('These are the details you gave VYEA during sign-up and your personal style questions. Changes are used for future recommendations.', style: TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.4)),
-            ])),
-          ],
-        ),
+        child: compact
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  CircleAvatar(backgroundColor: AppColors.secondary, child: Icon(Icons.edit_outlined, color: AppColors.primary)),
+                  SizedBox(height: 12),
+                  Text('Keep your style profile current', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900)),
+                  SizedBox(height: 4),
+                  Text('These are the details you gave VYEA during sign-up and your personal style questions. Changes are used for future recommendations.', style: TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.4)),
+                ],
+              )
+            : const Row(
+                children: [
+                  CircleAvatar(backgroundColor: AppColors.secondary, child: Icon(Icons.edit_outlined, color: AppColors.primary)),
+                  SizedBox(width: 12),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Keep your style profile current', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900)),
+                    SizedBox(height: 4),
+                    Text('These are the details you gave VYEA during sign-up and your personal style questions. Changes are used for future recommendations.', style: TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.4)),
+                  ])),
+                ],
+              ),
       );
 
   Widget _sectionTitle(String title) => Text(title, style: const TextStyle(color: AppColors.textMuted, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.4));
@@ -327,7 +348,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         child: DropdownButtonFormField<String>(
           initialValue: value,
           decoration: InputDecoration(labelText: label, prefixIcon: const Icon(Icons.tune_rounded), border: InputBorder.none),
-          items: options.map((option) => DropdownMenuItem(value: option, child: Text(option))).toList(),
+          items: options.map((option) => DropdownMenuItem(value: option, child: Text(option, overflow: TextOverflow.ellipsis))).toList(),
           onChanged: _saving ? null : onChanged,
         ),
       );
