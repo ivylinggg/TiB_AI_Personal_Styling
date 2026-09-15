@@ -17,8 +17,10 @@ class _FlashQuestionScreenState extends State<FlashQuestionScreen> {
   int _index = 0;
   final Map<String, int> _answers = {};
 
-  FlashQuestion get _question => FlashQuestionService.questions[_index];
-  bool get _lastQuestion => _index == FlashQuestionService.questions.length - 1;
+  List<FlashQuestion> get _questions =>
+      FlashQuestionService.questionsForGender(widget.gender);
+  FlashQuestion get _question => _questions[_index];
+  bool get _lastQuestion => _index == _questions.length - 1;
   int? get _selected => _answers[_question.id];
 
   void _select(int value) {
@@ -49,7 +51,7 @@ class _FlashQuestionScreenState extends State<FlashQuestionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final progress = (_index + 1) / FlashQuestionService.questions.length;
+    final progress = (_index + 1) / _questions.length;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Personal Colour Questionnaire'),
@@ -63,13 +65,16 @@ class _FlashQuestionScreenState extends State<FlashQuestionScreen> {
               LinearProgressIndicator(value: progress),
               const SizedBox(height: 18),
               Text(
-                'Question ${_index + 1} of ${FlashQuestionService.questions.length}',
+                'Question ${_index + 1} of ${_questions.length}',
                 style: Theme.of(context).textTheme.labelLarge,
               ),
               const SizedBox(height: 14),
               Text(
                 _question.question,
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
+                style: Theme.of(context)
+                    .textTheme
+                    .headlineSmall
+                    ?.copyWith(fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 18),
               Expanded(
