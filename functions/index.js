@@ -13,16 +13,15 @@ function cleanString(value, fallback = "") {
   return result || fallback;
 }
 
-function assertAdmin(context) {
+async function assertAdmin(context) {
   if (!context.auth) {
     throw new HttpsError("unauthenticated", "You must be signed in.");
   }
 
-  return db.collection("users").doc(context.auth.uid).get().then((snapshot) => {
-    if (!snapshot.exists || snapshot.data().role !== "admin" || snapshot.data().isActive === false) {
-      throw new HttpsError("permission-denied", "Administrator access is required.");
-    }
-  });
+  const snapshot = await db.collection("users").doc(context.auth.uid).get();
+  if (!snapshot.exists || snapshot.data().role !== "admin" || snapshot.data().isActive === false) {
+    throw new HttpsError("permission-denied", "Administrator access is required.");
+  }
 }
 
 exports.createStaffAccount = onCall({
@@ -130,5 +129,91 @@ exports.createStaffAccount = onCall({
     email,
     staffId,
     role,
+  };
+});
+
+exports.deleteCustomerAccount = onCall({
+  region: "asia-southeast1",
+  enforceAppCheck: false,
+}, async (request) => {
+  await assertAdmin(request);
+
+  const targetUid = cleanString(request.data && request.data.uid);
+  if (!targetUid) {
+    throw new HttpsError("invalid-argument", "Customer UID is required.");
+  }
+  if (request.auth.uid === targetUid) {
+    throw new HttpsError("failed-precondition", "An administrator cannot delete the current admin account here.");
+  }
+
+  const userRef = db.collection("users").doc(targetUid);
+  const userSnapshot = await userRef.get();
+  if (!userSnapshot.exists) {
+    throw new HttpsError("not-found", "Customer profile was not found.");
+  }
+
+  const userData = userSnapshot.data() || {};
+  if (cleanString(userData.role, "customer") !== "customer") {
+    throw new HttpsError("failed-precondition", "Only customer accounts can be deleted from User Management.");
+  }
+
+  const subcollections = [
+    "analysis",
+    "wardrobe",
+    "preferences",
+    "savedLooks",
+    "notifications",
+  ];
+  const deletedCounts = {};
+  const imageUrls = [];
+  const batch = db.batch();
+
+  if (typeof userData.photoUrl === "string" && userData.photoUrl.trim()) {
+    imageUrls.push(userData.photoUrl.trim());
+  }
+
+  for (const collectionName of subcollections) {
+    const snapshot = await userRef.collection(collectionName).get();
+    deletedCounts[collectionName] = snapshot.size;
+    for (const doc of snapshot.docs) {
+      if (collectionName === "wardrobe") {
+        const imageUrl = doc.data().imageUrl;
+        if (typeof imageUrl === "string" && imageUrl.trim()) imageUrls.push(imageUrl.trim());
+      }
+      batch.delete(doc.ref);
+    }
+  }
+
+  const consultationRef = db.collection("consultations").doc(targetUid);
+  const consultationSnapshot = await consultationRef.get();
+  let consultationMessagesDeleted = 0;
+  if (consultationSnapshot.exists) {
+    const messages = await consultationRef.collection("messages").get();
+    consultationMessagesDeleted = messages.size;
+    for (const message of messages.docs) batch.delete(message.ref);
+    batch.delete(consultationRef);
+  }
+
+  batch.delete(userRef);
+  await batch.commit();
+
+  try {
+    await auth.deleteUser(targetUid);
+  } catch (error) {
+    logger.error("Firestore customer data was deleted but Authentication deletion failed", error);
+    throw new HttpsError("internal", "Customer data was deleted, but the Firebase Authentication account could not be removed. Check Cloud Functions logs.");
+  }
+
+  return {
+    uid: targetUid,
+    userDocDeleted: true,
+    wardrobeItemsDeleted: deletedCounts.wardrobe || 0,
+    preferencesDeleted: deletedCounts.preferences || 0,
+    analysisRecordsDeleted: deletedCounts.analysis || 0,
+    savedLooksDeleted: deletedCounts.savedLooks || 0,
+    notificationRecordsDeleted: deletedCounts.notifications || 0,
+    consultationDeleted: consultationSnapshot.exists,
+    consultationMessagesDeleted,
+    imageUrls: [...new Set(imageUrls)],
   };
 });
