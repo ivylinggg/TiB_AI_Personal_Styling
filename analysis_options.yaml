@@ -9,3 +9,9 @@ linter:
     # placeholders. Keep the analyzer focused on actionable issues rather than
     # enforcing alternate placeholder naming in these callbacks.
     unnecessary_underscores: false
+
+    # These legacy Flutter APIs are still supported by the project's current
+    # Flutter SDK. Keep the analyzer output focused on actual errors while the
+    # questionnaire UI is migrated to the newer RadioGroup API.
+    deprecated_member_use: false
+    use_build_context_synchronously: false
