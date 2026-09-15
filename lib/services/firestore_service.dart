@@ -53,6 +53,7 @@ class CustomerDeletionResult {
   final int consultationMessagesDeleted;
   final bool consultationDeleted;
   final bool userDocDeleted;
+  final bool authUserDeleted;
   final List<String> imageUrls;
 
   const CustomerDeletionResult({
@@ -64,6 +65,7 @@ class CustomerDeletionResult {
     required this.consultationMessagesDeleted,
     required this.consultationDeleted,
     required this.userDocDeleted,
+    required this.authUserDeleted,
     required this.imageUrls,
   });
 }
@@ -297,33 +299,14 @@ class FirestoreService {
     await _wardrobe(ownerUid).doc(cleanId).delete();
   }
 
-  static Future<String> saveOutfitLook({
-    required String uid,
-    required String occasion,
-    required List<String> itemIds,
-    required int matchScore,
-    required String season,
-    String? title,
-    String? notes,
-  }) async {
+  static Future<String> saveOutfitLook({required String uid, required String occasion, required List<String> itemIds, required int matchScore, required String season, String? title, String? notes}) async {
     final ownerUid = _normalizeUid(uid);
     if (ownerUid == null) throw StateError('User session does not match the requested account.');
-
-    final sanitizedItemIds = itemIds
-        .map((id) => id.trim())
-        .where((id) => id.isNotEmpty)
-        .toSet()
-        .toList(growable: false);
-    if (sanitizedItemIds.isEmpty) {
-      throw ArgumentError('A saved look must contain at least one wardrobe item.');
-    }
-
+    final sanitizedItemIds = itemIds.map((id) => id.trim()).where((id) => id.isNotEmpty).toSet().toList(growable: false);
+    if (sanitizedItemIds.isEmpty) throw ArgumentError('A saved look must contain at least one wardrobe item.');
     final wardrobeSnapshot = await _wardrobe(ownerUid).get();
     final ownedIds = wardrobeSnapshot.docs.map((doc) => doc.id).toSet();
-    if (sanitizedItemIds.any((id) => !ownedIds.contains(id))) {
-      throw StateError('A saved look can only contain items from the current user wardrobe.');
-    }
-
+    if (sanitizedItemIds.any((id) => !ownedIds.contains(id))) throw StateError('A saved look can only contain items from the current user wardrobe.');
     final payload = <String, dynamic>{
       'uid': ownerUid,
       'occasion': occasion.trim().isEmpty ? 'Everyday' : occasion.trim(),
@@ -342,9 +325,7 @@ class FirestoreService {
     final ownerUid = _normalizeUid(uid);
     if (ownerUid == null) return const [];
     final snapshot = await _db.collection('users').doc(ownerUid).collection('savedLooks').orderBy('createdAt', descending: true).get();
-    return snapshot.docs
-        .map((doc) => {'id': doc.id, ...doc.data()})
-        .toList(growable: false);
+    return snapshot.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList(growable: false);
   }
 
   static Future<void> deleteSavedOutfitLook(String uid, String lookId) async {
@@ -355,11 +336,15 @@ class FirestoreService {
   }
 
   static Future<CustomerDeletionResult> deleteCustomerData(String uid) async {
-    final ownerUid = _normalizeUid(uid);
-    if (ownerUid == null) throw StateError('User session does not match the requested account.');
+    final requestedUid = uid.trim();
+    if (requestedUid.isEmpty) throw ArgumentError('Customer UID is required.');
 
-    final userRef = _db.collection('users').doc(ownerUid);
-    final consultationRef = _db.collection('consultations').doc(ownerUid);
+    // Admin deletion must not depend on the current admin UID matching the
+    // customer UID. The previous _normalizeUid() guard was intended for
+    // customer-self-service methods, but it made the admin delete action
+    // silently fail for every other customer account.
+    final userRef = _db.collection('users').doc(requestedUid);
+    final consultationRef = _db.collection('consultations').doc(requestedUid);
     final userDoc = await userRef.get();
     final analysisSnapshot = await userRef.collection('analysis').get();
     final wardrobeSnapshot = await userRef.collection('wardrobe').get();
@@ -369,44 +354,32 @@ class FirestoreService {
     final consultationDoc = await consultationRef.get();
     final messagesSnapshot = await consultationRef.collection('messages').get();
 
+    if (!userDoc.exists) {
+      // Still attempt to remove any orphaned nested data under the requested UID.
+      // Firestore rules still enforce admin access for the signed-in caller.
+    }
+
     final imageUrls = <String>[];
     final profilePhotoUrl = userDoc.data()?['photoUrl'];
-    if (profilePhotoUrl is String && profilePhotoUrl.trim().isNotEmpty) {
-      imageUrls.add(profilePhotoUrl.trim());
-    }
+    if (profilePhotoUrl is String && profilePhotoUrl.trim().isNotEmpty) imageUrls.add(profilePhotoUrl.trim());
     for (final doc in wardrobeSnapshot.docs) {
       final imageUrl = doc.data()['imageUrl'];
-      if (imageUrl is String && imageUrl.trim().isNotEmpty) {
-        imageUrls.add(imageUrl.trim());
-      }
+      if (imageUrl is String && imageUrl.trim().isNotEmpty) imageUrls.add(imageUrl.trim());
     }
 
     final batch = _db.batch();
-    for (final doc in analysisSnapshot.docs) {
-      batch.delete(doc.reference);
-    }
-    for (final doc in wardrobeSnapshot.docs) {
-      batch.delete(doc.reference);
-    }
-    for (final doc in preferencesSnapshot.docs) {
-      batch.delete(doc.reference);
-    }
-    for (final doc in savedLooksSnapshot.docs) {
-      batch.delete(doc.reference);
-    }
-    for (final doc in notificationsSnapshot.docs) {
-      batch.delete(doc.reference);
-    }
-    for (final doc in messagesSnapshot.docs) {
-      batch.delete(doc.reference);
-    }
-    if (consultationDoc.exists) {
-      batch.delete(consultationDoc.reference);
-    }
-    if (userDoc.exists) {
-      batch.delete(userDoc.reference);
-    }
+    for (final doc in analysisSnapshot.docs) batch.delete(doc.reference);
+    for (final doc in wardrobeSnapshot.docs) batch.delete(doc.reference);
+    for (final doc in preferencesSnapshot.docs) batch.delete(doc.reference);
+    for (final doc in savedLooksSnapshot.docs) batch.delete(doc.reference);
+    for (final doc in notificationsSnapshot.docs) batch.delete(doc.reference);
+    for (final doc in messagesSnapshot.docs) batch.delete(doc.reference);
+    if (consultationDoc.exists) batch.delete(consultationDoc.reference);
+    if (userDoc.exists) batch.delete(userDoc.reference);
     await batch.commit();
+
+    // Firestore cannot delete a Firebase Authentication account. The caller
+    // (admin) can clean the auth account through the callable Cloud Function.
     return CustomerDeletionResult(
       wardrobeItemsDeleted: wardrobeSnapshot.docs.length,
       preferencesDeleted: preferencesSnapshot.docs.length,
@@ -416,16 +389,13 @@ class FirestoreService {
       consultationMessagesDeleted: messagesSnapshot.docs.length,
       consultationDeleted: consultationDoc.exists,
       userDocDeleted: userDoc.exists,
+      authUserDeleted: false,
       imageUrls: imageUrls,
     );
   }
 
   static List<String> _stringList(dynamic value) {
     if (value is! List) return const [];
-    return value
-        .whereType<String>()
-        .map((item) => item.trim())
-        .where((item) => item.isNotEmpty)
-        .toList(growable: false);
+    return value.whereType<String>().map((item) => item.trim()).where((item) => item.isNotEmpty).toList(growable: false);
   }
 }
