@@ -1,6 +1,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/flash_question.dart';
+import 'flash_question_service.dart';
 
 class FlashQuestionPersistenceService {
   const FlashQuestionPersistenceService._();
@@ -22,15 +23,15 @@ class FlashQuestionPersistenceService {
   static Future<FlashQuestionnaireResult?> load() async {
     final prefs = await SharedPreferences.getInstance();
     final gender = prefs.getString(_genderKey);
-    final season = prefs.getString(_seasonKey);
-    if (gender == null || season == null) return null;
+    final storedSeason = prefs.getString(_seasonKey);
+    if (gender == null || storedSeason == null) return null;
 
     final answers = <String, int>{};
     for (final encoded in prefs.getStringList(_answersKey) ?? const []) {
-      final parts = encoded.split('=');
-      if (parts.length != 2) continue;
-      final value = int.tryParse(parts[1]);
-      if (value != null) answers[parts[0]] = value;
+      final separator = encoded.indexOf('=');
+      if (separator <= 0) continue;
+      final value = int.tryParse(encoded.substring(separator + 1));
+      if (value != null) answers[encoded.substring(0, separator)] = value;
     }
 
     final calculated = FlashQuestionService.calculate(
@@ -38,8 +39,6 @@ class FlashQuestionPersistenceService {
       answers: answers,
     );
 
-    // Prefer the calculated season so stored answer data remains the source
-    // of truth if question scoring changes later.
     return FlashQuestionnaireResult(
       gender: gender,
       answers: answers,
