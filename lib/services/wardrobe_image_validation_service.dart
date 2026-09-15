@@ -11,6 +11,8 @@ class WardrobeImageValidationService {
   static const int _sampleWidth = 96;
   static const double _minForegroundRatio = 0.035;
   static const double _maxFlatSceneRatio = 0.82;
+  static const double _portraitSkinRatio = 0.10;
+  static const double _portraitSkinDominance = 0.75;
 
   static const List<String> allowedCategories = [
     'Tops',
@@ -59,8 +61,19 @@ class WardrobeImageValidationService {
         return 'Please use a clearer photo with the clothing or accessory separated from the background.';
       }
 
-      if (result.skinRatio > 0.24 && result.skinRatio > result.colouredObjectRatio * 1.35) {
+      // A wardrobe item may contain a small amount of exposed skin, but a
+      // portrait/person photo usually has a much larger skin area. The old
+      // threshold was too permissive and allowed some full-body photos.
+      if (result.skinRatio >= _portraitSkinRatio &&
+          result.skinRatio >= result.colouredObjectRatio * _portraitSkinDominance) {
         return 'Please upload the clothing or accessory itself, not a portrait or unrelated photo.';
+      }
+
+      // Also reject images where skin is the dominant detected foreground,
+      // even when the photo has colourful background objects.
+      if (result.skinRatio >= 0.18 &&
+          result.skinRatio >= result.foregroundRatio * 0.35) {
+        return 'Please upload a clothing-only photo without a person in it.';
       }
 
       return null;
@@ -86,7 +99,8 @@ class WardrobeImageValidationService {
       final b = p.b.toDouble();
       final maxC = math.max(r, math.max(g, b));
       final minC = math.min(r, math.min(g, b));
-      return r > g && g > b &&
+      return r > g &&
+          g > b &&
           r - b > 18 &&
           maxC - minC > 20 &&
           r > 70 &&
