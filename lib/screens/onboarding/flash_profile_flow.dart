@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_radius.dart';
+import '../../extensions/colour_analysis_result_extensions.dart';
 import '../../models/flash_question.dart';
 import '../../providers/analysis_provider.dart';
 import '../../services/flash_question_persistence_service.dart';
@@ -326,15 +327,6 @@ class _FlashProfileFlowState extends State<FlashProfileFlow> {
                       onPressed: _saving || !_canContinue ? null : _continue,
                     ),
                   ),
-                if (_step == 5 && !_saving)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(22, 4, 22, 22),
-                    child: PrimaryButton(
-                      text: 'Continue',
-                      icon: Icons.arrow_forward_rounded,
-                      onPressed: _canContinue ? _continue : null,
-                    ),
-                  ),
                 if (_step == 6 && _saving)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(22, 4, 22, 22),
@@ -366,25 +358,11 @@ class _FlashProfileFlowState extends State<FlashProfileFlow> {
     return Column(
       children: [
         const SizedBox(height: 6),
-        const Text(
-          'Quick colour questions ✨',
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 25, fontWeight: FontWeight.w800),
-        ),
+        const Text('Quick colour questions ✨', textAlign: TextAlign.center, style: TextStyle(fontSize: 25, fontWeight: FontWeight.w800)),
         const SizedBox(height: 8),
-        const Text(
-          'Answer these questions before your face scan.\nYour answers will be used for your final season result.',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: AppColors.textSecondary, fontSize: 13, height: 1.4),
-        ),
+        const Text('Answer the 10 colour questions before your face scan.\nYour answers will be used for your final season result.', textAlign: TextAlign.center, style: TextStyle(color: AppColors.textSecondary, fontSize: 13, height: 1.4)),
         const SizedBox(height: 20),
-        Expanded(
-          child: _InlineQuestionnaire(
-            gender: _gender ?? 'Prefer not to say',
-            onCompleted: _handleQuestionnaireDone,
-            busy: _saving,
-          ),
-        ),
+        Expanded(child: _InlineQuestionnaire(gender: _gender ?? 'Prefer not to say', onCompleted: _handleQuestionnaireDone, busy: _saving)),
       ],
     );
   }
@@ -539,17 +517,17 @@ class _InlineQuestionnaireState extends State<_InlineQuestionnaire> {
   int _index = 0;
   final Map<String, int> _answers = {};
 
-  FlashQuestion get _question => FlashQuestionService.questions[_index];
-  bool get _last => _index == FlashQuestionService.questions.length - 1;
+  FlashQuestion get _question => FlashQuestionService.questionsForGender(widget.gender)[_index];
+  bool get _last => _index == FlashQuestionService.questionsForGender(widget.gender).length - 1;
   int? get _selected => _answers[_question.id];
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        LinearProgressIndicator(value: (_index + 1) / FlashQuestionService.questions.length),
+        LinearProgressIndicator(value: (_index + 1) / 10),
         const SizedBox(height: 12),
-        Align(alignment: Alignment.centerLeft, child: Text('Question ${_index + 1} of ${FlashQuestionService.questions.length}', style: Theme.of(context).textTheme.labelLarge)),
+        Align(alignment: Alignment.centerLeft, child: Text('Question ${_index + 1} of 10', style: Theme.of(context).textTheme.labelLarge)),
         const SizedBox(height: 12),
         Text(_question.question, textAlign: TextAlign.center, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
         const SizedBox(height: 14),
