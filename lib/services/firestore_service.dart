@@ -19,18 +19,7 @@ class PersonalStyleContext {
   final bool isDegraded;
   final String? errorMessage;
 
-  const PersonalStyleContext({
-    required this.user,
-    required this.colourAnalysis,
-    required this.styles,
-    required this.preferences,
-    required this.wardrobe,
-    required this.savedLooks,
-    this.loadedAt = const _UninitializedDateTime(),
-    this.isDegraded = false,
-    this.errorMessage,
-  });
-
+  const PersonalStyleContext({required this.user, required this.colourAnalysis, required this.styles, required this.preferences, required this.wardrobe, required this.savedLooks, this.loadedAt = const _UninitializedDateTime(), this.isDegraded = false, this.errorMessage});
   String get styleDirection => styles.isEmpty ? '' : styles.take(3).join(' · ');
   bool get hasColourProfile => colourAnalysis != null;
   bool get hasWardrobe => wardrobe.isNotEmpty;
@@ -54,24 +43,20 @@ class CustomerDeletionResult {
   final bool consultationDeleted;
   final bool userDocDeleted;
   final List<String> imageUrls;
-
-  const CustomerDeletionResult({
-    required this.wardrobeItemsDeleted,
-    required this.preferencesDeleted,
-    required this.analysisRecordsDeleted,
-    required this.savedLooksDeleted,
-    required this.notificationRecordsDeleted,
-    required this.consultationMessagesDeleted,
-    required this.consultationDeleted,
-    required this.userDocDeleted,
-    required this.imageUrls,
-  });
+  const CustomerDeletionResult({required this.wardrobeItemsDeleted, required this.preferencesDeleted, required this.analysisRecordsDeleted, required this.savedLooksDeleted, required this.notificationRecordsDeleted, required this.consultationMessagesDeleted, required this.consultationDeleted, required this.userDocDeleted, required this.imageUrls});
 }
 
 class FirestoreService {
   FirestoreService._();
-
   static final FirebaseFirestore _db = FirebaseFirestore.instance;
+
+  static Future<void> _requireAdmin() async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) throw StateError('You must be signed in as an administrator.');
+    final adminDoc = await _db.collection('users').doc(currentUser.uid).get();
+    final data = adminDoc.data();
+    if (!adminDoc.exists || data?['role'] != 'admin' || data?['isActive'] == false) throw StateError('Administrator access is required.');
+  }
 
   static String? _normalizeUid(String uid) {
     final requested = uid.trim();
@@ -82,19 +67,7 @@ class FirestoreService {
 
   static Future<PersonalStyleContext> getPersonalStyleContext(String uid) async {
     final ownerUid = _normalizeUid(uid);
-    if (ownerUid == null) {
-      return const PersonalStyleContext(
-        user: null,
-        colourAnalysis: null,
-        styles: [],
-        preferences: [],
-        wardrobe: [],
-        savedLooks: [],
-        isDegraded: true,
-        errorMessage: 'Your session is no longer active.',
-      );
-    }
-
+    if (ownerUid == null) return const PersonalStyleContext(user: null, colourAnalysis: null, styles: [], preferences: [], wardrobe: [], savedLooks: [], isDegraded: true, errorMessage: 'Your session is no longer active.');
     final results = await Future.wait<dynamic>([
       getUser(ownerUid),
       getLatestColourAnalysis(ownerUid),
@@ -102,10 +75,8 @@ class FirestoreService {
       getWardrobeItems(ownerUid),
       getSavedOutfitLooks(ownerUid),
     ], eagerError: false);
-
     var degraded = false;
     String? errorMessage;
-
     Map<String, dynamic>? preferenceData;
     if (results[2] is DocumentSnapshot<Map<String, dynamic>>) {
       preferenceData = (results[2] as DocumentSnapshot<Map<String, dynamic>>).data();
@@ -113,33 +84,17 @@ class FirestoreService {
       degraded = true;
       errorMessage = 'Some style preferences could not be loaded.';
     }
-
     final user = results[0] is UserModel ? results[0] as UserModel? : null;
     final colourAnalysis = results[1] is ColourAnalysisResult ? results[1] as ColourAnalysisResult? : null;
     final wardrobe = results[3] is List<WardrobeItem> ? results[3] as List<WardrobeItem> : const <WardrobeItem>[];
     final savedLooks = results[4] is List<Map<String, dynamic>> ? results[4] as List<Map<String, dynamic>> : const <Map<String, dynamic>>[];
-
-    return PersonalStyleContext(
-      user: user,
-      colourAnalysis: colourAnalysis,
-      styles: _stringList(preferenceData?['styles']),
-      preferences: _stringList(preferenceData?['preferences']),
-      wardrobe: List<WardrobeItem>.unmodifiable(wardrobe),
-      savedLooks: List<Map<String, dynamic>>.unmodifiable(savedLooks),
-      isDegraded: degraded,
-      errorMessage: errorMessage,
-    );
+    return PersonalStyleContext(user: user, colourAnalysis: colourAnalysis, styles: _stringList(preferenceData?['styles']), preferences: _stringList(preferenceData?['preferences']), wardrobe: List<WardrobeItem>.unmodifiable(wardrobe), savedLooks: List<Map<String, dynamic>>.unmodifiable(savedLooks), isDegraded: degraded, errorMessage: errorMessage);
   }
 
   static Future<void> createUser(UserModel user) async {
     final currentUid = FirebaseAuth.instance.currentUser?.uid.trim();
-    if (currentUid == null || currentUid != user.uid.trim()) {
-      throw StateError('Cannot create a profile for a different account.');
-    }
-    await _db.collection('users').doc(currentUid).set(user.toMap()).timeout(
-      const Duration(seconds: 15),
-      onTimeout: () => throw TimeoutException('Creating your profile timed out. Please check your connection and try again.'),
-    );
+    if (currentUid == null || currentUid != user.uid.trim()) throw StateError('Cannot create a profile for a different account.');
+    await _db.collection('users').doc(currentUid).set(user.toMap()).timeout(const Duration(seconds: 15), onTimeout: () => throw TimeoutException('Creating your profile timed out. Please check your connection and try again.'));
   }
 
   static Future<UserModel?> getUser(String uid) async {
@@ -161,22 +116,10 @@ class FirestoreService {
   static Future<void> updateUser(String uid, Map<String, dynamic> data) async {
     final ownerUid = _normalizeUid(uid);
     if (ownerUid == null) throw StateError('User session does not match the requested account.');
-    await _db.collection('users').doc(ownerUid).update({
-      ...data,
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
+    await _db.collection('users').doc(ownerUid).update({...data, 'updatedAt': FieldValue.serverTimestamp()});
   }
 
-  static Future<void> updateColourProfile({
-    required String uid,
-    required String colourSeason,
-    required String skinTone,
-  }) async {
-    await updateUser(uid, {
-      'colourSeason': colourSeason.trim(),
-      'skinTone': skinTone.trim(),
-    });
-  }
+  static Future<void> updateColourProfile({required String uid, required String colourSeason, required String skinTone}) async => updateUser(uid, {'colourSeason': colourSeason.trim(), 'skinTone': skinTone.trim()});
 
   static Future<void> saveAnalysis({required String uid, required AnalysisModel analysis}) async {
     final ownerUid = _normalizeUid(uid);
@@ -194,44 +137,14 @@ class FirestoreService {
   static Future<void> saveAnalysisResult({required String uid, required ColourAnalysisResult result}) async {
     final ownerUid = _normalizeUid(uid);
     if (ownerUid == null) throw StateError('User session does not match the requested account.');
-    await _db.collection('users').doc(ownerUid).collection('analysis').add({
-      'season': result.season,
-      'undertone': result.undertone,
-      'brightness': result.brightness,
-      'contrast': result.contrast,
-      'imageUrl': result.imageUrl,
-      'colours': result.colours,
-      'faceShape': result.faceShape,
-      'faceShapeDescription': result.faceShapeDescription,
-      'faceMeasurements': result.faceMeasurements,
-      'faceStylingGuidance': result.faceStylingGuidance,
-      'colourReasons': result.colourReasons,
-      'createdAt': FieldValue.serverTimestamp(),
-    });
+    await _db.collection('users').doc(ownerUid).collection('analysis').add({'season': result.season, 'undertone': result.undertone, 'brightness': result.brightness, 'contrast': result.contrast, 'imageUrl': result.imageUrl, 'colours': result.colours, 'faceShape': result.faceShape, 'faceShapeDescription': result.faceShapeDescription, 'faceMeasurements': result.faceMeasurements, 'faceStylingGuidance': result.faceStylingGuidance, 'colourReasons': result.colourReasons, 'createdAt': FieldValue.serverTimestamp()});
   }
 
   static ColourAnalysisResult _resultFromData(Map<String, dynamic> data) {
     final rawMeasurements = <String, double>{};
     final measurements = data['faceMeasurements'];
-    if (measurements is Map) {
-      measurements.forEach((key, value) {
-        if (value is num) rawMeasurements[key.toString()] = value.toDouble();
-      });
-    }
-
-    return ColourAnalysisResult(
-      season: data['season'] as String? ?? 'Unknown',
-      undertone: data['undertone'] as String? ?? 'Unknown',
-      brightness: data['brightness'] as String? ?? 'Unknown',
-      contrast: data['contrast'] as String? ?? 'Unknown',
-      imageUrl: data['imageUrl'] as String? ?? '',
-      colours: _stringList(data['colours']),
-      faceShape: data['faceShape'] as String? ?? 'Unknown',
-      faceShapeDescription: data['faceShapeDescription'] as String? ?? '',
-      faceMeasurements: rawMeasurements,
-      faceStylingGuidance: _stringList(data['faceStylingGuidance']),
-      colourReasons: _stringList(data['colourReasons']),
-    );
+    if (measurements is Map) measurements.forEach((key, value) { if (value is num) rawMeasurements[key.toString()] = value.toDouble(); });
+    return ColourAnalysisResult(season: data['season'] as String? ?? 'Unknown', undertone: data['undertone'] as String? ?? 'Unknown', brightness: data['brightness'] as String? ?? 'Unknown', contrast: data['contrast'] as String? ?? 'Unknown', imageUrl: data['imageUrl'] as String? ?? '', colours: _stringList(data['colours']), faceShape: data['faceShape'] as String? ?? 'Unknown', faceShapeDescription: data['faceShapeDescription'] as String? ?? '', faceMeasurements: rawMeasurements, faceStylingGuidance: _stringList(data['faceStylingGuidance']), colourReasons: _stringList(data['colourReasons']));
   }
 
   static Future<List<ColourAnalysisResult>> getColourAnalysisHistory(String uid) async {
@@ -254,39 +167,27 @@ class FirestoreService {
   static Future<String> addWardrobeItem(WardrobeItem item) async {
     final ownerUid = _normalizeUid(item.userId);
     if (ownerUid == null) throw ArgumentError('A wardrobe item must belong to the signed-in user.');
-    final ref = await _wardrobe(ownerUid).add(item.toMap());
-    return ref.id;
+    return (await _wardrobe(ownerUid).add(item.toMap())).id;
   }
 
   static Future<List<WardrobeItem>> getWardrobeItems(String uid) async {
     final ownerUid = _normalizeUid(uid);
     if (ownerUid == null) return const [];
     final snapshot = await _wardrobe(ownerUid).orderBy('createdAt', descending: true).get();
-    return snapshot.docs
-        .map(WardrobeItem.fromFirestore)
-        .where((item) => item.userId.isEmpty || item.userId == ownerUid)
-        .toList(growable: false);
+    return snapshot.docs.map(WardrobeItem.fromFirestore).where((item) => item.userId.isEmpty || item.userId == ownerUid).toList(growable: false);
   }
 
   static Stream<List<WardrobeItem>> watchWardrobeItems(String uid) {
     final ownerUid = _normalizeUid(uid);
     if (ownerUid == null) return const Stream<List<WardrobeItem>>.empty();
-    return _wardrobe(ownerUid)
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map(WardrobeItem.fromFirestore)
-            .where((item) => item.userId.isEmpty || item.userId == ownerUid)
-            .toList(growable: false));
+    return _wardrobe(ownerUid).orderBy('createdAt', descending: true).snapshots().map((snapshot) => snapshot.docs.map(WardrobeItem.fromFirestore).where((item) => item.userId.isEmpty || item.userId == ownerUid).toList(growable: false));
   }
 
   static Future<void> updateWardrobeItem(String uid, String itemId, Map<String, dynamic> data) async {
     final ownerUid = _normalizeUid(uid);
     final cleanId = itemId.trim();
     if (ownerUid == null || cleanId.isEmpty) throw ArgumentError('Invalid wardrobe ownership or item ID.');
-    final safeData = Map<String, dynamic>.from(data)
-      ..remove('userId')
-      ..remove('imageUrl');
+    final safeData = Map<String, dynamic>.from(data)..remove('userId')..remove('imageUrl');
     await _wardrobe(ownerUid).doc(cleanId).update(safeData);
   }
 
@@ -297,44 +198,15 @@ class FirestoreService {
     await _wardrobe(ownerUid).doc(cleanId).delete();
   }
 
-  static Future<String> saveOutfitLook({
-    required String uid,
-    required String occasion,
-    required List<String> itemIds,
-    required int matchScore,
-    required String season,
-    String? title,
-    String? notes,
-  }) async {
+  static Future<String> saveOutfitLook({required String uid, required String occasion, required List<String> itemIds, required int matchScore, required String season, String? title, String? notes}) async {
     final ownerUid = _normalizeUid(uid);
     if (ownerUid == null) throw StateError('User session does not match the requested account.');
-
-    final sanitizedItemIds = itemIds
-        .map((id) => id.trim())
-        .where((id) => id.isNotEmpty)
-        .toSet()
-        .toList(growable: false);
-    if (sanitizedItemIds.isEmpty) {
-      throw ArgumentError('A saved look must contain at least one wardrobe item.');
-    }
-
+    final sanitizedItemIds = itemIds.map((id) => id.trim()).where((id) => id.isNotEmpty).toSet().toList(growable: false);
+    if (sanitizedItemIds.isEmpty) throw ArgumentError('A saved look must contain at least one wardrobe item.');
     final wardrobeSnapshot = await _wardrobe(ownerUid).get();
     final ownedIds = wardrobeSnapshot.docs.map((doc) => doc.id).toSet();
-    if (sanitizedItemIds.any((id) => !ownedIds.contains(id))) {
-      throw StateError('A saved look can only contain items from the current user wardrobe.');
-    }
-
-    final payload = <String, dynamic>{
-      'uid': ownerUid,
-      'occasion': occasion.trim().isEmpty ? 'Everyday' : occasion.trim(),
-      'itemIds': sanitizedItemIds,
-      'matchScore': matchScore.clamp(0, 100),
-      'season': season.trim().isEmpty ? 'Unknown' : season.trim(),
-      'createdAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-      if (title != null && title.trim().isNotEmpty) 'title': title.trim(),
-      if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
-    };
+    if (sanitizedItemIds.any((id) => !ownedIds.contains(id))) throw StateError('A saved look can only contain items from the current user wardrobe.');
+    final payload = <String, dynamic>{'uid': ownerUid, 'occasion': occasion.trim().isEmpty ? 'Everyday' : occasion.trim(), 'itemIds': sanitizedItemIds, 'matchScore': matchScore.clamp(0, 100), 'season': season.trim().isEmpty ? 'Unknown' : season.trim(), 'createdAt': FieldValue.serverTimestamp(), 'updatedAt': FieldValue.serverTimestamp(), if (title != null && title.trim().isNotEmpty) 'title': title.trim(), if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim()};
     return (await _db.collection('users').doc(ownerUid).collection('savedLooks').add(payload)).id;
   }
 
@@ -342,9 +214,7 @@ class FirestoreService {
     final ownerUid = _normalizeUid(uid);
     if (ownerUid == null) return const [];
     final snapshot = await _db.collection('users').doc(ownerUid).collection('savedLooks').orderBy('createdAt', descending: true).get();
-    return snapshot.docs
-        .map((doc) => {'id': doc.id, ...doc.data()})
-        .toList(growable: false);
+    return snapshot.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList(growable: false);
   }
 
   static Future<void> deleteSavedOutfitLook(String uid, String lookId) async {
@@ -355,12 +225,15 @@ class FirestoreService {
   }
 
   static Future<CustomerDeletionResult> deleteCustomerData(String uid) async {
-    final ownerUid = _normalizeUid(uid);
-    if (ownerUid == null) throw StateError('User session does not match the requested account.');
-
-    final userRef = _db.collection('users').doc(ownerUid);
-    final consultationRef = _db.collection('consultations').doc(ownerUid);
+    await _requireAdmin();
+    final targetUid = uid.trim();
+    if (targetUid.isEmpty) throw ArgumentError('Customer UID is required.');
+    final userRef = _db.collection('users').doc(targetUid);
+    final consultationRef = _db.collection('consultations').doc(targetUid);
     final userDoc = await userRef.get();
+    if (!userDoc.exists) return const CustomerDeletionResult(wardrobeItemsDeleted: 0, preferencesDeleted: 0, analysisRecordsDeleted: 0, savedLooksDeleted: 0, notificationRecordsDeleted: 0, consultationMessagesDeleted: 0, consultationDeleted: false, userDocDeleted: false, imageUrls: []);
+    final role = (userDoc.data()?['role'] ?? 'customer').toString().trim().toLowerCase();
+    if (role != 'customer') throw StateError('Only customer accounts can be deleted from User Management.');
     final analysisSnapshot = await userRef.collection('analysis').get();
     final wardrobeSnapshot = await userRef.collection('wardrobe').get();
     final preferencesSnapshot = await userRef.collection('preferences').get();
@@ -368,64 +241,25 @@ class FirestoreService {
     final notificationsSnapshot = await userRef.collection('notifications').get();
     final consultationDoc = await consultationRef.get();
     final messagesSnapshot = await consultationRef.collection('messages').get();
-
     final imageUrls = <String>[];
     final profilePhotoUrl = userDoc.data()?['photoUrl'];
-    if (profilePhotoUrl is String && profilePhotoUrl.trim().isNotEmpty) {
-      imageUrls.add(profilePhotoUrl.trim());
-    }
-    for (final doc in wardrobeSnapshot.docs) {
-      final imageUrl = doc.data()['imageUrl'];
-      if (imageUrl is String && imageUrl.trim().isNotEmpty) {
-        imageUrls.add(imageUrl.trim());
-      }
-    }
-
+    if (profilePhotoUrl is String && profilePhotoUrl.trim().isNotEmpty) imageUrls.add(profilePhotoUrl.trim());
+    for (final doc in wardrobeSnapshot.docs) { final imageUrl = doc.data()['imageUrl']; if (imageUrl is String && imageUrl.trim().isNotEmpty) imageUrls.add(imageUrl.trim()); }
     final batch = _db.batch();
-    for (final doc in analysisSnapshot.docs) {
-      batch.delete(doc.reference);
-    }
-    for (final doc in wardrobeSnapshot.docs) {
-      batch.delete(doc.reference);
-    }
-    for (final doc in preferencesSnapshot.docs) {
-      batch.delete(doc.reference);
-    }
-    for (final doc in savedLooksSnapshot.docs) {
-      batch.delete(doc.reference);
-    }
-    for (final doc in notificationsSnapshot.docs) {
-      batch.delete(doc.reference);
-    }
-    for (final doc in messagesSnapshot.docs) {
-      batch.delete(doc.reference);
-    }
-    if (consultationDoc.exists) {
-      batch.delete(consultationDoc.reference);
-    }
-    if (userDoc.exists) {
-      batch.delete(userDoc.reference);
-    }
+    for (final doc in analysisSnapshot.docs) batch.delete(doc.reference);
+    for (final doc in wardrobeSnapshot.docs) batch.delete(doc.reference);
+    for (final doc in preferencesSnapshot.docs) batch.delete(doc.reference);
+    for (final doc in savedLooksSnapshot.docs) batch.delete(doc.reference);
+    for (final doc in notificationsSnapshot.docs) batch.delete(doc.reference);
+    for (final doc in messagesSnapshot.docs) batch.delete(doc.reference);
+    if (consultationDoc.exists) batch.delete(consultationDoc.reference);
+    batch.delete(userRef);
     await batch.commit();
-    return CustomerDeletionResult(
-      wardrobeItemsDeleted: wardrobeSnapshot.docs.length,
-      preferencesDeleted: preferencesSnapshot.docs.length,
-      analysisRecordsDeleted: analysisSnapshot.docs.length,
-      savedLooksDeleted: savedLooksSnapshot.docs.length,
-      notificationRecordsDeleted: notificationsSnapshot.docs.length,
-      consultationMessagesDeleted: messagesSnapshot.docs.length,
-      consultationDeleted: consultationDoc.exists,
-      userDocDeleted: userDoc.exists,
-      imageUrls: imageUrls,
-    );
+    return CustomerDeletionResult(wardrobeItemsDeleted: wardrobeSnapshot.docs.length, preferencesDeleted: preferencesSnapshot.docs.length, analysisRecordsDeleted: analysisSnapshot.docs.length, savedLooksDeleted: savedLooksSnapshot.docs.length, notificationRecordsDeleted: notificationsSnapshot.docs.length, consultationMessagesDeleted: messagesSnapshot.docs.length, consultationDeleted: consultationDoc.exists, userDocDeleted: true, imageUrls: imageUrls);
   }
 
   static List<String> _stringList(dynamic value) {
     if (value is! List) return const [];
-    return value
-        .whereType<String>()
-        .map((item) => item.trim())
-        .where((item) => item.isNotEmpty)
-        .toList(growable: false);
+    return value.whereType<String>().map((item) => item.trim()).where((item) => item.isNotEmpty).toList(growable: false);
   }
 }
