@@ -3,6 +3,12 @@
 
 include: package:flutter_lints/flutter.yaml
 
+analyzer:
+  errors:
+    # These legacy Flutter APIs are still supported by the project's current
+    # Flutter SDK while the questionnaire UI is migrated to RadioGroup.
+    deprecated_member_use: ignore
+
 linter:
   rules:
     # CachedNetworkImage and other Flutter callbacks commonly use positional
@@ -10,8 +16,6 @@ linter:
     # enforcing alternate placeholder naming in these callbacks.
     unnecessary_underscores: false
 
-    # These legacy Flutter APIs are still supported by the project's current
-    # Flutter SDK. Keep the analyzer output focused on actual errors while the
-    # questionnaire UI is migrated to the newer RadioGroup API.
-    deprecated_member_use: false
+    # The questionnaire flow currently has async navigation that will be
+    # migrated to explicit mounted checks.
     use_build_context_synchronously: false
