@@ -60,6 +60,10 @@ service cloud.firestore {
         allow update, delete: if isOwner(userId) || isAdmin();
       }
 
+      match /styleFeedback/{feedbackId} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+
       match /notifications/{notificationId} {
         allow read: if isOwner(userId) || isAdmin();
         allow create: if isAdmin() || (isOwner(userId) && request.resource.data.get('read', false) == false && request.resource.data.get('title', '') is string && request.resource.data.get('body', '') is string && request.resource.data.get('type', 'system') is string);
