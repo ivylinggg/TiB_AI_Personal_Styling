@@ -13,7 +13,6 @@ import '../../services/colour_report_service.dart';
 import '../../services/firestore_service.dart';
 import '../../services/style_preference_service.dart';
 import '../../widgets/colour_swatch.dart';
-import '../ai/ai_stylist_screen.dart';
 import '../ai/style_preferences_screen.dart';
 import 'season_colour_guide_screen.dart';
 
@@ -31,9 +30,7 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
   bool _generatingReport = false;
   bool _loadingPersonalContext = true;
   List<String> _styles = const [];
-  List<String> _preferences = const [];
   int _wardrobeCount = 0;
-  int _favourites = 0;
   int _savedLooks = 0;
 
   ColourAnalysisResult get result => widget.result;
@@ -62,9 +59,7 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
       if (!mounted) return;
       setState(() {
         _styles = List<String>.from(prefs?['styles'] ?? const []);
-        _preferences = List<String>.from(prefs?['preferences'] ?? const []);
         _wardrobeCount = wardrobe.length;
-        _favourites = wardrobe.where((item) => item.isFavourite == true).length;
         _savedLooks = saved.length;
         _loadingPersonalContext = false;
       });
@@ -123,10 +118,6 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
     Navigator.push(context, MaterialPageRoute(builder: (_) => const StylePreferencesScreen())).then((_) => _loadPersonalContext());
   }
 
-  void _openAIStylist() {
-    Navigator.push(context, MaterialPageRoute(builder: (_) => const AIStylistScreen()));
-  }
-
   @override
   Widget build(BuildContext context) {
     final profile = SeasonColourGuide.forSeason(result.season);
@@ -143,13 +134,7 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
         ),
         title: const Text('Personal Analysis'),
         centerTitle: true,
-        actions: [
-          IconButton(
-            tooltip: 'Season Guide',
-            onPressed: _generatingReport ? null : _openGuide,
-            icon: const Icon(Icons.menu_book_outlined),
-          ),
-        ],
+        actions: [IconButton(tooltip: 'Season Guide', onPressed: _generatingReport ? null : _openGuide, icon: const Icon(Icons.menu_book_outlined))],
       ),
       body: SafeArea(
         child: CustomScrollView(
@@ -221,281 +206,49 @@ class _AnalysisResultScreenState extends State<AnalysisResultScreen> {
   }
 
   Widget _hero(SeasonColourProfile profile, Color accent) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(gradient: AppGradients.blush, borderRadius: BorderRadius.circular(24)),
-      child: Row(
-        children: [
-          Container(width: 54, height: 54, decoration: BoxDecoration(color: accent.withValues(alpha: .16), shape: BoxShape.circle), child: Icon(Icons.palette_outlined, color: accent, size: 25)),
-          const SizedBox(width: 13),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(profile.name, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
-                const SizedBox(height: 3),
-                Text(profile.dimension, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 5),
-                Text(profile.description, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.35)),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
+    return Container(padding: const EdgeInsets.all(18), decoration: BoxDecoration(gradient: AppGradients.blush, borderRadius: BorderRadius.circular(24)), child: Row(children: [Container(width: 54, height: 54, decoration: BoxDecoration(color: accent.withValues(alpha: .16), shape: BoxShape.circle), child: Icon(Icons.palette_outlined, color: accent, size: 25)), const SizedBox(width: 13), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(profile.name, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900)), const SizedBox(height: 3), Text(profile.dimension, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)), const SizedBox(height: 5), Text(profile.description, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.35))]))]));
   }
 
   Widget _attributeRow(Color accent) {
-    return Row(
-      children: [
-        Expanded(child: _metric('UNDERTONE', result.undertone, accent)),
-        const SizedBox(width: 8),
-        Expanded(child: _metric('DEPTH', result.brightness, accent)),
-        const SizedBox(width: 8),
-        Expanded(child: _metric('CONTRAST', result.contrast, accent)),
-      ],
-    );
+    return Row(children: [Expanded(child: _metric('UNDERTONE', result.undertone, accent)), const SizedBox(width: 8), Expanded(child: _metric('DEPTH', result.brightness, accent)), const SizedBox(width: 8), Expanded(child: _metric('CONTRAST', result.contrast, accent))]);
   }
 
   Widget _faceShapeCard(Color accent) {
     final shape = result.faceShape.trim().isEmpty ? 'Unknown' : result.faceShape;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(17, 17, 17, 15),
-      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)),
-      child: Row(
-        children: [
-          Container(width: 48, height: 48, decoration: BoxDecoration(color: accent.withValues(alpha: .12), shape: BoxShape.circle), child: Icon(Icons.face_retouching_natural, color: accent, size: 22)),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('YOUR FACE SHAPE', style: TextStyle(color: AppColors.textMuted, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1)),
-                const SizedBox(height: 4),
-                Text(shape.toUpperCase(), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
-                if (result.faceShapeDescription.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Text(result.faceShapeDescription, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.35)),
-                ],
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
+    return Container(padding: const EdgeInsets.fromLTRB(17, 17, 17, 15), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)), child: Row(children: [Container(width: 48, height: 48, decoration: BoxDecoration(color: accent.withValues(alpha: .12), shape: BoxShape.circle), child: Icon(Icons.face_retouching_natural, color: accent, size: 22)), const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('YOUR FACE SHAPE', style: TextStyle(color: AppColors.textMuted, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1)), const SizedBox(height: 4), Text(shape.toUpperCase(), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)), if (result.faceShapeDescription.isNotEmpty) ...[const SizedBox(height: 4), Text(result.faceShapeDescription, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.35))]]))]));
   }
 
   Widget _colourReasonCard(Color accent) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(17, 16, 17, 14),
-      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(children: [Icon(Icons.insights_outlined, color: accent, size: 19), const SizedBox(width: 8), const Text('WHY THESE COLOURS', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: .9))]),
-          const SizedBox(height: 10),
-          ...result.colourReasons.map(
-            (reason) => Padding(
-              padding: const EdgeInsets.only(bottom: 7),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(Icons.check_rounded, size: 15, color: accent),
-                  const SizedBox(width: 7),
-                  Expanded(child: Text(reason, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.35))),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+    return Container(padding: const EdgeInsets.fromLTRB(17, 16, 17, 14), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [Icon(Icons.insights_outlined, color: accent, size: 19), const SizedBox(width: 8), const Text('WHY THESE COLOURS', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: .9))]), const SizedBox(height: 10), ...result.colourReasons.map((reason) => Padding(padding: const EdgeInsets.only(bottom: 7), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(Icons.check_rounded, size: 15, color: accent), const SizedBox(width: 7), Expanded(child: Text(reason, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.35)))]))]));
   }
 
   Widget _faceGuidanceCard(Color accent) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(17, 17, 17, 15),
-      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(children: [Icon(Icons.face_retouching_natural, color: accent, size: 19), const SizedBox(width: 8), const Text('FACE SHAPE STYLING', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: .9))]),
-          const SizedBox(height: 10),
-          ...result.faceStylingGuidance.map(
-            (item) => Padding(
-              padding: const EdgeInsets.only(bottom: 7),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(Icons.check_rounded, size: 15, color: accent),
-                  const SizedBox(width: 7),
-                  Expanded(child: Text(item, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.35))),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+    return Container(padding: const EdgeInsets.fromLTRB(17, 17, 17, 15), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [Icon(Icons.face_retouching_natural, color: accent, size: 19), const SizedBox(width: 8), const Text('FACE SHAPE STYLING', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: .9))]), const SizedBox(height: 10), ...result.faceStylingGuidance.map((item) => Padding(padding: const EdgeInsets.only(bottom: 7), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(Icons.check_rounded, size: 15, color: accent), const SizedBox(width: 7), Expanded(child: Text(item, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.35)))]))]));
   }
 
-  Widget _sectionHeading(String title, String subtitle) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
-        const SizedBox(height: 4),
-        Text(subtitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.35)),
-      ],
-    );
-  }
+  Widget _sectionHeading(String title, String subtitle) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)), const SizedBox(height: 4), Text(subtitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.35))]);
 
-  Widget _metric(String label, String value, Color accent) {
-    return Container(
-      padding: const EdgeInsets.all(11),
-      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: const TextStyle(color: AppColors.textMuted, fontSize: 8, fontWeight: FontWeight.w900)),
-          const SizedBox(height: 4),
-          Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: accent, fontSize: 11, fontWeight: FontWeight.w900)),
-        ],
-      ),
-    );
-  }
+  Widget _metric(String label, String value, Color accent) => Container(padding: const EdgeInsets.all(11), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: const TextStyle(color: AppColors.textMuted, fontSize: 8, fontWeight: FontWeight.w900)), const SizedBox(height: 4), Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: accent, fontSize: 11, fontWeight: FontWeight.w900))]));
 
   Widget _personalContextCard(Color accent) {
-    if (_loadingPersonalContext) {
-      return Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)),
-        child: const Row(children: [SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)), SizedBox(width: 10), Text('Loading your style context…')]),
-      );
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(17),
-      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)),
-      child: Row(
-        children: [
-          Expanded(child: _contextMetric('STYLE', _styles.isEmpty ? 'Not set' : _styles.take(2).join(' · '), accent)),
-          const SizedBox(width: 10),
-          Expanded(child: _contextMetric('WARDROBE', '$_wardrobeCount items', accent)),
-          const SizedBox(width: 10),
-          Expanded(child: _contextMetric('SAVED LOOKS', '$_savedLooks', accent)),
-        ],
-      ),
-    );
+    if (_loadingPersonalContext) return Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)), child: const Row(children: [SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)), SizedBox(width: 10), Text('Loading your style context…')]));
+    return Container(padding: const EdgeInsets.all(17), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)), child: Row(children: [Expanded(child: _contextMetric('STYLE', _styles.isEmpty ? 'Not set' : _styles.take(2).join(' · '), accent)), const SizedBox(width: 10), Expanded(child: _contextMetric('WARDROBE', '$_wardrobeCount items', accent)), const SizedBox(width: 10), Expanded(child: _contextMetric('SAVED LOOKS', '$_savedLooks', accent))]));
   }
 
-  Widget _contextMetric(String label, String value, Color accent) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: const TextStyle(color: AppColors.textMuted, fontSize: 8, fontWeight: FontWeight.w900)),
-        const SizedBox(height: 4),
-        Text(value, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: accent, fontSize: 11, fontWeight: FontWeight.w900)),
-      ],
-    );
-  }
+  Widget _contextMetric(String label, String value, Color accent) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: const TextStyle(color: AppColors.textMuted, fontSize: 8, fontWeight: FontWeight.w900)), const SizedBox(height: 4), Text(value, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: accent, fontSize: 11, fontWeight: FontWeight.w900))]);
 
   Widget _palette(List<String> colours) => Wrap(spacing: 8, runSpacing: 8, children: colours.map((value) => ColourSwatch(name: value, size: 58)).toList());
-
   Widget _emptyPalette() => const Text('No palette colours available for this result.');
 
-  Widget _avoidSection(List<String> avoid, Color accent) {
-    return Container(
-      padding: const EdgeInsets.all(17),
-      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('COLOURS TO APPROACH CAREFULLY', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: .9)),
-          const SizedBox(height: 10),
-          if (avoid.isEmpty) const Text('No specific avoid-colour guidance is available.') else Wrap(spacing: 8, runSpacing: 8, children: avoid.map((value) => Chip(label: Text(value))).toList()),
-        ],
-      ),
-    );
-  }
+  Widget _avoidSection(List<String> avoid, Color accent) => Container(padding: const EdgeInsets.all(17), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('COLOURS TO APPROACH CAREFULLY', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: .9)), const SizedBox(height: 10), if (avoid.isEmpty) const Text('No specific avoid-colour guidance is available.') else Wrap(spacing: 8, runSpacing: 8, children: avoid.map((value) => Chip(label: Text(value))).toList())]));
 
-  Widget _colourPsychologyPreview(Color accent) {
-    return Container(
-      padding: const EdgeInsets.all(17),
-      decoration: BoxDecoration(gradient: AppGradients.blush, borderRadius: BorderRadius.circular(22)),
-      child: Row(
-        children: [
-          Icon(Icons.auto_awesome_outlined, color: accent),
-          const SizedBox(width: 10),
-          Expanded(child: Text('Use your season palette as the base, then adjust saturation and contrast to suit the occasion.', style: TextStyle(color: AppColors.textPrimary, fontSize: 12, height: 1.4))),
-        ],
-      ),
-    );
-  }
+  Widget _colourPsychologyPreview(Color accent) => Container(padding: const EdgeInsets.all(17), decoration: BoxDecoration(gradient: AppGradients.blush, borderRadius: BorderRadius.circular(22)), child: Row(children: [Icon(Icons.auto_awesome_outlined, color: accent), const SizedBox(width: 10), Expanded(child: Text('Use your season palette as the base, then adjust saturation and contrast to suit the occasion.', style: TextStyle(color: AppColors.textPrimary, fontSize: 12, height: 1.4)))]));
 
-  Widget _makeupSection(String title, List<String> colours, Color accent) {
-    return Container(
-      padding: const EdgeInsets.all(17),
-      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
-          const SizedBox(height: 12),
-          Wrap(spacing: 8, runSpacing: 8, children: colours.take(8).map((value) => Chip(label: Text(value))).toList()),
-        ],
-      ),
-    );
-  }
+  Widget _makeupSection(String title, List<String> colours, Color accent) => Container(padding: const EdgeInsets.all(17), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900)), const SizedBox(height: 12), Wrap(spacing: 8, runSpacing: 8, children: colours.take(8).map((value) => Chip(label: Text(value))).toList())]));
 
-  Widget _reportActions() {
-    return Row(
-      children: [
-        Expanded(child: OutlinedButton.icon(onPressed: _generatingReport ? null : _downloadReport, icon: const Icon(Icons.download_outlined), label: Text(_generatingReport ? 'Preparing…' : 'Save PDF'))),
-        const SizedBox(width: 10),
-        Expanded(child: OutlinedButton.icon(onPressed: _generatingReport ? null : _shareReport, icon: const Icon(Icons.ios_share_outlined), label: const Text('Share'))),
-      ],
-    );
-  }
+  Widget _reportActions() => Row(children: [Expanded(child: OutlinedButton.icon(onPressed: _generatingReport ? null : _downloadReport, icon: const Icon(Icons.download_outlined), label: Text(_generatingReport ? 'Preparing…' : 'Save PDF'))), const SizedBox(width: 10), Expanded(child: OutlinedButton.icon(onPressed: _generatingReport ? null : _shareReport, icon: const Icon(Icons.ios_share_outlined), label: const Text('Share')))]);
 
-  Widget _nextStepCard(Color accent) {
-    return Container(
-      padding: const EdgeInsets.all(17),
-      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)),
-      child: Row(
-        children: [
-          Icon(Icons.arrow_forward_rounded, color: accent),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Next step', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900)),
-                const SizedBox(height: 4),
-                const Text('Refine your style preferences to make AI outfit recommendations more personal.', style: TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.35)),
-              ],
-            ),
-          ),
-          TextButton(onPressed: _openStyle, child: const Text('Refine')),
-        ],
-      ),
-    );
-  }
+  Widget _nextStepCard(Color accent) => Container(padding: const EdgeInsets.all(17), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)), child: Row(children: [Icon(Icons.arrow_forward_rounded, color: accent), const SizedBox(width: 10), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('Next step', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900)), const SizedBox(height: 4), const Text('Refine your style preferences to make AI outfit recommendations more personal.', style: TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.35))]),), TextButton(onPressed: _openStyle, child: const Text('Refine'))]));
 
-  Widget _direction(SeasonColourProfile profile, Color accent) {
-    return Container(
-      padding: const EdgeInsets.all(17),
-      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('STYLE DIRECTION', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: .9)),
-          const SizedBox(height: 8),
-          Text('${profile.name} · ${profile.dimension}', style: TextStyle(color: accent, fontSize: 16, fontWeight: FontWeight.w900)),
-          const SizedBox(height: 6),
-          const Text('Build your everyday palette from the recommended colours above and keep contrast aligned with your result.', style: TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.4)),
-        ],
-      ),
-    );
-  }
+  Widget _direction(SeasonColourProfile profile, Color accent) => Container(padding: const EdgeInsets.all(17), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('STYLE DIRECTION', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: .9)), const SizedBox(height: 8), Text('${profile.name} · ${profile.dimension}', style: TextStyle(color: accent, fontSize: 16, fontWeight: FontWeight.w900)), const SizedBox(height: 6), Text('Build your everyday palette from the recommended colours above and keep contrast aligned with your result.', style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.4))]));
 }
