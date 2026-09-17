@@ -339,10 +339,6 @@ class FirestoreService {
     final requestedUid = uid.trim();
     if (requestedUid.isEmpty) throw ArgumentError('Customer UID is required.');
 
-    // Admin deletion must not depend on the current admin UID matching the
-    // customer UID. The previous _normalizeUid() guard was intended for
-    // customer-self-service methods, but it made the admin delete action
-    // silently fail for every other customer account.
     final userRef = _db.collection('users').doc(requestedUid);
     final consultationRef = _db.collection('consultations').doc(requestedUid);
     final userDoc = await userRef.get();
@@ -354,32 +350,45 @@ class FirestoreService {
     final consultationDoc = await consultationRef.get();
     final messagesSnapshot = await consultationRef.collection('messages').get();
 
-    if (!userDoc.exists) {
-      // Still attempt to remove any orphaned nested data under the requested UID.
-      // Firestore rules still enforce admin access for the signed-in caller.
-    }
-
     final imageUrls = <String>[];
     final profilePhotoUrl = userDoc.data()?['photoUrl'];
-    if (profilePhotoUrl is String && profilePhotoUrl.trim().isNotEmpty) imageUrls.add(profilePhotoUrl.trim());
+    if (profilePhotoUrl is String && profilePhotoUrl.trim().isNotEmpty) {
+      imageUrls.add(profilePhotoUrl.trim());
+    }
     for (final doc in wardrobeSnapshot.docs) {
       final imageUrl = doc.data()['imageUrl'];
-      if (imageUrl is String && imageUrl.trim().isNotEmpty) imageUrls.add(imageUrl.trim());
+      if (imageUrl is String && imageUrl.trim().isNotEmpty) {
+        imageUrls.add(imageUrl.trim());
+      }
     }
 
     final batch = _db.batch();
-    for (final doc in analysisSnapshot.docs) batch.delete(doc.reference);
-    for (final doc in wardrobeSnapshot.docs) batch.delete(doc.reference);
-    for (final doc in preferencesSnapshot.docs) batch.delete(doc.reference);
-    for (final doc in savedLooksSnapshot.docs) batch.delete(doc.reference);
-    for (final doc in notificationsSnapshot.docs) batch.delete(doc.reference);
-    for (final doc in messagesSnapshot.docs) batch.delete(doc.reference);
-    if (consultationDoc.exists) batch.delete(consultationDoc.reference);
-    if (userDoc.exists) batch.delete(userDoc.reference);
+    for (final doc in analysisSnapshot.docs) {
+      batch.delete(doc.reference);
+    }
+    for (final doc in wardrobeSnapshot.docs) {
+      batch.delete(doc.reference);
+    }
+    for (final doc in preferencesSnapshot.docs) {
+      batch.delete(doc.reference);
+    }
+    for (final doc in savedLooksSnapshot.docs) {
+      batch.delete(doc.reference);
+    }
+    for (final doc in notificationsSnapshot.docs) {
+      batch.delete(doc.reference);
+    }
+    for (final doc in messagesSnapshot.docs) {
+      batch.delete(doc.reference);
+    }
+    if (consultationDoc.exists) {
+      batch.delete(consultationDoc.reference);
+    }
+    if (userDoc.exists) {
+      batch.delete(userDoc.reference);
+    }
     await batch.commit();
 
-    // Firestore cannot delete a Firebase Authentication account. The caller
-    // (admin) can clean the auth account through the callable Cloud Function.
     return CustomerDeletionResult(
       wardrobeItemsDeleted: wardrobeSnapshot.docs.length,
       preferencesDeleted: preferencesSnapshot.docs.length,
@@ -390,12 +399,14 @@ class FirestoreService {
       consultationDeleted: consultationDoc.exists,
       userDocDeleted: userDoc.exists,
       authUserDeleted: false,
-      imageUrls: imageUrls,
+      imageUrls: imageUrls.toSet().toList(growable: false),
     );
   }
 
   static List<String> _stringList(dynamic value) {
-    if (value is! List) return const [];
-    return value.whereType<String>().map((item) => item.trim()).where((item) => item.isNotEmpty).toList(growable: false);
+    if (value is Iterable) {
+      return value.whereType<String>().map((item) => item.trim()).where((item) => item.isNotEmpty).toList(growable: false);
+    }
+    return const [];
   }
 }
