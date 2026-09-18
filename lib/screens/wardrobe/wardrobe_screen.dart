@@ -672,7 +672,7 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
                 return;
               }
               final imageUrl = await StorageService.uploadWardrobeImage(uid: uid, image: image);
-              await FirestoreService.addWardrobeItem(WardrobeItem(id: '', userId: uid, imageUrl: imageUrl, name: nameController.text.trim(), category: category, colour: colour, style: style, season: season, isFavourite: false, notes: notesController.text.trim(), createdAt: null));
+              await FirestoreService.addWardrobeItem(WardrobeItem(id: '', userId: uid, imageUrl: imageUrl, name: nameController.text.trim(), category: category!, colour: colour, style: style, season: season, isFavourite: false, notes: notesController.text.trim(), createdAt: null));
               if (sheetContext.mounted) Navigator.pop(sheetContext);
             } catch (_) {
               if (sheetContext.mounted) ScaffoldMessenger.of(sheetContext).showSnackBar(const SnackBar(content: Text('Could not save this piece. Please try again.')));
