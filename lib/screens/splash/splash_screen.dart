@@ -348,7 +348,7 @@ class _SplashScreenState extends State<SplashScreen>
             angle: -.22,
             child: CustomPaint(
               size: const Size(470, 130),
-              painter: _CurveLinePainter(
+              painter: _ReferenceCurvePainter(
                 color: AppColors.brown.withValues(alpha: .55),
               ),
             ),
@@ -381,8 +381,9 @@ class _SplashScreenState extends State<SplashScreen>
             angle: -.50,
             child: CustomPaint(
               size: const Size(450, 180),
-              painter: _CurveLinePainter(
+              painter: _ReferenceCurvePainter(
                 color: AppColors.brown.withValues(alpha: .50),
+                reverse: true,
               ),
             ),
           ),
