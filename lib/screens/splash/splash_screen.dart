@@ -330,70 +330,65 @@ class _SplashScreenState extends State<SplashScreen>
       fit: StackFit.expand,
       children: [
         Positioned(
-          top: -130,
-          left: -155,
-          child: Transform.rotate(
-            angle: -.22,
-            child: _referenceBlob(
-              width: 505,
-              height: 440,
-              color: AppColors.brown.withValues(alpha: .72),
-            ),
+          top: -125,
+          left: -130,
+          child: _referenceBlob(
+            width: 500,
+            height: 465,
+            color: AppColors.brown.withValues(alpha: .72),
+            topLeft: true,
           ),
         ),
         Positioned(
-          top: 15,
-          left: -15,
-          child: Transform.rotate(
-            angle: -.22,
+          top: -5,
+          left: -8,
+          child: SizedBox(
+            width: 515,
+            height: 405,
             child: CustomPaint(
-              size: const Size(470, 130),
-              painter: _ReferenceCurvePainter(
-                color: AppColors.brown.withValues(alpha: .55),
+              painter: _ReferenceTopCurvePainter(
+                color: AppColors.brown.withValues(alpha: .48),
               ),
             ),
           ),
         ),
         Positioned(
-          top: 260,
-          left: -75,
+          left: -120,
+          top: 560,
           child: _softShape(
-            170,
-            AppColors.secondary.withValues(alpha: .30),
+            180,
+            AppColors.secondary.withValues(alpha: .22),
           ),
         ),
         Positioned(
-          bottom: -180,
-          right: -175,
-          child: Transform.rotate(
-            angle: .04,
-            child: _referenceBlob(
-              width: 520,
-              height: 410,
-              color: AppColors.brown.withValues(alpha: .50),
-            ),
-          ),
-        ),
-        Positioned(
-          bottom: -45,
-          right: -10,
-          child: Transform.rotate(
-            angle: -.50,
-            child: CustomPaint(
-              size: const Size(450, 180),
-              painter: _ReferenceCurvePainter(
-                color: AppColors.brown.withValues(alpha: .50),
-                reverse: true,
-              ),
-            ),
+          bottom: -185,
+          right: -145,
+          child: _referenceBlob(
+            width: 555,
+            height: 455,
+            color: AppColors.brown.withValues(alpha: .50),
+            topLeft: false,
           ),
         ),
         Positioned(
           bottom: -70,
-          right: 100,
+          right: -5,
+          child: SizedBox(
+            width: 500,
+            height: 375,
+            child: CustomPaint(
+              painter: _ReferenceBottomCurvePainter(
+                color: AppColors.brown.withValues(alpha: .50),
+              ),
+            ),
+          ),
+        ),
+        Positioned(
+          bottom: -75,
+          right: 145,
           child: _softShape(
             250,
-            AppColors.secondary.withValues(alpha: .24),
+            AppColors.secondary.withValues(alpha: .26),
           ),
         ),
       ],
@@ -408,10 +403,10 @@ class _SplashScreenState extends State<SplashScreen>
   }) {
     return ClipPath(
       clipper: _ReferenceBlobClipper(topLeft: topLeft),
-      child: Container(
+      child: SizedBox(
         width: width,
         height: height,
-        color: color,
+        child: ColoredBox(color: color),
       ),
     );
   }
@@ -440,20 +435,20 @@ class _ReferenceBlobClipper extends CustomClipper<Path> {
     if (topLeft) {
       path
         ..moveTo(0, 0)
-        ..lineTo(size.width * .78, 0)
+        ..lineTo(size.width * .80, 0)
         ..cubicTo(
           size.width * .70,
-          size.height * .12,
+          size.height * .08,
           size.width * .56,
-          size.height * .18,
-          size.width * .45,
+          size.height * .17,
+          size.width * .46,
           size.height * .34,
         )
         ..cubicTo(
-          size.width * .34,
+          size.width * .35,
           size.height * .53,
           size.width * .30,
-          size.height * .77,
+          size.height * .75,
           size.width * .03,
           size.height * .93,
         )
@@ -462,25 +457,26 @@ class _ReferenceBlobClipper extends CustomClipper<Path> {
     } else {
       path
         ..moveTo(size.width, size.height)
-        ..lineTo(size.width * .12, size.height)
+        ..lineTo(size.width * .13, size.height)
         ..cubicTo(
           size.width * .25,
           size.height * .82,
-          size.width * .35,
-          size.height * .70,
-          size.width * .49,
-          size.height * .48,
+          size.width * .37,
+          size.height * .68,
+          size.width * .50,
+          size.height * .47,
         )
         ..cubicTo(
-          size.width * .61,
+          size.width * .62,
           size.height * .28,
-          size.width * .76,
+          size.width * .77,
           size.height * .10,
           size.width,
-          size.height * .02,
+          size.height * .01,
         )
         ..close();
     }
+
     return path;
   }
 
@@ -504,20 +500,20 @@ class _ReferenceTopCurvePainter extends CustomPainter {
     final path = Path()
       ..moveTo(size.width * .02, size.height * .98)
       ..cubicTo(
-        size.width * .20,
-        size.height * .60,
-        size.width * .58,
-        size.height * .70,
-        size.width * .70,
-        size.height * .18,
+        size.width * .18,
+        size.height * .58,
+        size.width * .55,
+        size.height * .68,
+        size.width * .73,
+        size.height * .15,
       )
       ..cubicTo(
-        size.width * .77,
+        size.width * .80,
         size.height * -.04,
-        size.width * .83,
+        size.width * .89,
         size.height * -.08,
-        size.width * .92,
-        size.height * -.16,
+        size.width,
+        -size.height * .13,
       );
 
     canvas.drawPath(path, paint);
@@ -543,20 +539,20 @@ class _ReferenceBottomCurvePainter extends CustomPainter {
     final path = Path()
       ..moveTo(size.width * .02, size.height)
       ..cubicTo(
-        size.width * .08,
+        size.width * .10,
         size.height * .54,
-        size.width * .38,
-        size.height * .58,
+        size.width * .42,
+        size.height * .59,
         size.width * .70,
-        size.height * .16,
+        size.height * .17,
       )
       ..cubicTo(
         size.width * .82,
-        size.height * .02,
-        size.width * .91,
-        size.height * -.04,
+        size.height * .01,
+        size.width * .92,
+        -size.height * .04,
         size.width,
-        size.height * -.14,
+        -size.height * .13,
       );
 
     canvas.drawPath(path, paint);
@@ -565,101 +561,4 @@ class _ReferenceBottomCurvePainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _ReferenceBottomCurvePainter oldDelegate) =>
       oldDelegate.color != color;
-}
-
-class _OrganicCornerClipper extends CustomClipper<Path> {
-  @override
-  Path getClip(Size size) {
-    final path = Path()
-      ..moveTo(0, 0)
-      ..lineTo(size.width * .78, 0)
-      ..cubicTo(
-        size.width * .70,
-        size.height * .10,
-        size.width * .58,
-        size.height * .18,
-        size.width * .48,
-        size.height * .34,
-      )
-      ..cubicTo(
-        size.width * .36,
-        size.height * .55,
-        size.width * .31,
-        size.height * .76,
-        size.width * .06,
-        size.height,
-      )
-      ..lineTo(0, size.height)
-      ..close();
-    return path;
-  }
-
-  @override
-  bool shouldReclip(covariant _OrganicCornerClipper oldClipper) => false;
-}
-
-class _ReferenceCurvePainter extends CustomPainter {
-  final Color color;
-  final bool reverse;
-
-  const _ReferenceCurvePainter({
-    required this.color,
-    this.reverse = false,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.35;
-
-    final path = Path();
-
-    if (!reverse) {
-      path
-        ..moveTo(size.width * .02, size.height * .97)
-        ..cubicTo(
-          size.width * .16,
-          size.height * .62,
-          size.width * .50,
-          size.height * .70,
-          size.width * .78,
-          size.height * .18,
-        )
-        ..cubicTo(
-          size.width * .86,
-          size.height * .04,
-          size.width * .93,
-          size.height * .02,
-          size.width * .98,
-          0,
-        );
-    } else {
-      path
-        ..moveTo(size.width * .02, 0)
-        ..cubicTo(
-          size.width * .18,
-          size.height * .48,
-          size.width * .52,
-          size.height * .50,
-          size.width * .84,
-          size.height * .03,
-        )
-        ..cubicTo(
-          size.width * .91,
-          -size.height * .05,
-          size.width * .96,
-          -size.height * .10,
-          size.width,
-          -size.height * .13,
-        );
-    }
-
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _ReferenceCurvePainter oldDelegate) =>
-      oldDelegate.color != color || oldDelegate.reverse != reverse;
 }
