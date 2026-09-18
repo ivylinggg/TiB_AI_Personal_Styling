@@ -294,7 +294,7 @@ class _SplashScreenState extends State<SplashScreen>
                       begin: Alignment.centerLeft,
                       end: Alignment.centerRight,
                       colors: [
-                        AppColors.brownDark,
+                        AppColors.brown,
                         AppColors.brown,
                         AppColors.brown.withValues(alpha: .78),
                       ],
