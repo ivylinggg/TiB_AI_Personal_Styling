@@ -637,7 +637,7 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
   Future<void> _showItemForm(String uid, File image) async {
     final nameController = TextEditingController();
     final notesController = TextEditingController();
-    var category = _categoryOptions.first;
+    String? category;
     var colour = 'Neutral';
     var style = _styleOptions.first;
     var season = _seasonOptions.first;
@@ -652,9 +652,18 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
         builder: (context, setSheetState) {
           Future<void> save() async {
             if (nameController.text.trim().isEmpty || saving) return;
+            if (category == null) {
+              ScaffoldMessenger.of(sheetContext).showSnackBar(
+                const SnackBar(
+                  content: Text('Please select a category before saving this item.'),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+              return;
+            }
             setSheetState(() => saving = true);
             try {
-              final rejection = await WardrobeImageValidationService.validate(image, category: category);
+              final rejection = await WardrobeImageValidationService.validate(image, category: category!);
               if (rejection != null) {
                 if (sheetContext.mounted) {
                   setSheetState(() => saving = false);
@@ -685,7 +694,10 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
                     const SizedBox(height: 15),
                     TextField(controller: nameController, decoration: _fieldDecoration('Name', hint: 'e.g. Cream knit cardigan')),
                     const SizedBox(height: 12),
-                    _dropdown('Category', category, _categoryOptions, (value) => setSheetState(() => category = value)),
+                    _requiredCategoryDropdown(
+                      category: category,
+                      onChanged: (value) => setSheetState(() => category = value),
+                    ),
                     _dropdown('Colour', colour, _colourOptions, (value) => setSheetState(() => colour = value)),
                     _dropdown('Style', style, _styleOptions, (value) => setSheetState(() => style = value)),
                     _dropdown('Season', season, _seasonOptions, (value) => setSheetState(() => season = value)),
@@ -711,6 +723,34 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
     );
     nameController.dispose();
     notesController.dispose();
+  }
+
+  Widget _requiredCategoryDropdown({
+    required String? category,
+    required ValueChanged<String> onChanged,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: DropdownButtonFormField<String>(
+        initialValue: category,
+        decoration: _fieldDecoration(
+          'Category',
+          hint: 'Select clothing category',
+        ),
+        hint: const Text('Select clothing category'),
+        items: _categoryOptions
+            .map(
+              (value) => DropdownMenuItem<String>(
+                value: value,
+                child: Text(value),
+              ),
+            )
+            .toList(),
+        onChanged: (value) {
+          if (value != null) onChanged(value);
+        },
+      ),
+    );
   }
 
   InputDecoration _fieldDecoration(String label, {String? hint}) => InputDecoration(labelText: label, hintText: hint, filled: true, fillColor: AppColors.surface, border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppRadius.md), borderSide: BorderSide(color: AppColors.border)), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppRadius.md), borderSide: BorderSide(color: AppColors.border)));
@@ -857,7 +897,7 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
             try {
               await FirestoreService.updateWardrobeItem(uid, item.id, {
                 'name': nameController.text.trim(),
-                'category': category,
+                'category': category!,
                 'colour': colour,
                 'style': style,
                 'season': season,
