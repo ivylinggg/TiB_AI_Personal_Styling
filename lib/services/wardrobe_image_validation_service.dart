@@ -1,22 +1,20 @@
 import 'dart:io';
-import 'dart:math' as math;
 
-import 'package:image/image.dart' as img;
+import 'package:google_mlkit_image_labeling/google_mlkit_image_labeling.dart';
+import 'package:google_mlkit_commons/google_mlkit_commons.dart';
 
-/// Lightweight local guard for Wardrobe uploads.
+/// Wardrobe photo gate.
 ///
-/// This intentionally performs conservative image checks before the item
-/// details form is shown. It is not a general-purpose vision classifier.
+/// The previous pixel heuristics are intentionally removed because they could
+/// not understand the semantic content of a photo (for example, a car could
+/// pass as a "jacket"). This service now uses ML Kit image labeling as the
+/// semantic gate before an image can enter the wardrobe flow.
+///
+/// Category remains user-editable after the image passes the clothing gate.
+/// Fine-grained fashion classification is kept separate from the gate so a
+/// wrong model label can never silently allow an unrelated object through.
 class WardrobeImageValidationService {
   WardrobeImageValidationService._();
-
-  static const int _sampleWidth = 96;
-  static const double _minForegroundRatio = 0.035;
-  static const double _maxFlatSceneRatio = 0.82;
-  static const double _maxSkinRatio = 0.24;
-  static const double _minEdgeContrast = 0.035;
-  static const double _minDirectionalEdgeRatio = 0.010;
-  static const double _maxSaturatedFlatRatio = 0.72;
 
   static const List<String> allowedCategories = [
     'Tops',
@@ -28,6 +26,10 @@ class WardrobeImageValidationService {
     'Shoes',
     'Accessories',
   ];
+
+  static final ImageLabeler _labeler = ImageLabeler(
+    options: ImageLabelerOptions(confidenceThreshold: 0.45),
+  );
 
   static Future<String?> validate(
     File file, {
@@ -42,173 +44,145 @@ class WardrobeImageValidationService {
     }
 
     try {
-      final decoded = img.decodeImage(await file.readAsBytes());
-      if (decoded == null) {
-        return 'This image format is not supported. Please choose another photo.';
+      final inputImage = InputImage.fromFilePath(file.path);
+      final labels = await _labeler.processImage(inputImage);
+
+      if (labels.isEmpty) {
+        return 'We could not recognise a clothing item in this photo. Please upload one clear wearable item.';
       }
 
-      final oriented = img.bakeOrientation(decoded);
+      final wearable = _classifyWearable(labels);
 
-      if (oriented.width < 120 || oriented.height < 120) {
-        return 'Please upload a clearer photo with one visible clothing or fashion item.';
+      if (!wearable.isWearable) {
+        return 'This photo does not appear to contain clothing or a fashion accessory. Please upload a wearable item only.';
       }
 
-      final sampleHeight = math.max(
-        1,
-        (oriented.height * _sampleWidth / oriented.width).round(),
-      );
-
-      final sample = img.copyResize(
-        oriented,
-        width: _sampleWidth,
-        height: sampleHeight,
-      );
-
-      final result = _analyse(sample);
-
-      if (result.foregroundRatio < _minForegroundRatio) {
-        return 'This does not look like a clear clothing or fashion-accessory photo. Please upload one wearable item.';
-      }
-
-      if (result.foregroundRatio > _maxFlatSceneRatio &&
-          result.edgeContrast < 0.07) {
-        return 'Please use a clearer photo with the clothing or accessory separated from the background.';
-      }
-
-      if (result.skinRatio > _maxSkinRatio &&
-          result.skinRatio > result.colouredObjectRatio * 1.35) {
-        return 'Please upload the clothing or accessory itself, not a portrait or unrelated photo.';
-      }
-
-      if (result.edgeContrast < _minEdgeContrast ||
-          result.verticalEdgeRatio < _minDirectionalEdgeRatio ||
-          result.horizontalEdgeRatio < _minDirectionalEdgeRatio) {
-        return 'Please upload a clear photo of one clothing or fashion accessory.';
-      }
-
-      // Dense, saturated, low-structure images commonly correspond to
-      // packaging, food, posters, labels, or other non-wearable objects.
-      if (result.saturatedRatio > _maxSaturatedFlatRatio &&
-          result.edgeContrast < 0.095 &&
-          result.foregroundRatio > 0.78) {
-        return 'This image does not look like a wearable item. Please upload clothing or a fashion accessory.';
+      if (wearable.confidence < 0.50) {
+        return 'We could not confidently recognise this as clothing or a fashion accessory. Please use a clearer photo of one wearable item.';
       }
 
       return null;
     } catch (_) {
-      return 'We could not analyse that photo. Please choose a clear clothing or accessory image.';
+      return 'We could not analyse this photo. Please choose a clear photo of one clothing or fashion accessory.';
     }
   }
 
-  static _ImageAnalysis _analyse(img.Image image) {
-    var foreground = 0;
-    var skinPixelCount = 0;
-    var colouredObject = 0;
-    var saturated = 0;
-    var verticalEdges = 0;
-    var horizontalEdges = 0;
-    var edgeSum = 0.0;
-    var edgeCount = 0;
+  static _WearableDecision _classifyWearable(List<ImageLabel> labels) {
+    var bestWearable = 0.0;
+    var bestReject = 0.0;
 
-    final total = image.width * image.height;
+    for (final label in labels) {
+      final text = label.label.trim().toLowerCase();
+      final confidence = label.confidence;
 
-    int luminance(img.Pixel p) =>
-        (0.2126 * p.r + 0.7152 * p.g + 0.0722 * p.b).round();
+      if (_wearableTokens.any(text.contains)) {
+        if (confidence > bestWearable) bestWearable = confidence;
+      }
 
-    bool looksSkinLike(img.Pixel p) {
-      final r = p.r.toDouble();
-      final g = p.g.toDouble();
-      final b = p.b.toDouble();
-      final maxC = math.max(r, math.max(g, b));
-      final minC = math.min(r, math.min(g, b));
-
-      return r > g &&
-          g > b &&
-          r - b > 18 &&
-          maxC - minC > 20 &&
-          r > 70 &&
-          g > 35;
-    }
-
-    for (var y = 0; y < image.height; y++) {
-      for (var x = 0; x < image.width; x++) {
-        final p = image.getPixel(x, y);
-        final l = luminance(p);
-        final maxC = math.max(p.r, math.max(p.g, p.b)).toDouble();
-        final minC = math.min(p.r, math.min(p.g, p.b)).toDouble();
-        final chroma = (maxC - minC) / 255;
-
-        if (chroma > 0.12 || (l > 38 && l < 224)) {
-          foreground++;
-        }
-
-        if (chroma > 0.22 && l > 30 && l < 230) {
-          colouredObject++;
-        }
-
-        if (chroma > 0.35) {
-          saturated++;
-        }
-
-        if (looksSkinLike(p)) {
-          skinPixelCount++;
-        }
-
-        if (x + 2 < image.width) {
-          final diff =
-              (l - luminance(image.getPixel(x + 2, y))).abs() / 255;
-
-          edgeSum += diff;
-          edgeCount++;
-
-          if (diff > 0.12) {
-            verticalEdges++;
-          }
-        }
-
-        if (y + 2 < image.height) {
-          final diff =
-              (l - luminance(image.getPixel(x, y + 2))).abs() / 255;
-
-          edgeSum += diff;
-          edgeCount++;
-
-          if (diff > 0.12) {
-            horizontalEdges++;
-          }
-        }
+      if (_rejectTokens.any(text.contains)) {
+        if (confidence > bestReject) bestReject = confidence;
       }
     }
 
-    return _ImageAnalysis(
-      foregroundRatio: total == 0 ? 0 : foreground / total,
-      skinRatio: total == 0 ? 0 : skinPixelCount / total,
-      colouredObjectRatio:
-          total == 0 ? 0 : colouredObject / total,
-      saturatedRatio: total == 0 ? 0 : saturated / total,
-      edgeContrast: edgeCount == 0 ? 0 : edgeSum / edgeCount,
-      verticalEdgeRatio: total == 0 ? 0 : verticalEdges / total,
-      horizontalEdgeRatio: total == 0 ? 0 : horizontalEdges / total,
+    if (bestReject >= 0.45 && bestReject >= bestWearable * 1.05) {
+      return _WearableDecision(
+        isWearable: false,
+        confidence: bestReject,
+      );
+    }
+
+    return _WearableDecision(
+      isWearable: bestWearable > 0,
+      confidence: bestWearable,
     );
+  }
+
+  static const Set<String> _wearableTokens = {
+    'clothing',
+    'cloth',
+    'apparel',
+    'garment',
+    'shirt',
+    't-shirt',
+    'tee',
+    'top',
+    'blouse',
+    'dress',
+    'skirt',
+    'jeans',
+    'trouser',
+    'pants',
+    'shorts',
+    'coat',
+    'jacket',
+    'suit',
+    'shoe',
+    'sneaker',
+    'footwear',
+    'boot',
+    'sandal',
+    'bag',
+    'handbag',
+    'purse',
+    'backpack',
+    'hat',
+    'cap',
+    'scarf',
+    'belt',
+    'tie',
+    'accessory',
+    'fashion',
+    'wear',
+  };
+
+  static const Set<String> _rejectTokens = {
+    'car',
+    'automobile',
+    'vehicle',
+    'food',
+    'dish',
+    'meal',
+    'noodle',
+    'fruit',
+    'vegetable',
+    'drink',
+    'beverage',
+    'cup',
+    'bottle',
+    'phone',
+    'mobile phone',
+    'laptop',
+    'computer',
+    'screen',
+    'television',
+    'tv',
+    'document',
+    'paper',
+    'book',
+    'building',
+    'house',
+    'architecture',
+    'landscape',
+    'mountain',
+    'sky',
+    'sea',
+    'ocean',
+    'tree',
+    'flower',
+    'plant',
+  };
+
+  static Future<void> dispose() async {
+    _labeler.close();
   }
 }
 
-class _ImageAnalysis {
-  const _ImageAnalysis({
-    required this.foregroundRatio,
-    required this.skinRatio,
-    required this.colouredObjectRatio,
-    required this.saturatedRatio,
-    required this.edgeContrast,
-    required this.verticalEdgeRatio,
-    required this.horizontalEdgeRatio,
+class _WearableDecision {
+  const _WearableDecision({
+    required this.isWearable,
+    required this.confidence,
   });
 
-  final double foregroundRatio;
-  final double skinRatio;
-  final double colouredObjectRatio;
-  final double saturatedRatio;
-  final double edgeContrast;
-  final double verticalEdgeRatio;
-  final double horizontalEdgeRatio;
+  final bool isWearable;
+  final double confidence;
 }
