@@ -18,13 +18,48 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> {
+class _SplashScreenState extends State<SplashScreen>
+    with SingleTickerProviderStateMixin {
   bool _hasRouted = false;
+  late final AnimationController _controller;
+  late final Animation<double> _brandReveal;
+  late final Animation<double> _taglineReveal;
+  late final Animation<double> _creditReveal;
+  late final Animation<double> _lineReveal;
 
   @override
   void initState() {
     super.initState();
-    Future<void>.delayed(const Duration(milliseconds: 2200), _routeFromSplash);
+
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1900),
+    )..forward();
+
+    _brandReveal = CurvedAnimation(
+      parent: _controller,
+      curve: const Interval(0.08, 0.68, curve: Curves.easeOutCubic),
+    );
+    _taglineReveal = CurvedAnimation(
+      parent: _controller,
+      curve: const Interval(0.34, 0.78, curve: Curves.easeOutCubic),
+    );
+    _creditReveal = CurvedAnimation(
+      parent: _controller,
+      curve: const Interval(0.52, 0.92, curve: Curves.easeOutCubic),
+    );
+    _lineReveal = CurvedAnimation(
+      parent: _controller,
+      curve: const Interval(0.60, 1.0, curve: Curves.easeOutCubic),
+    );
+
+    Future<void>.delayed(const Duration(milliseconds: 2400), _routeFromSplash);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 
   Future<void> _routeFromSplash() async {
@@ -81,9 +116,6 @@ class _SplashScreenState extends State<SplashScreen> {
     if (!mounted || _hasRouted) return;
     _hasRouted = true;
 
-    // Splash is always the first route in this flow. Replacing it instead of
-    // clearing the entire history avoids a transient empty Navigator history
-    // on newer Flutter releases.
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => destination),
     );
@@ -91,80 +123,183 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final screen = MediaQuery.sizeOf(context);
+
     return Scaffold(
       backgroundColor: AppColors.background,
       body: Stack(
+        fit: StackFit.expand,
         children: [
           Positioned(
-            top: -100,
-            right: -80,
-            child: _glow(230, AppColors.peach.withValues(alpha: .25)),
+            top: -120,
+            right: -90,
+            child: _orb(
+              280,
+              AppColors.peach.withValues(alpha: .24),
+            ),
           ),
           Positioned(
-            bottom: -100,
-            left: -80,
-            child: _glow(300, AppColors.primary.withValues(alpha: .22)),
+            top: screen.height * .43,
+            right: -120,
+            child: _orb(
+              260,
+              AppColors.primarySoft.withValues(alpha: .16),
+            ),
+          ),
+          Positioned(
+            bottom: -150,
+            left: -120,
+            child: _orb(
+              330,
+              AppColors.primary.withValues(alpha: .12),
+            ),
+          ),
+          Positioned(
+            top: screen.height * .28,
+            left: -75,
+            child: _orb(
+              150,
+              AppColors.secondary.withValues(alpha: .18),
+            ),
           ),
           SafeArea(
             child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    width: 150,
-                    height: 150,
-                    decoration: BoxDecoration(
-                      gradient: AppGradients.blush,
-                      borderRadius: BorderRadius.circular(46),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.primary.withValues(alpha: .12),
-                          blurRadius: 40,
-                          offset: const Offset(0, 18),
-                        ),
-                      ],
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 28),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Spacer(flex: 3),
+                    AnimatedBuilder(
+                      animation: _brandReveal,
+                      builder: (context, child) {
+                        final value = _brandReveal.value;
+                        return Opacity(
+                          opacity: value,
+                          child: Transform.translate(
+                            offset: Offset((1 - value) * 42, 0),
+                            child: child,
+                          ),
+                        );
+                      },
+                      child: Column(
+                        children: [
+                          Transform.rotate(
+                            angle: -0.055,
+                            child: ShaderMask(
+                              shaderCallback: (bounds) {
+                                return const LinearGradient(
+                                  begin: Alignment.centerLeft,
+                                  end: Alignment.centerRight,
+                                  colors: [
+                                    Color(0xFF8D6A35),
+                                    Color(0xFFD2B06A),
+                                    Color(0xFFB58A45),
+                                    Color(0xFFE6C982),
+                                    Color(0xFF8C6734),
+                                  ],
+                                ).createShader(bounds);
+                              },
+                              blendMode: BlendMode.srcIn,
+                              child: const Text(
+                                'VYEA',
+                                style: TextStyle(
+                                  fontFamily: 'serif',
+                                  fontSize: 76,
+                                  fontWeight: FontWeight.w700,
+                                  fontStyle: FontStyle.italic,
+                                  letterSpacing: -3.8,
+                                  height: .95,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Container(
+                            width: 96,
+                            height: 1.4,
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [
+                                  Colors.transparent,
+                                  Color(0xFFD3B36D),
+                                  Colors.transparent,
+                                ],
+                              ),
+                              borderRadius: BorderRadius.circular(99),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    child: const Center(
-                      child: Text(
-                        'TiB',
+                    const SizedBox(height: 30),
+                    FadeTransition(
+                      opacity: _taglineReveal,
+                      child: const Text(
+                        'AI PERSONAL STYLING & COLOUR',
+                        textAlign: TextAlign.center,
                         style: TextStyle(
-                          color: AppColors.charcoal,
-                          fontSize: 52,
-                          fontWeight: FontWeight.w300,
-                          letterSpacing: -2,
+                          fontSize: 11,
+                          letterSpacing: 2.5,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary,
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 28),
-                  const Text(
-                    'AI PERSONAL STYLING & COLOUR',
-                    style: TextStyle(
-                      fontSize: 11,
-                      letterSpacing: 2.2,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
+                    const SizedBox(height: 14),
+                    FadeTransition(
+                      opacity: _taglineReveal,
+                      child: Text(
+                        'Be your best you.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: AppColors.brown.withValues(alpha: .72),
+                          fontSize: 18,
+                          fontStyle: FontStyle.italic,
+                          letterSpacing: .2,
+                        ),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 18),
-                  Text(
-                    'Be your best you.',
-                    style: TextStyle(
-                      color: AppColors.brown.withValues(alpha: .75),
-                      fontSize: 17,
-                      fontStyle: FontStyle.italic,
+                    const SizedBox(height: 24),
+                    FadeTransition(
+                      opacity: _creditReveal,
+                      child: Text(
+                        'Developed by TiB Consultancy',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: AppColors.charcoal.withValues(alpha: .60),
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 1.3,
+                        ),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 70),
-                  Container(
-                    width: 42,
-                    height: 2,
-                    decoration: BoxDecoration(
-                      color: AppColors.charcoal,
-                      borderRadius: BorderRadius.circular(4),
+                    const Spacer(flex: 2),
+                    AnimatedBuilder(
+                      animation: _lineReveal,
+                      builder: (context, child) {
+                        final value = _lineReveal.value;
+                        return SizedBox(
+                          width: 76,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(99),
+                            child: LinearProgressIndicator(
+                              minHeight: 2.5,
+                              value: value,
+                              backgroundColor:
+                                  AppColors.charcoal.withValues(alpha: .07),
+                              valueColor: const AlwaysStoppedAnimation(
+                                Color(0xFFB58A45),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 20),
+                    const Spacer(flex: 1),
+                  ],
+                ),
               ),
             ),
           ),
@@ -173,9 +308,19 @@ class _SplashScreenState extends State<SplashScreen> {
     );
   }
 
-  Widget _glow(double size, Color color) => Container(
+  Widget _orb(double size, Color color) => Container(
         width: size,
         height: size,
-        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: color,
+          boxShadow: [
+            BoxShadow(
+              color: color.withValues(alpha: .45),
+              blurRadius: 50,
+              spreadRadius: 8,
+            ),
+          ],
+        ),
       );
 }
