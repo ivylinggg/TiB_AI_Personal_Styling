@@ -939,6 +939,272 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
         ),
       );
 
+  Future<void> _toggleFavourite(WardrobeItem item, String uid) async {
+    try {
+      await FirestoreService.updateWardrobeItem(uid, item.id, {
+        'isFavourite': !item.isFavourite,
+      });
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not update favourite. Please try again.'),
+          ),
+        );
+      }
+    }
+  }
+
+  Widget _detailRow(String label, String value) => Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 90,
+              child: Text(
+                label,
+                style: const TextStyle(
+                  color: _muted,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            Expanded(
+              child: Text(
+                value,
+                style: const TextStyle(
+                  color: _text,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+
+  Future<void> _confirmDelete(WardrobeItem item, String uid) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Remove this piece?'),
+        content: const Text(
+          'This piece will be removed from your wardrobe.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Keep it'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      await FirestoreService.deleteWardrobeItem(uid, item.id);
+      if (mounted) Navigator.pop(context);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not remove this piece. Please try again.'),
+          ),
+        );
+      }
+    }
+  }
+
+  void _showItemDetails(WardrobeItem item, String uid) {
+    final analysisResult = context.read<AnalysisProvider>().result;
+    final wantedColours = (analysisResult?.colours ?? const <String>[])
+        .map((colour) => colour.toLowerCase())
+        .toList();
+    final matchesPalette = _matchesPalette(item, wantedColours);
+
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      backgroundColor: _cream,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 5, 20, 25),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(AppRadius.lg),
+                  child: AspectRatio(
+                    aspectRatio: 4 / 3,
+                    child: item.imageUrl.isEmpty
+                        ? Container(
+                            color: _soft,
+                            child: Icon(
+                              _categoryIcon(item.category),
+                              size: 46,
+                              color: _brown,
+                            ),
+                          )
+                        : CachedNetworkImage(
+                            imageUrl: item.imageUrl,
+                            fit: BoxFit.cover,
+                          ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        item.category,
+                        style: const TextStyle(
+                          color: _text,
+                          fontSize: 21,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    Material(
+                      color: _soft,
+                      shape: const CircleBorder(),
+                      child: IconButton(
+                        tooltip: item.isFavourite
+                            ? 'Remove from favourites'
+                            : 'Save as favourite',
+                        onPressed: () => _toggleFavourite(item, uid),
+                        icon: Icon(
+                          item.isFavourite
+                              ? Icons.favorite
+                              : Icons.favorite_border,
+                          color: item.isFavourite
+                              ? AppColors.premiumAccent
+                              : _brown,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (matchesPalette) ...[
+                  const SizedBox(height: 4),
+                  const Row(
+                    children: [
+                      Icon(
+                        Icons.check_circle_rounded,
+                        size: 14,
+                        color: AppColors.success,
+                      ),
+                      SizedBox(width: 5),
+                      Text(
+                        'Matches your colour palette',
+                        style: TextStyle(
+                          color: AppColors.success,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                const SizedBox(height: 16),
+                const Text(
+                  'DETAILS',
+                  style: TextStyle(
+                    color: _muted,
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: .6,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                _detailRow('Colour', item.colour),
+                _detailRow('Category', item.category),
+                _detailRow('Style', item.style),
+                if (item.season.isNotEmpty && item.season != 'All seasons')
+                  _detailRow('Season', item.season),
+                if (item.notes.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  const Text(
+                    'NOTES',
+                    style: TextStyle(
+                      color: _muted,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: .6,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    item.notes,
+                    style: const TextStyle(
+                      color: _text,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          _showEditItem(item, uid);
+                        },
+                        icon: const Icon(Icons.edit_outlined),
+                        label: const Text('Edit'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => AIStylistScreen(
+                                selectedItem: item,
+                              ),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.auto_awesome_rounded),
+                        label: const Text('Style this'),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: _brown,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: TextButton.icon(
+                    onPressed: () => _confirmDelete(item, uid),
+                    icon: const Icon(Icons.delete_outline_rounded),
+                    label: const Text('Remove this piece'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.redAccent,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _showEditItem(WardrobeItem item, String uid) async {
     final nameController = TextEditingController(text: item.name);
     final notesController = TextEditingController(text: item.notes);
