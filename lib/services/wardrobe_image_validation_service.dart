@@ -3,12 +3,10 @@ import 'dart:math' as math;
 
 import 'package:image/image.dart' as img;
 
-/// Conservative client-side guard for Wardrobe uploads.
+/// Lightweight local guard for Wardrobe uploads.
 ///
-/// This validator intentionally rejects images that do not contain a clear
-/// single foreground object and applies additional heuristics for common
-/// non-fashion images. It is still a lightweight local guard, not a full
-/// vision classifier.
+/// This intentionally performs conservative image checks before the item
+/// details form is shown. It is not a general-purpose vision classifier.
 class WardrobeImageValidationService {
   WardrobeImageValidationService._();
 
@@ -16,7 +14,9 @@ class WardrobeImageValidationService {
   static const double _minForegroundRatio = 0.035;
   static const double _maxFlatSceneRatio = 0.82;
   static const double _maxSkinRatio = 0.24;
-  static const double _maxBorderObjectRatio = 0.72;
+  static const double _minEdgeContrast = 0.035;
+  static const double _minDirectionalEdgeRatio = 0.010;
+  static const double _maxSaturatedFlatRatio = 0.72;
 
   static const List<String> allowedCategories = [
     'Tops',
@@ -29,7 +29,10 @@ class WardrobeImageValidationService {
     'Accessories',
   ];
 
-  static Future<String?> validate(File file, {String? category}) async {
+  static Future<String?> validate(
+    File file, {
+    String? category,
+  }) async {
     if (!file.existsSync()) {
       return 'We could not read that photo. Please choose another image.';
     }
@@ -77,17 +80,18 @@ class WardrobeImageValidationService {
         return 'Please upload the clothing or accessory itself, not a portrait or unrelated photo.';
       }
 
-      if (result.borderObjectRatio > _maxBorderObjectRatio &&
-          result.edgeContrast < 0.10) {
-        return 'Please upload a single wearable item on a clearer background.';
+      if (result.edgeContrast < _minEdgeContrast ||
+          result.verticalEdgeRatio < _minDirectionalEdgeRatio ||
+          result.horizontalEdgeRatio < _minDirectionalEdgeRatio) {
+        return 'Please upload a clear photo of one clothing or fashion accessory.';
       }
 
-      // Require visible structure. This avoids accepting many photos of flat
-      // food, packaging, documents, screens, and other unrelated objects.
-      if (result.edgeContrast < 0.035 ||
-          result.verticalEdgeRatio < 0.010 ||
-          result.horizontalEdgeRatio < 0.010) {
-        return 'Please upload a clear photo of one clothing or fashion accessory.';
+      // Dense, saturated, low-structure images commonly correspond to
+      // packaging, food, posters, labels, or other non-wearable objects.
+      if (result.saturatedRatio > _maxSaturatedFlatRatio &&
+          result.edgeContrast < 0.095 &&
+          result.foregroundRatio > 0.78) {
+        return 'This image does not look like a wearable item. Please upload clothing or a fashion accessory.';
       }
 
       return null;
@@ -100,7 +104,7 @@ class WardrobeImageValidationService {
     var foreground = 0;
     var skinPixelCount = 0;
     var colouredObject = 0;
-    var borderObject = 0;
+    var saturated = 0;
     var verticalEdges = 0;
     var horizontalEdges = 0;
     var edgeSum = 0.0;
@@ -126,9 +130,6 @@ class WardrobeImageValidationService {
           g > 35;
     }
 
-    final borderX = math.max(2, (image.width * 0.12).round());
-    final borderY = math.max(2, (image.height * 0.12).round());
-
     for (var y = 0; y < image.height; y++) {
       for (var x = 0; x < image.width; x++) {
         final p = image.getPixel(x, y);
@@ -145,17 +146,12 @@ class WardrobeImageValidationService {
           colouredObject++;
         }
 
-        if (looksSkinLike(p)) {
-          skinPixelCount++;
+        if (chroma > 0.35) {
+          saturated++;
         }
 
-        if (x < borderX ||
-            x >= image.width - borderX ||
-            y < borderY ||
-            y >= image.height - borderY) {
-          if (chroma > 0.12 || (l > 38 && l < 224)) {
-            borderObject++;
-          }
+        if (looksSkinLike(p)) {
+          skinPixelCount++;
         }
 
         if (x + 2 < image.width) {
@@ -184,21 +180,12 @@ class WardrobeImageValidationService {
       }
     }
 
-    final borderPixelCount = math.max(
-      1,
-      image.width * image.height -
-          math.max(0, image.width - borderX * 2) *
-              math.max(0, image.height - borderY * 2),
-    );
-
     return _ImageAnalysis(
       foregroundRatio: total == 0 ? 0 : foreground / total,
       skinRatio: total == 0 ? 0 : skinPixelCount / total,
       colouredObjectRatio:
           total == 0 ? 0 : colouredObject / total,
-      borderObjectRatio: borderPixelCount == 0
-          ? 0
-          : borderObject / borderPixelCount,
+      saturatedRatio: total == 0 ? 0 : saturated / total,
       edgeContrast: edgeCount == 0 ? 0 : edgeSum / edgeCount,
       verticalEdgeRatio: total == 0 ? 0 : verticalEdges / total,
       horizontalEdgeRatio: total == 0 ? 0 : horizontalEdges / total,
@@ -211,7 +198,7 @@ class _ImageAnalysis {
     required this.foregroundRatio,
     required this.skinRatio,
     required this.colouredObjectRatio,
-    required this.borderObjectRatio,
+    required this.saturatedRatio,
     required this.edgeContrast,
     required this.verticalEdgeRatio,
     required this.horizontalEdgeRatio,
@@ -220,7 +207,7 @@ class _ImageAnalysis {
   final double foregroundRatio;
   final double skinRatio;
   final double colouredObjectRatio;
-  final double borderObjectRatio;
+  final double saturatedRatio;
   final double edgeContrast;
   final double verticalEdgeRatio;
   final double horizontalEdgeRatio;
