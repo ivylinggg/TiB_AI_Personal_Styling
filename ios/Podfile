@@ -27,11 +27,8 @@ require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelpe
 
 flutter_ios_podfile_setup
 
-# ONNX Runtime 1.23.0 is distributed as a static XCFramework through
-# onnxruntime-c and is intentionally consumed by flutter_onnxruntime.
-# CocoaPods' validator rejects this valid static-binary dependency graph
-# before the Xcode project is generated. The actual static linkage is kept;
-# this only disables that pre-install validation check.
+# ONNX Runtime is consumed by flutter_onnxruntime.
+# Keep the existing static-link workaround for that dependency graph.
 pre_install do |_installer|
   validator = Pod::Installer::Xcode::TargetValidator
   unless validator.method_defined?(:verify_no_static_framework_transitive_dependencies)
@@ -53,8 +50,6 @@ post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
 
-    # Xcode 27 requires all CocoaPods targets to use an iOS deployment
-    # target supported by the current toolchain and physical devices.
     target.build_configurations.each do |config|
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '16.0'
     end
