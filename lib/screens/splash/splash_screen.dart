@@ -334,7 +334,7 @@ class _SplashScreenState extends State<SplashScreen>
           left: -155,
           child: Transform.rotate(
             angle: -.22,
-            child: _cornerShape(
+            child: _referenceBlob(
               width: 505,
               height: 440,
               color: AppColors.brown.withValues(alpha: .72),
@@ -367,7 +367,7 @@ class _SplashScreenState extends State<SplashScreen>
           right: -175,
           child: Transform.rotate(
             angle: .04,
-            child: _cornerShape(
+            child: _referenceBlob(
               width: 520,
               height: 410,
               color: AppColors.brown.withValues(alpha: .50),
