@@ -400,13 +400,14 @@ class _SplashScreenState extends State<SplashScreen>
     );
   }
 
-  Widget _cornerShape({
+  Widget _referenceBlob({
     required double width,
     required double height,
     required Color color,
+    required bool topLeft,
   }) {
     return ClipPath(
-      clipper: _OrganicCornerClipper(),
+      clipper: _ReferenceBlobClipper(topLeft: topLeft),
       child: Container(
         width: width,
         height: height,
@@ -425,6 +426,145 @@ class _SplashScreenState extends State<SplashScreen>
       ),
     );
   }
+}
+
+class _ReferenceBlobClipper extends CustomClipper<Path> {
+  final bool topLeft;
+
+  const _ReferenceBlobClipper({required this.topLeft});
+
+  @override
+  Path getClip(Size size) {
+    final path = Path();
+
+    if (topLeft) {
+      path
+        ..moveTo(0, 0)
+        ..lineTo(size.width * .78, 0)
+        ..cubicTo(
+          size.width * .70,
+          size.height * .12,
+          size.width * .56,
+          size.height * .18,
+          size.width * .45,
+          size.height * .34,
+        )
+        ..cubicTo(
+          size.width * .34,
+          size.height * .53,
+          size.width * .30,
+          size.height * .77,
+          size.width * .03,
+          size.height * .93,
+        )
+        ..lineTo(0, size.height)
+        ..close();
+    } else {
+      path
+        ..moveTo(size.width, size.height)
+        ..lineTo(size.width * .12, size.height)
+        ..cubicTo(
+          size.width * .25,
+          size.height * .82,
+          size.width * .35,
+          size.height * .70,
+          size.width * .49,
+          size.height * .48,
+        )
+        ..cubicTo(
+          size.width * .61,
+          size.height * .28,
+          size.width * .76,
+          size.height * .10,
+          size.width,
+          size.height * .02,
+        )
+        ..close();
+    }
+    return path;
+  }
+
+  @override
+  bool shouldReclip(covariant _ReferenceBlobClipper oldClipper) =>
+      oldClipper.topLeft != topLeft;
+}
+
+class _ReferenceTopCurvePainter extends CustomPainter {
+  final Color color;
+
+  const _ReferenceTopCurvePainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.35;
+
+    final path = Path()
+      ..moveTo(size.width * .02, size.height * .98)
+      ..cubicTo(
+        size.width * .20,
+        size.height * .60,
+        size.width * .58,
+        size.height * .70,
+        size.width * .70,
+        size.height * .18,
+      )
+      ..cubicTo(
+        size.width * .77,
+        size.height * -.04,
+        size.width * .83,
+        size.height * -.08,
+        size.width * .92,
+        size.height * -.16,
+      );
+
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _ReferenceTopCurvePainter oldDelegate) =>
+      oldDelegate.color != color;
+}
+
+class _ReferenceBottomCurvePainter extends CustomPainter {
+  final Color color;
+
+  const _ReferenceBottomCurvePainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.35;
+
+    final path = Path()
+      ..moveTo(size.width * .02, size.height)
+      ..cubicTo(
+        size.width * .08,
+        size.height * .54,
+        size.width * .38,
+        size.height * .58,
+        size.width * .70,
+        size.height * .16,
+      )
+      ..cubicTo(
+        size.width * .82,
+        size.height * .02,
+        size.width * .91,
+        size.height * -.04,
+        size.width,
+        size.height * -.14,
+      );
+
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _ReferenceBottomCurvePainter oldDelegate) =>
+      oldDelegate.color != color;
 }
 
 class _OrganicCornerClipper extends CustomClipper<Path> {
