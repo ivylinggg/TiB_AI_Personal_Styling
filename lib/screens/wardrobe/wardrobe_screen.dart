@@ -604,38 +604,89 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Add to Your Wardrobe', style: TextStyle(color: _text, fontSize: 21, fontWeight: FontWeight.w700)),
+              const Text(
+                'Add to Your Wardrobe',
+                style: TextStyle(
+                  color: _text,
+                  fontSize: 21,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
               const SizedBox(height: 8),
-              const Text('Only clothing and fashion accessories are accepted. Clear photos of a single wearable item work best.', style: TextStyle(color: _muted, height: 1.4)),
+              const Text(
+                'Upload one clear clothing or fashion accessory. Photos of food, scenery, people, documents, and other objects are not accepted.',
+                style: TextStyle(color: _muted, height: 1.4),
+              ),
               const SizedBox(height: 20),
-              Row(children: [
-                Expanded(child: _photoSourceTile(icon: Icons.camera_alt_outlined, label: 'Camera', onTap: () async { final image = await ImagePickerService.pickCamera(); if (!context.mounted) return; Navigator.pop(context, image); })),
-                const SizedBox(width: 12),
-                Expanded(child: _photoSourceTile(icon: Icons.photo_outlined, label: 'Gallery', onTap: () async { final image = await ImagePickerService.pickGallery(); if (!context.mounted) return; Navigator.pop(context, image); })),
-              ]),
+              Row(
+                children: [
+                  Expanded(
+                    child: _photoSourceTile(
+                      icon: Icons.camera_alt_outlined,
+                      label: 'Camera',
+                      onTap: () async {
+                        final image = await ImagePickerService.pickCamera();
+                        if (!context.mounted) return;
+                        Navigator.pop(context, image);
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _photoSourceTile(
+                      icon: Icons.photo_outlined,
+                      label: 'Gallery',
+                      onTap: () async {
+                        final image = await ImagePickerService.pickGallery();
+                        if (!context.mounted) return;
+                        Navigator.pop(context, image);
+                      },
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
         ),
       ),
     );
+
     if (image == null || !mounted) return;
-    final rejection = await WardrobeImageValidationService.validate(image);
+
+    final rejection =
+        await WardrobeImageValidationService.validate(image);
+
     if (!mounted) return;
+
     if (rejection != null) {
       _showWardrobePhotoRejected(rejection);
       return;
     }
+
     await _showItemForm(uid, image);
   }
 
   void _showWardrobePhotoRejected(String message) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message), behavior: SnackBarBehavior.floating, action: SnackBarAction(label: 'Choose again', onPressed: () { final currentUid = _uid; if (currentUid != null) _showAddItem(currentUid); })));
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          behavior: SnackBarBehavior.floating,
+          action: SnackBarAction(
+            label: 'Choose again',
+            onPressed: () {
+              final currentUid = _uid;
+              if (currentUid != null) {
+                _showAddItem(currentUid);
+              }
+            },
+          ),
+        ),
+      );
   }
 
   Future<void> _showItemForm(String uid, File image) async {
-    final nameController = TextEditingController();
     final notesController = TextEditingController();
     String? category;
     var colour = 'Neutral';
@@ -651,66 +702,160 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
       builder: (sheetContext) => StatefulBuilder(
         builder: (context, setSheetState) {
           Future<void> save() async {
-            if (nameController.text.trim().isEmpty || saving) return;
-            if (category == null) {
-              ScaffoldMessenger.of(sheetContext).showSnackBar(
-                const SnackBar(
-                  content: Text('Please select a category before saving this item.'),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
+            if (category == null || saving) {
+              if (category == null && !saving) {
+                ScaffoldMessenger.of(sheetContext).showSnackBar(
+                  const SnackBar(
+                    content: Text('Please select a clothing category.'),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
               return;
             }
+
             setSheetState(() => saving = true);
+
             try {
-              final rejection = await WardrobeImageValidationService.validate(image, category: category!);
+              final rejection =
+                  await WardrobeImageValidationService.validate(
+                image,
+                category: category!,
+              );
+
               if (rejection != null) {
                 if (sheetContext.mounted) {
                   setSheetState(() => saving = false);
-                  ScaffoldMessenger.of(sheetContext).showSnackBar(SnackBar(content: Text(rejection), behavior: SnackBarBehavior.floating));
+                  ScaffoldMessenger.of(sheetContext).showSnackBar(
+                    SnackBar(
+                      content: Text(rejection),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
                 }
                 return;
               }
-              final imageUrl = await StorageService.uploadWardrobeImage(uid: uid, image: image);
-              await FirestoreService.addWardrobeItem(WardrobeItem(id: '', userId: uid, imageUrl: imageUrl, name: nameController.text.trim(), category: category!, colour: colour, style: style, season: season, isFavourite: false, notes: notesController.text.trim(), createdAt: null));
-              if (sheetContext.mounted) Navigator.pop(sheetContext);
+
+              final imageUrl = await StorageService.uploadWardrobeImage(
+                uid: uid,
+                image: image,
+              );
+
+              await FirestoreService.addWardrobeItem(
+                WardrobeItem(
+                  id: '',
+                  userId: uid,
+                  imageUrl: imageUrl,
+                  name: 'Wardrobe item',
+                  category: category!,
+                  colour: colour,
+                  style: style,
+                  season: season,
+                  isFavourite: false,
+                  notes: notesController.text.trim(),
+                  createdAt: null,
+                ),
+              );
+
+              if (sheetContext.mounted) {
+                Navigator.pop(sheetContext);
+              }
             } catch (_) {
-              if (sheetContext.mounted) ScaffoldMessenger.of(sheetContext).showSnackBar(const SnackBar(content: Text('Could not save this piece. Please try again.')));
+              if (sheetContext.mounted) {
+                ScaffoldMessenger.of(sheetContext).showSnackBar(
+                  const SnackBar(
+                    content: Text('Could not save this piece. Please try again.'),
+                  ),
+                );
+              }
             } finally {
-              if (sheetContext.mounted) setSheetState(() => saving = false);
+              if (sheetContext.mounted) {
+                setSheetState(() => saving = false);
+              }
             }
           }
 
           return SafeArea(
             child: Padding(
-              padding: EdgeInsets.only(left: 20, right: 20, bottom: MediaQuery.viewInsetsOf(context).bottom + 20),
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                bottom: MediaQuery.viewInsetsOf(context).bottom + 20,
+              ),
               child: SingleChildScrollView(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Tell me a little about it', style: TextStyle(color: _text, fontSize: 21, fontWeight: FontWeight.w700)),
+                    const Text(
+                      'Review your item',
+                      style: TextStyle(
+                        color: _text,
+                        fontSize: 21,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                     const SizedBox(height: 15),
-                    ClipRRect(borderRadius: BorderRadius.circular(AppRadius.lg), child: Image.file(image, height: 190, width: double.infinity, fit: BoxFit.cover)),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(AppRadius.lg),
+                      child: Image.file(
+                        image,
+                        height: 190,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
                     const SizedBox(height: 15),
-                    TextField(controller: nameController, decoration: _fieldDecoration('Name', hint: 'e.g. Cream knit cardigan')),
-                    const SizedBox(height: 12),
                     _requiredCategoryDropdown(
                       category: category,
-                      onChanged: (value) => setSheetState(() => category = value),
+                      onChanged: (value) =>
+                          setSheetState(() => category = value),
                     ),
-                    _dropdown('Colour', colour, _colourOptions, (value) => setSheetState(() => colour = value)),
-                    _dropdown('Style', style, _styleOptions, (value) => setSheetState(() => style = value)),
-                    _dropdown('Season', season, _seasonOptions, (value) => setSheetState(() => season = value)),
+                    _dropdown(
+                      'Colour',
+                      colour,
+                      _colourOptions,
+                      (value) => setSheetState(() => colour = value),
+                    ),
+                    _dropdown(
+                      'Style',
+                      style,
+                      _styleOptions,
+                      (value) => setSheetState(() => style = value),
+                    ),
+                    _dropdown(
+                      'Season',
+                      season,
+                      _seasonOptions,
+                      (value) => setSheetState(() => season = value),
+                    ),
                     const SizedBox(height: 4),
-                    TextField(controller: notesController, maxLines: 2, decoration: _fieldDecoration('Notes (optional)')),
+                    TextField(
+                      controller: notesController,
+                      maxLines: 2,
+                      decoration: _fieldDecoration('Notes (optional)'),
+                    ),
                     const SizedBox(height: 16),
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton.icon(
                         onPressed: saving ? null : save,
-                        icon: saving ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.background)) : const Icon(Icons.check_rounded),
-                        label: Text(saving ? 'Checking & Saving...' : 'Save to My Wardrobe'),
-                        style: FilledButton.styleFrom(backgroundColor: _brown, minimumSize: const Size.fromHeight(52)),
+                        icon: saving
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppColors.background,
+                                ),
+                              )
+                            : const Icon(Icons.check_rounded),
+                        label: Text(
+                          saving ? 'Checking & Saving...' : 'Save to My Wardrobe',
+                        ),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: _brown,
+                          minimumSize: const Size.fromHeight(52),
+                        ),
                       ),
                     ),
                   ],
@@ -721,7 +866,7 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
         },
       ),
     );
-    nameController.dispose();
+
     notesController.dispose();
   }
 
@@ -753,127 +898,46 @@ class _WardrobeScreenState extends State<WardrobeScreen> with SingleTickerProvid
     );
   }
 
-  InputDecoration _fieldDecoration(String label, {String? hint}) => InputDecoration(labelText: label, hintText: hint, filled: true, fillColor: AppColors.surface, border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppRadius.md), borderSide: BorderSide(color: AppColors.border)), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppRadius.md), borderSide: BorderSide(color: AppColors.border)));
+  InputDecoration _fieldDecoration(String label, {String? hint}) =>
+      InputDecoration(
+        labelText: label,
+        hintText: hint,
+        filled: true,
+        fillColor: AppColors.surface,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          borderSide: BorderSide(color: AppColors.border),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          borderSide: BorderSide(color: AppColors.border),
+        ),
+      );
 
-  Widget _dropdown(String label, String value, List<String> values, ValueChanged<String> onChanged) => Padding(
+  Widget _dropdown(
+    String label,
+    String value,
+    List<String> values,
+    ValueChanged<String> onChanged,
+  ) =>
+      Padding(
         padding: const EdgeInsets.only(bottom: 12),
         child: DropdownButtonFormField<String>(
           initialValue: value,
           decoration: _fieldDecoration(label),
-          items: values.map((value) => DropdownMenuItem<String>(value: value, child: Text(value))).toList(),
+          items: values
+              .map(
+                (value) => DropdownMenuItem<String>(
+                  value: value,
+                  child: Text(value),
+                ),
+              )
+              .toList(),
           onChanged: (value) {
             if (value != null) onChanged(value);
           },
         ),
       );
-
-  Future<void> _toggleFavourite(WardrobeItem item, String uid) async {
-    try {
-      await FirestoreService.updateWardrobeItem(uid, item.id, {'isFavourite': !item.isFavourite});
-    } catch (_) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not update favourite. Please try again.')));
-    }
-  }
-
-  Widget _detailRow(String label, String value) => Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [SizedBox(width: 90, child: Text(label, style: const TextStyle(color: _muted, fontSize: 12, fontWeight: FontWeight.w600))), Expanded(child: Text(value, style: const TextStyle(color: _text, fontWeight: FontWeight.w600)))]),
-      );
-
-  Future<void> _confirmDelete(WardrobeItem item, String uid) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Remove this piece?'),
-        content: Text('“${item.name}” will be removed from your wardrobe.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Keep it')),
-          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Remove')),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
-    try {
-      await FirestoreService.deleteWardrobeItem(uid, item.id);
-      if (mounted) Navigator.pop(context);
-    } catch (_) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not remove this piece. Please try again.')));
-    }
-  }
-
-  void _showItemDetails(WardrobeItem item, String uid) {
-    final analysisResult = context.read<AnalysisProvider>().result;
-    final wantedColours = (analysisResult?.colours ?? const <String>[]).map((colour) => colour.toLowerCase()).toList();
-    final matchesPalette = _matchesPalette(item, wantedColours);
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      isScrollControlled: true,
-      backgroundColor: _cream,
-      builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 5, 20, 25),
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(AppRadius.lg),
-                  child: AspectRatio(
-                    aspectRatio: 4 / 3,
-                    child: item.imageUrl.isEmpty
-                        ? Container(color: _soft, child: Icon(_categoryIcon(item.category), size: 46, color: _brown))
-                        : CachedNetworkImage(imageUrl: item.imageUrl, fit: BoxFit.cover),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(child: Text(item.name, style: const TextStyle(color: _text, fontSize: 21, fontWeight: FontWeight.w700))),
-                    Material(
-                      color: _soft,
-                      shape: const CircleBorder(),
-                      child: IconButton(
-                        tooltip: item.isFavourite ? 'Remove from favourites' : 'Save as favourite',
-                        onPressed: () => _toggleFavourite(item, uid),
-                        icon: Icon(item.isFavourite ? Icons.favorite : Icons.favorite_border, color: item.isFavourite ? AppColors.premiumAccent : _brown),
-                      ),
-                    ),
-                  ],
-                ),
-                if (matchesPalette) ...[
-                  const SizedBox(height: 4),
-                  const Row(children: [Icon(Icons.check_circle_rounded, size: 14, color: AppColors.success), SizedBox(width: 5), Text('Matches your colour palette', style: TextStyle(color: AppColors.success, fontSize: 12, fontWeight: FontWeight.w700))]),
-                ],
-                const SizedBox(height: 16),
-                const Text('DETAILS', style: TextStyle(color: _muted, fontSize: 10.5, fontWeight: FontWeight.w800, letterSpacing: .6)),
-                const SizedBox(height: 10),
-                _detailRow('Colour', item.colour),
-                _detailRow('Category', item.category),
-                _detailRow('Style', item.style),
-                if (item.season.isNotEmpty && item.season != 'All seasons') _detailRow('Season', item.season),
-                if (item.notes.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  const Text('NOTES', style: TextStyle(color: _muted, fontSize: 10.5, fontWeight: FontWeight.w800, letterSpacing: .6)),
-                  const SizedBox(height: 6),
-                  Text(item.notes, style: const TextStyle(color: _text, height: 1.4)),
-                ],
-                const SizedBox(height: 20),
-                Row(children: [
-                  Expanded(child: OutlinedButton.icon(onPressed: () { Navigator.pop(context); _showEditItem(item, uid); }, icon: const Icon(Icons.edit_outlined), label: const Text('Edit'))),
-                  const SizedBox(width: 10),
-                  Expanded(child: FilledButton.icon(onPressed: () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (_) => AIStylistScreen(selectedItem: item))); }, icon: const Icon(Icons.auto_awesome_rounded), label: const Text('Style this'), style: FilledButton.styleFrom(backgroundColor: _brown))),
-                ]),
-                const SizedBox(height: 10),
-                SizedBox(width: double.infinity, child: TextButton.icon(onPressed: () => _confirmDelete(item, uid), icon: const Icon(Icons.delete_outline_rounded), label: const Text('Remove this piece'), style: TextButton.styleFrom(foregroundColor: Colors.redAccent))),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 
   Future<void> _showEditItem(WardrobeItem item, String uid) async {
     final nameController = TextEditingController(text: item.name);
