@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/constants/app_colors.dart';
-import '../../core/constants/app_gradients.dart';
 import '../admin/admin_main_screen.dart';
 import '../auth/auth_service.dart';
 import '../auth/login_screen.dart';
@@ -22,8 +21,12 @@ class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
   bool _hasRouted = false;
   late final AnimationController _controller;
-  late final Animation<double> _brandReveal;
+  late final Animation<double> _brandV;
+  late final Animation<double> _brandY;
+  late final Animation<double> _brandE;
+  late final Animation<double> _brandA;
   late final Animation<double> _taglineReveal;
+  late final Animation<double> _subtitleReveal;
   late final Animation<double> _creditReveal;
   late final Animation<double> _lineReveal;
 
@@ -33,27 +36,46 @@ class _SplashScreenState extends State<SplashScreen>
 
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1900),
+      duration: const Duration(milliseconds: 2200),
     )..forward();
 
-    _brandReveal = CurvedAnimation(
+    _brandV = CurvedAnimation(
       parent: _controller,
-      curve: const Interval(0.08, 0.68, curve: Curves.easeOutCubic),
+      curve: const Interval(0.04, 0.28, curve: Curves.easeOutCubic),
+    );
+    _brandY = CurvedAnimation(
+      parent: _controller,
+      curve: const Interval(0.14, 0.40, curve: Curves.easeOutCubic),
+    );
+    _brandE = CurvedAnimation(
+      parent: _controller,
+      curve: const Interval(0.24, 0.52, curve: Curves.easeOutCubic),
+    );
+    _brandA = CurvedAnimation(
+      parent: _controller,
+      curve: const Interval(0.34, 0.62, curve: Curves.easeOutCubic),
     );
     _taglineReveal = CurvedAnimation(
       parent: _controller,
-      curve: const Interval(0.34, 0.78, curve: Curves.easeOutCubic),
+      curve: const Interval(0.52, 0.76, curve: Curves.easeOutCubic),
+    );
+    _subtitleReveal = CurvedAnimation(
+      parent: _controller,
+      curve: const Interval(0.60, 0.82, curve: Curves.easeOutCubic),
     );
     _creditReveal = CurvedAnimation(
       parent: _controller,
-      curve: const Interval(0.52, 0.92, curve: Curves.easeOutCubic),
+      curve: const Interval(0.72, 0.94, curve: Curves.easeOutCubic),
     );
     _lineReveal = CurvedAnimation(
       parent: _controller,
-      curve: const Interval(0.60, 1.0, curve: Curves.easeOutCubic),
+      curve: const Interval(0.82, 1.0, curve: Curves.easeOutCubic),
     );
 
-    Future<void>.delayed(const Duration(milliseconds: 2400), _routeFromSplash);
+    Future<void>.delayed(
+      const Duration(milliseconds: 2700),
+      _routeFromSplash,
+    );
   }
 
   @override
@@ -115,7 +137,6 @@ class _SplashScreenState extends State<SplashScreen>
   void _replace(Widget destination) {
     if (!mounted || _hasRouted) return;
     _hasRouted = true;
-
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => destination),
     );
@@ -123,180 +144,100 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
-    final screen = MediaQuery.sizeOf(context);
+    final size = MediaQuery.sizeOf(context);
 
     return Scaffold(
       backgroundColor: AppColors.background,
       body: Stack(
         fit: StackFit.expand,
         children: [
-          Positioned(
-            top: -120,
-            right: -90,
-            child: _orb(
-              280,
-              AppColors.peach.withValues(alpha: .24),
-            ),
-          ),
-          Positioned(
-            top: screen.height * .43,
-            right: -120,
-            child: _orb(
-              260,
-              AppColors.primarySoft.withValues(alpha: .16),
-            ),
-          ),
-          Positioned(
-            bottom: -150,
-            left: -120,
-            child: _orb(
-              330,
-              AppColors.primary.withValues(alpha: .12),
-            ),
-          ),
-          Positioned(
-            top: screen.height * .28,
-            left: -75,
-            child: _orb(
-              150,
-              AppColors.secondary.withValues(alpha: .18),
-            ),
-          ),
+          _backgroundDecor(size),
           SafeArea(
             child: Center(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 28),
                 child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Spacer(flex: 3),
-                    AnimatedBuilder(
-                      animation: _brandReveal,
-                      builder: (context, child) {
-                        final value = _brandReveal.value;
-                        return Opacity(
-                          opacity: value,
-                          child: Transform.translate(
-                            offset: Offset((1 - value) * 42, 0),
-                            child: child,
-                          ),
-                        );
-                      },
-                      child: Column(
-                        children: [
-                          Transform.rotate(
-                            angle: -0.055,
-                            child: ShaderMask(
-                              shaderCallback: (bounds) {
-                                return const LinearGradient(
-                                  begin: Alignment.centerLeft,
-                                  end: Alignment.centerRight,
-                                  colors: [
-                                    Color(0xFF8D6A35),
-                                    Color(0xFFD2B06A),
-                                    Color(0xFFB58A45),
-                                    Color(0xFFE6C982),
-                                    Color(0xFF8C6734),
-                                  ],
-                                ).createShader(bounds);
-                              },
-                              blendMode: BlendMode.srcIn,
-                              child: const Text(
-                                'VYEA',
-                                style: TextStyle(
-                                  fontFamily: 'serif',
-                                  fontSize: 76,
-                                  fontWeight: FontWeight.w700,
-                                  fontStyle: FontStyle.italic,
-                                  letterSpacing: -3.8,
-                                  height: .95,
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Container(
-                            width: 96,
-                            height: 1.4,
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [
-                                  Colors.transparent,
-                                  Color(0xFFD3B36D),
-                                  Colors.transparent,
-                                ],
-                              ),
-                              borderRadius: BorderRadius.circular(99),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 30),
+                    const Spacer(flex: 4),
+                    _brandMark(),
+                    const SizedBox(height: 22),
                     FadeTransition(
                       opacity: _taglineReveal,
+                      child: const Text(
+                        'Visual · You · Expression · Aesthetic',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: AppColors.textPrimary,
+                          fontFamily: 'serif',
+                          fontSize: 12.5,
+                          letterSpacing: 2.2,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 46),
+                    FadeTransition(
+                      opacity: _subtitleReveal,
                       child: const Text(
                         'AI PERSONAL STYLING & COLOUR',
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          fontSize: 11,
-                          letterSpacing: 2.5,
-                          fontWeight: FontWeight.w700,
                           color: AppColors.textPrimary,
+                          fontFamily: 'serif',
+                          fontSize: 14,
+                          letterSpacing: 2.15,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 18),
                     FadeTransition(
-                      opacity: _taglineReveal,
-                      child: Text(
+                      opacity: _subtitleReveal,
+                      child: const Text(
                         'Be your best you.',
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          color: AppColors.brown.withValues(alpha: .72),
-                          fontSize: 18,
-                          fontStyle: FontStyle.italic,
-                          letterSpacing: .2,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    FadeTransition(
-                      opacity: _creditReveal,
-                      child: Text(
-                        'Developed by TiB Consultancy',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: AppColors.charcoal.withValues(alpha: .60),
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 1.3,
+                          color: AppColors.brown,
+                          fontFamily: 'serif',
+                          fontSize: 17,
+                          letterSpacing: 1.0,
                         ),
                       ),
                     ),
                     const Spacer(flex: 2),
-                    AnimatedBuilder(
-                      animation: _lineReveal,
-                      builder: (context, child) {
-                        final value = _lineReveal.value;
-                        return SizedBox(
-                          width: 76,
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(99),
-                            child: LinearProgressIndicator(
-                              minHeight: 2.5,
-                              value: value,
-                              backgroundColor:
-                                  AppColors.charcoal.withValues(alpha: .07),
-                              valueColor: const AlwaysStoppedAnimation(
-                                Color(0xFFB58A45),
-                              ),
-                            ),
-                          ),
-                        );
-                      },
+                    FadeTransition(
+                      opacity: _creditReveal,
+                      child: const Text(
+                        'Developed by TiB Consultancy',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontFamily: 'serif',
+                          fontSize: 11,
+                          letterSpacing: 1.15,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 22),
+                    FadeTransition(
+                      opacity: _lineReveal,
+                      child: Container(
+                        width: 82,
+                        height: 1.5,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.transparent,
+                              AppColors.brown,
+                              Colors.transparent,
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(99),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
                     const Spacer(flex: 1),
                   ],
                 ),
@@ -308,19 +249,175 @@ class _SplashScreenState extends State<SplashScreen>
     );
   }
 
-  Widget _orb(double size, Color color) => Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: color,
-          boxShadow: [
-            BoxShadow(
-              color: color.withValues(alpha: .45),
-              blurRadius: 50,
-              spreadRadius: 8,
+  Widget _brandMark() {
+    return SizedBox(
+      height: 108,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          _letter(
+            'V',
+            _brandV,
+            fontSize: 92,
+            xOffset: 18,
+          ),
+          const SizedBox(width: 2),
+          _letter(
+            'Y',
+            _brandY,
+            fontSize: 88,
+            xOffset: 18,
+          ),
+          const SizedBox(width: 2),
+          _letter(
+            'E',
+            _brandE,
+            fontSize: 88,
+            xOffset: 18,
+          ),
+          const SizedBox(width: 2),
+          _letter(
+            'A',
+            _brandA,
+            fontSize: 88,
+            xOffset: 18,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _letter(
+    String value,
+    Animation<double> animation, {
+    required double fontSize,
+    required double xOffset,
+  }) {
+    return AnimatedBuilder(
+      animation: animation,
+      builder: (context, child) {
+        final progress = animation.value;
+        return Opacity(
+          opacity: progress,
+          child: Transform.translate(
+            offset: Offset((1 - progress) * xOffset, (1 - progress) * 4),
+            child: Transform.rotate(
+              angle: -0.035,
+              child: ShaderMask(
+                shaderCallback: (bounds) {
+                  return const LinearGradient(
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                    colors: [
+                      Color(0xFF73562A),
+                      Color(0xFFB28A45),
+                      Color(0xFFE1C47B),
+                      Color(0xFF9C7538),
+                      Color(0xFF63481F),
+                    ],
+                  ).createShader(bounds);
+                },
+                blendMode: BlendMode.srcIn,
+                child: Text(
+                  value,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontFamily: 'serif',
+                    fontSize: fontSize,
+                    fontWeight: FontWeight.w700,
+                    fontStyle: FontStyle.italic,
+                    letterSpacing: -4.5,
+                    height: .9,
+                  ),
+                ),
+              ),
             ),
-          ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _backgroundDecor(Size size) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Positioned(
+          top: -110,
+          left: -95,
+          child: _shape(
+            300,
+            AppColors.peach.withValues(alpha: .22),
+          ),
         ),
-      );
+        Positioned(
+          top: -25,
+          left: -25,
+          child: Transform.rotate(
+            angle: -.25,
+            child: Container(
+              width: 390,
+              height: 1,
+              color: AppColors.brown.withValues(alpha: .18),
+            ),
+          ),
+        ),
+        Positioned(
+          bottom: -140,
+          right: -110,
+          child: _shape(
+            330,
+            AppColors.primarySoft.withValues(alpha: .18),
+          ),
+        ),
+        Positioned(
+          bottom: -60,
+          right: -30,
+          child: Transform.rotate(
+            angle: -.52,
+            child: Container(
+              width: 410,
+              height: 1,
+              color: AppColors.brown.withValues(alpha: .16),
+            ),
+          ),
+        ),
+        Positioned(
+          top: size.height * .38,
+          right: -130,
+          child: _shape(
+            210,
+            AppColors.secondary.withValues(alpha: .10),
+          ),
+        ),
+        Positioned(
+          top: size.height * .33,
+          left: -105,
+          child: _shape(
+            170,
+            AppColors.peach.withValues(alpha: .08),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _shape(double size, Color color) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: .20),
+            blurRadius: 45,
+            spreadRadius: 8,
+          ),
+        ],
+      ),
+    );
+  }
 }
