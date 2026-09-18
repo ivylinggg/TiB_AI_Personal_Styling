@@ -254,31 +254,15 @@ class _SplashScreenState extends State<SplashScreen>
 
   Widget _buildBrand() {
     return SizedBox(
+      width: 360,
       height: 150,
-      width: 430,
       child: Stack(
         alignment: Alignment.bottomCenter,
         children: [
-          Positioned(
-            left: 24,
-            bottom: 8,
-            child: _letter('V', _vReveal, 116, 88, -0.035, 2),
-          ),
-          Positioned(
-            left: 112,
-            bottom: 0,
-            child: _letter('y', _yReveal, 108, 78, -0.045, 0),
-          ),
-          Positioned(
-            left: 187,
-            bottom: 13,
-            child: _letter('e', _eReveal, 108, 78, -0.045, 0),
-          ),
-          Positioned(
-            left: 263,
-            bottom: 11,
-            child: _letter('a', _aReveal, 108, 82, -0.045, 0),
-          ),
+          _letter('V', _vReveal, 116, 94, 0, -0.02),
+          _letter('y', _yReveal, 108, 82, 82, -0.04),
+          _letter('e', _eReveal, 108, 82, 152, -0.04),
+          _letter('a', _aReveal, 108, 86, 218, -0.04),
         ],
       ),
     );
@@ -289,38 +273,42 @@ class _SplashScreenState extends State<SplashScreen>
     Animation<double> animation,
     double fontSize,
     double width,
-    double angle,
-    double yBias,
+    double left,
+    double rotation,
   ) {
-    return SizedBox(
-      width: width,
-      height: 140,
-      child: AnimatedBuilder(
-        animation: animation,
-        builder: (context, child) {
-          final progress = Curves.easeOutCubic.transform(animation.value);
-          return Opacity(
-            opacity: progress,
-            child: Transform.translate(
-              offset: Offset((1 - progress) * 72, (1 - progress) * 18),
-              child: Transform.rotate(
-                angle: angle,
-                child: Text(
-                  value,
-                  style: TextStyle(
-                    color: AppColors.primary,
-                    fontFamily: 'serif',
-                    fontSize: fontSize,
-                    fontWeight: FontWeight.w700,
-                    fontStyle: FontStyle.italic,
-                    letterSpacing: -6.5,
-                    height: .80,
+    return Positioned(
+      left: left,
+      bottom: 0,
+      child: SizedBox(
+        width: width,
+        height: 150,
+        child: AnimatedBuilder(
+          animation: animation,
+          builder: (context, child) {
+            final progress = Curves.easeOutCubic.transform(animation.value);
+            return Opacity(
+              opacity: progress,
+              child: Transform.translate(
+                offset: Offset((1 - progress) * 34, (1 - progress) * 9),
+                child: Transform.rotate(
+                  angle: rotation,
+                  child: Text(
+                    value,
+                    style: TextStyle(
+                      color: AppColors.primary,
+                      fontFamily: 'serif',
+                      fontSize: fontSize,
+                      fontWeight: FontWeight.w700,
+                      fontStyle: FontStyle.italic,
+                      letterSpacing: -6.2,
+                      height: .80,
+                    ),
                   ),
                 ),
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }
