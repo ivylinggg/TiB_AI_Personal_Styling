@@ -37,46 +37,46 @@ class _SplashScreenState extends State<SplashScreen>
 
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2600),
+      duration: const Duration(milliseconds: 3400),
     )..forward();
 
     // V → Y → E → A: each letter enters separately from left to right.
     _vReveal = CurvedAnimation(
       parent: _controller,
-      curve: const Interval(0.03, 0.25, curve: Curves.easeOutCubic),
+      curve: const Interval(0.03, 0.24, curve: Curves.easeOutCubic),
     );
     _yReveal = CurvedAnimation(
       parent: _controller,
-      curve: const Interval(0.16, 0.39, curve: Curves.easeOutCubic),
+      curve: const Interval(0.18, 0.39, curve: Curves.easeOutCubic),
     );
     _eReveal = CurvedAnimation(
       parent: _controller,
-      curve: const Interval(0.29, 0.52, curve: Curves.easeOutCubic),
+      curve: const Interval(0.34, 0.55, curve: Curves.easeOutCubic),
     );
     _aReveal = CurvedAnimation(
       parent: _controller,
-      curve: const Interval(0.42, 0.65, curve: Curves.easeOutCubic),
+      curve: const Interval(0.50, 0.71, curve: Curves.easeOutCubic),
     );
 
     _taglineReveal = CurvedAnimation(
       parent: _controller,
-      curve: const Interval(0.56, 0.77, curve: Curves.easeOutCubic),
+      curve: const Interval(0.68, 0.82, curve: Curves.easeOutCubic),
     );
     _subtitleReveal = CurvedAnimation(
       parent: _controller,
-      curve: const Interval(0.64, 0.83, curve: Curves.easeOutCubic),
+      curve: const Interval(0.73, 0.87, curve: Curves.easeOutCubic),
     );
     _creditReveal = CurvedAnimation(
       parent: _controller,
-      curve: const Interval(0.76, 0.93, curve: Curves.easeOutCubic),
+      curve: const Interval(0.80, 0.94, curve: Curves.easeOutCubic),
     );
     _lineReveal = CurvedAnimation(
       parent: _controller,
-      curve: const Interval(0.86, 1.0, curve: Curves.easeOutCubic),
+      curve: const Interval(0.90, 1.0, curve: Curves.easeOutCubic),
     );
 
     Future<void>.delayed(
-      const Duration(milliseconds: 3000),
+      const Duration(milliseconds: 3900),
       _routeFromSplash,
     );
   }
@@ -254,15 +254,15 @@ class _SplashScreenState extends State<SplashScreen>
 
   Widget _buildBrand() {
     return SizedBox(
-      height: 125,
+      height: 138,
       child: Row(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          _letter('V', _vReveal, fontSize: 102, width: 88),
-          _letter('Y', _yReveal, fontSize: 94, width: 76),
-          _letter('E', _eReveal, fontSize: 94, width: 78),
-          _letter('A', _aReveal, fontSize: 94, width: 82),
+          _letter('V', _vReveal, 104, 76, -0.025),
+          _letter('y', _yReveal, 98, 64, -0.035),
+          _letter('e', _eReveal, 98, 65, -0.035),
+          _letter('a', _aReveal, 98, 70, -0.035),
         ],
       ),
     );
@@ -270,49 +270,35 @@ class _SplashScreenState extends State<SplashScreen>
 
   Widget _letter(
     String value,
-    Animation<double> animation, {
-    required double fontSize,
-    required double width,
-  }) {
+    Animation<double> animation,
+    double fontSize,
+    double width,
+    double angle,
+  ) {
     return SizedBox(
       width: width,
       child: AnimatedBuilder(
         animation: animation,
         builder: (context, child) {
           final progress = animation.value;
-          final slide = (1 - progress) * 34;
-
+          final curve = Curves.easeOutCubic.transform(progress);
           return Opacity(
-            opacity: progress,
+            opacity: curve,
             child: Transform.translate(
-              offset: Offset(slide, (1 - progress) * 8),
+              offset: Offset((1 - curve) * 46, (1 - curve) * 10),
               child: Transform.rotate(
-                angle: -0.035,
-                child: ShaderMask(
-                  shaderCallback: (bounds) {
-                    return LinearGradient(
-                      begin: Alignment.centerLeft,
-                      end: Alignment.centerRight,
-                      colors: [
-                        AppColors.brown,
-                        AppColors.brown,
-                        AppColors.brown.withValues(alpha: .78),
-                      ],
-                    ).createShader(bounds);
-                  },
-                  blendMode: BlendMode.srcIn,
-                  child: Text(
-                    value,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontFamily: 'serif',
-                      fontSize: fontSize,
-                      fontWeight: FontWeight.w700,
-                      fontStyle: FontStyle.italic,
-                      letterSpacing: -3.5,
-                      height: .88,
-                    ),
+                angle: angle,
+                child: Text(
+                  value,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: AppColors.primary,
+                    fontFamily: 'serif',
+                    fontSize: fontSize,
+                    fontWeight: FontWeight.w900,
+                    fontStyle: FontStyle.italic,
+                    letterSpacing: -5.8,
+                    height: .78,
                   ),
                 ),
               ),
@@ -328,22 +314,27 @@ class _SplashScreenState extends State<SplashScreen>
       fit: StackFit.expand,
       children: [
         Positioned(
-          top: -120,
-          left: -100,
-          child: _softShape(
-            310,
-            AppColors.brown.withValues(alpha: .34),
+          top: -130,
+          left: -155,
+          child: Transform.rotate(
+            angle: -.22,
+            child: _cornerShape(
+              width: 505,
+              height: 440,
+              color: AppColors.brown.withValues(alpha: .72),
+            ),
           ),
         ),
         Positioned(
-          top: 40,
-          left: -10,
+          top: 15,
+          left: -15,
           child: Transform.rotate(
             angle: -.22,
-            child: Container(
-              width: 460,
-              height: 1.2,
-              color: AppColors.brown.withValues(alpha: .5),
+            child: CustomPaint(
+              size: const Size(470, 130),
+              painter: _CurveLinePainter(
+                color: AppColors.brown.withValues(alpha: .55),
+              ),
             ),
           ),
         ),
@@ -356,22 +347,27 @@ class _SplashScreenState extends State<SplashScreen>
           ),
         ),
         Positioned(
-          bottom: -175,
-          right: -120,
-          child: _softShape(
-            350,
-            AppColors.brown.withValues(alpha: .18),
+          bottom: -180,
+          right: -175,
+          child: Transform.rotate(
+            angle: .04,
+            child: _cornerShape(
+              width: 520,
+              height: 410,
+              color: AppColors.brown.withValues(alpha: .50),
+            ),
           ),
         ),
         Positioned(
-          bottom: -75,
-          right: -35,
+          bottom: -45,
+          right: -10,
           child: Transform.rotate(
             angle: -.50,
-            child: Container(
-              width: 430,
-              height: 1.2,
-              color: AppColors.brown.withValues(alpha: .40),
+            child: CustomPaint(
+              size: const Size(450, 180),
+              painter: _CurveLinePainter(
+                color: AppColors.brown.withValues(alpha: .50),
+              ),
             ),
           ),
         ),
@@ -387,6 +383,21 @@ class _SplashScreenState extends State<SplashScreen>
     );
   }
 
+  Widget _cornerShape({
+    required double width,
+    required double height,
+    required Color color,
+  }) {
+    return ClipPath(
+      clipper: _OrganicCornerClipper(),
+      child: Container(
+        width: width,
+        height: height,
+        color: color,
+      ),
+    );
+  }
+
   Widget _softShape(double size, Color color) {
     return Container(
       width: size,
@@ -397,4 +408,66 @@ class _SplashScreenState extends State<SplashScreen>
       ),
     );
   }
+}
+
+class _OrganicCornerClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) {
+    final path = Path()
+      ..moveTo(0, 0)
+      ..lineTo(size.width * .78, 0)
+      ..cubicTo(
+        size.width * .70,
+        size.height * .10,
+        size.width * .58,
+        size.height * .18,
+        size.width * .48,
+        size.height * .34,
+      )
+      ..cubicTo(
+        size.width * .36,
+        size.height * .55,
+        size.width * .31,
+        size.height * .76,
+        size.width * .06,
+        size.height,
+      )
+      ..lineTo(0, size.height)
+      ..close();
+    return path;
+  }
+
+  @override
+  bool shouldReclip(covariant _OrganicCornerClipper oldClipper) => false;
+}
+
+class _CurveLinePainter extends CustomPainter {
+  final Color color;
+
+  const _CurveLinePainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.35;
+
+    final path = Path()
+      ..moveTo(size.width * .12, size.height * .96)
+      ..cubicTo(
+        size.width * .22,
+        size.height * .53,
+        size.width * .64,
+        size.height * .60,
+        size.width * .88,
+        size.height * .06,
+      );
+
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _CurveLinePainter oldDelegate) =>
+      oldDelegate.color != color;
 }
