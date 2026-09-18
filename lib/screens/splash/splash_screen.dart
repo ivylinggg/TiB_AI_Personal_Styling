@@ -76,7 +76,7 @@ class _SplashScreenState extends State<SplashScreen>
     );
 
     Future<void>.delayed(
-      const Duration(milliseconds: 3900),
+      const Duration(milliseconds: 4200),
       _routeFromSplash,
     );
   }
@@ -162,7 +162,7 @@ class _SplashScreenState extends State<SplashScreen>
                   children: [
                     const Spacer(flex: 4),
                     _buildBrand(),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 18),
                     FadeTransition(
                       opacity: _taglineReveal,
                       child: const Text(
@@ -254,15 +254,31 @@ class _SplashScreenState extends State<SplashScreen>
 
   Widget _buildBrand() {
     return SizedBox(
-      height: 138,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.end,
+      height: 150,
+      width: 430,
+      child: Stack(
+        alignment: Alignment.bottomCenter,
         children: [
-          _letter('V', _vReveal, 104, 76, -0.025),
-          _letter('y', _yReveal, 98, 64, -0.035),
-          _letter('e', _eReveal, 98, 65, -0.035),
-          _letter('a', _aReveal, 98, 70, -0.035),
+          Positioned(
+            left: 24,
+            bottom: 8,
+            child: _letter('V', _vReveal, 116, 88, -0.035, 2),
+          ),
+          Positioned(
+            left: 112,
+            bottom: 0,
+            child: _letter('y', _yReveal, 108, 78, -0.045, 0),
+          ),
+          Positioned(
+            left: 187,
+            bottom: 13,
+            child: _letter('e', _eReveal, 108, 78, -0.045, 0),
+          ),
+          Positioned(
+            left: 263,
+            bottom: 11,
+            child: _letter('a', _aReveal, 108, 82, -0.045, 0),
+          ),
         ],
       ),
     );
@@ -274,31 +290,31 @@ class _SplashScreenState extends State<SplashScreen>
     double fontSize,
     double width,
     double angle,
+    double yBias,
   ) {
     return SizedBox(
       width: width,
+      height: 140,
       child: AnimatedBuilder(
         animation: animation,
         builder: (context, child) {
-          final progress = animation.value;
-          final curve = Curves.easeOutCubic.transform(progress);
+          final progress = Curves.easeOutCubic.transform(animation.value);
           return Opacity(
-            opacity: curve,
+            opacity: progress,
             child: Transform.translate(
-              offset: Offset((1 - curve) * 46, (1 - curve) * 10),
+              offset: Offset((1 - progress) * 72, (1 - progress) * 18),
               child: Transform.rotate(
                 angle: angle,
                 child: Text(
                   value,
-                  textAlign: TextAlign.center,
                   style: TextStyle(
                     color: AppColors.primary,
                     fontFamily: 'serif',
                     fontSize: fontSize,
-                    fontWeight: FontWeight.w900,
+                    fontWeight: FontWeight.w700,
                     fontStyle: FontStyle.italic,
-                    letterSpacing: -5.8,
-                    height: .78,
+                    letterSpacing: -6.5,
+                    height: .80,
                   ),
                 ),
               ),
@@ -441,10 +457,14 @@ class _OrganicCornerClipper extends CustomClipper<Path> {
   bool shouldReclip(covariant _OrganicCornerClipper oldClipper) => false;
 }
 
-class _CurveLinePainter extends CustomPainter {
+class _ReferenceCurvePainter extends CustomPainter {
   final Color color;
+  final bool reverse;
 
-  const _CurveLinePainter({required this.color});
+  const _ReferenceCurvePainter({
+    required this.color,
+    this.reverse = false,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -453,21 +473,52 @@ class _CurveLinePainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.35;
 
-    final path = Path()
-      ..moveTo(size.width * .12, size.height * .96)
-      ..cubicTo(
-        size.width * .22,
-        size.height * .53,
-        size.width * .64,
-        size.height * .60,
-        size.width * .88,
-        size.height * .06,
-      );
+    final path = Path();
+
+    if (!reverse) {
+      path
+        ..moveTo(size.width * .02, size.height * .97)
+        ..cubicTo(
+          size.width * .16,
+          size.height * .62,
+          size.width * .50,
+          size.height * .70,
+          size.width * .78,
+          size.height * .18,
+        )
+        ..cubicTo(
+          size.width * .86,
+          size.height * .04,
+          size.width * .93,
+          size.height * .02,
+          size.width * .98,
+          0,
+        );
+    } else {
+      path
+        ..moveTo(size.width * .02, 0)
+        ..cubicTo(
+          size.width * .18,
+          size.height * .48,
+          size.width * .52,
+          size.height * .50,
+          size.width * .84,
+          size.height * .03,
+        )
+        ..cubicTo(
+          size.width * .91,
+          -size.height * .05,
+          size.width * .96,
+          -size.height * .10,
+          size.width,
+          -size.height * .13,
+        );
+    }
 
     canvas.drawPath(path, paint);
   }
 
   @override
-  bool shouldRepaint(covariant _CurveLinePainter oldDelegate) =>
-      oldDelegate.color != color;
+  bool shouldRepaint(covariant _ReferenceCurvePainter oldDelegate) =>
+      oldDelegate.color != color || oldDelegate.reverse != reverse;
 }
