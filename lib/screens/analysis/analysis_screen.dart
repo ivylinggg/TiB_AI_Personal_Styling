@@ -112,17 +112,16 @@ class _AnalysisScreenState extends State<AnalysisScreen>
     if (!mounted) return;
 
     if (success && provider.result != null) {
-      final completed = await Navigator.push<bool>(
+      await Navigator.push<void>(
         context,
         MaterialPageRoute(
-          builder: (_) => AnalysisResultScreen(result: provider.result!),
+          builder: (_) => AnalysisResultScreen(
+            result: provider.result!,
+            analysisProvider: provider,
+          ),
         ),
       );
       if (!mounted) return;
-      if (completed == true) {
-        provider.clear();
-        Navigator.pop(context, true);
-      }
     } else if (provider.errorMessage != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(provider.errorMessage!)),

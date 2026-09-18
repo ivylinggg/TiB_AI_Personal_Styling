@@ -96,11 +96,17 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
         _savedLook = false;
       });
       if (resolved.isNotEmpty) {
-        await StyleFeedbackService.recordGeneratedLook(
-          itemIds: resolved.map((item) => item.id).toList(growable: false),
-          occasion: _occasion,
-          matchScore: result.matchScore,
-        );
+        // Feedback persistence is optional. A Firestore/network failure here
+        // must never invalidate a successfully generated outfit.
+        try {
+          await StyleFeedbackService.recordGeneratedLook(
+            itemIds: resolved.map((item) => item.id).toList(growable: false),
+            occasion: _occasion,
+            matchScore: result.matchScore,
+          );
+        } catch (_) {
+          // Ignore feedback persistence failures.
+        }
       }
     } catch (error) {
       if (mounted && uid == _uid) {

@@ -203,7 +203,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
     setState(() => isDeleting = true);
     try {
-      final result = await FirestoreService.deleteCustomerData(user.documentId);
+      final result = await FirestoreService.deleteCustomerData(user.uid);
       if (result.imageUrls.isNotEmpty) {
         await Future.wait(
           result.imageUrls.map((url) async {
@@ -218,7 +218,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Deleted ${result.wardrobeItemsDeleted} wardrobe, ${result.preferencesDeleted} preference and ${result.analysisRecordsDeleted} analysis record(s).',
+            'Deleted customer account data: ${result.wardrobeItemsDeleted} wardrobe, ${result.preferencesDeleted} preference and ${result.analysisRecordsDeleted} analysis record(s).',
           ),
         ),
       );
@@ -396,33 +396,26 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     );
   }
 
-  Widget _errorState() {
-    return ListView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.all(24),
-      children: [
-        const SizedBox(height: 80),
-        const Icon(Icons.cloud_off_rounded, size: 64),
-        const SizedBox(height: 16),
-        const Center(child: Text('Unable to load users', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800))),
-        const SizedBox(height: 8),
-        Text(loadError ?? 'Unknown Firestore error.', textAlign: TextAlign.center),
-        const SizedBox(height: 18),
-        Center(child: FilledButton.icon(onPressed: loadUsers, icon: const Icon(Icons.refresh_rounded), label: const Text('Retry'))),
-      ],
-    );
-  }
+  Widget _errorState() => ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(24),
+        children: [
+          const SizedBox(height: 80),
+          const Icon(Icons.cloud_off_rounded, size: 64),
+          const SizedBox(height: 16),
+          const Center(child: Text('Unable to load users', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800))),
+          const SizedBox(height: 8),
+          Text(loadError ?? 'Unknown Firestore error.', textAlign: TextAlign.center),
+          const SizedBox(height: 18),
+          Center(child: FilledButton.icon(onPressed: loadUsers, icon: const Icon(Icons.refresh_rounded), label: const Text('Retry'))),
+        ],
+      );
 
   @override
   Widget build(BuildContext context) {
     final results = filteredUsers;
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('User Management'),
-        actions: [
-          IconButton(tooltip: 'Refresh', onPressed: isLoading ? null : loadUsers, icon: const Icon(Icons.refresh)),
-        ],
-      ),
+      appBar: AppBar(title: const Text('User Management'), actions: [IconButton(tooltip: 'Refresh', onPressed: isLoading ? null : loadUsers, icon: const Icon(Icons.refresh))]),
       body: RefreshIndicator(
         onRefresh: loadUsers,
         child: Column(
@@ -444,26 +437,15 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
               child: Row(
                 children: [
-                  _filterChip('All'), const SizedBox(width: 8),
-                  _filterChip('Active'), const SizedBox(width: 8),
-                  _filterChip('Inactive'), const SizedBox(width: 18),
+                  _filterChip('All'), const SizedBox(width: 8), _filterChip('Active'), const SizedBox(width: 8), _filterChip('Inactive'), const SizedBox(width: 18),
                   const Text('Role:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)), const SizedBox(width: 8),
-                  _roleFilterChip('All'), const SizedBox(width: 8),
-                  _roleFilterChip('customer'), const SizedBox(width: 8),
-                  _roleFilterChip('staff'), const SizedBox(width: 8),
-                  _roleFilterChip('admin'),
+                  _roleFilterChip('All'), const SizedBox(width: 8), _roleFilterChip('customer'), const SizedBox(width: 8), _roleFilterChip('staff'), const SizedBox(width: 8), _roleFilterChip('admin'),
                 ],
               ),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
-              child: Row(
-                children: [
-                  Text('${results.length} shown', style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600)),
-                  const Spacer(),
-                  Text('Total: ${users.length}', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-                ],
-              ),
+              child: Row(children: [Text('${results.length} shown', style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600)), const Spacer(), Text('Total: ${users.length}', style: TextStyle(color: AppColors.textSecondary, fontSize: 12))]),
             ),
             Expanded(
               child: isLoading
@@ -486,21 +468,6 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     );
   }
 
-  Widget _filterChip(String label) {
-    return FilterChip(
-      label: Text(label),
-      showCheckmark: false,
-      selected: selectedStatus == label,
-      onSelected: (_) => changeStatusFilter(label),
-    );
-  }
-
-  Widget _roleFilterChip(String label) {
-    return FilterChip(
-      label: Text(label),
-      showCheckmark: false,
-      selected: selectedRole == label,
-      onSelected: (_) => changeRoleFilter(label),
-    );
-  }
+  Widget _filterChip(String label) => FilterChip(label: Text(label), showCheckmark: false, selected: selectedStatus == label, onSelected: (_) => changeStatusFilter(label));
+  Widget _roleFilterChip(String label) => FilterChip(label: Text(label), showCheckmark: false, selected: selectedRole == label, onSelected: (_) => changeRoleFilter(label));
 }
