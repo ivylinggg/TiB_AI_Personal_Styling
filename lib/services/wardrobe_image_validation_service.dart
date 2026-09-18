@@ -1,18 +1,14 @@
 import 'dart:io';
 
-import 'package:google_mlkit_image_labeling/google_mlkit_image_labeling.dart';
 import 'package:google_mlkit_commons/google_mlkit_commons.dart';
+import 'package:google_mlkit_image_labeling/google_mlkit_image_labeling.dart';
 
-/// Wardrobe photo gate.
+/// Semantic first-pass gate for Wardrobe uploads.
 ///
-/// The previous pixel heuristics are intentionally removed because they could
-/// not understand the semantic content of a photo (for example, a car could
-/// pass as a "jacket"). This service now uses ML Kit image labeling as the
-/// semantic gate before an image can enter the wardrobe flow.
-///
-/// Category remains user-editable after the image passes the clothing gate.
-/// Fine-grained fashion classification is kept separate from the gate so a
-/// wrong model label can never silently allow an unrelated object through.
+/// The base ML Kit image-labeling model is used only to decide whether the
+/// photo contains a wearable/fashion entity. It is not used to pretend that
+/// fine-grained garment classification (Tops/Bottoms/Skirts/Dresses) is
+/// already solved. The category remains editable by the user after the gate.
 class WardrobeImageValidationService {
   WardrobeImageValidationService._();
 
@@ -44,21 +40,23 @@ class WardrobeImageValidationService {
     }
 
     try {
-      final inputImage = InputImage.fromFilePath(file.path);
-      final labels = await _labeler.processImage(inputImage);
+      final labels = await _labeler.processImage(
+        InputImage.fromFilePath(file.path),
+      );
 
       if (labels.isEmpty) {
-        return 'We could not recognise a clothing item in this photo. Please upload one clear wearable item.';
+        return 'We could not recognise a wearable item in this photo. Please upload one clear clothing or fashion-accessory photo.';
       }
 
-      final wearable = _classifyWearable(labels);
+      final decision = _classifyWearable(labels);
 
-      if (!wearable.isWearable) {
+      if (decision.isExplicitReject) {
         return 'This photo does not appear to contain clothing or a fashion accessory. Please upload a wearable item only.';
       }
 
-      if (wearable.confidence < 0.50) {
-        return 'We could not confidently recognise this as clothing or a fashion accessory. Please use a clearer photo of one wearable item.';
+      if (!decision.hasWearableEvidence ||
+          decision.wearableConfidence < 0.52) {
+        return 'We could not confidently recognise clothing or a fashion accessory in this photo. Please use a clearer photo of one wearable item.';
       }
 
       return null;
@@ -75,29 +73,26 @@ class WardrobeImageValidationService {
       final text = label.label.trim().toLowerCase();
       final confidence = label.confidence;
 
-      if (_wearableTokens.any(text.contains)) {
-        if (confidence > bestWearable) bestWearable = confidence;
+      if (_wearableTerms.any(text.contains)) {
+        bestWearable = confidence > bestWearable ? confidence : bestWearable;
       }
 
-      if (_rejectTokens.any(text.contains)) {
-        if (confidence > bestReject) bestReject = confidence;
+      if (_rejectTerms.any(text.contains)) {
+        bestReject = confidence > bestReject ? confidence : bestReject;
       }
     }
 
-    if (bestReject >= 0.45 && bestReject >= bestWearable * 1.05) {
-      return _WearableDecision(
-        isWearable: false,
-        confidence: bestReject,
-      );
-    }
+    final explicitReject =
+        bestReject >= 0.45 && bestReject >= bestWearable * 1.05;
 
     return _WearableDecision(
-      isWearable: bestWearable > 0,
-      confidence: bestWearable,
+      hasWearableEvidence: bestWearable > 0,
+      wearableConfidence: bestWearable,
+      isExplicitReject: explicitReject,
     );
   }
 
-  static const Set<String> _wearableTokens = {
+  static const Set<String> _wearableTerms = {
     'clothing',
     'cloth',
     'apparel',
@@ -133,9 +128,10 @@ class WardrobeImageValidationService {
     'accessory',
     'fashion',
     'wear',
+    'wardrobe',
   };
 
-  static const Set<String> _rejectTokens = {
+  static const Set<String> _rejectTerms = {
     'car',
     'automobile',
     'vehicle',
@@ -170,6 +166,12 @@ class WardrobeImageValidationService {
     'tree',
     'flower',
     'plant',
+    'animal',
+    'dog',
+    'cat',
+    'person',
+    'face',
+    'portrait',
   };
 
   static Future<void> dispose() async {
@@ -179,10 +181,12 @@ class WardrobeImageValidationService {
 
 class _WearableDecision {
   const _WearableDecision({
-    required this.isWearable,
-    required this.confidence,
+    required this.hasWearableEvidence,
+    required this.wearableConfidence,
+    required this.isExplicitReject,
   });
 
-  final bool isWearable;
-  final double confidence;
+  final bool hasWearableEvidence;
+  final double wearableConfidence;
+  final bool isExplicitReject;
 }
