@@ -20,11 +20,12 @@ class SplashScreen extends StatefulWidget {
 class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
   bool _hasRouted = false;
+
   late final AnimationController _controller;
-  late final Animation<double> _brandV;
-  late final Animation<double> _brandY;
-  late final Animation<double> _brandE;
-  late final Animation<double> _brandA;
+  late final Animation<double> _vReveal;
+  late final Animation<double> _yReveal;
+  late final Animation<double> _eReveal;
+  late final Animation<double> _aReveal;
   late final Animation<double> _taglineReveal;
   late final Animation<double> _subtitleReveal;
   late final Animation<double> _creditReveal;
@@ -36,44 +37,46 @@ class _SplashScreenState extends State<SplashScreen>
 
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2200),
+      duration: const Duration(milliseconds: 2600),
     )..forward();
 
-    _brandV = CurvedAnimation(
+    // V → Y → E → A: each letter enters separately from left to right.
+    _vReveal = CurvedAnimation(
       parent: _controller,
-      curve: const Interval(0.04, 0.28, curve: Curves.easeOutCubic),
+      curve: const Interval(0.03, 0.25, curve: Curves.easeOutCubic),
     );
-    _brandY = CurvedAnimation(
+    _yReveal = CurvedAnimation(
       parent: _controller,
-      curve: const Interval(0.14, 0.40, curve: Curves.easeOutCubic),
+      curve: const Interval(0.16, 0.39, curve: Curves.easeOutCubic),
     );
-    _brandE = CurvedAnimation(
+    _eReveal = CurvedAnimation(
       parent: _controller,
-      curve: const Interval(0.24, 0.52, curve: Curves.easeOutCubic),
+      curve: const Interval(0.29, 0.52, curve: Curves.easeOutCubic),
     );
-    _brandA = CurvedAnimation(
+    _aReveal = CurvedAnimation(
       parent: _controller,
-      curve: const Interval(0.34, 0.62, curve: Curves.easeOutCubic),
+      curve: const Interval(0.42, 0.65, curve: Curves.easeOutCubic),
     );
+
     _taglineReveal = CurvedAnimation(
       parent: _controller,
-      curve: const Interval(0.52, 0.76, curve: Curves.easeOutCubic),
+      curve: const Interval(0.56, 0.77, curve: Curves.easeOutCubic),
     );
     _subtitleReveal = CurvedAnimation(
       parent: _controller,
-      curve: const Interval(0.60, 0.82, curve: Curves.easeOutCubic),
+      curve: const Interval(0.64, 0.83, curve: Curves.easeOutCubic),
     );
     _creditReveal = CurvedAnimation(
       parent: _controller,
-      curve: const Interval(0.72, 0.94, curve: Curves.easeOutCubic),
+      curve: const Interval(0.76, 0.93, curve: Curves.easeOutCubic),
     );
     _lineReveal = CurvedAnimation(
       parent: _controller,
-      curve: const Interval(0.82, 1.0, curve: Curves.easeOutCubic),
+      curve: const Interval(0.86, 1.0, curve: Curves.easeOutCubic),
     );
 
     Future<void>.delayed(
-      const Duration(milliseconds: 2700),
+      const Duration(milliseconds: 3000),
       _routeFromSplash,
     );
   }
@@ -137,6 +140,7 @@ class _SplashScreenState extends State<SplashScreen>
   void _replace(Widget destination) {
     if (!mounted || _hasRouted) return;
     _hasRouted = true;
+
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => destination),
     );
@@ -144,23 +148,21 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.sizeOf(context);
-
     return Scaffold(
       backgroundColor: AppColors.background,
       body: Stack(
         fit: StackFit.expand,
         children: [
-          _backgroundDecor(size),
+          _backgroundDecor(),
           SafeArea(
             child: Center(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 28),
+                padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: Column(
                   children: [
                     const Spacer(flex: 4),
-                    _brandMark(),
-                    const SizedBox(height: 22),
+                    _buildBrand(),
+                    const SizedBox(height: 24),
                     FadeTransition(
                       opacity: _taglineReveal,
                       child: const Text(
@@ -169,13 +171,13 @@ class _SplashScreenState extends State<SplashScreen>
                         style: TextStyle(
                           color: AppColors.textPrimary,
                           fontFamily: 'serif',
-                          fontSize: 12.5,
-                          letterSpacing: 2.2,
+                          fontSize: 13,
                           fontWeight: FontWeight.w500,
+                          letterSpacing: 2.25,
                         ),
                       ),
                     ),
-                    const SizedBox(height: 46),
+                    const SizedBox(height: 48),
                     FadeTransition(
                       opacity: _subtitleReveal,
                       child: const Text(
@@ -185,45 +187,46 @@ class _SplashScreenState extends State<SplashScreen>
                           color: AppColors.textPrimary,
                           fontFamily: 'serif',
                           fontSize: 14,
-                          letterSpacing: 2.15,
                           fontWeight: FontWeight.w600,
+                          letterSpacing: 2.35,
                         ),
                       ),
                     ),
                     const SizedBox(height: 18),
                     FadeTransition(
                       opacity: _subtitleReveal,
-                      child: const Text(
+                      child: Text(
                         'Be your best you.',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: AppColors.brown,
                           fontFamily: 'serif',
                           fontSize: 17,
-                          letterSpacing: 1.0,
+                          letterSpacing: 1.15,
+                          fontStyle: FontStyle.italic,
                         ),
                       ),
                     ),
                     const Spacer(flex: 2),
                     FadeTransition(
                       opacity: _creditReveal,
-                      child: const Text(
+                      child: Text(
                         'Developed by TiB Consultancy',
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          color: AppColors.textSecondary,
+                          color: AppColors.brown.withValues(alpha: .85),
                           fontFamily: 'serif',
-                          fontSize: 11,
-                          letterSpacing: 1.15,
+                          fontSize: 11.5,
                           fontWeight: FontWeight.w500,
+                          letterSpacing: 1.1,
                         ),
                       ),
                     ),
-                    const SizedBox(height: 22),
+                    const SizedBox(height: 24),
                     FadeTransition(
                       opacity: _lineReveal,
                       child: Container(
-                        width: 82,
+                        width: 86,
                         height: 1.5,
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
@@ -249,40 +252,17 @@ class _SplashScreenState extends State<SplashScreen>
     );
   }
 
-  Widget _brandMark() {
+  Widget _buildBrand() {
     return SizedBox(
-      height: 108,
+      height: 125,
       child: Row(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          _letter(
-            'V',
-            _brandV,
-            fontSize: 92,
-            xOffset: 18,
-          ),
-          const SizedBox(width: 2),
-          _letter(
-            'Y',
-            _brandY,
-            fontSize: 88,
-            xOffset: 18,
-          ),
-          const SizedBox(width: 2),
-          _letter(
-            'E',
-            _brandE,
-            fontSize: 88,
-            xOffset: 18,
-          ),
-          const SizedBox(width: 2),
-          _letter(
-            'A',
-            _brandA,
-            fontSize: 88,
-            xOffset: 18,
-          ),
+          _letter('V', _vReveal, fontSize: 102, width: 88),
+          _letter('Y', _yReveal, fontSize: 94, width: 76),
+          _letter('E', _eReveal, fontSize: 94, width: 78),
+          _letter('A', _aReveal, fontSize: 94, width: 82),
         ],
       ),
     );
@@ -292,131 +272,128 @@ class _SplashScreenState extends State<SplashScreen>
     String value,
     Animation<double> animation, {
     required double fontSize,
-    required double xOffset,
+    required double width,
   }) {
-    return AnimatedBuilder(
-      animation: animation,
-      builder: (context, child) {
-        final progress = animation.value;
-        return Opacity(
-          opacity: progress,
-          child: Transform.translate(
-            offset: Offset((1 - progress) * xOffset, (1 - progress) * 4),
-            child: Transform.rotate(
-              angle: -0.035,
-              child: ShaderMask(
-                shaderCallback: (bounds) {
-                  return const LinearGradient(
-                    begin: Alignment.centerLeft,
-                    end: Alignment.centerRight,
-                    colors: [
-                      Color(0xFF73562A),
-                      Color(0xFFB28A45),
-                      Color(0xFFE1C47B),
-                      Color(0xFF9C7538),
-                      Color(0xFF63481F),
-                    ],
-                  ).createShader(bounds);
-                },
-                blendMode: BlendMode.srcIn,
-                child: Text(
-                  value,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontFamily: 'serif',
-                    fontSize: fontSize,
-                    fontWeight: FontWeight.w700,
-                    fontStyle: FontStyle.italic,
-                    letterSpacing: -4.5,
-                    height: .9,
+    return SizedBox(
+      width: width,
+      child: AnimatedBuilder(
+        animation: animation,
+        builder: (context, child) {
+          final progress = animation.value;
+          final slide = (1 - progress) * 34;
+
+          return Opacity(
+            opacity: progress,
+            child: Transform.translate(
+              offset: Offset(slide, (1 - progress) * 8),
+              child: Transform.rotate(
+                angle: -0.035,
+                child: ShaderMask(
+                  shaderCallback: (bounds) {
+                    return LinearGradient(
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                      colors: [
+                        AppColors.brownDark,
+                        AppColors.brown,
+                        AppColors.brown.withValues(alpha: .78),
+                      ],
+                    ).createShader(bounds);
+                  },
+                  blendMode: BlendMode.srcIn,
+                  child: Text(
+                    value,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontFamily: 'serif',
+                      fontSize: fontSize,
+                      fontWeight: FontWeight.w700,
+                      fontStyle: FontStyle.italic,
+                      letterSpacing: -3.5,
+                      height: .88,
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 
-  Widget _backgroundDecor(Size size) {
+  Widget _backgroundDecor() {
     return Stack(
       fit: StackFit.expand,
       children: [
         Positioned(
-          top: -110,
-          left: -95,
-          child: _shape(
-            300,
-            AppColors.peach.withValues(alpha: .22),
+          top: -120,
+          left: -100,
+          child: _softShape(
+            310,
+            AppColors.brown.withValues(alpha: .34),
           ),
         ),
         Positioned(
-          top: -25,
-          left: -25,
+          top: 40,
+          left: -10,
           child: Transform.rotate(
-            angle: -.25,
+            angle: -.22,
             child: Container(
-              width: 390,
-              height: 1,
-              color: AppColors.brown.withValues(alpha: .18),
+              width: 460,
+              height: 1.2,
+              color: AppColors.brown.withValues(alpha: .5),
             ),
           ),
         ),
         Positioned(
-          bottom: -140,
-          right: -110,
-          child: _shape(
-            330,
-            AppColors.primarySoft.withValues(alpha: .18),
-          ),
-        ),
-        Positioned(
-          bottom: -60,
-          right: -30,
-          child: Transform.rotate(
-            angle: -.52,
-            child: Container(
-              width: 410,
-              height: 1,
-              color: AppColors.brown.withValues(alpha: .16),
-            ),
-          ),
-        ),
-        Positioned(
-          top: size.height * .38,
-          right: -130,
-          child: _shape(
-            210,
-            AppColors.secondary.withValues(alpha: .10),
-          ),
-        ),
-        Positioned(
-          top: size.height * .33,
-          left: -105,
-          child: _shape(
+          top: 260,
+          left: -75,
+          child: _softShape(
             170,
-            AppColors.peach.withValues(alpha: .08),
+            AppColors.secondary.withValues(alpha: .30),
+          ),
+        ),
+        Positioned(
+          bottom: -175,
+          right: -120,
+          child: _softShape(
+            350,
+            AppColors.brown.withValues(alpha: .18),
+          ),
+        ),
+        Positioned(
+          bottom: -75,
+          right: -35,
+          child: Transform.rotate(
+            angle: -.50,
+            child: Container(
+              width: 430,
+              height: 1.2,
+              color: AppColors.brown.withValues(alpha: .40),
+            ),
+          ),
+        ),
+        Positioned(
+          bottom: -70,
+          right: 100,
+          child: _softShape(
+            250,
+            AppColors.secondary.withValues(alpha: .24),
           ),
         ),
       ],
     );
   }
 
-  Widget _shape(double size, Color color) {
+  Widget _softShape(double size, Color color) {
     return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
         color: color,
         shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: color.withValues(alpha: .20),
-            blurRadius: 45,
-            spreadRadius: 8,
-          ),
-        ],
       ),
     );
   }
