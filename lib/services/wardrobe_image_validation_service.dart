@@ -2,12 +2,12 @@ import 'dart:io';
 
 import 'package:google_mlkit_image_labeling/google_mlkit_image_labeling.dart';
 
-/// Semantic first-pass gate for Wardrobe uploads.
+/// Strict semantic gate for Wardrobe uploads.
 ///
-/// The base ML Kit image-labeling model is used only to decide whether the
-/// photo contains a wearable/fashion entity. It is not used to pretend that
-/// fine-grained garment classification (Tops/Bottoms/Skirts/Dresses) is
-/// already solved. The category remains editable by the user after the gate.
+/// Only labels that clearly describe a garment or footwear are accepted.
+/// Generic labels such as "cloth", "fashion", "wear", "accessory", "bag",
+/// or "handbag" are intentionally not accepted because they can produce
+/// false positives for non-clothing objects.
 class WardrobeImageValidationService {
   WardrobeImageValidationService._();
 
@@ -47,14 +47,17 @@ class WardrobeImageValidationService {
         return 'Invalid';
       }
 
-      final decision = _classifyWearable(labels);
-
-      if (decision.isExplicitReject) {
+      // A person/object label is a strong signal that the image is not a
+      // clean standalone wardrobe-item photo.
+      if (_containsStrongNonGarmentLabel(labels)) {
         return 'Invalid';
       }
 
-      if (!decision.hasWearableEvidence ||
-          decision.wearableConfidence < 0.52) {
+      // Do not accept broad semantic labels. A valid upload needs a
+      // specific garment/footwear label from this allow-list.
+      final garmentConfidence = _bestSpecificGarmentConfidence(labels);
+
+      if (garmentConfidence < 0.55) {
         return 'Invalid';
       }
 
@@ -64,47 +67,47 @@ class WardrobeImageValidationService {
     }
   }
 
-  static _WearableDecision _classifyWearable(List<ImageLabel> labels) {
-    var bestWearable = 0.0;
-    var bestReject = 0.0;
+  static double _bestSpecificGarmentConfidence(List<ImageLabel> labels) {
+    var best = 0.0;
 
     for (final label in labels) {
       final text = label.label.trim().toLowerCase();
-      final confidence = label.confidence;
-
-      if (_wearableTerms.any(text.contains)) {
-        bestWearable = confidence > bestWearable ? confidence : bestWearable;
+      if (!_specificGarmentLabels.contains(text)) {
+        continue;
       }
 
-      if (_rejectTerms.any(text.contains)) {
-        bestReject = confidence > bestReject ? confidence : bestReject;
+      if (label.confidence > best) {
+        best = label.confidence;
       }
     }
 
-    final explicitReject =
-        bestReject >= 0.45 && bestReject >= bestWearable * 1.05;
-
-    return _WearableDecision(
-      hasWearableEvidence: bestWearable > 0,
-      wearableConfidence: bestWearable,
-      isExplicitReject: explicitReject,
-    );
+    return best;
   }
 
-  static const Set<String> _wearableTerms = {
-    'clothing',
-    'cloth',
-    'apparel',
-    'garment',
+  static bool _containsStrongNonGarmentLabel(List<ImageLabel> labels) {
+    for (final label in labels) {
+      final text = label.label.trim().toLowerCase();
+
+      if (_strongNonGarmentLabels.contains(text)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /// Specific labels only. Generic labels such as "clothing", "cloth",
+  /// "apparel", "fashion", "wear", and "accessory" are deliberately excluded.
+  static const Set<String> _specificGarmentLabels = {
     'shirt',
     't-shirt',
     'tee',
-    'top',
     'blouse',
     'dress',
     'skirt',
     'jeans',
     'trouser',
+    'trousers',
     'pants',
     'shorts',
     'coat',
@@ -114,32 +117,28 @@ class WardrobeImageValidationService {
     'sneaker',
     'footwear',
     'boot',
+    'boots',
     'sandal',
+    'sandals',
+  };
+
+  /// Explicitly reject common non-garment or ambiguous object labels.
+  static const Set<String> _strongNonGarmentLabels = {
+    'bag',
+    'plastic bag',
     'handbag',
     'purse',
+    'backpack',
+    'wallet',
     'hat',
     'cap',
     'scarf',
     'belt',
     'tie',
+    'watch',
+    'jewelry',
+    'jewellery',
     'accessory',
-    'fashion accessory',
-  };
-
-  static const Set<String> _rejectTerms = {
-    'car',
-    'automobile',
-    'vehicle',
-    'food',
-    'dish',
-    'meal',
-    'noodle',
-    'fruit',
-    'vegetable',
-    'drink',
-    'beverage',
-    'cup',
-    'bottle',
     'phone',
     'mobile phone',
     'laptop',
@@ -150,6 +149,19 @@ class WardrobeImageValidationService {
     'document',
     'paper',
     'book',
+    'food',
+    'dish',
+    'meal',
+    'noodle',
+    'fruit',
+    'vegetable',
+    'drink',
+    'beverage',
+    'cup',
+    'bottle',
+    'car',
+    'automobile',
+    'vehicle',
     'building',
     'house',
     'architecture',
