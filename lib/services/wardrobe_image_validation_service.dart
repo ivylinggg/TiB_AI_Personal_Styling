@@ -31,11 +31,11 @@ class WardrobeImageValidationService {
     String? category,
   }) async {
     if (!file.existsSync()) {
-      return 'We could not read that photo. Please choose another image.';
+      return 'Invalid';
     }
 
     if (category != null && !allowedCategories.contains(category)) {
-      return 'Only clothing and fashion accessories can be added to Wardrobe.';
+      return 'Invalid';
     }
 
     try {
@@ -44,23 +44,23 @@ class WardrobeImageValidationService {
       );
 
       if (labels.isEmpty) {
-        return 'We could not recognise a wearable item in this photo. Please upload one clear clothing or fashion-accessory photo.';
+        return 'Invalid';
       }
 
       final decision = _classifyWearable(labels);
 
       if (decision.isExplicitReject) {
-        return 'This photo does not appear to contain clothing or a fashion accessory. Please upload a wearable item only.';
+        return 'Invalid';
       }
 
       if (!decision.hasWearableEvidence ||
           decision.wearableConfidence < 0.52) {
-        return 'We could not confidently recognise clothing or a fashion accessory in this photo. Please use a clearer photo of one wearable item.';
+        return 'Invalid';
       }
 
       return null;
     } catch (_) {
-      return 'We could not analyse this photo. Please choose a clear photo of one clothing or fashion accessory.';
+      return 'Invalid';
     }
   }
 
@@ -115,19 +115,15 @@ class WardrobeImageValidationService {
     'footwear',
     'boot',
     'sandal',
-    'bag',
     'handbag',
     'purse',
-    'backpack',
     'hat',
     'cap',
     'scarf',
     'belt',
     'tie',
     'accessory',
-    'fashion',
-    'wear',
-    'wardrobe',
+    'fashion accessory',
   };
 
   static const Set<String> _rejectTerms = {
