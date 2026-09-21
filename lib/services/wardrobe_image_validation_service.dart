@@ -185,15 +185,3 @@ class WardrobeImageValidationService {
     _labeler.close();
   }
 }
-
-class _WearableDecision {
-  const _WearableDecision({
-    required this.hasWearableEvidence,
-    required this.wearableConfidence,
-    required this.isExplicitReject,
-  });
-
-  final bool hasWearableEvidence;
-  final double wearableConfidence;
-  final bool isExplicitReject;
-}
