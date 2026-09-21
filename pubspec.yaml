@@ -32,7 +32,7 @@ dependencies:
 
   # AI / ML
   google_mlkit_face_detection: ^0.13.1
-  google_mlkit_image_labeling: ^0.16.1
+  google_mlkit_image_labeling: ^0.14.2
   image_background_remover: ^2.0.1
 
   # Authentication
