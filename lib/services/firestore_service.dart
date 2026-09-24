@@ -206,6 +206,7 @@ class FirestoreService {
       'faceMeasurements': result.faceMeasurements,
       'faceStylingGuidance': result.faceStylingGuidance,
       'colourReasons': result.colourReasons,
+      'confidence': result.confidence.clamp(0.0, 1.0),
       'createdAt': FieldValue.serverTimestamp(),
     });
   }
@@ -219,6 +220,9 @@ class FirestoreService {
       });
     }
 
+    final rawConfidence = data['confidence'];
+    final confidence = rawConfidence is num ? rawConfidence.toDouble().clamp(0.0, 1.0).toDouble() : 0.0;
+
     return ColourAnalysisResult(
       season: data['season'] as String? ?? 'Unknown',
       undertone: data['undertone'] as String? ?? 'Unknown',
@@ -231,6 +235,7 @@ class FirestoreService {
       faceMeasurements: rawMeasurements,
       faceStylingGuidance: _stringList(data['faceStylingGuidance']),
       colourReasons: _stringList(data['colourReasons']),
+      confidence: confidence,
     );
   }
 
@@ -376,9 +381,11 @@ class FirestoreService {
     }
     for (final doc in wardrobeSnapshot.docs) {
       final imageUrl = doc.data()['imageUrl'];
-      if (imageUrl is String && imageUrl.trim().isNotEmpty) {
-        imageUrls.add(imageUrl.trim());
-      }
+      if (imageUrl is String && imageUrl.trim().isNotEmpty) imageUrls.add(imageUrl.trim());
+    }
+    for (final doc in analysisSnapshot.docs) {
+      final imageUrl = doc.data()['imageUrl'];
+      if (imageUrl is String && imageUrl.trim().isNotEmpty) imageUrls.add(imageUrl.trim());
     }
 
     final batch = _db.batch();
@@ -400,13 +407,11 @@ class FirestoreService {
     for (final doc in messagesSnapshot.docs) {
       batch.delete(doc.reference);
     }
-    if (consultationDoc.exists) {
-      batch.delete(consultationDoc.reference);
-    }
-    if (userDoc.exists) {
-      batch.delete(userDoc.reference);
-    }
+    if (consultationDoc.exists) batch.delete(consultationDoc.reference);
+    batch.delete(userRef);
+
     await batch.commit();
+
     return CustomerDeletionResult(
       wardrobeItemsDeleted: wardrobeSnapshot.docs.length,
       preferencesDeleted: preferencesSnapshot.docs.length,
@@ -415,17 +420,19 @@ class FirestoreService {
       notificationRecordsDeleted: notificationsSnapshot.docs.length,
       consultationMessagesDeleted: messagesSnapshot.docs.length,
       consultationDeleted: consultationDoc.exists,
-      userDocDeleted: userDoc.exists,
-      imageUrls: imageUrls,
+      userDocDeleted: true,
+      imageUrls: imageUrls.toSet().toList(growable: false),
     );
   }
 
   static List<String> _stringList(dynamic value) {
-    if (value is! List) return const [];
-    return value
-        .whereType<String>()
-        .map((item) => item.trim())
-        .where((item) => item.isNotEmpty)
-        .toList(growable: false);
+    if (value is Iterable) {
+      return value
+          .whereType<String>()
+          .map((item) => item.trim())
+          .where((item) => item.isNotEmpty)
+          .toList(growable: false);
+    }
+    return const [];
   }
 }
