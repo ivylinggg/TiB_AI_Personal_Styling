@@ -73,11 +73,39 @@ class FirestoreService {
 
   static final FirebaseFirestore _db = FirebaseFirestore.instance;
 
+  static const Duration _writeTimeout = Duration(seconds: 15);
+  static const Duration _readTimeout = Duration(seconds: 15);
+
   static String? _normalizeUid(String uid) {
     final requested = uid.trim();
     final current = FirebaseAuth.instance.currentUser?.uid.trim();
     if (requested.isEmpty || current == null || current.isEmpty) return null;
     return requested == current ? current : null;
+  }
+
+  static Future<T> _withWriteTimeout<T>(Future<T> future, String message) {
+    return future.timeout(
+      _writeTimeout,
+      onTimeout: () => throw TimeoutException(message),
+    );
+  }
+
+  static Future<T> _withReadTimeout<T>(Future<T> future, String message) {
+    return future.timeout(
+      _readTimeout,
+      onTimeout: () => throw TimeoutException(message),
+    );
+  }
+
+  static Future<T?> _tryRead<T>(Future<T> future) async {
+    try {
+      return await future;
+    } on FirebaseException catch (error) {
+      if (error.code == 'unavailable' || error.code == 'deadline-exceeded') return null;
+      rethrow;
+    } on TimeoutException {
+      return null;
+    }
   }
 
   static Future<PersonalStyleContext> getPersonalStyleContext(String uid) async {
@@ -96,28 +124,29 @@ class FirestoreService {
     }
 
     final results = await Future.wait<dynamic>([
-      getUser(ownerUid),
-      getLatestColourAnalysis(ownerUid),
-      _db.collection('users').doc(ownerUid).collection('preferences').doc('style').get(),
-      getWardrobeItems(ownerUid),
-      getSavedOutfitLooks(ownerUid),
+      _tryRead<UserModel?>(getUser(ownerUid)),
+      _tryRead<ColourAnalysisResult?>(getLatestColourAnalysis(ownerUid)),
+      _tryRead<DocumentSnapshot<Map<String, dynamic>>>(
+        _withReadTimeout(
+          _db.collection('users').doc(ownerUid).collection('preferences').doc('style').get(),
+          'Loading your style preferences timed out.',
+        ),
+      ),
+      _tryRead<List<WardrobeItem>>(getWardrobeItems(ownerUid)),
+      _tryRead<List<Map<String, dynamic>>>(getSavedOutfitLooks(ownerUid)),
     ], eagerError: false);
-
-    var degraded = false;
-    String? errorMessage;
-
-    Map<String, dynamic>? preferenceData;
-    if (results[2] is DocumentSnapshot<Map<String, dynamic>>) {
-      preferenceData = (results[2] as DocumentSnapshot<Map<String, dynamic>>).data();
-    } else {
-      degraded = true;
-      errorMessage = 'Some style preferences could not be loaded.';
-    }
 
     final user = results[0] is UserModel ? results[0] as UserModel? : null;
     final colourAnalysis = results[1] is ColourAnalysisResult ? results[1] as ColourAnalysisResult? : null;
+    final preferenceSnapshot = results[2] is DocumentSnapshot<Map<String, dynamic>>
+        ? results[2] as DocumentSnapshot<Map<String, dynamic>>
+        : null;
     final wardrobe = results[3] is List<WardrobeItem> ? results[3] as List<WardrobeItem> : const <WardrobeItem>[];
     final savedLooks = results[4] is List<Map<String, dynamic>> ? results[4] as List<Map<String, dynamic>> : const <Map<String, dynamic>>[];
+
+    final preferenceData = preferenceSnapshot?.data();
+    final failedReads = results.where((result) => result == null).length;
+    final degraded = failedReads > 0;
 
     return PersonalStyleContext(
       user: user,
@@ -127,7 +156,7 @@ class FirestoreService {
       wardrobe: List<WardrobeItem>.unmodifiable(wardrobe),
       savedLooks: List<Map<String, dynamic>>.unmodifiable(savedLooks),
       isDegraded: degraded,
-      errorMessage: errorMessage,
+      errorMessage: degraded ? 'Some personal style data could not be loaded.' : null,
     );
   }
 
@@ -136,9 +165,9 @@ class FirestoreService {
     if (currentUid == null || currentUid != user.uid.trim()) {
       throw StateError('Cannot create a profile for a different account.');
     }
-    await _db.collection('users').doc(currentUid).set(user.toMap()).timeout(
-      const Duration(seconds: 15),
-      onTimeout: () => throw TimeoutException('Creating your profile timed out. Please check your connection and try again.'),
+    await _withWriteTimeout(
+      _db.collection('users').doc(currentUid).set(user.toMap()),
+      'Creating your profile timed out. Please check your connection and try again.',
     );
   }
 
@@ -147,12 +176,15 @@ class FirestoreService {
     if (ownerUid == null) return null;
     final ref = _db.collection('users').doc(ownerUid);
     try {
-      final doc = await ref.get();
+      final doc = await _withReadTimeout(ref.get(), 'Loading your profile timed out.');
       if (!doc.exists) return null;
       return UserModel.fromFirestore(doc);
     } on FirebaseException catch (error) {
       if (error.code != 'unavailable') rethrow;
-      final cachedDoc = await ref.get(const GetOptions(source: Source.cache));
+      final cachedDoc = await _withReadTimeout(
+        ref.get(const GetOptions(source: Source.cache)),
+        'Loading cached profile data timed out.',
+      );
       if (!cachedDoc.exists) return null;
       return UserModel.fromFirestore(cachedDoc);
     }
@@ -161,10 +193,13 @@ class FirestoreService {
   static Future<void> updateUser(String uid, Map<String, dynamic> data) async {
     final ownerUid = _normalizeUid(uid);
     if (ownerUid == null) throw StateError('User session does not match the requested account.');
-    await _db.collection('users').doc(ownerUid).update({
-      ...data,
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
+    await _withWriteTimeout(
+      _db.collection('users').doc(ownerUid).update({
+        ...data,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }),
+      'Updating your profile timed out. Please try again.',
+    );
   }
 
   static Future<void> updateColourProfile({
@@ -181,33 +216,42 @@ class FirestoreService {
   static Future<void> saveAnalysis({required String uid, required AnalysisModel analysis}) async {
     final ownerUid = _normalizeUid(uid);
     if (ownerUid == null) throw StateError('User session does not match the requested account.');
-    await _db.collection('users').doc(ownerUid).collection('analysis').add(analysis.toMap());
+    await _withWriteTimeout(
+      _db.collection('users').doc(ownerUid).collection('analysis').add(analysis.toMap()),
+      'Saving your analysis timed out. Please try again.',
+    );
   }
 
   static Future<List<AnalysisModel>> getAnalysisHistory(String uid) async {
     final ownerUid = _normalizeUid(uid);
     if (ownerUid == null) return const [];
-    final snapshot = await _db.collection('users').doc(ownerUid).collection('analysis').orderBy('createdAt', descending: true).get();
+    final snapshot = await _withReadTimeout(
+      _db.collection('users').doc(ownerUid).collection('analysis').orderBy('createdAt', descending: true).get(),
+      'Loading analysis history timed out.',
+    );
     return snapshot.docs.map(AnalysisModel.fromFirestore).toList(growable: false);
   }
 
   static Future<void> saveAnalysisResult({required String uid, required ColourAnalysisResult result}) async {
     final ownerUid = _normalizeUid(uid);
     if (ownerUid == null) throw StateError('User session does not match the requested account.');
-    await _db.collection('users').doc(ownerUid).collection('analysis').add({
-      'season': result.season,
-      'undertone': result.undertone,
-      'brightness': result.brightness,
-      'contrast': result.contrast,
-      'imageUrl': result.imageUrl,
-      'colours': result.colours,
-      'faceShape': result.faceShape,
-      'faceShapeDescription': result.faceShapeDescription,
-      'faceMeasurements': result.faceMeasurements,
-      'faceStylingGuidance': result.faceStylingGuidance,
-      'colourReasons': result.colourReasons,
-      'createdAt': FieldValue.serverTimestamp(),
-    });
+    await _withWriteTimeout(
+      _db.collection('users').doc(ownerUid).collection('analysis').add({
+        'season': result.season,
+        'undertone': result.undertone,
+        'brightness': result.brightness,
+        'contrast': result.contrast,
+        'imageUrl': result.imageUrl,
+        'colours': result.colours,
+        'faceShape': result.faceShape,
+        'faceShapeDescription': result.faceShapeDescription,
+        'faceMeasurements': result.faceMeasurements,
+        'faceStylingGuidance': result.faceStylingGuidance,
+        'colourReasons': result.colourReasons,
+        'createdAt': FieldValue.serverTimestamp(),
+      }),
+      'Saving your colour analysis timed out. Please try again.',
+    );
   }
 
   static ColourAnalysisResult _resultFromData(Map<String, dynamic> data) {
@@ -237,14 +281,20 @@ class FirestoreService {
   static Future<List<ColourAnalysisResult>> getColourAnalysisHistory(String uid) async {
     final ownerUid = _normalizeUid(uid);
     if (ownerUid == null) return const [];
-    final snapshot = await _db.collection('users').doc(ownerUid).collection('analysis').orderBy('createdAt', descending: true).get();
+    final snapshot = await _withReadTimeout(
+      _db.collection('users').doc(ownerUid).collection('analysis').orderBy('createdAt', descending: true).get(),
+      'Loading colour analysis history timed out.',
+    );
     return snapshot.docs.map((doc) => _resultFromData(doc.data())).toList(growable: false);
   }
 
   static Future<ColourAnalysisResult?> getLatestColourAnalysis(String uid) async {
     final ownerUid = _normalizeUid(uid);
     if (ownerUid == null) return null;
-    final snapshot = await _db.collection('users').doc(ownerUid).collection('analysis').orderBy('createdAt', descending: true).limit(1).get();
+    final snapshot = await _withReadTimeout(
+      _db.collection('users').doc(ownerUid).collection('analysis').orderBy('createdAt', descending: true).limit(1).get(),
+      'Loading your latest colour analysis timed out.',
+    );
     if (snapshot.docs.isEmpty) return null;
     return _resultFromData(snapshot.docs.first.data());
   }
@@ -254,14 +304,20 @@ class FirestoreService {
   static Future<String> addWardrobeItem(WardrobeItem item) async {
     final ownerUid = _normalizeUid(item.userId);
     if (ownerUid == null) throw ArgumentError('A wardrobe item must belong to the signed-in user.');
-    final ref = await _wardrobe(ownerUid).add(item.toMap());
+    final ref = await _withWriteTimeout(
+      _wardrobe(ownerUid).add(item.toMap()),
+      'Adding your wardrobe item timed out. Please try again.',
+    );
     return ref.id;
   }
 
   static Future<List<WardrobeItem>> getWardrobeItems(String uid) async {
     final ownerUid = _normalizeUid(uid);
     if (ownerUid == null) return const [];
-    final snapshot = await _wardrobe(ownerUid).orderBy('createdAt', descending: true).get();
+    final snapshot = await _withReadTimeout(
+      _wardrobe(ownerUid).orderBy('createdAt', descending: true).get(),
+      'Loading your wardrobe timed out.',
+    );
     return snapshot.docs
         .map(WardrobeItem.fromFirestore)
         .where((item) => item.userId.isEmpty || item.userId == ownerUid)
@@ -287,14 +343,20 @@ class FirestoreService {
     final safeData = Map<String, dynamic>.from(data)
       ..remove('userId')
       ..remove('imageUrl');
-    await _wardrobe(ownerUid).doc(cleanId).update(safeData);
+    await _withWriteTimeout(
+      _wardrobe(ownerUid).doc(cleanId).update(safeData),
+      'Updating your wardrobe item timed out. Please try again.',
+    );
   }
 
   static Future<void> deleteWardrobeItem(String uid, String itemId) async {
     final ownerUid = _normalizeUid(uid);
     final cleanId = itemId.trim();
     if (ownerUid == null || cleanId.isEmpty) throw ArgumentError('Invalid wardrobe ownership or item ID.');
-    await _wardrobe(ownerUid).doc(cleanId).delete();
+    await _withWriteTimeout(
+      _wardrobe(ownerUid).doc(cleanId).delete(),
+      'Deleting your wardrobe item timed out. Please try again.',
+    );
   }
 
   static Future<String> saveOutfitLook({
@@ -318,7 +380,10 @@ class FirestoreService {
       throw ArgumentError('A saved look must contain at least one wardrobe item.');
     }
 
-    final wardrobeSnapshot = await _wardrobe(ownerUid).get();
+    final wardrobeSnapshot = await _withReadTimeout(
+      _wardrobe(ownerUid).get(),
+      'Checking wardrobe ownership timed out. Please try again.',
+    );
     final ownedIds = wardrobeSnapshot.docs.map((doc) => doc.id).toSet();
     if (sanitizedItemIds.any((id) => !ownedIds.contains(id))) {
       throw StateError('A saved look can only contain items from the current user wardrobe.');
@@ -335,13 +400,19 @@ class FirestoreService {
       if (title != null && title.trim().isNotEmpty) 'title': title.trim(),
       if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
     };
-    return (await _db.collection('users').doc(ownerUid).collection('savedLooks').add(payload)).id;
+    return (await _withWriteTimeout(
+      _db.collection('users').doc(ownerUid).collection('savedLooks').add(payload),
+      'Saving your look timed out. Please try again.',
+    )).id;
   }
 
   static Future<List<Map<String, dynamic>>> getSavedOutfitLooks(String uid) async {
     final ownerUid = _normalizeUid(uid);
     if (ownerUid == null) return const [];
-    final snapshot = await _db.collection('users').doc(ownerUid).collection('savedLooks').orderBy('createdAt', descending: true).get();
+    final snapshot = await _withReadTimeout(
+      _db.collection('users').doc(ownerUid).collection('savedLooks').orderBy('createdAt', descending: true).get(),
+      'Loading your saved looks timed out.',
+    );
     return snapshot.docs
         .map((doc) => {'id': doc.id, ...doc.data()})
         .toList(growable: false);
@@ -351,7 +422,10 @@ class FirestoreService {
     final ownerUid = _normalizeUid(uid);
     final cleanId = lookId.trim();
     if (ownerUid == null || cleanId.isEmpty) throw ArgumentError('Invalid saved look ownership or ID.');
-    await _db.collection('users').doc(ownerUid).collection('savedLooks').doc(cleanId).delete();
+    await _withWriteTimeout(
+      _db.collection('users').doc(ownerUid).collection('savedLooks').doc(cleanId).delete(),
+      'Deleting your saved look timed out. Please try again.',
+    );
   }
 
   static Future<CustomerDeletionResult> deleteCustomerData(String uid) async {
@@ -360,14 +434,14 @@ class FirestoreService {
 
     final userRef = _db.collection('users').doc(ownerUid);
     final consultationRef = _db.collection('consultations').doc(ownerUid);
-    final userDoc = await userRef.get();
-    final analysisSnapshot = await userRef.collection('analysis').get();
-    final wardrobeSnapshot = await userRef.collection('wardrobe').get();
-    final preferencesSnapshot = await userRef.collection('preferences').get();
-    final savedLooksSnapshot = await userRef.collection('savedLooks').get();
-    final notificationsSnapshot = await userRef.collection('notifications').get();
-    final consultationDoc = await consultationRef.get();
-    final messagesSnapshot = await consultationRef.collection('messages').get();
+    final userDoc = await _withReadTimeout(userRef.get(), 'Loading your account data timed out.');
+    final analysisSnapshot = await _withReadTimeout(userRef.collection('analysis').get(), 'Loading analysis data timed out.');
+    final wardrobeSnapshot = await _withReadTimeout(userRef.collection('wardrobe').get(), 'Loading wardrobe data timed out.');
+    final preferencesSnapshot = await _withReadTimeout(userRef.collection('preferences').get(), 'Loading preferences data timed out.');
+    final savedLooksSnapshot = await _withReadTimeout(userRef.collection('savedLooks').get(), 'Loading saved looks data timed out.');
+    final notificationsSnapshot = await _withReadTimeout(userRef.collection('notifications').get(), 'Loading notification data timed out.');
+    final consultationDoc = await _withReadTimeout(consultationRef.get(), 'Loading consultation data timed out.');
+    final messagesSnapshot = await _withReadTimeout(consultationRef.collection('messages').get(), 'Loading consultation messages timed out.');
 
     final imageUrls = <String>[];
     final profilePhotoUrl = userDoc.data()?['photoUrl'];
@@ -403,10 +477,13 @@ class FirestoreService {
     if (consultationDoc.exists) {
       batch.delete(consultationDoc.reference);
     }
-    if (userDoc.exists) {
-      batch.delete(userDoc.reference);
-    }
-    await batch.commit();
+    batch.delete(userRef);
+
+    await _withWriteTimeout(
+      batch.commit(),
+      'Deleting your account data timed out. Please try again.',
+    );
+
     return CustomerDeletionResult(
       wardrobeItemsDeleted: wardrobeSnapshot.docs.length,
       preferencesDeleted: preferencesSnapshot.docs.length,
@@ -415,13 +492,13 @@ class FirestoreService {
       notificationRecordsDeleted: notificationsSnapshot.docs.length,
       consultationMessagesDeleted: messagesSnapshot.docs.length,
       consultationDeleted: consultationDoc.exists,
-      userDocDeleted: userDoc.exists,
-      imageUrls: imageUrls,
+      userDocDeleted: true,
+      imageUrls: List<String>.unmodifiable(imageUrls),
     );
   }
 
   static List<String> _stringList(dynamic value) {
-    if (value is! List) return const [];
+    if (value is! Iterable) return const [];
     return value
         .whereType<String>()
         .map((item) => item.trim())
