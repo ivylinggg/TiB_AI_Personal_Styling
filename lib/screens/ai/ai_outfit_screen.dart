@@ -31,6 +31,15 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
     ('Date', Icons.favorite_border_rounded),
   ];
 
+  static const _directions = <(String, IconData)>[
+    ('Minimal', Icons.grid_view_rounded),
+    ('Elegant', Icons.auto_awesome_outlined),
+    ('Casual', Icons.weekend_outlined),
+    ('Smart Casual', Icons.business_center_outlined),
+    ('Feminine', Icons.favorite_border_rounded),
+    ('Trendy', Icons.trending_up_rounded),
+  ];
+
   String _occasion = 'Dinner';
   String _direction = 'Minimal';
 
@@ -750,15 +759,71 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
     children: [
       const Text(
         'CHOOSE THE STYLE DIRECTION',
-        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.25, color: AppColors.textMuted),
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w900,
+          letterSpacing: 1.25,
+          color: AppColors.textMuted,
+        ),
       ),
       const SizedBox(height: 9),
-      Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: const [
-          'Minimal', 'Elegant', 'Casual', 'Smart Casual', 'Feminine', 'Trendy',
-        ].map((direction) => _DirectionChip(direction: direction)).toList(),
+      SizedBox(
+        height: 88,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          itemCount: _directions.length,
+          separatorBuilder: (_, __) => const SizedBox(width: 9),
+          itemBuilder: (_, index) {
+            final item = _directions[index];
+            final selected = _direction == item.$1;
+            return InkWell(
+              onTap: () {
+                setState(() {
+                  _direction = item.$1;
+                  _generated = false;
+                  _savedLook = false;
+                  _look = const [];
+                  _aiResult = null;
+                  _excludedLookKeys.clear();
+                });
+              },
+              borderRadius: BorderRadius.circular(19),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                width: 112,
+                padding: const EdgeInsets.all(11),
+                decoration: BoxDecoration(
+                  color: selected ? AppColors.primaryDark : AppColors.surface,
+                  borderRadius: BorderRadius.circular(19),
+                  border: Border.all(
+                    color: selected ? AppColors.primaryDark : AppColors.border,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      item.$2,
+                      color: selected ? Colors.white : AppColors.primary,
+                      size: 19,
+                    ),
+                    const Spacer(),
+                    Text(
+                      item.$1,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: selected ? Colors.white : AppColors.textPrimary,
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
       ),
     ],
   );
