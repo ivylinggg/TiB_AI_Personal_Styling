@@ -325,7 +325,8 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
     if (_styling) return _message('Looking through your wardrobe and personal style…');
     if (_wardrobe.isEmpty) return _message('Add a few pieces to My Wardrobe first.');
     if (_look.isEmpty) return _message('No valid outfit was generated yet.');
-    final result = _aiResult!;
+    final result = _aiResult;
+    if (result == null) return _message('Generate an outfit to see the styling details.');
     final notes = result.stylingNotes;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
