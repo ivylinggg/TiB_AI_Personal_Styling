@@ -32,6 +32,7 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
   ];
 
   String _occasion = 'Dinner';
+  String _direction = 'Minimal';
 
   List<WardrobeItem> _wardrobe = const [];
 
@@ -206,6 +207,7 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
         uid: uid,
         wardrobe: _wardrobe,
         occasion: _occasion,
+        direction: _direction,
         profile: profile,
         styles: styles,
         preferences: preferences,
@@ -538,6 +540,10 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
 
                   const SizedBox(height: 14),
 
+                  _directionSection(),
+
+                  const SizedBox(height: 14),
+
                   _generateButton(profile),
 
                   const SizedBox(height: 18),
@@ -735,6 +741,24 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
             );
           },
         ),
+      ),
+    ],
+  );
+
+  Widget _directionSection() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      const Text(
+        'CHOOSE THE STYLE DIRECTION',
+        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.25, color: AppColors.textMuted),
+      ),
+      const SizedBox(height: 9),
+      Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: const [
+          'Minimal', 'Elegant', 'Casual', 'Smart Casual', 'Feminine', 'Trendy',
+        ].map((direction) => _DirectionChip(direction: direction)).toList(),
       ),
     ],
   );
