@@ -161,6 +161,26 @@ class AiStylingService {
     return tokens;
   }
 
+  static Set<String> _directionTokens(String value) {
+    final normalized = value.trim().toLowerCase();
+    if (normalized.isEmpty) return const {};
+    final tokens = <String>{..._cleanTokenSet([normalized])};
+    if (normalized == 'minimal') {
+      tokens.addAll({'minimal', 'clean', 'classic', 'simple', 'tailored'});
+    } else if (normalized == 'elegant') {
+      tokens.addAll({'elegant', 'polished', 'refined', 'timeless', 'tailored'});
+    } else if (normalized == 'casual') {
+      tokens.addAll({'casual', 'relaxed', 'everyday', 'comfortable', 'effortless'});
+    } else if (normalized == 'smart casual') {
+      tokens.addAll({'smart', 'casual', 'polished', 'comfortable', 'tailored'});
+    } else if (normalized == 'feminine') {
+      tokens.addAll({'feminine', 'soft', 'romantic', 'elegant', 'delicate'});
+    } else if (normalized == 'trendy') {
+      tokens.addAll({'trendy', 'modern', 'experimental', 'street', 'edgy'});
+    }
+    return tokens;
+  }
+
   static String? _lookKey(List<WardrobeItem> look) {
     final ids = look.map((item) => item.id.trim()).where((id) => id.isNotEmpty).toList()..sort();
     return ids.isEmpty ? null : ids.join('|');
@@ -194,6 +214,7 @@ class AiStylingService {
     List<WardrobeItem> items, {
     required ColourAnalysisResult profile,
     required String occasion,
+    required String direction,
     required List<String> styles,
     required List<String> preferences,
     List<WardrobeItem> anchors = const [],
@@ -202,6 +223,7 @@ class AiStylingService {
   }) {
     final cleanStyles = _cleanTokenSet(styles);
     final cleanPreferences = _cleanTokenSet(preferences);
+    final directionTokens = _directionTokens(direction);
     final occasionTokens = _occasionTokens(occasion);
     final scored = items.map((item) {
       var score = (feedbackBias[item.id] ?? 0).round();
@@ -214,6 +236,7 @@ class AiStylingService {
       if (profile.accentColours.any((value) => _colourMatches(colour, value))) score += 8;
       if (profile.lessIdealColours.any((value) => _colourMatches(colour, value))) score -= 10;
       if (season.isNotEmpty && (combined.contains(season) || item.season.toLowerCase().contains('all seasons'))) score += 12;
+      if (directionTokens.any(combined.contains)) score += 32;
       if (cleanStyles.any(combined.contains)) score += 14;
       if (cleanPreferences.any(combined.contains)) score += 10;
       if (occasionTokens.any(combined.contains)) score += 14;
@@ -238,6 +261,7 @@ class AiStylingService {
     List<WardrobeItem> look, {
     required ColourAnalysisResult profile,
     required String occasion,
+    required String direction,
     required List<String> styles,
     required List<String> preferences,
     WardrobeItem? selectedItem,
@@ -246,7 +270,7 @@ class AiStylingService {
     if (look.isEmpty) return 0;
     var score = 0;
     for (final item in look) {
-      score += _individualFitScore(item, profile: profile, occasion: occasion, styles: styles, preferences: preferences);
+      score += _individualFitScore(item, profile: profile, occasion: occasion, direction: direction, styles: styles, preferences: preferences);
     }
     for (var i = 0; i < look.length; i++) {
       for (var j = i + 1; j < look.length; j++) {
@@ -258,11 +282,12 @@ class AiStylingService {
     return score.clamp(0, 100);
   }
 
-  static int _individualFitScore(WardrobeItem item, {required ColourAnalysisResult profile, required String occasion, required List<String> styles, required List<String> preferences}) {
+  static int _individualFitScore(WardrobeItem item, {required ColourAnalysisResult profile, required String occasion, required String direction, required List<String> styles, required List<String> preferences}) {
     var score = 0;
     final colour = _normaliseColour(item.colour);
     final combined = '${item.name} ${item.style} ${item.season} ${item.occasion} ${item.formality} ${item.pattern} ${item.material} ${item.silhouette} ${item.fit} ${item.length} ${item.notes}'.toLowerCase();
     final season = profile.season.trim().toLowerCase();
+    final directionTokens = _directionTokens(direction);
     final occasionTokens = _occasionTokens(occasion);
     if (item.isFavourite) score += 5;
     if (profile.colours.any((value) => _colourMatches(colour, value))) score += 8;
@@ -270,6 +295,7 @@ class AiStylingService {
     if (profile.accentColours.any((value) => _colourMatches(colour, value))) score += 2;
     if (profile.lessIdealColours.any((value) => _colourMatches(colour, value))) score -= 4;
     if (season.isNotEmpty && (combined.contains(season) || item.season.toLowerCase().contains('all seasons'))) score += 3;
+    if (directionTokens.any(combined.contains)) score += 12;
     if (_cleanTokenSet(styles).any(combined.contains)) score += 4;
     if (_cleanTokenSet(preferences).any(combined.contains)) score += 3;
     if (occasionTokens.any(combined.contains)) score += 4;
@@ -378,6 +404,7 @@ class AiStylingService {
     required ColourAnalysisResult profile,
     List<String> styles = const [],
     List<String> preferences = const [],
+    String direction = '',
     Set<String> excludedLookKeys = const {},
     Map<String, double> feedbackBias = const {},
     Map<String, double> combinationBias = const {},
@@ -389,6 +416,7 @@ class AiStylingService {
           candidates.where((item) => item.category.trim() == category).toList(growable: false),
           profile: profile,
           occasion: occasion,
+          direction: direction,
           styles: styles,
           preferences: preferences,
           anchors: anchors,
@@ -439,6 +467,7 @@ class AiStylingService {
     required List<WardrobeItem> wardrobe,
     List<String> styles = const [],
     List<String> preferences = const [],
+    String direction = '',
     String occasion = '',
     WardrobeItem? selectedItem,
     Set<String> excludedLookKeys = const {},
@@ -504,6 +533,7 @@ class AiStylingService {
       owned,
       selectedItem: selectedItem,
       occasion: occasion,
+      direction: direction,
       profile: profile,
       styles: styles,
       preferences: preferences,
@@ -550,6 +580,7 @@ class AiStylingService {
                 'wardrobe': owned.map((item) => item.toMap()).toList(growable: false),
                 'styles': styles,
                 'preferences': preferences,
+                'direction': direction,
                 'occasion': occasion,
                 'personalBrand': colourSummary(profile),
                 'feedbackBias': feedbackBias,
@@ -591,6 +622,7 @@ class AiStylingService {
                   source: remote,
                   profile: profile,
                   occasion: occasion,
+                  direction: direction,
                   selectedItem: selectedItem,
                   styles: styles,
                   preferences: preferences,
@@ -611,6 +643,7 @@ class AiStylingService {
         source: null,
         profile: profile,
         occasion: occasion,
+        direction: direction,
         selectedItem: selectedItem,
         styles: styles,
         preferences: preferences,
@@ -679,16 +712,17 @@ class AiStylingService {
     AiStylingResult? source,
     required ColourAnalysisResult profile,
     required String occasion,
+    required String direction,
     WardrobeItem? selectedItem,
     List<String> styles = const [],
     List<String> preferences = const [],
     Map<String, double> combinationBias = const {},
   }) {
     final categories = <String, String>{for (final item in look) item.category.trim(): item.id};
-    final score = _scoreLook(look, profile: profile, occasion: occasion, styles: styles, preferences: preferences, selectedItem: selectedItem, combinationBias: combinationBias);
+    final score = _scoreLook(look, profile: profile, occasion: occasion, direction: direction, styles: styles, preferences: preferences, selectedItem: selectedItem, combinationBias: combinationBias);
     final computedBreakdown = <String, int>{
       'Colour': _scoreColourDimension(look, profile),
-      'Style': _scoreStyleDimension(look),
+      'Style': _scoreStyleDimension(look, direction),
       'Occasion': _scoreOccasionDimension(look, occasion),
       'Compatibility': _scoreCompatibilityDimension(look),
     };
@@ -729,12 +763,21 @@ class AiStylingService {
     return (total / look.length).round().clamp(0, 100);
   }
 
-  static int _scoreStyleDimension(List<WardrobeItem> look) {
+  static int _scoreStyleDimension(List<WardrobeItem> look, String direction) {
     if (look.isEmpty) return 0;
-    final families = look.map((item) => _styleFamily(item.style)).where((value) => value != 'unknown').toList(growable: false);
-    if (families.isEmpty) return 40;
-    final dominant = families.where((value) => value == families.first).length;
-    return ((dominant / families.length) * 100).round();
+    final directionTokens = _directionTokens(direction);
+    if (directionTokens.isEmpty) {
+      final families = look.map((item) => _styleFamily(item.style)).where((value) => value != 'unknown').toList(growable: false);
+      if (families.isEmpty) return 40;
+      final dominant = families.where((value) => value == families.first).length;
+      return ((dominant / families.length) * 100).round();
+    }
+    var matched = 0;
+    for (final item in look) {
+      final combined = '${item.name} ${item.style} ${item.formality} ${item.pattern} ${item.material} ${item.silhouette} ${item.fit} ${item.notes}'.toLowerCase();
+      if (directionTokens.any(combined.contains)) matched++;
+    }
+    return ((matched / look.length) * 100).round().clamp(0, 100);
   }
 
   static int _scoreOccasionDimension(List<WardrobeItem> look, String occasion) {
