@@ -881,6 +881,28 @@ class _AIOutfitScreenState extends State<AIOutfitScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        Container(
+          width: double.infinity,
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: AppColors.secondary.withValues(alpha: .55),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.tune_rounded, color: AppColors.primary, size: 16),
+              const SizedBox(width: 7),
+              Expanded(
+                child: Text(
+                  'Direction: $_direction  •  Occasion: $_occasion',
+                  style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800),
+                ),
+              ),
+            ],
+          ),
+        ),
+
         Row(
           children: [
             Expanded(
