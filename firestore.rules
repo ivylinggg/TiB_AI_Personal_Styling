@@ -7,7 +7,10 @@ service cloud.firestore {
     function userData(uid) { return get(/databases/$(database)/documents/users/$(uid)).data; }
     function currentUserData() { return userData(request.auth.uid); }
     function role() { return isSignedIn() ? currentUserData().get('role', 'customer') : 'customer'; }
-    function isAdmin() { return isSignedIn() && role() == 'admin'; }
+    function isAdmin() {
+      return isSignedIn()
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'customer') == 'admin';
+    }
     function isConsultant() { return isSignedIn() && role() == 'consultant'; }
     function isActiveConsultant() { return isConsultant() && currentUserData().get('isActive', true) == true; }
     function isPremiumUser() { return isSignedIn() && currentUserData().get('isPremium', false) == true; }
