@@ -27,6 +27,68 @@ class WardrobeScreen extends StatefulWidget {
   State<WardrobeScreen> createState() => _WardrobeScreenState();
 }
 
+class _WardrobeSearchField extends StatefulWidget {
+  const _WardrobeSearchField({
+    required this.controller,
+    required this.onChanged,
+  });
+
+  final TextEditingController controller;
+  final ValueChanged<String> onChanged;
+
+  @override
+  State<_WardrobeSearchField> createState() => _WardrobeSearchFieldState();
+}
+
+class _WardrobeSearchFieldState extends State<_WardrobeSearchField> {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surfaceMuted,
+        borderRadius: BorderRadius.circular(AppRadius.full),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: TextField(
+        controller: widget.controller,
+        onChanged: widget.onChanged,
+        style: const TextStyle(
+          color: AppColors.textPrimary,
+          fontSize: 14,
+        ),
+        decoration: InputDecoration(
+          hintText: 'Search your wardrobe...',
+          hintStyle: const TextStyle(
+            color: AppColors.textSecondary,
+            fontSize: 14,
+          ),
+          prefixIcon: const Icon(
+            Icons.search_rounded,
+            color: AppColors.textSecondary,
+          ),
+          suffixIcon: widget.controller.text.isEmpty
+              ? null
+              : IconButton(
+                  tooltip: 'Clear search',
+                  icon: const Icon(
+                    Icons.close_rounded,
+                    color: AppColors.textSecondary,
+                  ),
+                  onPressed: () {
+                    widget.controller.clear();
+                    widget.onChanged('');
+                    setState(() {});
+                  },
+                ),
+          border: InputBorder.none,
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(vertical: 14),
+        ),
+      ),
+    );
+  }
+}
+
 class _WardrobeScreenState extends State<WardrobeScreen>
     with SingleTickerProviderStateMixin {
   static const _brown = AppColors.primary;
@@ -78,6 +140,8 @@ class _WardrobeScreenState extends State<WardrobeScreen>
   bool _filtersExpanded = false;
 
   final TextEditingController _searchController = TextEditingController();
+  Stream<List<WardrobeItem>>? _wardrobeStream;
+  String? _wardrobeStreamUid;
   late final AnimationController _revealController;
   late final Animation<double> _headerReveal;
   late final Animation<double> _summaryReveal;
@@ -96,12 +160,14 @@ class _WardrobeScreenState extends State<WardrobeScreen>
     _summaryReveal = _stage(.18, .68);
     _browseReveal = _stage(.38, 1);
     _revealController.forward();
-    _searchController.addListener(_onSearchChanged);
   }
 
-  void _onSearchChanged() {
-    if (!mounted) return;
-    setState(() => _searchQuery = _searchController.text);
+  Stream<List<WardrobeItem>> _getWardrobeStream(String uid) {
+    if (_wardrobeStream == null || _wardrobeStreamUid != uid) {
+      _wardrobeStream = FirestoreService.watchWardrobeItems(uid);
+      _wardrobeStreamUid = uid;
+    }
+    return _wardrobeStream!;
   }
 
   Animation<double> _stage(double begin, double end) => CurvedAnimation(
@@ -126,9 +192,7 @@ class _WardrobeScreenState extends State<WardrobeScreen>
 
   @override
   void dispose() {
-    _searchController
-      ..removeListener(_onSearchChanged)
-      ..dispose();
+    _searchController.dispose();
     _revealController.dispose();
     super.dispose();
   }
@@ -191,7 +255,7 @@ class _WardrobeScreenState extends State<WardrobeScreen>
       body: uid == null
           ? const Center(child: Text('Please login to use your wardrobe.'))
           : StreamBuilder<List<WardrobeItem>>(
-              stream: FirestoreService.watchWardrobeItems(uid),
+              stream: _getWardrobeStream(uid),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
                   return const Center(
@@ -1053,50 +1117,16 @@ class _WardrobeScreenState extends State<WardrobeScreen>
     );
   }
 
-  Widget _buildSearchBar() => Container(
-    decoration: BoxDecoration(
-      color: AppColors.surfaceMuted,
-      borderRadius: BorderRadius.circular(AppRadius.full),
-      border: Border.all(color: AppColors.border),
-    ),
-    child: TextField(
+  Widget _buildSearchBar() {
+    return _WardrobeSearchField(
       controller: _searchController,
-      style: const TextStyle(color: _text, fontSize: 14),
-      decoration: InputDecoration(
-        hintText: 'Search your wardrobe...',
-        hintStyle: const TextStyle(color: _muted, fontSize: 14),
-        prefixIcon: const Icon(Icons.search_rounded, color: _muted),
-        suffixIcon: _searchQuery.isEmpty
-            ? null
-            : IconButton(
-                tooltip: 'Clear search',
-                icon: const Icon(Icons.close_rounded, color: _muted),
-                onPressed: _searchController.clear,
-              ),
-        border: InputBorder.none,
-        isDense: true,
-        contentPadding: const EdgeInsets.symmetric(vertical: 14),
-      ),
-    ),
-  );
-
-  IconData _categoryIcon(String category) {
-    switch (category) {
-      case 'Bottoms':
-      case 'Skirts':
-        return Icons.layers_outlined;
-      case 'Shoes':
-        return Icons.directions_walk_outlined;
-      case 'Accessories':
-        return Icons.diamond_outlined;
-      case 'Suits':
-        return Icons.business_center_outlined;
-      case 'Jackets':
-        return Icons.checkroom_outlined;
-      default:
-        return Icons.checkroom_outlined;
-    }
+      onChanged: (value) {
+        if (!mounted) return;
+        setState(() => _searchQuery = value);
+      },
+    );
   }
+
 
   Widget _buildEmptyState({required bool hasAnyItems, required String uid}) {
     if (!hasAnyItems) {
