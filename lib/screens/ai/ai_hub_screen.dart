@@ -8,6 +8,7 @@ import '../premium/ai_virtual_styling_studio_screen.dart';
 import '../premium/personal_tib_model_screen.dart';
 import 'ai_outfit_screen.dart';
 import 'style_me_screen.dart';
+import 'styling_history_screen.dart';
 import 'talk_to_tib_screen.dart';
 
 class AIHubScreen extends StatelessWidget {
@@ -100,6 +101,8 @@ class AIHubScreen extends StatelessWidget {
                   ),
                 ],
               ),
+              const SizedBox(height: 10),
+              _historyFeature(context),
               const SizedBox(height: 22),
               _heading('VISUAL STYLE SPACE', 'Move from advice to something you can see.'),
               const SizedBox(height: 11),
@@ -266,6 +269,21 @@ class AIHubScreen extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _historyFeature(BuildContext context) {
+    return _visualFeature(
+      context,
+      eyebrow: 'SAVED LOOKS',
+      title: 'Styling History',
+      subtitle: 'View, reuse or remove your saved outfit combinations.',
+      icon: Icons.history_rounded,
+      background: AppColors.surface,
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const StylingHistoryScreen()),
       ),
     );
   }
