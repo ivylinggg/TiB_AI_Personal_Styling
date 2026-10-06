@@ -53,6 +53,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   bool get isPreview => context.read<PreviewContext>().isCustomerPreview;
 
+  double get profileCompletion {
+    final currentUser = user;
+    if (currentUser == null) return 0.0;
+
+    int completed = 0;
+    const total = 7;
+
+    if (currentUser.name.trim().isNotEmpty) completed++;
+    if (currentUser.email.trim().isNotEmpty) completed++;
+    if (currentUser.gender?.trim().isNotEmpty == true) completed++;
+    if (currentUser.ageRange?.trim().isNotEmpty == true) completed++;
+    if (currentUser.ethnicity?.trim().isNotEmpty == true) completed++;
+    if (currentUser.occupation?.trim().isNotEmpty == true) completed++;
+    if (currentUser.preferredBrands.isNotEmpty) completed++;
+
+    return completed / total;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -238,6 +256,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         children: [
           _identityHero(),
           const SizedBox(height: 24),
+          _profileCompletionCard(),
+          const SizedBox(height: 24),
           _sectionLabel('YOUR STYLE IDENTITY', 'The colours and style direction that make VYEA personal to you.'),
           const SizedBox(height: 12),
           _identityPanel(),
@@ -316,6 +336,120 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _metric(String value, String label) => Column(children: [Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)), const SizedBox(height: 3), Text(label, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.textSecondary, fontSize: 9.5))]);
   Widget _metricDivider() => Container(width: 1, height: 28, color: AppColors.border);
+
+  Widget _profileCompletionCard() {
+    final completion = profileCompletion;
+    final percentage = (completion * 100).round();
+    final currentUser = user!;
+
+    final completedItems = <String>[];
+
+    if (currentUser.name.trim().isNotEmpty) completedItems.add('Name');
+    if (currentUser.email.trim().isNotEmpty) completedItems.add('Email');
+    if (currentUser.gender?.trim().isNotEmpty == true) completedItems.add('Gender');
+    if (currentUser.ageRange?.trim().isNotEmpty == true) completedItems.add('Age');
+    if (currentUser.ethnicity?.trim().isNotEmpty == true) completedItems.add('Ethnicity');
+    if (currentUser.occupation?.trim().isNotEmpty == true) completedItems.add('Occupation');
+    if (currentUser.preferredBrands.isNotEmpty) completedItems.add('Brands');
+
+    final isComplete = percentage == 100;
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: AppColors.secondary,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  isComplete
+                      ? Icons.check_circle_outline_rounded
+                      : Icons.person_outline_rounded,
+                  color: AppColors.primaryDark,
+                ),
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Profile completion',
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      isComplete
+                          ? 'Your profile is complete.'
+                          : 'Complete your profile for a more personalised experience.',
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 10.5,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Text(
+                '$percentage%',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.primaryDark,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(99),
+            child: LinearProgressIndicator(value: completion, minHeight: 8),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            '${completedItems.length} of 7 profile details completed',
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          if (!isComplete) ...[
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                if (currentUser.gender?.trim().isEmpty != false)
+                  const _ProfileCompletionChip(label: 'Gender'),
+                if (currentUser.ageRange?.trim().isEmpty != false)
+                  const _ProfileCompletionChip(label: 'Age'),
+                if (currentUser.ethnicity?.trim().isEmpty != false)
+                  const _ProfileCompletionChip(label: 'Ethnicity'),
+                if (currentUser.occupation?.trim().isEmpty != false)
+                  const _ProfileCompletionChip(label: 'Occupation'),
+                if (currentUser.preferredBrands.isEmpty)
+                  const _ProfileCompletionChip(label: 'Brands'),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 
   Widget _identityPanel() {
     final result = analysis;
@@ -466,4 +600,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ],
         ),
       );
+}
+
+class _ProfileCompletionChip extends StatelessWidget {
+  final String label;
+
+  const _ProfileCompletionChip({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(99),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Text(
+        'Add $label',
+        style: const TextStyle(
+          color: AppColors.textSecondary,
+          fontSize: 9.5,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
 }
