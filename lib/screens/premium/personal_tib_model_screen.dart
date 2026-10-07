@@ -5,8 +5,7 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_gradients.dart';
 import '../../services/tib_model_service.dart';
-import '../../widgets/tib_virtual_model_preview.dart';
-import 'ai_generated_try_on_screen.dart';
+import 'realtime_virtual_try_on_screen.dart';
 import 'create_tib_model_screen.dart';
 
 class PersonalTibModelScreen extends StatefulWidget {
@@ -85,7 +84,7 @@ class _PersonalTibModelScreenState extends State<PersonalTibModelScreen> {
   void _openTryOn() {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const AiGeneratedTryOnScreen()),
+      MaterialPageRoute(builder: (_) => const RealtimeVirtualTryOnScreen()),
     );
   }
 
@@ -139,7 +138,7 @@ class _PersonalTibModelScreenState extends State<PersonalTibModelScreen> {
                   const SizedBox(height: 14),
                   _measurementCard(model),
                   const SizedBox(height: 14),
-                  TibVirtualModelPreview(model: model, height: 440),
+                  _liveTryOnReferenceCard(model),
                   const SizedBox(height: 14),
                   _dressMeCard(),
                 ],
@@ -416,6 +415,54 @@ class _PersonalTibModelScreenState extends State<PersonalTibModelScreen> {
     );
   }
 
+  Widget _liveTryOnReferenceCard(TibModelProfile model) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: AppGradients.soft,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.primarySoft),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 50,
+            height: 50,
+            decoration: const BoxDecoration(
+              color: AppColors.primary,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.camera_front_rounded,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Live camera identity',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
+                ),
+                SizedBox(height: 3),
+                Text(
+                  'Your real camera feed becomes the person in the fitting room. No 3D avatar is used.',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 10.5,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _dressMeCard() {
     return Material(
       color: Colors.transparent,
@@ -446,12 +493,12 @@ class _PersonalTibModelScreenState extends State<PersonalTibModelScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Dress My TiB Model',
+                      'Start Live Try-On',
                       style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900),
                     ),
                     SizedBox(height: 3),
                     Text(
-                      'Pick real pieces from My Wardrobe and see them on this same person.',
+                      'Open the camera and switch your real wardrobe pieces live.',
                       style: TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 10.5,
