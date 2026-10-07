@@ -157,13 +157,7 @@ exports.mintDecartClientToken = onCall({
   try {
     const {createDecartClient} = await import("@decartai/sdk");
     const client = createDecartClient({apiKey: secret.trim()});
-    const token = await client.tokens.create({
-      expiresIn: 300,
-      metadata: {
-        service_tier: 0,
-        firebase_uid: request.auth.uid,
-      },
-    });
+    const token = await client.tokens.create({expiresIn: 300});
 
     if (!token || typeof token.apiKey !== "string" || !token.apiKey.trim()) {
       throw new Error("Decart did not return a client token.");
