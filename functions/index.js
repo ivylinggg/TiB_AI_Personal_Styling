@@ -132,3 +132,53 @@ exports.createStaffAccount = onCall({
     role,
   };
 });
+
+const {defineSecret} = require("firebase-functions/params");
+
+const DECART_API_KEY = defineSecret("DECART_API_KEY");
+
+exports.mintDecartClientToken = onCall({
+  region: "asia-southeast1",
+  enforceAppCheck: false,
+  secrets: [DECART_API_KEY],
+}, async (request) => {
+  if (!request.auth || !request.auth.uid) {
+    throw new HttpsError("unauthenticated", "You must be signed in.");
+  }
+
+  const secret = DECART_API_KEY.value();
+  if (!secret || !secret.trim()) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Realtime Virtual Try-On is not configured on the server."
+    );
+  }
+
+  try {
+    const {createDecartClient} = await import("@decartai/sdk");
+    const client = createDecartClient({apiKey: secret.trim()});
+    const token = await client.tokens.create({
+      expiresIn: 300,
+      metadata: {
+        service_tier: 0,
+        firebase_uid: request.auth.uid,
+      },
+    });
+
+    if (!token || typeof token.apiKey !== "string" || !token.apiKey.trim()) {
+      throw new Error("Decart did not return a client token.");
+    }
+
+    return {
+      apiKey: token.apiKey.trim(),
+      expiresAt: token.expiresAt || null,
+    };
+  } catch (error) {
+    logger.error("Unable to mint Decart client token", error);
+    throw new HttpsError(
+      "internal",
+      "Unable to start the realtime try-on session."
+    );
+  }
+});
+
