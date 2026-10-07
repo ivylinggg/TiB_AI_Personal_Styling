@@ -31,7 +31,7 @@
 	<key>UIFileSharingEnabled</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>VYEA uses your camera to take photos for Colour Analysis, profile photos, and wardrobe items.</string>
+	<string>VYEA uses your camera to let you try on your wardrobe in real time.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>VYEA may save photos to your photo library when needed for your styling experience.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
