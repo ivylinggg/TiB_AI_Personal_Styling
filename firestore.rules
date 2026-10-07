@@ -29,6 +29,11 @@ service cloud.firestore {
         && request.resource.data.get('email', resource.data.get('email', '')) == resource.data.get('email', '');
     }
     function isOwnAssignedConsultation() { return (isActiveConsultant() || isAdmin()) && resource.data.get('assignedConsultantId', null) == request.auth.uid; }
+    function isAssignedConsultation(userId) {
+      return (isActiveConsultant() || isAdmin())
+        && get(/databases/$(database)/documents/consultations/$(userId))
+            .data.get('assignedConsultantId', null) == request.auth.uid;
+    }
     function canReadConsultation(userId) {
       return isOwner(userId) || isAdmin() || isOwnAssignedConsultation()
         || (isActiveConsultant() && resource.data.get('assignedConsultantId', null) == null && resource.data.get('status', '') in ['open', 'waiting_for_consultant']);
@@ -121,9 +126,9 @@ service cloud.firestore {
       allow delete: if isAdmin();
 
       match /messages/{messageId} {
-        allow read: if isOwner(userId) || isAdmin() || isOwnAssignedConsultation();
-        allow create: if (isOwner(userId) && request.resource.data.get('senderType', '') == 'user' && request.resource.data.get('senderId', '') == request.auth.uid) || (isOwnAssignedConsultation() && request.resource.data.get('senderType', '') == 'consultant' && request.resource.data.get('senderId', '') == request.auth.uid);
-        allow update: if isAdmin() || (isOwner(userId) && resource.data.get('senderType', '') == 'consultant' && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read'])) || (isOwnAssignedConsultation() && resource.data.get('senderType', '') == 'user' && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']));
+        allow read: if isOwner(userId) || isAdmin() || isAssignedConsultation(userId);
+        allow create: if (isOwner(userId) && request.resource.data.get('senderType', '') == 'user' && request.resource.data.get('senderId', '') == request.auth.uid) || (isAssignedConsultation(userId) && request.resource.data.get('senderType', '') == 'consultant' && request.resource.data.get('senderId', '') == request.auth.uid);
+        allow update: if isAdmin() || (isOwner(userId) && resource.data.get('senderType', '') == 'consultant' && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read'])) || (isAssignedConsultation(userId) && resource.data.get('senderType', '') == 'user' && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']));
         allow delete: if isAdmin();
       }
     }
