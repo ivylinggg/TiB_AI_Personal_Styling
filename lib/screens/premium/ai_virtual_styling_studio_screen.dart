@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_gradients.dart';
 import '../../services/tib_model_service.dart';
-import 'ai_generated_try_on_screen.dart';
+import 'realtime_virtual_try_on_screen.dart';
 import 'ai_style_me_screen.dart';
 import 'create_tib_model_screen.dart';
 import 'outfit_builder_screen.dart';
@@ -40,7 +40,7 @@ class _AIVirtualStylingStudioScreenState extends State<AIVirtualStylingStudioScr
   }
 
   void _openBuilder(BuildContext context) => Navigator.push(context, MaterialPageRoute(builder: (_) => const OutfitBuilderScreen()));
-  void _openTryOn(BuildContext context) => Navigator.push(context, MaterialPageRoute(builder: (_) => const AiGeneratedTryOnScreen()));
+  void _openTryOn(BuildContext context) => Navigator.push(context, MaterialPageRoute(builder: (_) => const RealtimeVirtualTryOnScreen()));
   void _openAiStylist(BuildContext context) => Navigator.push(context, MaterialPageRoute(builder: (_) => const AiStyleMeScreen()));
 
   @override
@@ -68,7 +68,7 @@ class _AIVirtualStylingStudioScreenState extends State<AIVirtualStylingStudioScr
             const SizedBox(height: 10),
             Row(children: [Expanded(child: _smallAction(icon: Icons.checkroom_rounded, title: 'Build a Look', subtitle: 'Choose pieces', enabled: ready, onTap: () => _openBuilder(context))), const SizedBox(width: 10), Expanded(child: _smallAction(icon: Icons.auto_awesome_rounded, title: 'Let VYEA Style', subtitle: 'AI chooses', enabled: ready, onTap: () => _openAiStylist(context)))]),
             const SizedBox(height: 10),
-            _actionCard(icon: Icons.view_in_ar_rounded, title: 'AI Virtual Try-On', subtitle: 'Select pieces from your wardrobe and visualise them on your VYEA Model.', onTap: () => _openTryOn(context), enabled: ready, highlight: true),
+            _actionCard(icon: Icons.view_in_ar_rounded, title: 'Live Virtual Try-On', subtitle: 'Open your camera and switch your wardrobe live.', onTap: () => _openTryOn(context), enabled: ready, highlight: true),
             const SizedBox(height: 20),
             _privacyCard(ready),
           ],
