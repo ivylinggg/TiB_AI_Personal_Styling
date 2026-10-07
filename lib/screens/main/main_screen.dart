@@ -38,8 +38,8 @@ class _MainScreenState extends State<MainScreen> {
     const AnalysisScreen(),
     const AIHubScreen(),
     const WardrobeScreen(),
-    const ConsultationHubScreen(),
     const CustomerForumScreen(),
+    const ConsultationHubScreen(),
     const ProfileScreen(),
   ];
 
