@@ -9,7 +9,6 @@ import '../premium/personal_tib_model_screen.dart';
 import 'ai_outfit_screen.dart';
 import 'style_me_screen.dart';
 import 'styling_history_screen.dart';
-import 'talk_to_tib_screen.dart';
 
 class AIHubScreen extends StatelessWidget {
   const AIHubScreen({super.key});
@@ -65,10 +64,6 @@ class AIHubScreen extends StatelessWidget {
               const SizedBox(height: 18),
               _contextCard(style, readyInputs),
               const SizedBox(height: 22),
-              _heading('START HERE', 'Choose how you want VYEA to help.'),
-              const SizedBox(height: 11),
-              _heroAction(context),
-              const SizedBox(height: 22),
               _heading('BUILD A LOOK', 'Use your wardrobe, palette and occasion together.'),
               const SizedBox(height: 11),
               Row(
@@ -109,10 +104,6 @@ class AIHubScreen extends StatelessWidget {
               _modelFeature(context, style),
               const SizedBox(height: 10),
               _virtualFeature(context),
-              const SizedBox(height: 22),
-              _heading('CONVERSATION', 'Start naturally, then turn advice into action.'),
-              const SizedBox(height: 11),
-              _talkFeature(context),
             ],
           ),
         ),
@@ -201,51 +192,6 @@ class AIHubScreen extends StatelessWidget {
         ],
       );
 
-  Widget _heroAction(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(28),
-      child: InkWell(
-        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TalkToTibScreen())),
-        borderRadius: BorderRadius.circular(28),
-        child: Ink(
-          padding: const EdgeInsets.fromLTRB(19, 20, 18, 18),
-          decoration: BoxDecoration(gradient: AppGradients.primary, borderRadius: BorderRadius.circular(28)),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(width: 48, height: 48, decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle), child: const Icon(Icons.chat_bubble_outline_rounded, color: AppColors.primary, size: 22)),
-                  const Spacer(),
-                  _miniPill('FREE'),
-                ],
-              ),
-              const SizedBox(height: 18),
-              const Text('Talk it through\nwith VYEA.', style: TextStyle(color: Colors.white, fontSize: 25, height: 1.04, fontWeight: FontWeight.w900, letterSpacing: -.75)),
-              const SizedBox(height: 7),
-              const Text('Ask about your wardrobe, colours, proportions or what to wear next. Then move into a complete look when you are ready.', style: TextStyle(color: Colors.white70, fontSize: 11.8, height: 1.45)),
-              const SizedBox(height: 17),
-              Row(children: [_tag('Ask'), const SizedBox(width: 7), _tag('Explore'), const SizedBox(width: 7), _tag('Build'), const Spacer(), const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 20)]),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _miniPill(String label) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-        decoration: BoxDecoration(color: Colors.white.withValues(alpha: .16), borderRadius: BorderRadius.circular(99)),
-        child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: .8)),
-      );
-
-  Widget _tag(String label) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-        decoration: BoxDecoration(color: Colors.white.withValues(alpha: .12), borderRadius: BorderRadius.circular(10)),
-        child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 9.5, fontWeight: FontWeight.w800)),
-      );
-
   Widget _toolCard({required IconData icon, required String eyebrow, required String title, required String subtitle, required VoidCallback onTap}) {
     return Material(
       color: Colors.transparent,
@@ -307,39 +253,6 @@ class AIHubScreen extends StatelessWidget {
         background: null,
         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AIVirtualStylingStudioScreen())),
       );
-
-  Widget _talkFeature(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(21),
-      child: InkWell(
-        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TalkToTibScreen())),
-        borderRadius: BorderRadius.circular(21),
-        child: Ink(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(21), border: Border.all(color: AppColors.border)),
-          child: const Row(
-            children: [
-              _ConversationIcon(),
-              SizedBox(width: 13),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Quick styling question?', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
-                    SizedBox(height: 4),
-                    Text('One question is enough. Start here, then build the look.', style: TextStyle(color: AppColors.textSecondary, fontSize: 10.8, height: 1.35)),
-                  ],
-                ),
-              ),
-              SizedBox(width: 8),
-              Icon(Icons.arrow_forward_rounded, color: AppColors.primary, size: 19),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 
   Widget _visualFeature(BuildContext context, {required String eyebrow, required String title, required String subtitle, required IconData icon, required VoidCallback onTap, Color? background}) {
     return Material(
