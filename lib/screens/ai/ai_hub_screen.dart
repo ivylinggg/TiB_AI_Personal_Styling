@@ -265,12 +265,12 @@ class AIHubScreen extends StatelessWidget {
 
   Widget _virtualFeature(BuildContext context) => _visualFeature(
         context,
-        eyebrow: 'VISUAL STYLING',
-        title: 'Dress Your Model',
-        subtitle: 'Explore your styling direction in a visual workspace.',
-        icon: Icons.view_in_ar_rounded,
+        eyebrow: 'LIVE VIRTUAL TRY-ON',
+        title: 'Try On Your Wardrobe Live',
+        subtitle: 'Use your camera and switch your real wardrobe pieces in real time.',
+        icon: Icons.camera_front_rounded,
         background: null,
-        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AIVirtualStylingStudioScreen())),
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RealtimeVirtualTryOnScreen())),
       );
 
   Widget _visualFeature(BuildContext context, {required String eyebrow, required String title, required String subtitle, required IconData icon, required VoidCallback onTap, Color? background}) {
