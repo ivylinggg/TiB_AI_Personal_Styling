@@ -300,13 +300,26 @@ class LiveConsultancyService {
   }) async {
     final consultant = FirebaseAuth.instance.currentUser;
     final value = text.trim();
-    if (consultant == null || !_isValidMessage(value)) return;
-    if (!await _hasConsultantRole(consultant.uid)) return;
+    if (consultant == null) {
+      throw StateError('No signed-in consultant/admin account.');
+    }
+    if (!_isValidMessage(value)) {
+      throw StateError('Message is empty or exceeds 1500 characters.');
+    }
+    if (!await _hasConsultantRole(consultant.uid)) {
+      throw StateError('This account is not an active consultant/admin.');
+    }
 
     final ref = _consultation(uid);
-    final data = (await ref.get()).data() ?? <String, dynamic>{};
+    final snapshot = await ref.get();
+    if (!snapshot.exists) {
+      throw StateError('Consultation not found.');
+    }
+    final data = snapshot.data() ?? <String, dynamic>{};
     final assignedId = data['assignedConsultantId'] as String?;
-    if (assignedId != consultant.uid) return;
+    if (assignedId != consultant.uid) {
+      throw StateError('This consultation is not assigned to your account.');
+    }
 
     final firstReplyExists = data['firstConsultantReplyAt'] != null;
     final createdAt = data['createdAt'];
