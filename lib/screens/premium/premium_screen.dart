@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_gradients.dart';
-import 'virtual_try_on_screen.dart';
+import 'realtime_virtual_try_on_screen.dart';
 
 class PremiumScreen extends StatefulWidget {
   const PremiumScreen({super.key});
@@ -120,7 +120,7 @@ class _PremiumScreenState extends State<PremiumScreen>
     // The entitlement check can be restored here when the app officially launches.
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const VirtualTryOnScreen()),
+      MaterialPageRoute(builder: (_) => const RealtimeVirtualTryOnScreen()),
     );
   }
 
@@ -430,7 +430,7 @@ class _PremiumScreenState extends State<PremiumScreen>
                     children: [
                       Expanded(
                         child: Text(
-                          'TiB Virtual Try-On',
+                          'TiB Live Virtual Try-On',
                           style: TextStyle(
                             color: _text,
                             fontSize: 16,
@@ -451,7 +451,7 @@ class _PremiumScreenState extends State<PremiumScreen>
                   ),
                   SizedBox(height: 4),
                   Text(
-                    'Create your TiB Model, choose your own clothes or let AI build a look for you.',
+                    'Try your own wardrobe on yourself live through the camera.',
                     style: TextStyle(
                       color: _muted,
                       fontSize: 11.5,
