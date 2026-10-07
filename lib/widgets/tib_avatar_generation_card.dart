@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../core/constants/app_colors.dart';
 import '../core/constants/app_gradients.dart';
-import '../screens/premium/ai_avatar_styling_screen.dart';
+import '../screens/premium/realtime_virtual_try_on_screen.dart';
 import '../services/tib_avatar_service.dart';
 import '../services/tib_model_service.dart';
 
@@ -43,7 +43,7 @@ class _TibAvatarGenerationCardState extends State<TibAvatarGenerationCard> {
     if (!mounted) return;
     await Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => const AiAvatarStylingScreen()),
+      MaterialPageRoute(builder: (context) => const RealtimeVirtualTryOnScreen()),
     );
     if (mounted) await _refresh();
   }
@@ -87,10 +87,10 @@ class _TibAvatarGenerationCardState extends State<TibAvatarGenerationCard> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Your AI Virtual You', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
+                    Text('Your Live Virtual Try-On', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
                     SizedBox(height: 3),
                     Text(
-                      'See your own face, body shape and proportions wearing clothes from your wardrobe.',
+                      'See yourself wearing pieces from your own wardrobe in real time.',
                       style: TextStyle(color: AppColors.textSecondary, fontSize: 10.5, height: 1.4),
                     ),
                   ],
@@ -103,11 +103,11 @@ class _TibAvatarGenerationCardState extends State<TibAvatarGenerationCard> {
             spacing: 7,
             runSpacing: 7,
             children: [
-              _chip('Your face'),
-              _chip('Your body shape'),
-              _chip('Your proportions'),
+              _chip('Live camera'),
+              _chip('Your identity'),
               _chip('Your wardrobe'),
-              _chip('AI styling'),
+              _chip('Real-time swap'),
+              _chip('AI VTON'),
             ],
           ),
           const SizedBox(height: 14),
@@ -116,7 +116,7 @@ class _TibAvatarGenerationCardState extends State<TibAvatarGenerationCard> {
             child: FilledButton.icon(
               onPressed: _openAiAvatar,
               icon: const Icon(Icons.auto_awesome_rounded),
-              label: const Text('Create My Virtual You'),
+              label: const Text('Start Live Try-On'),
             ),
           ),
         ],
