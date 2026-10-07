@@ -342,18 +342,20 @@ class _MainScreenState extends State<MainScreen> {
       ),
       bottomNavigationBar: SafeArea(
         top: false,
-        minimum: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+        minimum: const EdgeInsets.fromLTRB(14, 0, 14, 10),
         child: Container(
           decoration: BoxDecoration(
             color: AppColors.surface,
-            borderRadius: BorderRadius.circular(22),
+            borderRadius: BorderRadius.circular(24),
             border: Border.all(color: AppColors.border),
           ),
+          clipBehavior: Clip.antiAlias,
           child: NavigationBar(
             selectedIndex: _selectedIndex,
-            height: 70,
+            height: 66,
             backgroundColor: Colors.transparent,
             indicatorColor: AppColors.primarySoft,
+            labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
             onDestinationSelected: _selectTab,
             destinations: const [
               NavigationDestination(
