@@ -117,70 +117,142 @@ class _ConsultationManagementScreenState extends State<ConsultationManagementScr
                     final myUid = FirebaseAuth.instance.currentUser?.uid;
                     final isMine = assigned != null && assigned == myUid;
                     final waiting = status == 'waiting_for_consultant' || status == 'open';
+
                     return Card(
                       elevation: 0,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(17), side: const BorderSide(color: AppColors.border)),
-                      child: InkWell(
+                      shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(17),
-                        child: FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                          future: FirebaseFirestore.instance.collection('users').doc(userId).get(),
-                          builder: (context, userSnapshot) {
-                            final profileName = userSnapshot.data?.data()?['name'] as String?;
-                            final userName = profileName?.trim().isNotEmpty == true
-                                ? profileName!.trim()
-                                : (storedUserName?.trim().isNotEmpty == true
-                                    ? storedUserName!.trim()
-                                    : 'VYEA User');
-                            return InkWell(
-                              borderRadius: BorderRadius.circular(17),
-                              onTap: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => ConsultantChatScreen(
-                                    uid: doc.id,
-                                    userName: userName,
-                                  ),
+                        side: const BorderSide(color: AppColors.border),
+                      ),
+                      child: FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                        future: FirebaseFirestore.instance.collection('users').doc(userId).get(),
+                        builder: (context, userSnapshot) {
+                          final profileName = userSnapshot.data?.data()?['name'] as String?;
+                          final userName = profileName?.trim().isNotEmpty == true
+                              ? profileName!.trim()
+                              : (storedUserName?.trim().isNotEmpty == true
+                                  ? storedUserName!.trim()
+                                  : 'VYEA User');
+
+                          return InkWell(
+                            borderRadius: BorderRadius.circular(17),
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => ConsultantChatScreen(
+                                  uid: doc.id,
+                                  userName: userName,
                                 ),
                               ),
-                              child: Padding(
-                                padding: const EdgeInsets.all(15),
-                                child: Column(children: [
-                                  Row(children: [
-                                    CircleAvatar(backgroundColor: AppColors.secondary, child: const Icon(Icons.person_outline_rounded, color: AppColors.primary)),
-                                    const SizedBox(width: 12),
-                                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                      Row(children: [Expanded(child: Text(userName, style: const TextStyle(fontWeight: FontWeight.w800))), if (unread > 0) Text('$unread new', style: const TextStyle(color: AppColors.primary, fontSize: 9, fontWeight: FontWeight.w800))]),
-                                const SizedBox(height: 3),
-                                Text(lastMessage ?? 'New consultation', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11.5)),
-                                const SizedBox(height: 3),
-                                Text('User ID: $userId', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 9, color: AppColors.textMuted)),
-                              ])),
-                            ]),
-                            const SizedBox(height: 10),
-                            Row(children: [
-                              _StatusPill(status: status),
-                              const Spacer(),
-                              if (isMine) const Text('Assigned to you', style: TextStyle(fontSize: 9.5, color: AppColors.primary, fontWeight: FontWeight.w700)),
-                              if (waiting && !isMine) FilledButton.icon(
-                                onPressed: () async {
-                                  final ok = await LiveConsultancyService.acceptConsultation(doc.id);
-                                  if (!context.mounted || ok) return;
-                                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('This request was already accepted.')));
-                                },
-                                icon: const Icon(Icons.check_rounded, size: 15),
-                                label: const Text('Accept'),
-                                style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
-                              ) else const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
-                                    ]),
-                                  ]),
-                                ]),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.all(15),
+                              child: Column(
+                                children: [
+                                  Row(
+                                    children: [
+                                      CircleAvatar(
+                                        backgroundColor: AppColors.secondary,
+                                        child: const Icon(
+                                          Icons.person_outline_rounded,
+                                          color: AppColors.primary,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              children: [
+                                                Expanded(
+                                                  child: Text(
+                                                    userName,
+                                                    style: const TextStyle(fontWeight: FontWeight.w800),
+                                                  ),
+                                                ),
+                                                if (unread > 0)
+                                                  Text(
+                                                    '$unread new',
+                                                    style: const TextStyle(
+                                                      color: AppColors.primary,
+                                                      fontSize: 9,
+                                                      fontWeight: FontWeight.w800,
+                                                    ),
+                                                  ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 3),
+                                            Text(
+                                              lastMessage ?? 'New consultation',
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(fontSize: 11.5),
+                                            ),
+                                            const SizedBox(height: 3),
+                                            Text(
+                                              'User ID: $userId',
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                fontSize: 9,
+                                                color: AppColors.textMuted,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Row(
+                                    children: [
+                                      _StatusPill(status: status),
+                                      const Spacer(),
+                                      if (isMine)
+                                        const Text(
+                                          'Assigned to you',
+                                          style: TextStyle(
+                                            fontSize: 9.5,
+                                            color: AppColors.primary,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      if (waiting && !isMine)
+                                        FilledButton.icon(
+                                          onPressed: () async {
+                                            final ok = await LiveConsultancyService.acceptConsultation(doc.id);
+                                            if (!context.mounted || ok) return;
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              const SnackBar(
+                                                content: Text('This request was already accepted.'),
+                                              ),
+                                            );
+                                          },
+                                          icon: const Icon(Icons.check_rounded, size: 15),
+                                          label: const Text('Accept'),
+                                          style: FilledButton.styleFrom(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 12,
+                                              vertical: 8,
+                                            ),
+                                          ),
+                                        )
+                                      else
+                                        const Icon(
+                                          Icons.chevron_right_rounded,
+                                          color: AppColors.textMuted,
+                                        ),
+                                    ],
+                                  ),
+                                ],
                               ),
-                            );
-                          },
-                        ),
-                      );
+                            ),
+                          );
+                        },
+                      ),
                     );
-                  },
+                  }
                 );
               },
             ),
