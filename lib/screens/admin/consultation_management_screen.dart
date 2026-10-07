@@ -254,12 +254,34 @@ class _ConsultantChatScreenState extends State<ConsultantChatScreen> {
     final user = FirebaseAuth.instance.currentUser;
     final name = user?.displayName?.trim().isNotEmpty == true ? user!.displayName!.trim() : 'TiB Consultant';
     setState(() => _sending = true);
-    _composer.clear();
     try {
-      await LiveConsultancyService.sendConsultantMessage(uid: widget.uid, text: text, consultantName: name);
-      await LiveConsultancyService.markMessagesRead(widget.uid, by: 'consultant');
-      if (mounted) setState(() => _status = 'consultant_replied');
-    } finally { if (mounted) setState(() => _sending = false); }
+      await LiveConsultancyService.sendConsultantMessage(
+        uid: widget.uid,
+        text: text,
+        consultantName: name,
+      );
+      if (mounted) {
+        _composer.clear();
+        setState(() => _status = 'consultant_replied');
+      }
+      try {
+        await LiveConsultancyService.markMessagesRead(
+          widget.uid,
+          by: 'consultant',
+        );
+      } catch (_) {
+        // The reply was already committed. A read-marker failure should not
+        // make a successful send look like a failed message.
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not send message: $error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
   }
 
   Future<void> _resolve() async {
