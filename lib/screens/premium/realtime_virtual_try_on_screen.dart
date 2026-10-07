@@ -30,7 +30,6 @@ class _RealtimeVirtualTryOnScreenState extends State<RealtimeVirtualTryOnScreen>
   final DecartVton _vton = DecartVton();
   final List<StreamSubscription<Object?>> _subscriptions = <StreamSubscription<Object?>>[];
   VtonLifecycleObserver? _lifecycle;
-  VtonConnectionState _state = VtonConnectionState.idle;
   TibModelProfile? _model;
   List<WardrobeItem> _wardrobe = const [];
   WardrobeItem? _selectedItem;
@@ -47,10 +46,6 @@ class _RealtimeVirtualTryOnScreenState extends State<RealtimeVirtualTryOnScreen>
   }
 
   void _attachObservers() {
-    _subscriptions.add(_vton.connectionStates.listen((state) {
-      if (!mounted) return;
-      setState(() => _state = state);
-    }));
     _subscriptions.add(_vton.errors.listen((error) {
       if (!mounted) return;
       setState(() {
@@ -75,7 +70,7 @@ class _RealtimeVirtualTryOnScreenState extends State<RealtimeVirtualTryOnScreen>
     try {
       final results = await Future.wait<dynamic>([TibModelService.load(), FirestoreService.getWardrobeItems(uid)]);
       if (!mounted || FirebaseAuth.instance.currentUser?.uid != uid) return;
-      final model = results[0] as TibModelProfile;
+      final model = results[0] as TibModelProfile?;
       final items = results[1] is List<WardrobeItem> ? List<WardrobeItem>.from(results[1] as List<WardrobeItem>) : <WardrobeItem>[];
       setState(() {
         _model = model;
