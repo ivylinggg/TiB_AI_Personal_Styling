@@ -166,6 +166,25 @@ class AIHubScreen extends StatelessWidget {
     );
   }
 
+  Widget _miniPill(String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.primarySoft,
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: AppColors.primaryDark,
+          fontSize: 8,
+          fontWeight: FontWeight.w900,
+          letterSpacing: .8,
+        ),
+      ),
+    );
+  }
+
   Widget _contextRow(IconData icon, String text) {
     return Row(
       children: [
@@ -287,20 +306,6 @@ class AIHubScreen extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _ConversationIcon extends StatelessWidget {
-  const _ConversationIcon();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 46,
-      height: 46,
-      decoration: const BoxDecoration(color: AppColors.secondary, shape: BoxShape.circle),
-      child: const Icon(Icons.forum_outlined, color: AppColors.primary, size: 21),
     );
   }
 }
