@@ -17,6 +17,7 @@ dependencies:
   firebase_core: ^4.0.0
   firebase_auth: ^6.0.0
   cloud_firestore: ^6.0.0
+  cloud_functions: ^6.5.0
   firebase_storage: ^13.0.0
   firebase_messaging: ^16.0.0
 
@@ -29,6 +30,7 @@ dependencies:
   # Camera & Gallery
   image_picker: ^1.2.0
   camera: ^0.11.2
+  permission_handler: ^13.0.2
 
   # AI / ML
   google_mlkit_face_detection: ^0.13.1
@@ -60,8 +62,9 @@ dependencies:
   # AI Runtime
   flutter_onnxruntime: ^1.8.5
 
-  # 3D Avatar / Interactive Model Viewer
+  # Legacy 3D model viewer retained for existing files; live VTON is now the active try-on path.
   model_viewer_plus: ^1.10.0
+  decart_vton_flutter: ^1.0.1
 
   # Calendar
   table_calendar: ^3.2.0
