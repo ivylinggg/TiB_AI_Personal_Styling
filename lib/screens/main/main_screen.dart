@@ -10,6 +10,7 @@ import '../../services/notification_service.dart';
 import '../../services/preview_context.dart';
 import '../admin/admin_main_screen.dart';
 import '../ai/ai_hub_screen.dart';
+import '../ai/consultation_hub_screen.dart';
 import '../analysis/analysis_screen.dart';
 import '../auth/login_screen.dart';
 import '../dashboard/dashboard_designed_screen.dart';
@@ -37,6 +38,7 @@ class _MainScreenState extends State<MainScreen> {
     const AnalysisScreen(),
     const AIHubScreen(),
     const WardrobeScreen(),
+    const ConsultationHubScreen(),
     const CustomerForumScreen(),
     const ProfileScreen(),
   ];
@@ -378,6 +380,11 @@ class _MainScreenState extends State<MainScreen> {
                 icon: Icon(Icons.forum_outlined),
                 selectedIcon: Icon(Icons.forum_rounded),
                 label: 'Forum',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.support_agent_outlined),
+                selectedIcon: Icon(Icons.support_agent_rounded),
+                label: 'Consult',
               ),
               NavigationDestination(
                 icon: Icon(Icons.person_outline_rounded),
