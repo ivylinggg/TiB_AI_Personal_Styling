@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_gradients.dart';
 import '../../core/state/personal_style_provider.dart';
-import '../premium/ai_virtual_styling_studio_screen.dart';
 import '../premium/realtime_virtual_try_on_screen.dart';
 import '../premium/personal_tib_model_screen.dart';
 import 'ai_outfit_screen.dart';
