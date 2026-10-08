@@ -27,6 +27,13 @@ require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelpe
 
 flutter_ios_podfile_setup
 
+# Firebase is resolved through Swift Package Manager in the current Flutter
+# setup. Google ML Kit is still CocoaPods-based and also depends on
+# GoogleDataTransport. Use a local stub here so CocoaPods does not link a
+# second GoogleDataTransport copy; the real implementation is supplied by
+# Firebase's SPM dependency graph.
+pod 'GoogleDataTransport', :path => 'GoogleDataTransportStub'
+
 # ONNX Runtime is consumed by flutter_onnxruntime.
 # Keep the existing static-link workaround for that dependency graph.
 pre_install do |_installer|
