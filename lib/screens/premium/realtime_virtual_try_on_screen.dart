@@ -56,7 +56,7 @@ class _RealtimeVirtualTryOnScreenState extends State<RealtimeVirtualTryOnScreen>
     _lifecycle = VtonLifecycleObserver(
       onError: (error) {
         if (!mounted) return;
-        setState(() => _status = 'Live session recovery failed: ' + error.message);
+        setState(() => _status = 'Live session recovery failed: ${error.message}');
       },
     )..attach();
   }
@@ -129,7 +129,7 @@ class _RealtimeVirtualTryOnScreenState extends State<RealtimeVirtualTryOnScreen>
       setState(() { _busy = false; _status = 'LIVE — move naturally. Choose a wardrobe piece below to try it on.'; });
     } catch (error) {
       if (!mounted) return;
-      setState(() { _busy = false; _status = 'Could not start live try-on: ' + error.toString(); });
+      setState(() { _busy = false; _status = 'Could not start live try-on: ${error.toString()}'; });
     }
   }
 
@@ -147,10 +147,10 @@ class _RealtimeVirtualTryOnScreenState extends State<RealtimeVirtualTryOnScreen>
     try {
       final facing = await _vton.switchCamera();
       if (!mounted) return;
-      setState(() { _busy = false; _status = 'Live — using the ' + facing.name + ' camera.'; });
+      setState(() { _busy = false; _status = 'Live — using the ${facing.name} camera.'; });
     } catch (error) {
       if (!mounted) return;
-      setState(() { _busy = false; _status = 'Could not switch camera: ' + error.toString(); });
+      setState(() { _busy = false; _status = 'Could not switch camera: ${error.toString()}'; });
     }
   }
 
@@ -158,7 +158,7 @@ class _RealtimeVirtualTryOnScreenState extends State<RealtimeVirtualTryOnScreen>
     final url = item.imageUrl.trim();
     if (url.isEmpty) throw const FormatException('This wardrobe item has no image.');
     final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 20));
-    if (response.statusCode < 200 || response.statusCode >= 300) throw HttpException('Wardrobe image returned HTTP ' + response.statusCode.toString() + '.', uri: Uri.parse(url));
+    if (response.statusCode < 200 || response.statusCode >= 300) throw HttpException('Wardrobe image returned HTTP ${response.statusCode}.', uri: Uri.parse(url));
     if (response.bodyBytes.isEmpty) throw const FormatException('The wardrobe image is empty.');
     if (response.bodyBytes.length > _maxGarmentBytes) throw const FormatException('This wardrobe image is larger than 5 MB and cannot be used for live try-on.');
     final contentType = response.headers['content-type']?.split(';').first.toLowerCase();
@@ -174,22 +174,22 @@ class _RealtimeVirtualTryOnScreenState extends State<RealtimeVirtualTryOnScreen>
   String _promptFor(WardrobeItem item) {
     final category = item.category.trim().isEmpty ? 'garment' : item.category.trim();
     final name = item.name.trim().isEmpty ? category : item.name.trim();
-    final colour = item.colour.trim().isEmpty ? '' : ' ' + item.colour.trim();
-    final style = item.style.trim().isEmpty ? '' : ' ' + item.style.trim();
-    return 'Substitute the current ' + category + ' with this exact' + colour + style + ' ' + name + ' from the supplied wardrobe reference image. Keep the same real person, face, body proportions, pose and natural silhouette. Preserve the garment colour, material, construction and visible details. Do not replace the person with a generic model.';
+    final colour = item.colour.trim().isEmpty ? '' : ' ${item.colour.trim()}';
+    final style = item.style.trim().isEmpty ? '' : ' ${item.style.trim()}';
+    return 'Substitute the current $category with this exact$colour$style $name from the supplied wardrobe reference image. Keep the same real person, face, body proportions, pose and natural silhouette. Preserve the garment colour, material, construction and visible details. Do not replace the person with a generic model.';
   }
 
   Future<void> _selectWardrobeItem(WardrobeItem item) async {
     if (!_isLive || _busy) return;
-    setState(() { _busy = true; _loadingItemId = item.id; _status = 'Preparing ' + item.name + ' for live try-on…'; });
+    setState(() { _busy = true; _loadingItemId = item.id; _status = 'Preparing ${item.name} for live try-on…'; });
     try {
       final file = await _downloadGarment(item);
       await _vton.setOutfit(outfit: VtonOutfit(prompt: _promptFor(item), referenceImagePath: file.path, enhance: false));
       if (!mounted) return;
-      setState(() { _selectedItem = item; _busy = false; _loadingItemId = null; _status = 'LIVE — ' + item.name + ' is now on you.'; });
+      setState(() { _selectedItem = item; _busy = false; _loadingItemId = null; _status = 'LIVE — ${item.name} is now on you.'; });
     } catch (error) {
       if (!mounted) return;
-      setState(() { _busy = false; _loadingItemId = null; _status = 'Could not apply ' + item.name + ': ' + error.toString(); });
+      setState(() { _busy = false; _loadingItemId = null; _status = 'Could not apply ${item.name}: ${error.toString()}'; });
     }
   }
 
