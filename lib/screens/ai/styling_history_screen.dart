@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -28,7 +29,7 @@ class _StylingHistoryScreenState extends State<StylingHistoryScreen> {
   Future<void> _loadHistory() async {
     try {
       final feedback = await StyleFeedbackService.getRecentFeedback(limit: 100);
-      final uid = StyleFeedbackService.currentUidForHistory;
+      final uid = FirebaseAuth.instance.currentUser?.uid;
       if (uid == null || uid.isEmpty) {
         if (mounted) setState(() => _loading = false);
         return;
