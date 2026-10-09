@@ -166,7 +166,7 @@ class _RealtimeVirtualTryOnScreenState extends State<RealtimeVirtualTryOnScreen>
     if (contentType != null && !supported.contains(contentType)) throw const FormatException('The wardrobe image must be JPEG, PNG, or WebP.');
     final extension = contentType == 'image/png' ? 'png' : contentType == 'image/webp' ? 'webp' : 'jpg';
     final directory = await getTemporaryDirectory();
-    final file = File(directory.path + '/vyea_vton_' + item.id.trim() + '.' + extension);
+    final file = File('${directory.path}/vyea_vton_${item.id.trim()}.$extension');
     await file.writeAsBytes(response.bodyBytes, flush: true);
     return file;
   }
