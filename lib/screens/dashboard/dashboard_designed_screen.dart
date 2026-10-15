@@ -26,6 +26,7 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> with 
   Future<TibStyleJourney>? _journeyFuture;
   bool _challengeCompleted = false;
   bool _completingChallenge = false;
+  bool _refreshing = false;
   String? _requestUid;
 
   @override
@@ -47,46 +48,52 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> with 
   }
 
   Future<void> _load({bool force = false}) async {
-    final style = context.read<PersonalStyleProvider>();
-    await style.refresh(force: force);
-    if (!mounted) return;
-    final uid = style.uid;
-    _requestUid = uid;
-    if (uid == null) {
+    if (_refreshing) return;
+    _refreshing = true;
+    try {
+      final style = context.read<PersonalStyleProvider>();
+      await style.refresh(force: force);
+      if (!mounted) return;
+      final uid = style.uid;
+      _requestUid = uid;
+      if (uid == null) {
+        setState(() {
+          _recommendationFuture = null;
+          _challengeFuture = null;
+          _journeyFuture = null;
+          _challengeCompleted = false;
+        });
+        return;
+      }
+
+      final recommendation = TodayRecommendationService.getRecommendation(
+        analysis: style.colourAnalysis,
+        personalStyle: style.styles.isNotEmpty ? style.styles.first : null,
+        wardrobe: style.wardrobe.map((item) => item.toMap()).toList(),
+      );
+      final challenge = DailyChallengeService.personalizedToday(uid, analysis: style.colourAnalysis);
+      final journey = TibStyleJourneyService.load(uid);
+
+      if (!mounted) return;
       setState(() {
-        _recommendationFuture = null;
-        _challengeFuture = null;
-        _journeyFuture = null;
+        _recommendationFuture = recommendation;
+        _challengeFuture = challenge;
+        _journeyFuture = journey;
         _challengeCompleted = false;
       });
-      return;
-    }
 
-    final recommendation = TodayRecommendationService.getRecommendation(
-      analysis: style.colourAnalysis,
-      personalStyle: style.styles.isNotEmpty ? style.styles.first : null,
-      wardrobe: style.wardrobe.map((item) => item.toMap()).toList(),
-    );
-    final challenge = DailyChallengeService.personalizedToday(uid, analysis: style.colourAnalysis);
-    final journey = TibStyleJourneyService.load(uid);
-
-    if (!mounted) return;
-    setState(() {
-      _recommendationFuture = recommendation;
-      _challengeFuture = challenge;
-      _journeyFuture = journey;
-      _challengeCompleted = false;
-    });
-
-    try {
-      await challenge;
-      if (!mounted || _requestUid != uid) return;
-      final completed = await DailyChallengeService.isCompleted(uid);
-      if (!mounted || _requestUid != uid) return;
-      setState(() => _challengeCompleted = completed);
-    } catch (_) {
-      if (!mounted || _requestUid != uid) return;
-      setState(() => _challengeCompleted = false);
+      try {
+        await challenge;
+        if (!mounted || _requestUid != uid) return;
+        final completed = await DailyChallengeService.isCompleted(uid);
+        if (!mounted || _requestUid != uid) return;
+        setState(() => _challengeCompleted = completed);
+      } catch (_) {
+        if (!mounted || _requestUid != uid) return;
+        setState(() => _challengeCompleted = false);
+      }
+    } finally {
+      _refreshing = false;
     }
   }
 
@@ -133,59 +140,81 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> with 
         return Scaffold(
           backgroundColor: AppColors.background,
           body: SafeArea(
-            child: RefreshIndicator(
-              onRefresh: _refresh,
-              child: ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(20, 18, 20, 38),
-                children: [
-                  Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      const Text('VYEA  /  STYLE COMMAND CENTER', style: TextStyle(color: AppColors.primary, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1.4)),
-                      const SizedBox(height: 8),
-                      Text(greeting, style: const TextStyle(fontSize: 28, height: 1.05, fontWeight: FontWeight.w900, letterSpacing: -1)),
-                      const SizedBox(height: 6),
-                      const Text('Your personal styling system, in one place.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.45)),
-                    ])),
-                    IconButton(tooltip: 'Refresh', onPressed: _refresh, icon: const Icon(Icons.refresh_rounded)),
-                  ]),
-                  const SizedBox(height: 18),
-                  _welcomeCard(style),
-                  const SizedBox(height: 20),
-                  _sectionLabel('PERSONAL SYSTEM', 'The foundation behind your recommendations.'),
-                  const SizedBox(height: 11),
-                  GridView.count(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 10,
-                    mainAxisSpacing: 10,
-                    childAspectRatio: 1.13,
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final wide = constraints.maxWidth >= 900;
+                final horizontalPadding = wide ? 32.0 : 20.0;
+                final contentWidth = wide ? 1040.0 : double.infinity;
+                return RefreshIndicator(
+                  onRefresh: _refresh,
+                  child: ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: EdgeInsets.fromLTRB(horizontalPadding, 18, horizontalPadding, 38),
                     children: [
-                      _systemCard(icon: Icons.palette_outlined, title: 'Colour Profile', status: style.hasColourProfile ? 'Ready' : 'Set up', subtitle: style.hasColourProfile ? _colourSummary(style) : 'Discover your colouring and face traits.', onTap: () => _open(const AnalysisScreen())),
-                      _systemCard(icon: Icons.person_outline_rounded, title: 'Personal TiB', status: style.hasTiBModel ? 'Ready' : 'Set up', subtitle: style.hasTiBModel ? 'Your styling model is ready to use.' : 'Create your personal model for better styling.', onTap: () => _open(const CreateTibModelScreen())),
-                      _systemCard(icon: Icons.checkroom_outlined, title: 'Wardrobe', status: '${style.wardrobe.length} pieces', subtitle: style.hasWardrobe ? 'Your real wardrobe can power outfit decisions.' : 'Add your first fashion item.', onTap: () => _open(const WardrobeScreen())),
-                      _systemCard(icon: Icons.auto_awesome_rounded, title: 'AI Stylist', status: style.hasSavedLooks ? '${style.savedLooks.length} looks' : 'Explore', subtitle: 'Generate looks from your personal context.', onTap: () => _open(const AIHubScreen())),
+                      Center(
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(maxWidth: contentWidth),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                  const Text('VYEA  /  STYLE COMMAND CENTER', semanticsLabel: 'VYEA Style Command Center', style: TextStyle(color: AppColors.primary, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1.4)),
+                                  const SizedBox(height: 8),
+                                  Text(greeting, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 28, height: 1.05, fontWeight: FontWeight.w900, letterSpacing: -1)),
+                                  const SizedBox(height: 6),
+                                  const Text('Your personal styling system, in one place.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.45)),
+                                ])),
+                                Semantics(button: true, label: 'Refresh dashboard', child: IconButton(tooltip: 'Refresh dashboard', onPressed: _refreshing ? null : _refresh, icon: const Icon(Icons.refresh_rounded))),
+                              ]),
+                              const SizedBox(height: 18),
+                              _welcomeCard(style),
+                              const SizedBox(height: 20),
+                              _sectionLabel('PERSONAL SYSTEM', 'The foundation behind your recommendations.'),
+                              const SizedBox(height: 11),
+                              _systemGrid(style, wide),
+                              const SizedBox(height: 22),
+                              _sectionLabel('STYLE JOURNEY', 'Your progress builds as you use TiB.'),
+                              const SizedBox(height: 11),
+                              _journeyCard(),
+                              const SizedBox(height: 22),
+                              _sectionLabel('TODAY', 'A small signal to help you style with intention.'),
+                              const SizedBox(height: 11),
+                              _todayCard(),
+                              const SizedBox(height: 22),
+                              _sectionLabel('DAILY CHALLENGE', 'One simple action. A little more style confidence.'),
+                              const SizedBox(height: 11),
+                              _challengeCard(),
+                            ],
+                          ),
+                        ),
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 22),
-                  _sectionLabel('STYLE JOURNEY', 'Your progress builds as you use TiB.'),
-                  const SizedBox(height: 11),
-                  _journeyCard(),
-                  const SizedBox(height: 22),
-                  _sectionLabel('TODAY', 'A small signal to help you style with intention.'),
-                  const SizedBox(height: 11),
-                  _todayCard(),
-                  const SizedBox(height: 22),
-                  _sectionLabel('DAILY CHALLENGE', 'One simple action. A little more style confidence.'),
-                  const SizedBox(height: 11),
-                  _challengeCard(),
-                ],
-              ),
+                );
+              },
             ),
           ),
         );
       },
+    );
+  }
+
+  Widget _systemGrid(PersonalStyleProvider style, bool wide) {
+    final columns = wide ? 4 : 2;
+    return GridView.count(
+      crossAxisCount: columns,
+      crossAxisSpacing: 10,
+      mainAxisSpacing: 10,
+      childAspectRatio: wide ? 1.35 : 1.13,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      children: [
+        _systemCard(icon: Icons.palette_outlined, title: 'Colour Profile', status: style.hasColourProfile ? 'Ready' : 'Set up', subtitle: style.hasColourProfile ? _colourSummary(style) : 'Discover your colouring and face traits.', onTap: () => _open(const AnalysisScreen())),
+        _systemCard(icon: Icons.person_outline_rounded, title: 'Personal TiB', status: style.hasTiBModel ? 'Ready' : 'Set up', subtitle: style.hasTiBModel ? 'Your styling model is ready to use.' : 'Create your personal model for better styling.', onTap: () => _open(const CreateTibModelScreen())),
+        _systemCard(icon: Icons.checkroom_outlined, title: 'Wardrobe', status: '${style.wardrobe.length} pieces', subtitle: style.hasWardrobe ? 'Your real wardrobe can power outfit decisions.' : 'Add your first fashion item.', onTap: () => _open(const WardrobeScreen())),
+        _systemCard(icon: Icons.auto_awesome_rounded, title: 'AI Stylist', status: style.hasSavedLooks ? '${style.savedLooks.length} looks' : 'Explore', subtitle: 'Generate looks from your personal context.', onTap: () => _open(const AIHubScreen())),
+      ],
     );
   }
 
@@ -217,20 +246,22 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> with 
         const SizedBox(height: 6),
         Text(completed == 3 ? 'Your core styling inputs are ready to power more personal recommendations.' : 'Complete your colour profile, Personal TiB and wardrobe to make every recommendation more personal.', style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.45)),
         const SizedBox(height: 14),
-        ClipRRect(borderRadius: BorderRadius.circular(10), child: LinearProgressIndicator(minHeight: 7, value: progress, backgroundColor: Colors.white.withValues(alpha: .55), valueColor: const AlwaysStoppedAnimation(AppColors.primary))),
+        Semantics(label: 'Profile setup progress: $completed of 3 complete', child: ClipRRect(borderRadius: BorderRadius.circular(10), child: LinearProgressIndicator(minHeight: 7, value: progress, backgroundColor: Colors.white.withValues(alpha: .55), valueColor: const AlwaysStoppedAnimation(AppColors.primary))),),
       ]),
     );
   }
 
-  Widget _sectionLabel(String title, String subtitle) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(color: AppColors.textMuted, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1.35)), const SizedBox(height: 4), Text(subtitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.35))]);
+  Widget _sectionLabel(String title, String subtitle) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Semantics(header: true, child: Text(title, style: const TextStyle(color: AppColors.textMuted, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1.35))), const SizedBox(height: 4), Text(subtitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.35))]);
 
   Widget _systemCard({required IconData icon, required String title, required String status, required String subtitle, required VoidCallback onTap}) {
     return Material(color: Colors.transparent, borderRadius: BorderRadius.circular(21), child: InkWell(onTap: onTap, borderRadius: BorderRadius.circular(21), child: Ink(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(21), border: Border.all(color: AppColors.border)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [Container(width: 39, height: 39, decoration: const BoxDecoration(color: AppColors.secondary, shape: BoxShape.circle), child: Icon(icon, color: AppColors.primary, size: 19)), const Spacer(), Flexible(child: _statusPill(status))]),
+      Row(children: [Semantics(excludeSemantics: true, child: Container(width: 39, height: 39, decoration: const BoxDecoration(color: AppColors.secondary, shape: BoxShape.circle), child: Icon(icon, color: AppColors.primary, size: 19))), const SizedBox(width: 8), Expanded(child: Align(alignment: Alignment.centerRight, child: _statusPill(status)))],),
       const Spacer(),
       Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
       const SizedBox(height: 4),
       Text(subtitle, maxLines: 3, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.3, height: 1.35)),
+      const SizedBox(height: 4),
+      const Align(alignment: Alignment.centerRight, child: Icon(Icons.arrow_forward_rounded, size: 15)),
     ]))));
   }
 
@@ -244,7 +275,7 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> with 
         const SizedBox(height: 8),
         Text('${journey.points} XP · ${journey.streak} day streak · ${journey.completedChallenges} challenges', style: const TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.4)),
         const SizedBox(height: 13),
-        ClipRRect(borderRadius: BorderRadius.circular(10), child: LinearProgressIndicator(minHeight: 7, value: journey.progress.clamp(0.0, 1.0), backgroundColor: AppColors.secondary, valueColor: const AlwaysStoppedAnimation(AppColors.primary))),
+        Semantics(label: 'Style journey progress: ${(journey.progress.clamp(0.0, 1.0) * 100).round()} percent', child: ClipRRect(borderRadius: BorderRadius.circular(10), child: LinearProgressIndicator(minHeight: 7, value: journey.progress.clamp(0.0, 1.0), backgroundColor: AppColors.secondary, valueColor: const AlwaysStoppedAnimation(AppColors.primary))),),
       ]));
     });
   }
@@ -288,7 +319,7 @@ class _DashboardDesignedScreenState extends State<DashboardDesignedScreen> with 
     });
   }
 
-  Widget _statusPill(String text) => Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5), decoration: BoxDecoration(color: AppColors.secondary.withValues(alpha: .65), borderRadius: BorderRadius.circular(999)), child: Text(text, style: const TextStyle(color: AppColors.primaryDark, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: .7)));
+  Widget _statusPill(String text) => Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5), decoration: BoxDecoration(color: AppColors.secondary.withValues(alpha: .65), borderRadius: BorderRadius.circular(999)), child: Text(text, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.primaryDark, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: .7)));
 
   Widget _loadingCard() => Container(height: 92, decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)), alignment: Alignment.center, child: const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2)));
 
