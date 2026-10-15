@@ -49,27 +49,29 @@ class WardrobeItem {
     this.updatedAt,
   });
 
-  factory WardrobeItem.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final data = doc.data() ?? <String, dynamic>{};
+  factory WardrobeItem.fromFirestore(
+    DocumentSnapshot<Map<String, dynamic>> doc,
+  ) {
+    final data = doc.data() ?? const <String, dynamic>{};
     return WardrobeItem(
       id: doc.id,
-      userId: data['userId'] as String? ?? '',
-      imageUrl: data['imageUrl'] as String? ?? '',
-      name: data['name'] as String? ?? 'Untitled item',
-      category: data['category'] as String? ?? 'Other',
-      colour: data['colour'] as String? ?? 'Unknown',
-      style: data['style'] as String? ?? 'Everyday',
-      season: data['season'] as String? ?? 'All seasons',
-      isFavourite: data['isFavourite'] as bool? ?? false,
-      notes: data['notes'] as String? ?? '',
-      occasion: data['occasion'] as String? ?? '',
-      formality: data['formality'] as String? ?? '',
-      pattern: data['pattern'] as String? ?? '',
-      material: data['material'] as String? ?? '',
-      silhouette: data['silhouette'] as String? ?? '',
-      fit: data['fit'] as String? ?? '',
-      length: data['length'] as String? ?? '',
-      layering: data['layering'] as bool?,
+      userId: _stringOrDefault(data['userId'], ''),
+      imageUrl: _stringOrDefault(data['imageUrl'], ''),
+      name: _stringOrDefault(data['name'], 'Untitled item'),
+      category: _stringOrDefault(data['category'], 'Other'),
+      colour: _stringOrDefault(data['colour'], 'Unknown'),
+      style: _stringOrDefault(data['style'], 'Everyday'),
+      season: _stringOrDefault(data['season'], 'All seasons'),
+      isFavourite: data['isFavourite'] == true,
+      notes: _stringOrDefault(data['notes'], ''),
+      occasion: _stringOrDefault(data['occasion'], ''),
+      formality: _stringOrDefault(data['formality'], ''),
+      pattern: _stringOrDefault(data['pattern'], ''),
+      material: _stringOrDefault(data['material'], ''),
+      silhouette: _stringOrDefault(data['silhouette'], ''),
+      fit: _stringOrDefault(data['fit'], ''),
+      length: _stringOrDefault(data['length'], ''),
+      layering: _boolOrNull(data['layering']),
       warmth: _intFromValue(data['warmth']),
       statementLevel: _intFromValue(data['statementLevel']),
       createdAt: _dateTimeFromValue(data['createdAt']),
@@ -167,6 +169,11 @@ class WardrobeItem {
         createdAt: createdAt,
         updatedAt: updatedAt ?? this.updatedAt,
       );
+
+  static String _stringOrDefault(dynamic value, String fallback) =>
+      value is String ? value : fallback;
+
+  static bool? _boolOrNull(dynamic value) => value is bool ? value : null;
 
   static int? _intFromValue(dynamic value) => value is num ? value.round() : null;
 
