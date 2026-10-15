@@ -108,6 +108,9 @@ class SettingsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
+    final width = MediaQuery.sizeOf(context).width;
+    final contentWidth = width < 900 ? double.infinity : 760.0;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -121,58 +124,68 @@ class SettingsScreen extends StatelessWidget {
           ],
         ),
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
-        children: [
-          if (user?.email != null)
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)),
-              child: Row(children: [
-                const CircleAvatar(backgroundColor: AppColors.secondary, child: Icon(Icons.person_outline_rounded, color: AppColors.primary)),
-                const SizedBox(width: 12),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  const Text('Account', style: TextStyle(fontWeight: FontWeight.w900)),
-                  const SizedBox(height: 3),
-                  Text(user!.email!, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-                ])),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: contentWidth),
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
+            children: [
+              if (user?.email != null)
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)),
+                  child: Row(children: [
+                    const CircleAvatar(backgroundColor: AppColors.secondary, child: Icon(Icons.person_outline_rounded, color: AppColors.primary)),
+                    const SizedBox(width: 12),
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      const Text('Account', style: TextStyle(fontWeight: FontWeight.w900)),
+                      const SizedBox(height: 3),
+                      Text(user!.email!, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                    ])),
+                  ]),
+                ),
+              const SizedBox(height: 24),
+              _sectionLabel('PERSONAL PROFILE'),
+              const SizedBox(height: 8),
+              _sectionCard([
+                _item(context, Icons.manage_accounts_outlined, 'Edit Personal Profile', 'Name, email, age, gender, ethnicity, occupation and favourite brands.', () => _openPersonalProfile(context)),
               ]),
-            ),
-          const SizedBox(height: 24),
-          const Text('PERSONAL PROFILE', style: TextStyle(color: AppColors.textMuted, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.4)),
-          const SizedBox(height: 8),
-          _sectionCard([
-            _item(context, Icons.manage_accounts_outlined, 'Edit Personal Profile', 'Name, email, age, gender, ethnicity, occupation and favourite brands.', () => _openPersonalProfile(context)),
-          ]),
-          const SizedBox(height: 22),
-          const Text('PREFERENCES', style: TextStyle(color: AppColors.textMuted, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.4)),
-          const SizedBox(height: 8),
-          _sectionCard([
-            _item(context, Icons.palette_outlined, 'Style Preferences', 'Refine your style profile and recommendations.', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StylePreferencesScreen()))),
-            _item(context, Icons.dark_mode_outlined, 'Appearance', 'Choose system, light, or dark mode.', () => _showAppearance(context)),
-          ]),
-          const SizedBox(height: 22),
-          const Text('NOTIFICATIONS', style: TextStyle(color: AppColors.textMuted, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.4)),
-          const SizedBox(height: 8),
-          _sectionCard([
-            _item(context, Icons.done_all_rounded, 'Mark All as Read', 'Clear unread notification badges.', () => _markNotificationsRead(context), showChevron: false),
-          ]),
-          const SizedBox(height: 22),
-          const Text('SECURITY', style: TextStyle(color: AppColors.textMuted, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.4)),
-          const SizedBox(height: 8),
-          _sectionCard([
-            _item(context, Icons.lock_outline_rounded, 'Change Password', 'Send a secure password reset email.', () => _changePassword(context)),
-          ]),
-          const SizedBox(height: 22),
-          const Text('SESSION', style: TextStyle(color: AppColors.textMuted, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.4)),
-          const SizedBox(height: 8),
-          _sectionCard([
-            _item(context, Icons.logout_rounded, 'Log Out', 'Sign out of this VYEA account.', () => _logout(context), destructive: true, showChevron: false),
-          ]),
-        ],
+              const SizedBox(height: 22),
+              _sectionLabel('PREFERENCES'),
+              const SizedBox(height: 8),
+              _sectionCard([
+                _item(context, Icons.palette_outlined, 'Style Preferences', 'Refine your style profile and recommendations.', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StylePreferencesScreen()))),
+                _item(context, Icons.dark_mode_outlined, 'Appearance', 'Choose system, light, or dark mode.', () => _showAppearance(context)),
+              ]),
+              const SizedBox(height: 22),
+              _sectionLabel('NOTIFICATIONS'),
+              const SizedBox(height: 8),
+              _sectionCard([
+                _item(context, Icons.done_all_rounded, 'Mark All as Read', 'Clear unread notification badges.', () => _markNotificationsRead(context), showChevron: false),
+              ]),
+              const SizedBox(height: 22),
+              _sectionLabel('SECURITY'),
+              const SizedBox(height: 8),
+              _sectionCard([
+                _item(context, Icons.lock_outline_rounded, 'Change Password', 'Send a secure password reset email.', () => _changePassword(context)),
+              ]),
+              const SizedBox(height: 22),
+              _sectionLabel('SESSION'),
+              const SizedBox(height: 8),
+              _sectionCard([
+                _item(context, Icons.logout_rounded, 'Log Out', 'Sign out of this VYEA account.', () => _logout(context), destructive: true, showChevron: false),
+              ]),
+            ],
+          ),
+        ),
       ),
     );
   }
+
+  Widget _sectionLabel(String title) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 2),
+        child: Text(title, style: const TextStyle(color: AppColors.textMuted, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.4)),
+      );
 
   Widget _sectionCard(List<Widget> children) {
     return Container(
@@ -184,10 +197,11 @@ class SettingsScreen extends StatelessWidget {
   Widget _item(BuildContext context, IconData icon, String title, String subtitle, VoidCallback onTap, {bool destructive = false, bool showChevron = true}) {
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+      minVerticalPadding: 9,
       onTap: onTap,
       leading: CircleAvatar(backgroundColor: destructive ? AppColors.error.withValues(alpha: .10) : AppColors.secondary, child: Icon(icon, color: destructive ? AppColors.error : AppColors.primary)),
       title: Text(title, style: TextStyle(fontWeight: FontWeight.w800, color: destructive ? AppColors.error : null)),
-      subtitle: Padding(padding: const EdgeInsets.only(top: 3), child: Text(subtitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5))),
+      subtitle: Padding(padding: const EdgeInsets.only(top: 3), child: Text(subtitle, maxLines: 3, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.35))),
       trailing: showChevron ? const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted) : null,
     );
   }
