@@ -7,15 +7,15 @@ import 'google_drive_service.dart';
 
 /// Storage facade for user images.
 ///
-/// Wardrobe uploads are normalised before they reach Google Drive: the
-/// background is removed on-device and replaced with clean white. If the
-/// local ML model cannot process a particular image, the original image is
-/// uploaded instead of blocking the wardrobe flow.
+/// Uploads use bounded network requests and keep existing local-image
+/// fallback behaviour so a transient storage failure does not leave callers
+/// waiting indefinitely.
 class StorageService {
   StorageService._();
 
   static final GoogleDriveService _driveService = GoogleDriveService();
   static Future<void>? _backgroundModel;
+  static const _uploadTimeout = Duration(seconds: 45);
 
   static Future<void> _ensureBackgroundModel() {
     return _backgroundModel ??= BackgroundRemover.instance.initializeOrt();
@@ -26,10 +26,9 @@ class StorageService {
     required File image,
   }) async {
     final fileName = 'analysis_${uid}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-    final result = await _driveService.uploadAnalysisImage(
-      imageFile: image,
-      fileName: fileName,
-    );
+    final result = await _driveService
+        .uploadAnalysisImage(imageFile: image, fileName: fileName)
+        .timeout(_uploadTimeout, onTimeout: () => null);
     if (result == null) {
       throw Exception('Failed to upload analysis image to Google Drive.');
     }
@@ -44,10 +43,9 @@ class StorageService {
     final fileName = 'wardrobe_${uid}_${DateTime.now().millisecondsSinceEpoch}.png';
 
     try {
-      final result = await _driveService.uploadWardrobeImage(
-        imageFile: processed,
-        fileName: fileName,
-      );
+      final result = await _driveService
+          .uploadWardrobeImage(imageFile: processed, fileName: fileName)
+          .timeout(_uploadTimeout, onTimeout: () => null);
       if (result == null) {
         throw Exception('Failed to upload wardrobe image to Google Drive.');
       }
@@ -63,22 +61,26 @@ class StorageService {
 
   static Future<File> _prepareWardrobeImage(File original) async {
     try {
-      await _ensureBackgroundModel();
-      final bytes = await original.readAsBytes();
-      final cutout = await BackgroundRemover.instance.removeBgBytes(
-        bytes,
-        threshold: 0.50,
-        smoothMask: true,
-        enhanceEdges: true,
+      await _ensureBackgroundModel().timeout(
+        const Duration(seconds: 20),
+        onTimeout: () {},
       );
-      final white = await BackgroundRemover.instance.addBackground(
-        image: cutout,
-        bgColor: Colors.white,
-      );
+      final bytes = await original.readAsBytes().timeout(const Duration(seconds: 10));
+      final cutout = await BackgroundRemover.instance
+          .removeBgBytes(
+            bytes,
+            threshold: 0.50,
+            smoothMask: true,
+            enhanceEdges: true,
+          )
+          .timeout(const Duration(seconds: 30));
+      final white = await BackgroundRemover.instance
+          .addBackground(image: cutout, bgColor: Colors.white)
+          .timeout(const Duration(seconds: 15));
 
       final tempDir = await Directory.systemTemp.createTemp('tib_wardrobe_');
       final output = File('${tempDir.path}/wardrobe_clean.png');
-      await output.writeAsBytes(white, flush: true);
+      await output.writeAsBytes(white, flush: true).timeout(const Duration(seconds: 10));
       return output;
     } catch (_) {
       return original;
@@ -90,10 +92,9 @@ class StorageService {
     required File image,
   }) async {
     final fileName = 'profile_${uid}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-    final result = await _driveService.uploadProfileImage(
-      imageFile: image,
-      fileName: fileName,
-    );
+    final result = await _driveService
+        .uploadProfileImage(imageFile: image, fileName: fileName)
+        .timeout(_uploadTimeout, onTimeout: () => null);
     if (result == null) {
       throw Exception('Failed to upload profile image to Google Drive.');
     }
@@ -107,7 +108,13 @@ class StorageService {
   static Future<void> deleteImageByUrl(String? imageUrl) async {
     final fileId = _driveFileIdFromUrl(imageUrl);
     if (fileId == null) return;
-    await _driveService.deleteFile(fileId: fileId);
+    final deleted = await _driveService.deleteFile(fileId: fileId).timeout(
+      _uploadTimeout,
+      onTimeout: () => false,
+    );
+    if (!deleted) {
+      throw Exception('Failed to delete image from Google Drive.');
+    }
   }
 
   static String? _driveFileIdFromUrl(String? url) {
