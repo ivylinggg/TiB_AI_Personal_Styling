@@ -15,6 +15,7 @@ class ColourAnalysisResult {
   final List<String> bestNeutrals;
   final List<String> accentColours;
   final List<String> lessIdealColours;
+  final double analysisConfidence;
 
   const ColourAnalysisResult({
     required this.season,
@@ -33,5 +34,6 @@ class ColourAnalysisResult {
     this.bestNeutrals = const [],
     this.accentColours = const [],
     this.lessIdealColours = const [],
+    this.analysisConfidence = 0,
   });
 }
