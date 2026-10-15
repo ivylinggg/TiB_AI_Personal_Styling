@@ -34,4 +34,62 @@ class ColourAnalysisResult {
     this.accentColours = const [],
     this.lessIdealColours = const [],
   });
+
+  ColourAnalysisResult copyWith({
+    String? season,
+    String? undertone,
+    String? brightness,
+    String? contrast,
+    String? imageUrl,
+    List<String>? colours,
+    String? faceShape,
+    String? faceShapeDescription,
+    Map<String, double>? faceMeasurements,
+    List<String>? faceStylingGuidance,
+    List<String>? colourReasons,
+    String? chroma,
+    String? clarity,
+    List<String>? bestNeutrals,
+    List<String>? accentColours,
+    List<String>? lessIdealColours,
+  }) {
+    return ColourAnalysisResult(
+      season: season ?? this.season,
+      undertone: undertone ?? this.undertone,
+      brightness: brightness ?? this.brightness,
+      contrast: contrast ?? this.contrast,
+      imageUrl: imageUrl ?? this.imageUrl,
+      colours: colours ?? this.colours,
+      faceShape: faceShape ?? this.faceShape,
+      faceShapeDescription: faceShapeDescription ?? this.faceShapeDescription,
+      faceMeasurements: faceMeasurements ?? this.faceMeasurements,
+      faceStylingGuidance: faceStylingGuidance ?? this.faceStylingGuidance,
+      colourReasons: colourReasons ?? this.colourReasons,
+      chroma: chroma ?? this.chroma,
+      clarity: clarity ?? this.clarity,
+      bestNeutrals: bestNeutrals ?? this.bestNeutrals,
+      accentColours: accentColours ?? this.accentColours,
+      lessIdealColours: lessIdealColours ?? this.lessIdealColours,
+    );
+  }
+
+  static List<String> normalizeStringList(dynamic value) {
+    if (value is! List) return const [];
+    return value
+        .whereType<String>()
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .toList(growable: false);
+  }
+
+  static Map<String, double> normalizeMeasurements(dynamic value) {
+    if (value is! Map) return const {};
+    final result = <String, double>{};
+    value.forEach((key, rawValue) {
+      if (rawValue is num) {
+        result[key.toString()] = rawValue.toDouble();
+      }
+    });
+    return Map.unmodifiable(result);
+  }
 }
