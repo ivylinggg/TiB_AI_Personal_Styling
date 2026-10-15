@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="851" height="1847" viewBox="0 0 851 1847" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="paper" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f8f3ea"/>
+      <stop offset="0.5" stop-color="#fbf8f1"/>
+      <stop offset="1" stop-color="#f4ede3"/>
+    </linearGradient>
+    <linearGradient id="taupe" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#d6c6b6"/>
+      <stop offset="1" stop-color="#cbb6a3"/>
+    </linearGradient>
+  </defs>
+  <rect width="851" height="1847" fill="url(#paper)"/>
+  <path d="M0 0 H340 C321 105 298 224 238 319 C178 412 97 449 0 477 Z" fill="url(#taupe)"/>
+  <path d="M-18 350 C117 215 294 183 444 92 C505 55 551 22 585 -12" fill="none" stroke="#cbb7a5" stroke-width="2.4"/>
+  <path d="M-20 360 C128 222 298 191 448 99 C507 63 550 29 578 -8" fill="none" stroke="#fff9f1" stroke-width="1.7" opacity=".85"/>
+  <path d="M289 1847 C386 1683 512 1572 650 1519 C727 1489 794 1473 851 1458 V1847 Z" fill="url(#taupe)"/>
+  <path d="M510 1847 C589 1692 692 1554 851 1459" fill="none" stroke="#bba48f" stroke-width="2.5"/>
+  <path d="M528 1847 C607 1690 709 1555 851 1478" fill="none" stroke="#fff8f0" stroke-width="1.8" opacity=".85"/>
+  <path d="M416 526 C420 542 425 546 440 549 C425 552 420 557 416 573 C412 557 407 552 392 549 C407 546 412 542 416 526Z" fill="#95765e"/>
+  <text x="425.5" y="739" text-anchor="middle" fill="#705846" font-family="Bodoni 72, Didot, 'Times New Roman', serif" font-size="166" font-weight="400" letter-spacing="-8">Vyea</text>
+  <text x="425.5" y="824" text-anchor="middle" fill="#7a6654" font-family="Avenir Next, Helvetica, sans-serif" font-size="25" font-weight="400" letter-spacing="5.4">Visual · You · Expression · Aesthetic</text>
+  <line x1="379" y1="912" x2="453" y2="912" stroke="#b69a82" stroke-width="2"/>
+  <text x="425.5" y="999" text-anchor="middle" fill="#66503e" font-family="Avenir Next, Helvetica, sans-serif" font-size="26" font-weight="500" letter-spacing="5.2">AI PERSONAL STYLING &amp; COLOUR</text>
+  <text x="425.5" y="1118" text-anchor="middle" fill="#685342" font-family="Avenir Next, Helvetica, sans-serif" font-size="34" font-weight="400" letter-spacing="3">Be your best you</text>
+  <text x="425.5" y="1340" text-anchor="middle" fill="#7d6958" font-family="Avenir Next, Helvetica, sans-serif" font-size="20" font-weight="400" letter-spacing="3.4">Developed by TiB Consultancy</text>
+</svg>
