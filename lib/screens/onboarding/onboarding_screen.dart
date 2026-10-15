@@ -80,7 +80,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           controller: _controller,
                           itemCount: _pages.length,
                           onPageChanged: (value) => setState(() => _page = value),
-                          itemBuilder: (_, index) => _OnboardingPage(data: _pages[index], wide: wide),
+                          itemBuilder: (_, index) => _OnboardingPage(
+                            data: _pages[index],
+                            wide: wide,
+                          ),
                         ),
                       ),
                       _bottomBar(),
@@ -132,32 +135,47 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   Widget _bottomBar() {
-    return Row(
-      children: [
-        Row(
-          children: List.generate(
-            _pages.length,
-            (index) => AnimatedContainer(
-              duration: const Duration(milliseconds: 280),
-              margin: const EdgeInsets.only(right: 6),
-              width: _page == index ? 28 : 7,
-              height: 7,
-              decoration: BoxDecoration(
-                color: _page == index ? AppColors.primary : AppColors.border,
-                borderRadius: BorderRadius.circular(20),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 430;
+        return Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 16,
+          runSpacing: 12,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: List.generate(
+                _pages.length,
+                (index) => Semantics(
+                  label: 'Onboarding page ${index + 1} of ${_pages.length}',
+                  selected: _page == index,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 280),
+                    margin: const EdgeInsets.only(right: 6),
+                    width: _page == index ? 28 : 7,
+                    height: 7,
+                    decoration: BoxDecoration(
+                      color: _page == index ? AppColors.primary : AppColors.border,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                  ),
+                ),
               ),
             ),
-          ),
-        ),
-        const Spacer(),
-        SizedBox(
-          width: 150,
-          child: FilledButton(
-            onPressed: _next,
-            child: Text(_page == _pages.length - 1 ? 'Get Started' : 'Continue'),
-          ),
-        ),
-      ],
+            SizedBox(
+              width: compact ? double.infinity : 150,
+              child: FilledButton(
+                onPressed: _next,
+                child: Text(
+                  _page == _pages.length - 1 ? 'Get Started' : 'Continue',
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -222,20 +240,26 @@ class _OnboardingPage extends StatelessWidget {
           Positioned(
             top: 24,
             left: 24,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(30),
-                border: Border.all(color: AppColors.border),
-              ),
-              child: Text(
-                data.eyebrow,
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 8.5,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: .9,
+            right: 24,
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(30),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: Text(
+                  data.eyebrow,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 8.5,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: .9,
+                  ),
                 ),
               ),
             ),
@@ -258,17 +282,21 @@ class _OnboardingPage extends StatelessWidget {
           Positioned(
             right: 26,
             bottom: 24,
-            child: Container(
-              width: 44,
-              height: 44,
-              decoration: const BoxDecoration(
-                color: AppColors.primary,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.arrow_forward_rounded,
-                color: Colors.white,
-                size: 19,
+            child: Semantics(
+              label: 'Continue to next onboarding page',
+              excludeSemantics: true,
+              child: Container(
+                width: 44,
+                height: 44,
+                decoration: const BoxDecoration(
+                  color: AppColors.primary,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.arrow_forward_rounded,
+                  color: Colors.white,
+                  size: 19,
+                ),
               ),
             ),
           ),
