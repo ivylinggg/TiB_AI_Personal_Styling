@@ -31,6 +31,12 @@ class FaceShapeAnalysisService {
     required File image,
     required List<Face> faces,
   }) async {
+    if (!await image.exists()) {
+      throw const FormatException(
+        'The selected photo is no longer available. Please choose another photo.',
+      );
+    }
+
     if (faces.length != 1) {
       throw const FormatException(
         'Please use a clear photo with one front-facing face.',
@@ -46,12 +52,6 @@ class FaceShapeAnalysisService {
     }
 
     final points = contour.points;
-    if (points.length < 24) {
-      throw const FormatException(
-        'Face outline could not be measured reliably. Please use a front-facing photo with your full face visible.',
-      );
-    }
-
     var minX = double.infinity;
     var maxX = double.negativeInfinity;
     var minY = double.infinity;
@@ -60,34 +60,42 @@ class FaceShapeAnalysisService {
     for (final point in points) {
       final x = point.x.toDouble();
       final y = point.y.toDouble();
+      if (!x.isFinite || !y.isFinite) continue;
       minX = math.min(minX, x).toDouble();
       maxX = math.max(maxX, x).toDouble();
       minY = math.min(minY, y).toDouble();
       maxY = math.max(maxY, y).toDouble();
     }
 
-    final width = math.max(1.0, maxX - minX).toDouble();
-    final height = math.max(1.0, maxY - minY).toDouble();
+    final width = maxX - minX;
+    final height = maxY - minY;
+    if (!width.isFinite || !height.isFinite || width <= 1 || height <= 1) {
+      throw const FormatException(
+        'Face outline could not be measured reliably. Please use a clearer front-facing photo.',
+      );
+    }
 
     double widthAt(double relativeY) {
       final targetY = minY + height * relativeY;
-      final tolerance = height * .055;
-
-      var hasNearPoint = false;
+      final tolerance = height * .05;
       var nearMinX = double.infinity;
       var nearMaxX = double.negativeInfinity;
+      var count = 0;
 
       for (final point in points) {
         final x = point.x.toDouble();
         final y = point.y.toDouble();
+        if (!x.isFinite || !y.isFinite) continue;
         if ((y - targetY).abs() <= tolerance) {
-          hasNearPoint = true;
           nearMinX = math.min(nearMinX, x).toDouble();
           nearMaxX = math.max(nearMaxX, x).toDouble();
+          count++;
         }
       }
 
-      if (!hasNearPoint) return width * .5;
+      if (count < 2 || !nearMinX.isFinite || !nearMaxX.isFinite) {
+        return double.nan;
+      }
       return math.max(1.0, nearMaxX - nearMinX).toDouble();
     }
 
@@ -96,12 +104,35 @@ class FaceShapeAnalysisService {
     final jawWidth = widthAt(.72);
     final chinWidth = widthAt(.86);
 
-    final faceRatio = height / math.max(1.0, cheekboneWidth).toDouble();
-    final foreheadToCheek =
-        foreheadWidth / math.max(1.0, cheekboneWidth).toDouble();
-    final jawToCheek =
-        jawWidth / math.max(1.0, cheekboneWidth).toDouble();
-    final chinToJaw = chinWidth / math.max(1.0, jawWidth).toDouble();
+    final sampledWidths = [
+      foreheadWidth,
+      cheekboneWidth,
+      jawWidth,
+      chinWidth,
+    ];
+    final validWidthSamples =
+        sampledWidths.where((value) => value.isFinite && value > 1).length;
+    if (validWidthSamples < 3 || !cheekboneWidth.isFinite || cheekboneWidth <= 1) {
+      throw const FormatException(
+        'Face outline could not be measured reliably. Please use a front-facing photo with your full face visible.',
+      );
+    }
+
+    final safeForehead = foreheadWidth.isFinite ? foreheadWidth : cheekboneWidth;
+    final safeJaw = jawWidth.isFinite ? jawWidth : cheekboneWidth;
+    final safeChin = chinWidth.isFinite ? chinWidth : safeJaw * .75;
+
+    final faceRatio = height / cheekboneWidth;
+    final foreheadToCheek = safeForehead / cheekboneWidth;
+    final jawToCheek = safeJaw / cheekboneWidth;
+    final chinToJaw = safeChin / safeJaw;
+
+    if (![faceRatio, foreheadToCheek, jawToCheek, chinToJaw]
+        .every((value) => value.isFinite && value > 0)) {
+      throw const FormatException(
+        'Face outline could not be measured reliably. Please use a clearer front-facing photo.',
+      );
+    }
 
     final shape = _classify(
       faceRatio: faceRatio,
@@ -115,6 +146,9 @@ class FaceShapeAnalysisService {
       faceRatio: faceRatio,
       foreheadToCheek: foreheadToCheek,
       jawToCheek: jawToCheek,
+      chinToJaw: chinToJaw,
+      validSamples: validWidthSamples,
+      pointCount: points.length,
     );
 
     return FaceShapeAnalysis(
@@ -184,6 +218,9 @@ class FaceShapeAnalysisService {
     required double faceRatio,
     required double foreheadToCheek,
     required double jawToCheek,
+    required double chinToJaw,
+    required int validSamples,
+    required int pointCount,
   }) {
     const profiles = <String, List<double>>{
       'Oval': [1.38, .92, .82],
@@ -200,12 +237,18 @@ class FaceShapeAnalysisService {
       (faceRatio - target[0]).abs() / _scale[0],
       (foreheadToCheek - target[1]).abs() / _scale[1],
       (jawToCheek - target[2]).abs() / _scale[2],
+      (chinToJaw - .82).abs() / .25,
     ];
-
     final meanError = errors.reduce((a, b) => a + b) / errors.length;
-    return (100 * (1 - (meanError / 2).clamp(0.0, 1.0)))
-        .clamp(0.0, 100.0)
-        .toDouble();
+    final geometryScore = 1 - (meanError / 2).clamp(0.0, 1.0);
+    final sampleScore = validSamples / 4.0;
+    final contourScore = (pointCount / 36.0).clamp(0.0, 1.0);
+    final confidence = (35 +
+            geometryScore * 50 +
+            sampleScore * 10 +
+            contourScore * 5)
+        .clamp(0.0, 100.0);
+    return confidence.toDouble();
   }
 
   static double _round(double value) =>
