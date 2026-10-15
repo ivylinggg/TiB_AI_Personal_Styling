@@ -22,31 +22,31 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
   @override
   void initState() {
     super.initState();
+    historyFuture = _loadHistory();
+  }
 
+  Future<List<ColourAnalysisResult>> _loadHistory() async {
     final user = AuthService.currentUser;
-
-    if (user != null) {
-      historyFuture = FirestoreService.getColourAnalysisHistory(user.uid);
-    } else {
-      historyFuture = Future.value(<ColourAnalysisResult>[]);
-    }
+    if (user == null) return const <ColourAnalysisResult>[];
+    return FirestoreService.getColourAnalysisHistory(user.uid);
   }
 
   Future<void> refreshHistory() async {
-    final user = AuthService.currentUser;
-
-    if (user == null) {
-      setState(() {
-        historyFuture = Future.value(<ColourAnalysisResult>[]);
-      });
-      return;
-    }
-
-    setState(() {
-      historyFuture = FirestoreService.getColourAnalysisHistory(user.uid);
-    });
-
+    setState(() => historyFuture = _loadHistory());
     await historyFuture;
+  }
+
+  String _confidenceLabel(double confidence) {
+    if (confidence >= .85) return 'High confidence';
+    if (confidence >= .65) return 'Good confidence';
+    if (confidence > 0) return 'Needs a clearer photo';
+    return 'Confidence unavailable';
+  }
+
+  Color _confidenceColor(double confidence) {
+    if (confidence >= .85) return AppColors.success;
+    if (confidence >= .65) return AppColors.primary;
+    return AppColors.textMuted;
   }
 
   @override
@@ -57,6 +57,7 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
         title: const Text('Your Analysis History'),
         backgroundColor: AppColors.background,
         elevation: 0,
+        scrolledUnderElevation: 0,
         actions: [
           IconButton(
             tooltip: 'Refresh history',
@@ -65,39 +66,16 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
           ),
         ],
       ),
-
       body: FutureBuilder<List<ColourAnalysisResult>>(
         future: historyFuture,
         builder: (context, snapshot) {
-          // ======================================================
-          // LOADING
-          // ======================================================
-
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
+          if (snapshot.hasError) return _buildErrorState();
 
-          // ======================================================
-          // ERROR
-          // ======================================================
-
-          if (snapshot.hasError) {
-            return _buildErrorState();
-          }
-
-          final history = snapshot.data ?? <ColourAnalysisResult>[];
-
-          // ======================================================
-          // EMPTY
-          // ======================================================
-
-          if (history.isEmpty) {
-            return _buildEmptyState();
-          }
-
-          // ======================================================
-          // HISTORY LIST
-          // ======================================================
+          final history = snapshot.data ?? const <ColourAnalysisResult>[];
+          if (history.isEmpty) return _buildEmptyState();
 
           return RefreshIndicator(
             onRefresh: refreshHistory,
@@ -105,11 +83,11 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 30),
               itemCount: history.length + 1,
-              separatorBuilder: (context, index) => const SizedBox(height: 14),
+              separatorBuilder: (_, __) => const SizedBox(height: 14),
               itemBuilder: (context, index) {
                 if (index == 0) {
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 2),
+                  return const Padding(
+                    padding: EdgeInsets.only(bottom: 2),
                     child: Text(
                       'Look back at your colour journey and tap any result to explore it again.',
                       style: TextStyle(
@@ -119,7 +97,6 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
                     ),
                   );
                 }
-
                 final item = history[index - 1];
                 return _buildHistoryCard(context, item, index - 1);
               },
@@ -130,47 +107,36 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
     );
   }
 
-  // ============================================================
-  // HISTORY CARD
-  // ============================================================
-
   Widget _buildHistoryCard(
     BuildContext context,
     ColourAnalysisResult item,
     int index,
   ) {
+    final confidence = item.confidence.clamp(0.0, 1.0).toDouble();
+    final confidenceText = _confidenceLabel(confidence);
+    final confidenceColor = _confidenceColor(confidence);
+
     return Material(
       color: AppColors.surface,
       borderRadius: BorderRadius.circular(AppRadius.lg),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => AnalysisResultScreen(result: item),
-            ),
-          );
-        },
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => AnalysisResultScreen(result: item),
+          ),
+        ),
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(AppRadius.lg),
             border: Border.all(color: AppColors.border),
           ),
-          child: Row(
-            children: [
-              // ==================================================
-              // IMAGE
-              // ==================================================
-              _buildHistoryImage(item),
-
-              const SizedBox(width: 14),
-
-              // ==================================================
-              // CONTENT
-              // ==================================================
-              Expanded(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 500;
+              final content = Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -184,70 +150,105 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-
                     const SizedBox(height: 6),
-
                     Text(
-                      '${item.undertone} • '
-                      '${item.brightness} • '
-                      '${item.contrast}',
+                      '${item.undertone} • ${item.brightness} • ${item.contrast}',
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: AppColors.textSecondary),
+                      style: const TextStyle(color: AppColors.textSecondary),
                     ),
-
-                    const SizedBox(height: 10),
-
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.secondary,
-                        borderRadius: BorderRadius.circular(AppRadius.full),
-                      ),
-                      child: Text(
-                        'Analysis ${index + 1}',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.primaryDark,
-                        ),
-                      ),
+                    const SizedBox(height: 9),
+                    Wrap(
+                      spacing: 7,
+                      runSpacing: 7,
+                      children: [
+                        _pill('Analysis ${index + 1}', AppColors.secondary, AppColors.primaryDark),
+                        if (confidence > 0)
+                          _pill(
+                            '${(confidence * 100).round()}% · $confidenceText',
+                            confidenceColor.withValues(alpha: .12),
+                            confidenceColor,
+                          ),
+                      ],
                     ),
                   ],
                 ),
-              ),
+              );
 
-              const SizedBox(width: 8),
+              final cardContent = compact
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildHistoryImage(item),
+                            const SizedBox(width: 14),
+                            content,
+                            const SizedBox(width: 8),
+                            const Icon(Icons.chevron_right_rounded, size: 24, color: AppColors.primary),
+                          ],
+                        ),
+                        if (confidence > 0) ...[
+                          const SizedBox(height: 13),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(99),
+                            child: LinearProgressIndicator(
+                              minHeight: 5,
+                              value: confidence,
+                              backgroundColor: AppColors.secondary,
+                              valueColor: AlwaysStoppedAnimation<Color>(confidenceColor),
+                            ),
+                          ),
+                        ],
+                      ],
+                    )
+                  : Row(
+                      children: [
+                        _buildHistoryImage(item),
+                        const SizedBox(width: 14),
+                        content,
+                        const SizedBox(width: 10),
+                        const Icon(Icons.chevron_right_rounded, size: 24, color: AppColors.primary),
+                      ],
+                    );
 
-              Icon(
-                Icons.chevron_right_rounded,
-                size: 24,
-                color: AppColors.primary,
-              ),
-            ],
+              return cardContent;
+            },
           ),
         ),
       ),
     );
   }
 
-  // ============================================================
-  // HISTORY IMAGE
-  // ============================================================
+  Widget _pill(String label, Color background, Color foreground) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(AppRadius.full),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 10.5,
+          fontWeight: FontWeight.w700,
+          color: foreground,
+        ),
+      ),
+    );
+  }
 
   Widget _buildHistoryImage(ColourAnalysisResult item) {
     if (item.imageUrl.isEmpty) {
       return Container(
         width: 68,
         height: 68,
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           color: AppColors.secondary,
           shape: BoxShape.circle,
         ),
-        child: Icon(Icons.auto_awesome, color: AppColors.primary, size: 30),
+        child: const Icon(Icons.auto_awesome, color: AppColors.primary, size: 30),
       );
     }
 
@@ -258,7 +259,7 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
         width: 68,
         height: 68,
         fit: BoxFit.cover,
-        placeholder: (context, url) => Container(
+        placeholder: (_, __) => Container(
           width: 68,
           height: 68,
           color: AppColors.secondary,
@@ -270,22 +271,15 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
             ),
           ),
         ),
-        errorWidget: (context, url, error) => Container(
+        errorWidget: (_, __, ___) => Container(
           width: 68,
           height: 68,
           color: AppColors.secondary,
-          child: Icon(
-            Icons.image_not_supported_outlined,
-            color: AppColors.primary,
-          ),
+          child: const Icon(Icons.image_not_supported_outlined, color: AppColors.primary),
         ),
       ),
     );
   }
-
-  // ============================================================
-  // EMPTY STATE
-  // ============================================================
 
   Widget _buildEmptyState() {
     return RefreshIndicator(
@@ -299,10 +293,7 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
             child: EmptyState(
               icon: Icons.history_rounded,
               title: 'Your colour journey starts here',
-              description:
-                  'Complete your first colour analysis and your '
-                  'personalised results will be saved here for easy '
-                  'reference.',
+              description: 'Complete your first colour analysis and your personalised results will be saved here for easy reference.',
               ctaLabel: 'Start Analysis',
               onCta: () => Navigator.pop(context),
             ),
@@ -311,10 +302,6 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
       ),
     );
   }
-
-  // ============================================================
-  // ERROR STATE
-  // ============================================================
 
   Widget _buildErrorState() {
     return Center(
