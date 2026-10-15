@@ -16,14 +16,18 @@ class AnalysisModel {
   });
 
   factory AnalysisModel.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+    final rawData = doc.data();
+    final data = rawData is Map<String, dynamic>
+        ? rawData
+        : <String, dynamic>{};
+    final timestamp = data['createdAt'];
 
     return AnalysisModel(
       id: doc.id,
-      colourSeason: data['colourSeason'] ?? '',
-      skinTone: data['skinTone'] ?? '',
-      imageUrl: data['imageUrl'] ?? '',
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
+      colourSeason: _stringOrDefault(data['colourSeason']),
+      skinTone: _stringOrDefault(data['skinTone']),
+      imageUrl: _stringOrDefault(data['imageUrl']),
+      createdAt: _dateTimeOrDefault(timestamp),
     );
   }
 
@@ -34,5 +38,14 @@ class AnalysisModel {
       'imageUrl': imageUrl,
       'createdAt': FieldValue.serverTimestamp(),
     };
+  }
+
+  static String _stringOrDefault(dynamic value) =>
+      value is String ? value : '';
+
+  static DateTime _dateTimeOrDefault(dynamic value) {
+    if (value is Timestamp) return value.toDate();
+    if (value is DateTime) return value;
+    return DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
   }
 }
