@@ -27,46 +27,63 @@ class AdminPreviewService {
 
   static final FirebaseFirestore _db = FirebaseFirestore.instance;
 
+  static const _maxUidLength = 128;
+  static const _maxSavedLooks = 200;
+
   static Future<AdminPreviewData> loadCustomerProfile(String uid) async {
-    final customerUid = uid.trim();
-    if (customerUid.isEmpty) {
+    final customerUid = _normalizeId(uid);
+    if (customerUid == null) {
       throw StateError('No customer was selected for preview.');
     }
 
+    final userRef = _db.collection('users').doc(customerUid);
     final results = await Future.wait<dynamic>([
-      _db.collection('users').doc(customerUid).get(),
-      _db.collection('users').doc(customerUid).collection('analysis').orderBy('createdAt', descending: true).limit(1).get(),
-      _db.collection('users').doc(customerUid).collection('preferences').doc('style').get(),
-      _db.collection('users').doc(customerUid).collection('wardrobe').get(),
-      _db.collection('users').doc(customerUid).collection('savedLooks').get(),
+      userRef.get(),
+      userRef.collection('analysis').orderBy('createdAt', descending: true).limit(1).get(),
+      userRef.collection('preferences').doc('style').get(),
+      userRef.collection('wardrobe').get(),
+      userRef.collection('savedLooks').limit(_maxSavedLooks).get(),
     ], eagerError: false);
 
-    final userSnapshot = results[0] as DocumentSnapshot<Map<String, dynamic>>;
-    if (!userSnapshot.exists) {
+    final userSnapshot = results[0];
+    if (userSnapshot is! DocumentSnapshot<Map<String, dynamic>> || !userSnapshot.exists) {
       throw StateError('The selected customer profile does not exist.');
     }
 
     final data = userSnapshot.data() ?? <String, dynamic>{};
     final user = UserModel.fromFirestore(userSnapshot);
 
-    final analysisSnapshot = results[1] as QuerySnapshot<Map<String, dynamic>>;
-    final colourAnalysis = analysisSnapshot.docs.isEmpty
-        ? null
-        : _resultFromData(analysisSnapshot.docs.first.data());
+    final analysisSnapshot = results[1];
+    final colourAnalysis = analysisSnapshot is QuerySnapshot<Map<String, dynamic>> && analysisSnapshot.docs.isNotEmpty
+        ? _resultFromData(analysisSnapshot.docs.first.data())
+        : null;
 
-    final preferenceSnapshot = results[2] as DocumentSnapshot<Map<String, dynamic>>;
-    final preferenceData = preferenceSnapshot.data();
+    final preferenceSnapshot = results[2];
+    final preferenceData = preferenceSnapshot is DocumentSnapshot<Map<String, dynamic>>
+        ? preferenceSnapshot.data()
+        : null;
 
-    final wardrobeSnapshot = results[3] as QuerySnapshot<Map<String, dynamic>>;
-    final wardrobe = wardrobeSnapshot.docs
-        .map(WardrobeItem.fromFirestore)
-        .where((item) => item.userId.isEmpty || item.userId == customerUid)
-        .toList(growable: false);
+    final wardrobeSnapshot = results[3];
+    final wardrobe = wardrobeSnapshot is QuerySnapshot<Map<String, dynamic>>
+        ? wardrobeSnapshot.docs
+            .map((doc) {
+              try {
+                return WardrobeItem.fromFirestore(doc);
+              } catch (_) {
+                return null;
+              }
+            })
+            .whereType<WardrobeItem>()
+            .where((item) => item.userId.isEmpty || item.userId == customerUid)
+            .toList(growable: false)
+        : const <WardrobeItem>[];
 
-    final savedLooksSnapshot = results[4] as QuerySnapshot<Map<String, dynamic>>;
-    final savedLooks = savedLooksSnapshot.docs
-        .map((doc) => <String, dynamic>{'id': doc.id, ...doc.data()})
-        .toList(growable: false);
+    final savedLooksSnapshot = results[4];
+    final savedLooks = savedLooksSnapshot is QuerySnapshot<Map<String, dynamic>>
+        ? savedLooksSnapshot.docs
+            .map((doc) => <String, dynamic>{'id': doc.id, ...doc.data()})
+            .toList(growable: false)
+        : const <Map<String, dynamic>>[];
 
     return AdminPreviewData(
       user: user,
@@ -80,36 +97,52 @@ class AdminPreviewService {
 
   static ColourAnalysisResult _resultFromData(Map<String, dynamic> data) {
     final measurements = <String, double>{};
-    final raw = data['faceMeasurements'];
-    if (raw is Map) {
-      raw.forEach((key, value) {
-        if (value is num) measurements[key.toString()] = value.toDouble();
+
+    final rawMeasurements = data['faceMeasurements'];
+    if (rawMeasurements is Map) {
+      rawMeasurements.forEach((key, value) {
+        if (value is num && value.isFinite) {
+          measurements[key.toString()] = value.toDouble();
+        }
       });
     }
 
     return ColourAnalysisResult(
-      season: data['season'] as String? ?? 'Unknown',
-      undertone: data['undertone'] as String? ?? 'Unknown',
-      brightness: data['brightness'] as String? ?? 'Unknown',
-      contrast: data['contrast'] as String? ?? 'Unknown',
-      imageUrl: data['imageUrl'] as String? ?? '',
+      season: _stringValue(data['season'], fallback: 'Unknown'),
+      undertone: _stringValue(data['undertone'], fallback: 'Unknown'),
+      brightness: _stringValue(data['brightness'], fallback: 'Unknown'),
+      contrast: _stringValue(data['contrast'], fallback: 'Unknown'),
+      imageUrl: _stringValue(data['imageUrl']),
       colours: _stringList(data['colours']),
-      faceShape: data['faceShape'] as String? ?? 'Unknown',
-      faceShapeDescription: data['faceShapeDescription'] as String? ?? '',
+      faceShape: _stringValue(data['faceShape'], fallback: 'Unknown'),
+      faceShapeDescription: _stringValue(data['faceShapeDescription']),
       faceMeasurements: measurements,
       faceStylingGuidance: _stringList(data['faceStylingGuidance']),
       colourReasons: _stringList(data['colourReasons']),
     );
   }
 
+  static String _stringValue(dynamic value, {String fallback = ''}) {
+    if (value is! String) return fallback;
+    final trimmed = value.trim();
+    return trimmed.isEmpty ? fallback : trimmed;
+  }
+
+  static String? _normalizeId(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty || trimmed.length > _maxUidLength) return null;
+    return trimmed;
+  }
+
   static List<String> _stringList(dynamic value) {
-    if (value is Iterable) {
-      return value
-          .whereType<dynamic>()
-          .map((item) => item.toString().trim())
-          .where((item) => item.isNotEmpty)
-          .toList(growable: false);
+    if (value is! Iterable) return const <String>[];
+
+    final result = <String>[];
+    for (final item in value) {
+      if (item is! String) continue;
+      final trimmed = item.trim();
+      if (trimmed.isNotEmpty) result.add(trimmed);
     }
-    return const <String>[];
+    return result.toList(growable: false);
   }
 }
