@@ -6,14 +6,13 @@ import '../../widgets/colour_swatch.dart';
 import 'analysis_screen.dart';
 import '../professional/professional_style_screen.dart';
 
-/// Editorial four-season guide matching the TiB visual direction.
+/// Editorial seasonal colour guide with a layout that adapts to compact phones,
+/// tablets and wider desktop/web surfaces.
 class SeasonColourGuideScreen extends StatelessWidget {
   const SeasonColourGuideScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final profiles = SeasonColourGuide.profiles.values.toList();
-
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -23,17 +22,36 @@ class SeasonColourGuideScreen extends StatelessWidget {
             SliverToBoxAdapter(child: _introBanner()),
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(18, 16, 18, 12),
-              sliver: SliverGrid(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) => _SeasonCard(profile: profiles[index]),
-                  childCount: profiles.length,
-                ),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  mainAxisSpacing: 14,
-                  crossAxisSpacing: 14,
-                  childAspectRatio: .66,
-                ),
+              sliver: SliverLayoutBuilder(
+                builder: (context, constraints) {
+                  final width = constraints.crossAxisExtent;
+                  final columns = width >= 1100
+                      ? 4
+                      : width >= 720
+                          ? 3
+                          : width >= 470
+                              ? 2
+                              : 1;
+                  final aspectRatio = columns == 1
+                      ? 1.32
+                      : columns == 2
+                          ? .82
+                          : .76;
+
+                  final profiles = SeasonColourGuide.profiles.values.toList();
+                  return SliverGrid(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) => _SeasonCard(profile: profiles[index]),
+                      childCount: profiles.length,
+                    ),
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: columns,
+                      mainAxisSpacing: 14,
+                      crossAxisSpacing: 14,
+                      childAspectRatio: aspectRatio,
+                    ),
+                  );
+                },
               ),
             ),
             SliverToBoxAdapter(child: _analysisCta(context)),
@@ -69,6 +87,7 @@ class SeasonColourGuideScreen extends StatelessWidget {
                 SizedBox(height: 4),
                 Text(
                   'Discover the 4 seasonal colour palettes',
+                  textAlign: TextAlign.center,
                   style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 12.5,
@@ -95,6 +114,7 @@ class SeasonColourGuideScreen extends StatelessWidget {
       shadowColor: AppColors.primary.withValues(alpha: .10),
       child: IconButton(
         onPressed: onTap,
+        tooltip: icon == Icons.help_outline_rounded ? 'About seasons' : 'Back',
         icon: Icon(icon, size: 18),
       ),
     );
@@ -139,48 +159,63 @@ class SeasonColourGuideScreen extends StatelessWidget {
         borderRadius: BorderRadius.circular(17),
         border: Border.all(color: AppColors.border),
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: const BoxDecoration(
-              color: AppColors.primarySoft,
-              shape: BoxShape.circle,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 430;
+          final content = Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                width: compact ? 38 : 42,
+                height: compact ? 38 : 42,
+                decoration: const BoxDecoration(
+                  color: AppColors.primarySoft,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.lightbulb_outline_rounded, color: AppColors.primaryDark),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Not sure which season suits you?', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800)),
+                    SizedBox(height: 3),
+                    Text('Take our colour analysis to discover your most flattering seasonal palette.', style: TextStyle(color: AppColors.textSecondary, fontSize: 10.5, height: 1.3)),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              FilledButton(
+                onPressed: null,
+                style: ButtonStyle(
+                  backgroundColor: WidgetStateProperty.all(AppColors.primary),
+                  foregroundColor: WidgetStateProperty.all(Colors.white),
+                  padding: WidgetStateProperty.all(EdgeInsets.symmetric(horizontal: 13, vertical: 10)),
+                  minimumSize: WidgetStateProperty.all(Size.zero),
+                  shape: WidgetStateProperty.all(RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(18)))),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('Start', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800)),
+                    SizedBox(width: 4),
+                    Icon(Icons.arrow_forward_rounded, size: 14),
+                  ],
+                ),
+              ),
+            ],
+          );
+
+          return InkWell(
+            borderRadius: BorderRadius.circular(17),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const AnalysisScreen()),
             ),
-            child: const Icon(Icons.lightbulb_outline_rounded, color: AppColors.primaryDark),
-          ),
-          const SizedBox(width: 10),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Not sure which season suits you?', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800)),
-                SizedBox(height: 3),
-                Text('Take our colour analysis to discover your most flattering seasonal palette.', style: TextStyle(color: AppColors.textSecondary, fontSize: 10.5, height: 1.3)),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          FilledButton(
-            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalysisScreen())),
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
-              minimumSize: Size.zero,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-            ),
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text('Start', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800)),
-                SizedBox(width: 4),
-                Icon(Icons.arrow_forward_rounded, size: 14),
-              ],
-            ),
-          ),
-        ],
+            child: content,
+          );
+        },
       ),
     );
   }
@@ -194,35 +229,41 @@ class SeasonColourGuideScreen extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AppColors.border),
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: const BoxDecoration(
-              color: AppColors.lavenderMist,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.work_outline_rounded, color: AppColors.primaryDark),
-          ),
-          const SizedBox(width: 10),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Go beyond your colour palette', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800)),
-                SizedBox(height: 3),
-                Text('Explore colour psychology, professional styling and your personal image direction.', style: TextStyle(color: AppColors.textSecondary, fontSize: 10.5, height: 1.35)),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          IconButton(
-            tooltip: 'Professional Style',
-            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfessionalStyleScreen())),
-            icon: const Icon(Icons.arrow_forward_rounded, color: AppColors.primaryDark),
-          ),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 430;
+          final iconSize = compact ? 38.0 : 42.0;
+          return Row(
+            children: [
+              Container(
+                width: iconSize,
+                height: iconSize,
+                decoration: const BoxDecoration(
+                  color: AppColors.lavenderMist,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.work_outline_rounded, color: AppColors.primaryDark),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Go beyond your colour palette', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800)),
+                    SizedBox(height: 3),
+                    Text('Explore colour psychology, professional styling and your personal image direction.', style: TextStyle(color: AppColors.textSecondary, fontSize: 10.5, height: 1.35)),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                tooltip: 'Professional Style',
+                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfessionalStyleScreen())),
+                icon: const Icon(Icons.arrow_forward_rounded, color: AppColors.primaryDark),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -281,38 +322,31 @@ class _SeasonCard extends StatelessWidget {
               ),
             ],
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-                child: Text(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
                   profile.name.toUpperCase(),
                   style: TextStyle(color: accent, fontSize: 11.5, fontWeight: FontWeight.w900, letterSpacing: .7),
                 ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
-                child: Text(
+                const SizedBox(height: 6),
+                Text(
                   profile.dimension,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
                 ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
-                child: Text(
+                const SizedBox(height: 6),
+                Text(
                   profile.description,
                   maxLines: 3,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.3, height: 1.35),
                 ),
-              ),
-              const SizedBox(height: 10),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Container(
+                const SizedBox(height: 10),
+                Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
                     color: accent.withValues(alpha: .035),
@@ -334,25 +368,29 @@ class _SeasonCard extends StatelessWidget {
                     ),
                   ),
                 ),
-              ),
-              const Spacer(),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 9),
-                decoration: BoxDecoration(
-                  color: accent.withValues(alpha: .045),
-                  borderRadius: const BorderRadius.vertical(bottom: Radius.circular(18)),
+                const Spacer(),
+                Padding(
+                  padding: const EdgeInsets.only(top: 10),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 9),
+                    margin: const EdgeInsets.symmetric(horizontal: -12),
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: .045),
+                      borderRadius: const BorderRadius.vertical(bottom: Radius.circular(18)),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text('View Details', style: TextStyle(color: accent, fontSize: 10.5, fontWeight: FontWeight.w800)),
+                        const SizedBox(width: 4),
+                        Icon(Icons.arrow_forward_ios_rounded, color: accent, size: 10),
+                      ],
+                    ),
+                  ),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text('View Details', style: TextStyle(color: accent, fontSize: 10.5, fontWeight: FontWeight.w800)),
-                    const SizedBox(width: 4),
-                    Icon(Icons.arrow_forward_ios_rounded, color: accent, size: 10),
-                  ],
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
