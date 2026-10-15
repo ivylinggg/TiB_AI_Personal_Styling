@@ -32,7 +32,7 @@ class ColourAnalysisService {
     final contrast = _contrast(sample);
     final chroma = _chroma(sample);
     final clarity = _clarity(sample);
-    final season = _season(
+    final seasonScores = _seasonScores(
       undertone: undertone,
       brightness: brightness,
       contrast: contrast,
@@ -44,6 +44,8 @@ class ColourAnalysisService {
       neutralRatio: sample.neutralRatio,
       averageChroma: sample.averageChroma,
     );
+    final season = _bestSeason(seasonScores);
+    final confidence = _confidence(seasonScores, sample, undertone: undertone);
     final guide = SeasonColourGuide.forSeason(season);
 
     return ColourAnalysisResult(
@@ -53,6 +55,9 @@ class ColourAnalysisService {
       contrast: contrast,
       imageUrl: imageUrl,
       colours: guide.bestColours,
+      chroma: chroma,
+      clarity: clarity,
+      confidence: confidence,
       colourReasons: [
         '${_titleCase(undertone)} undertone signal from ${sample.skinCount} sampled skin pixels',
         '${_titleCase(brightness)} skin value detected',
@@ -60,6 +65,7 @@ class ColourAnalysisService {
         '${_titleCase(chroma)} colour intensity detected',
         '${_titleCase(clarity)} colour clarity detected',
         'Primary season selected from combined observed colour characteristics',
+        'Analysis confidence: ${(confidence * 100).round()}%',
       ],
     );
   }
@@ -231,7 +237,7 @@ class ColourAnalysisService {
     return 'Balanced';
   }
 
-  static String _season({
+  static Map<String, double> _seasonScores({
     required String undertone,
     required String brightness,
     required String contrast,
@@ -254,7 +260,6 @@ class ColourAnalysisService {
     final coolLead = coolRatio - warmRatio;
     final neutralDominant = neutralRatio >= warmRatio && neutralRatio >= coolRatio;
 
-    // All four seasons are candidates. No season is a default.
     final scores = <String, double>{
       'Spring':
           (warmLead > .03 ? 4.0 : 0) +
@@ -293,14 +298,29 @@ class ColourAnalysisService {
       scores['Winter'] = scores['Winter']! + (deep && highContrast && highChroma ? 1.2 : 0);
     }
 
-    // Only accept Winter when the image really has the characteristic
-    // combination of coolness, depth, clarity, chroma and contrast.
     final winterQualified = coolLead > .035 && deep && highContrast && highChroma && clear;
     if (!winterQualified) scores['Winter'] = scores['Winter']! - 1.5;
 
-    return scores.entries.reduce(
-      (best, entry) => entry.value > best.value ? entry : best,
-    ).key;
+    return scores;
+  }
+
+  static String _bestSeason(Map<String, double> scores) => scores.entries.reduce(
+        (best, entry) => entry.value > best.value ? entry : best,
+      ).key;
+
+  static double _confidence(Map<String, double> scores, _PortraitSample sample, {required String undertone}) {
+    final sorted = scores.values.toList()..sort((a, b) => b.compareTo(a));
+    final best = sorted.first;
+    final second = sorted.length > 1 ? sorted[1] : 0;
+    final total = scores.values.fold<double>(0, (sum, value) => sum + math.max(value, 0));
+    final margin = math.max(0, best - second);
+    final marginSignal = (margin / 4.0).clamp(0.0, 1.0);
+    final dominance = total <= 0 ? 0.0 : (best / total).clamp(0.0, 1.0);
+    final sampleQuality = (sample.skinCount / 6000).clamp(0.0, 1.0);
+    final separationQuality = ((sample.skinSpread / 55) + (sample.skinContrast / 115) + (sample.globalRange / 255)) / 3.0;
+    final undertoneQuality = undertone == 'Neutral' ? .75 : 1.0;
+    final raw = (.36 * marginSignal) + (.26 * dominance) + (.18 * sampleQuality) + (.14 * separationQuality.clamp(0.0, 1.0)) + (.06 * undertoneQuality);
+    return raw.clamp(0.35, 0.98).toDouble();
   }
 
   static String _titleCase(String value) => value.isEmpty ? value : value[0].toUpperCase() + value.substring(1);
