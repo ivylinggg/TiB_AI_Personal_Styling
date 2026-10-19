@@ -30,6 +30,11 @@ class _SplashScreenState extends State<SplashScreen> {
   Future<void> _routeFromSplash() async {
     if (!mounted || _hasRouted) return;
 
+    // Keep the splash screen visible briefly before routing.
+    await Future.delayed(const Duration(seconds: 4));
+
+    if (!mounted || _hasRouted) return;
+
     final currentUser = FirebaseAuth.instance.currentUser;
 
     if (currentUser != null) {
