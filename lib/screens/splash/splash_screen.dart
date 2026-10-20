@@ -22,17 +22,14 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await Future<void>.delayed(const Duration(seconds: 4));
+      if (!mounted) return;
       _routeFromSplash();
     });
   }
 
   Future<void> _routeFromSplash() async {
-    if (!mounted || _hasRouted) return;
-
-    // Keep the splash screen visible briefly before routing.
-    await Future.delayed(const Duration(seconds: 4));
-
     if (!mounted || _hasRouted) return;
 
     final currentUser = FirebaseAuth.instance.currentUser;
