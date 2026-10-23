@@ -17,7 +17,7 @@ def flutter_root
   end
 
   File.foreach(generated_xcode_build_settings_path) do |line|
-    matches = line.match(/FLUTTER_ROOT\=(.*)/)
+    matches = line.match(/FLUTTER_ROOT\\=(.*)/)
     return matches[1].strip if matches
   end
   raise "FLUTTER_ROOT not found in #{generated_xcode_build_settings_path}. Try deleting Generated.xcconfig, then run flutter pub get"
@@ -27,15 +27,13 @@ require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelpe
 
 flutter_ios_podfile_setup
 
-# Firebase is resolved through Swift Package Manager in the current Flutter
-# setup. Google ML Kit is still CocoaPods-based and also depends on
-# GoogleDataTransport. Use a local stub here so CocoaPods does not link a
-# second GoogleDataTransport copy; the real implementation is supplied by
-# Firebase's SPM dependency graph.
-pod 'GoogleDataTransport', :path => 'GoogleDataTransportStub'
+# Firebase is resolved through Swift Package Manager in this Flutter setup.
+# Google ML Kit remains CocoaPods-based. Use a local stub to prevent CocoaPods
+# from linking a duplicate GoogleDataTransport implementation already supplied
+# by Firebase's Swift Package Manager dependency graph.
+pod 'GoogleDataTransport', :path => File.join(__dir__, 'GoogleDataTransportStub')
 
-# ONNX Runtime is consumed by flutter_onnxruntime.
-# Keep the existing static-link workaround for that dependency graph.
+# Keep the existing static-link workaround for the ONNX Runtime dependency graph.
 pre_install do |_installer|
   validator = Pod::Installer::Xcode::TargetValidator
   unless validator.method_defined?(:verify_no_static_framework_transitive_dependencies)
